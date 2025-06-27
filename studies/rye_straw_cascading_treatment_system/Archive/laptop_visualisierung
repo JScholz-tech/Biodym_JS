@@ -1,0 +1,71 @@
+// Bill of Materials für einen Laptop
+digraph Laptop_BOM {
+	nodesep=0.5 rankdir=TB ranksep=1 splines=ortho
+	node [fillcolor="#dae8fc" fontname=Arial shape=box style="rounded,filled"]
+	edge [color="#6c8ebf"]
+	Laptop [label=Laptop]
+	Chassis [label=Chassis]
+	Motherboard [label=Motherboard]
+	CPU [label=CPU]
+	GPU [label=GPU]
+	RAM [label=RAM]
+	Storage [label="Storage (SSD)"]
+	Display [label="Display (LCD)"]
+	Battery [label=Battery]
+	Keyboard [label=Keyboard]
+	Die_CPU [label=Die]
+	Packaging_CPU [label=Packaging]
+	Die_GPU [label=Die]
+	DRAM_Chips [label="DRAM Chips"]
+	PCB_Module_RAM [label="PCB (Module)"]
+	NAND_Chips [label="NAND Flash Chips"]
+	Controller_SSD [label=Controller]
+	Panel_LCD [label="Screen Panel"]
+	Backlight_LCD [label=Backlight]
+	Cells_Battery [label=Cells]
+	Casing_Battery [label=Casing]
+	Switches_Keyboard [label="Membrane/Switches"]
+	ControlUnit_CPU [label="Control Unit"]
+	ALU_CPU [label=ALU]
+	Cache_CPU [label=Cache]
+	TFT_Display [label="Thin-Film Transistors"]
+	LiquidCrystal_Display [label="Liquid Crystal Layer"]
+	ColorFilter_Display [label="Color Filter"]
+	Cathode_Battery [label=Cathode]
+	Anode_Battery [label=Anode]
+	Separator_Battery [label=Separator]
+	RubberDome_Keyboard [label="Rubber Dome"]
+	ConductivePads_Keyboard [label="Conductive Pads"]
+	Laptop -> Chassis
+	Laptop -> Motherboard
+	Laptop -> CPU
+	Laptop -> GPU
+	Laptop -> RAM
+	Laptop -> Storage
+	Laptop -> Display
+	Laptop -> Battery
+	Laptop -> Keyboard
+	CPU -> Die_CPU
+	CPU -> Packaging_CPU
+	GPU -> Die_GPU
+	RAM -> DRAM_Chips
+	RAM -> PCB_Module_RAM
+	Storage -> NAND_Chips
+	Storage -> Controller_SSD
+	Display -> Panel_LCD
+	Display -> Backlight_LCD
+	Battery -> Cells_Battery
+	Battery -> Casing_Battery
+	Keyboard -> Switches_Keyboard
+	Die_CPU -> ControlUnit_CPU
+	Die_CPU -> ALU_CPU
+	Die_CPU -> Cache_CPU
+	Panel_LCD -> TFT_Display
+	Panel_LCD -> LiquidCrystal_Display
+	Panel_LCD -> ColorFilter_Display
+	Cells_Battery -> Cathode_Battery
+	Cells_Battery -> Anode_Battery
+	Cells_Battery -> Separator_Battery
+	Switches_Keyboard -> RubberDome_Keyboard
+	Switches_Keyboard -> ConductivePads_Keyboard
+}
