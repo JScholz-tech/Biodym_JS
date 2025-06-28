@@ -122,9 +122,6 @@ def plot_interactive_sankey(mfa_system_results):
     
     interact(update_sankey, year=year_slider, element=element_dropdown, processes_to_show=process_selector, min_flow_value=threshold_slider)
     display(fig)
-    
-    interact(update_plot, year=year_slider, element=element_dropdown)
-    display(fig)
 
 
 def plot_process_dynamics(mfa_system_results, process_definitions):
@@ -178,12 +175,7 @@ def plot_process_dynamics(mfa_system_results, process_definitions):
 
     process_dropdown = Dropdown(options=list(process_options.keys()), description='Process:')
     element_dropdown = Dropdown(options=element_items, value=element_items[0], description='Element:')
-    interact(update_plot, process_name=process_dropdown, element=element_dropdown)
-    display(fig)
 
-    
-    interact(update_plot, process_name=process_dropdown, element=element_dropdown)
-    display(fig)
 
 
 def plot_dynamic_stock_composition(dsm_details, mfa_system_results):
@@ -297,8 +289,7 @@ def plot_fomp_dynamics(mfa_system_results, fomp_params_config):
     process_dropdown = Dropdown(options=list(process_options.keys()), description='Process:')
     element_dropdown = Dropdown(options=element_items, value=element_items[0], description='Element:')
 
-    interact(update_plot, process_name=process_dropdown, element=element_dropdown)
-    display(fig)
+
 
 def plot_flow_dynamics(mfa_system_results):
     """
@@ -356,11 +347,7 @@ def plot_flow_dynamics(mfa_system_results):
     element_dropdown = Dropdown(options=element_items, value=element_items[0], description='Element:')
     chart_type_checkbox = Checkbox(value=False, description='Show as Bar Chart')
 
-    interact(update_plot, flows_to_show=flow_selector, element=element_dropdown, show_as_bars=chart_type_checkbox)
-    display(fig)
 
-    interact(update_plot, flows_to_show=flow_selector, element=element_dropdown, show_as_bars=chart_type_checkbox)
-    display(fig)
 
 
 def plot_mc_distribution(df_results, column_name, unit='Mg'):
@@ -417,4 +404,3 @@ def plot_mc_sensitivity_scatter(df_results, input_param_name, output_param_name,
                      trendline="ols",
                      trendline_color_override="red")
     fig.show()
-

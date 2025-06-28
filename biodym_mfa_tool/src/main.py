@@ -40,7 +40,9 @@ sys.path.insert(0, biodym_addon_path)
 try:
     import config
     import data_loader
-    import mfa_engine
+    import system_setup
+    import utils
+    from engine import solver
     import plotting
     import ODYM_Classes as msc
     from tqdm import tqdm
@@ -60,12 +62,12 @@ def main():
 
     # --- 1. SETUP AND CONFIGURATION ---
     print("\n--- PHASE 1: MODEL SETUP ---")
-    model_classification, index_table = mfa_engine.define_model_scope(config.START_YEAR, config.END_YEAR, config.ELEMENTS)
-    mfa_system_base = mfa_engine.initialize_mfa_system(model_classification, index_table)
+    model_classification, index_table = system_setup.define_model_scope(config.START_YEAR, config.END_YEAR, config.ELEMENTS)
+    mfa_system_base = system_setup.initialize_mfa_system(model_classification, index_table)
 
     # Load all data from Excel and define process/stock structures
     excel_file_full_path = os.path.join(os.path.dirname(src_path), 'data', '01_input', config.EXCEL_FILE_PATH)
-    mfa_system_base, all_excel_data = mfa_engine.load_and_define_processes(mfa_system_base, excel_file_full_path, data_loader)
+    mfa_system_base, all_excel_data = system_setup.load_and_define_processes(mfa_system_base, excel_file_full_path, data_loader)
 
     # Load model-specific parameters
     dsm_params = data_loader.load_dsm_parameters(all_excel_data)
@@ -73,7 +75,7 @@ def main():
     uncertainty_params = data_loader.load_uncertainty_definitions(all_excel_data)
 
     # Configure the base system with flows and parameters
-    mfa_system_configured, _ = mfa_engine.define_flows_and_parameters(mfa_system_base, all_excel_data)
+    mfa_system_configured, _ = system_setup.define_flows_and_parameters(mfa_system_base, all_excel_data)
 
     # --- 2. CALCULATION ---
     print("\n--- PHASE 2: CALCULATION ---")
@@ -87,12 +89,12 @@ def main():
         iterator = tqdm(range(config.MC_ITERATIONS), desc='MC Runs')
 
         for i in iterator:
-            # 1. Sample new parameter values for this iteration
-            sampled_values = mfa_engine.sample_parameters(uncertainty_params)
+            # 1. Sample new parameter values for this iteration - This should be in a utils file
+            sampled_values = utils.sample_parameters(uncertainty_params)
             tc_updates = {k: v for k, v in sampled_values.items() if k.startswith('TC_')}
 
             # 2. Run the calculation with the sampled parameters
-            run_results, _ = mfa_engine.run_mfa_calculation(mfa_system_configured, dsm_params, fomp_params, config, tc_updates=tc_updates)
+            run_results, _ = solver.run_mfa_calculation(mfa_system_configured, dsm_params, fomp_params, config, tc_updates=tc_updates)
 
             # 3. Extract and store Key Performance Indicators (KPIs)
             if run_results:
@@ -107,7 +109,7 @@ def main():
 
     else:
         print("\n--- Starting Single Deterministic Run ---")
-        mfa_system_with_results, dsm_details = mfa_engine.run_mfa_calculation(mfa_system_configured, dsm_params, fomp_params, config)
+        mfa_system_with_results, dsm_details = solver.run_mfa_calculation(mfa_system_configured, dsm_params, fomp_params, config)
         print("\n--- Calculation Complete ---")
 
     # --- 3. VISUALIZATION ---
@@ -147,4 +149,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
