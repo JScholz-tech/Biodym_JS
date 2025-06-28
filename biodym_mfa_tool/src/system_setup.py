@@ -115,26 +115,25 @@ def load_and_define_processes(mfa_system, excel_path, data_loader):
 
 def create_dynamic_tc_parameters(dynamic_tc_data, time_vector):
     """
-    Generates time-series parameters for dynamic Transfer Coefficients (TCs)
-    by interpolating points defined in the input data. Includes data cleaning
-    and validation to prevent errors from duplicate entries.
+    Generates time series for TCs, with data cleaning and validation.
+
+    This function interpolates TC values over the model's time range and raises
+    a ValueError if the input data is malformed (e.g., missing columns or
+    duplicate entries for the same TC and year).
     """
     print("--> Generating dynamic TC time series via interpolation...")
     required_cols = ['TC_ID', 'Year', 'Value']
     if not all(col in dynamic_tc_data.columns for col in required_cols):
-        print(f"--> FATAL ERROR: The '2_5_dynamic_tcs' sheet is missing one of the required columns: {required_cols}.")
-        return {}
+        raise ValueError(f"The '2_5_dynamic_tcs' sheet is missing one of the required columns: {required_cols}.")
 
     cleaned_data = dynamic_tc_data.dropna(subset=['TC_ID', 'Year'])
     duplicates = cleaned_data[cleaned_data.duplicated(subset=['TC_ID', 'Year'], keep=False)]
     if not duplicates.empty:
-        print("\\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        print("!!! FATAL ERROR: Duplicate entries found for the same TC in the same year. !!!")
-        print("    The following rows in your '2_5_dynamic_tcs' sheet are conflicting:")
-        print(duplicates.sort_values(by=['TC_ID', 'Year']))
-        print("\\n    Please correct the Excel file. Aborting dynamic TC creation.")
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\\n")
-        return {}
+        error_message = (
+            "Duplicate entries found for the same TC in the same year in '2_5_dynamic_tcs'. "
+            f"Conflicting rows:\n{duplicates.sort_values(by=['TC_ID', 'Year'])}"
+        )
+        raise ValueError(error_message)
 
     dynamic_tc_dict = {}
     unique_tc_ids = cleaned_data['TC_ID'].unique()
@@ -205,6 +204,20 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
             if 'TC_ID' in row and pd.notna(row['TC_ID']) and pd.notna(row['TC_Value']):
                 mfa_system.ParameterDict[row['TC_ID']] = msc.Parameter(Name=row['TC_ID'], ID=parameter_id_counter, Values=row['TC_Value'], Unit='1')
                 parameter_id_counter += 1
+
+    # Define elemental content parameters from the flow definitions sheet
+    content_definitions = all_excel_data['1_1_Definition_Flows']
+    for _, row in content_definitions.iterrows():
+        flow_id = row.get('Flow_ID')
+        if pd.notna(flow_id) and flow_id in mfa_system.FlowDict:
+            # Loop through the element columns (e.g., WC, DM, CC), skipping 'material'
+            for element in mfa_system.Elements[1:]:
+                if element in row and pd.notna(row[element]):
+                    param_name = f"{element}_{flow_id}"
+                    mfa_system.ParameterDict[param_name] = msc.Parameter(
+                        Name=param_name, ID=parameter_id_counter, Values=row[element], Unit='1'
+                    )
+                    parameter_id_counter += 1
 
     for flow in mfa_system.FlowDict.values():
         if np.any(flow.Values[:, 0] != 0):
