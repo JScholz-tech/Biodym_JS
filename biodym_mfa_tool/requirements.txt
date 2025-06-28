@@ -1,0 +1,22 @@
+# This file lists the core dependencies for the BioDYM MFA Model.
+# To install all required packages, run:
+# pip install -r requirements.txt
+
+# --- Core Data & Scientific Libraries ---
+pandas
+numpy
+scipy
+openpyxl
+xlsxwriter
+
+# --- Visualization & Interaction ---
+plotly
+ipywidgets
+matplotlib
+
+# --- Utilities ---
+tqdm
+
+# --- Testing Framework ---
+pytest
+
