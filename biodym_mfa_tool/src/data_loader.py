@@ -27,7 +27,7 @@ def validate_input_data(excel_data_dict):
         '1_1_Definition_Flows': ['Flow_ID', 'Name(EN)', 'Process_ID_O', 'Process_ID_I'],
         '1_2_Data_Flows': ['Flow_ID', 'Year_Flow', 'Flow_Py'],
         '2_1_Definition_Processes': ['ID', 'Name(EN)', 'Stock?', 'Initial_Stock?'],
-        '2_4_Process_Stock_': ['Process_ID', 'Initial_Stock_material'],
+        '2_4_Initial_Stock': ['Process_ID', 'Initial_Stock_material', 'Initial_Stock_WC[%]', 'Initial_Stock_DM[%]', 'Initial_Stock_CC[%]'],
         '2_5_dynamic_tcs': ['TC_ID', 'Year', 'Value']
     }
 

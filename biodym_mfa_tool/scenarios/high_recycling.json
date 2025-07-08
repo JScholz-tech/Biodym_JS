@@ -1,0 +1,21 @@
+{
+  "name": "high_recycling",
+  "description": "High recycling rate scenario",
+  "created": "2025-07-08T14:35:35.150056",
+  "config": {
+    "RUN_DSM_CALCULATION": false,
+    "RUN_FOMP_CALCULATION": true,
+    "elements": [
+      "material",
+      "WC",
+      "DM",
+      "CC"
+    ],
+    "end_year": 2050,
+    "excel_file_path": "data/01_input/250707_Template_CS1.xlsx",
+    "mc_iterations": 50,
+    "output_path": "data/02_output/results.xlsx",
+    "run_monte_carlo": false,
+    "start_year": 2025
+  }
+}

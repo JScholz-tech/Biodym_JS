@@ -8,6 +8,8 @@ structure of the stock and a lifetime distribution.
 """
 import numpy as np
 import dynamic_stock_model as dsm
+import sys
+sys.path.insert(0, r'C:\Users\Johannes\Nextcloud\BioDYM\bioDYM-CERT-edit-main\framework\ODYM-master_20241127\odym\modules')
 
 
 def calculate_dynamic_stock(mfa_system, dsm_params_config):
@@ -32,6 +34,9 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config):
         tuple: A tuple containing the modified mfa_system and a dictionary
                with detailed results for plotting for the single process.
     """
+
+    
+
     time_vector = np.array(mfa_system.IndexTable.Classification['Time'].Items)
     num_years, num_elements = len(time_vector), len(mfa_system.Elements)
     dsm_details_results = {}
@@ -52,11 +57,20 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config):
     mean_lifetimes = lt_params.get('Mean', [])
 
     outflow_from_inflows_material, stock_from_inflows_by_cat = np.zeros(num_years), []
-    inflow_split, std_devs = params.get('inflow_split', [1.0]), lt_params.get('StdDev', [])
+    inflow_split = params.get('inflow_split', [1.0])
+    mean_lifetimes = lt_params.get('Mean', [])
+    std_devs = lt_params.get('StdDev', [0] * len(mean_lifetimes))
+   
+
+    
     for i in range(len(inflow_split)):
         inflow_category = total_inflow_values[:, 0] * inflow_split[i]
+        print("inflow_category:", inflow_category, type(inflow_category), inflow_category.shape)
+        inflow_category = np.array(inflow_category).flatten()
         dsm_model_instance = dsm.DynamicStockModel(t=time_vector, i=inflow_category, lt={'Type': lt_params.get('Type'), 'Mean': [mean_lifetimes[i]], 'StdDev': [std_devs[i]]})
-        s_c, o_c = dsm_model_instance.compute_s_c_inflow_driven(), dsm_model_instance.compute_o_c_from_s_c()
+        print("lt:", {'Type': lt_params.get('Type'), 'Mean': [mean_lifetimes[i]], 'StdDev': [std_devs[i]]})
+        s_c = dsm_model_instance.compute_s_c_inflow_driven()
+        o_c = dsm_model_instance.compute_o_c_from_s_c()
         outflow_from_inflows_material += o_c.sum(axis=1) if o_c is not None else 0
         stock_from_inflows_by_cat.append(s_c.sum(axis=1) if s_c is not None else np.zeros(len(time_vector)))
 
@@ -83,6 +97,10 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config):
         'category_names': params.get('category_names', []),
         'mean_lifetimes': mean_lifetimes
     }
+    print("DSM outflow flow name:", outflow_flow_name)
+    print("DSM inflow shape:", total_inflow_values.shape)
+    print("DSM inflow values:", total_inflow_values)
+    print("DSM params:", params)
 
     return mfa_system, dsm_details_results
 

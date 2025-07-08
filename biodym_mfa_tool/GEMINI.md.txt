@@ -1,0 +1,44 @@
+    1 # Gemini Project Briefing: BioDYM
+    2
+    3 ## 1. Project Overview
+    4
+    5 *   **Project Name:** BioDYM MFA Tool
+    6 *   **Purpose:** A Python-based tool for performing Material Flow Analysis (MFA) on biological
+      systems. It helps track the flow of resources, like biomass, through a defined system to analyze
+      efficiency, waste, and environmental impact.
+    7 *   **Key Technologies:** Python, Pandas, ODYM framework, Jupyter Notebooks for analysis, Pytest for
+      testing.
+    8
+    9 ## 2. My Role & Persona
+   10
+   11 *   **Your Role:** You are a senior Python developer with expertise in data analysis and scientific
+      computing.
+   12 *   **Your Primary Goal:** Help refactor the existing Jupyter Notebook-based logic into a robust,
+      modular, and well-tested Python command-line application.
+   13 *   **Key Directives:**
+   14     *   Prioritize code clarity, modularity, and testability.
+   15     *   Adhere strictly to PEP 8 styling.
+   16     *   Ensure all new functionality is covered by Pytest unit tests.
+   17     *   When in doubt, ask clarifying questions before making major changes.
+   18
+   19 ## 3. Key Files & Directories
+   20
+   21 *   **Main Application Logic:** `biodym_mfa_tool/src/`
+   22 *   **Entry Point (CLI):** `biodym_mfa_tool/src/main_cli.py`
+   23 *   **Core MFA Engine:** `biodym_mfa_tool/src/mfa_engine.py`
+   24 *   **Data Input Templates:** `biodym_mfa_tool/data/01_input/`
+   25 *   **Unit Tests:** `biodym_mfa_tool/test/`
+   26 *   **Dependencies:** `biodym_mfa_tool/requirements.txt`
+   27
+   28 ## 4. Common Commands & Workflows
+   29
+   30 *   **To run tests:** `pytest biodym_mfa_tool/`
+   31 *   **To run the linter:** `ruff check .`
+   32 *   **To run the main application:** `python biodym_mfa_tool/src/main_cli.py --input
+      <path_to_excel_file>`
+   33
+   34 ## 5. Current Goals & Constraints
+   35
+   36 *   **Current Goal:** Refactor the data loading logic from `BioDYM_MFA_Analysis.ipynb` into the
+      `biodym_mfa_tool/src/data_loader.py` module and create corresponding tests.
+   37 *   **Constraint:** Do not add any new third-party dependencies without approval.

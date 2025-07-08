@@ -110,6 +110,10 @@ def load_and_define_processes(mfa_system, excel_path, data_loader):
                 mfa_system.StockDict[f"dS_{process_id}"] = msc.Stock(Name=f"dS_{process_id}", P_Res=process_id, Type=1, Indices='t,e')
                 mfa_system.StockDict[f"S_{process_id}"] = msc.Stock(Name=f"S_{process_id}", P_Res=process_id, Type=0, Indices='t,e')
 
+    # Initialize stock values after all stocks are created
+    mfa_system.Initialize_StockValues()
+    print("--> Stock values initialized.")
+
     return mfa_system, input_data
 
 
@@ -169,9 +173,9 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
             start_id, end_id = int(row['Process_ID_O']), int(row['Process_ID_I'])
             mfa_system.FlowDict[row['Flow_ID']] = msc.Flow(Name=row['Flow_ID'], P_Start=start_id, P_End=end_id, Indices='t,e')
 
-    mfa_system.Initialize_StockValues()
+    # Stock values are already initialized in load_and_define_processes
     mfa_system.Initialize_FlowValues()
-    print("--> All stocks and flows initialized to zero.")
+    print("--> All flows initialized to zero.")
 
     flow_data = all_excel_data['1_2_Data_Flows']
     for flow_id, flow_obj in mfa_system.FlowDict.items():
@@ -221,11 +225,22 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
 
     for flow in mfa_system.FlowDict.values():
         if np.any(flow.Values[:, 0] != 0):
+            # Calculate WC and DM as before
             for i_elem, element_name in enumerate(mfa_system.Elements[1:], 1):
+                if element_name == 'CC':
+                    continue  # Skip CC for now
                 param_name = f"{element_name}_{flow.Name}"
                 if param_name in mfa_system.ParameterDict:
                     content_value = mfa_system.ParameterDict[param_name].Values
                     flow.Values[:, i_elem] = flow.Values[:, 0] * content_value
+            # Now calculate CC as DM * CC_fraction
+            if 'CC' in mfa_system.Elements:
+                cc_idx = mfa_system.Elements.index('CC')
+                dm_idx = mfa_system.Elements.index('DM')
+                param_name = f"CC_{flow.Name}"
+                if param_name in mfa_system.ParameterDict:
+                    cc_fraction = mfa_system.ParameterDict[param_name].Values
+                    flow.Values[:, cc_idx] = flow.Values[:, dm_idx] * cc_fraction
 
     mfa_system.Consistency_Check()
     return mfa_system, all_excel_data

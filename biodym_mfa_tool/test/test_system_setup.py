@@ -26,8 +26,9 @@ except ImportError:
     sys.path.insert(0, odym_path)
     import ODYM_Classes as msc
 
-from system_setup import (define_model_scope, initialize_mfa_system,
+from system_setup import (define_model_scope, initialize_mfa_system, load_and_define_processes,
                           define_flows_and_parameters, create_dynamic_tc_parameters)
+import data_loader # Import the module to mock its functions
 
 
 def test_define_model_scope_structure_and_content():
@@ -169,41 +170,59 @@ def test_create_dynamic_tc_parameters_duplicate_error():
     with pytest.raises(ValueError, match="Duplicate entries found"):
         create_dynamic_tc_parameters(duplicate_data, time_vector)
 
-# Add framework path to be able to import ODYM.
-# This replicates the logic in main.py for the test environment.
-try:
-    import ODYM_Classes as msc
-except ImportError:
-    # Get the absolute path to the project's root directory (biodym_mfa_tool)
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    # Get the parent directory of the project root to find the 'framework' folder
-    project_root_parent = os.path.dirname(project_root)
-    # Construct the path to the ODYM modules
-    odym_path = os.path.join(project_root_parent, 'framework', 'ODYM-master_20241127', 'odym', 'modules')
-    sys.path.insert(0, odym_path)
-    import ODYM_Classes as msc
 
-from system_setup import define_model_scope, initialize_mfa_system, load_and_define_processes
-import data_loader # Import the module to create a mock
-
-
-def test_define_model_scope_structure_and_content():
+def test_create_dynamic_tc_parameters_missing_columns():
     """
-    Tests that define_model_scope creates the correct ODYM classification
-    and index table structures with the correct content.
+    Tests that the function raises a ValueError when required columns are missing.
     """
-    # 1. ARRANGE: Define simple inputs for the test.
-    start, end, elements = 2020, 2022, ['A', 'B']
+    # 1. ARRANGE
+    # Define a time vector and data missing the 'Value' column.
+    time_vector = [2020, 2021, 2022]
+    incomplete_data = pd.DataFrame({
+        'TC_ID': ['TC_A', 'TC_B'],
+        'Year': [2020, 2021]
+        # Missing 'Value' column
+    })
 
-    # 2. ACT: Run the function to get the actual output.
-    model_class, index_table = define_model_scope(start, end, elements)
+    # 2. ACT & 3. ASSERT
+    # Use pytest.raises to confirm that a ValueError is raised.
+    with pytest.raises(ValueError, match="missing one of the required columns"):
+        create_dynamic_tc_parameters(incomplete_data, time_vector)
 
-    # 3. ASSERT: Perform a series of checks on the output.
-    assert isinstance(model_class, dict)
-    assert isinstance(index_table, pd.DataFrame)
-    assert 'Time' in model_class and 'Element' in model_class
-    assert isinstance(model_class['Time'], msc.Classification)
-    assert model_class['Time'].Items == [2020, 2021, 2022]
-    assert model_class['Element'].Items == ['A', 'B']
-    assert index_table.loc['Time']['IndexLetter'] == 't'
-    assert index_table.loc['Element']['IndexLetter'] == 'e'
+
+def test_load_and_define_processes(mocker):
+    """
+    Tests that processes and stocks are correctly defined from mock data.
+    Uses mocking to isolate the function from file I/O and other modules.
+    """
+    # 1. ARRANGE
+    # Create a base MFA system to be modified
+    model_class, index_table = define_model_scope(2020, 2021, ['material'])
+    mfa_system = initialize_mfa_system(model_class, index_table)
+
+    # Create mock data that `pd.read_excel` will be forced to return
+    mock_process_def = pd.DataFrame({
+        'ID': [0, 1, 2],
+        'Name(EN)': ['Environment', 'Process A', 'Process B (with stock)'],
+        'Stock?': ['No', 'No', 'Yes'],
+        'Initial_Stock?': ['No', 'No', 'No']
+    })
+    mock_excel_data = {'2_1_Definition_Processes': mock_process_def}
+
+    # Use the mocker to replace external calls
+    mocker.patch('pandas.read_excel', return_value=mock_excel_data)
+    mocker.patch('data_loader.validate_input_data', return_value=None) # Assume validation works
+
+    # 2. ACT
+    mfa_system_result, _ = load_and_define_processes(mfa_system, "fake/path.xlsx", data_loader)
+
+    # 3. ASSERT
+    # Check that processes were added
+    assert len(mfa_system_result.ProcessList) == 3
+    assert mfa_system_result.ProcessList[1].Name == 'Process A'
+
+    # Check that stocks were created ONLY for the correct process
+    assert 'S_1' not in mfa_system_result.StockDict
+    assert 'S_2' in mfa_system_result.StockDict
+    assert 'dS_2' in mfa_system_result.StockDict
+    assert isinstance(mfa_system_result.StockDict['S_2'], msc.Stock)
