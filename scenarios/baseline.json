@@ -1,0 +1,12 @@
+{
+  "name": "baseline",
+  "description": "Baseline scenario",
+  "created": "2025-07-08T20:27:24.899935",
+  "config": {
+    "End_Year": 2050,
+    "Monte_Carlo_Iterations": 100,
+    "Run_DSM_Calculation": true,
+    "Run_FOMP_Calculation": true,
+    "Start_Year": 2025
+  }
+}

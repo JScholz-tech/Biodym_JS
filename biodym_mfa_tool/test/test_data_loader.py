@@ -24,6 +24,7 @@ def test_validate_input_data_success():
         '1_2_Data_Flows': pd.DataFrame(columns=['Flow_ID', 'Year_Flow', 'Flow_Py']),
         '2_1_Definition_Processes': pd.DataFrame(columns=['ID', 'Name(EN)', 'Stock?', 'Initial_Stock?']),
         '2_4_Process_Stock_': pd.DataFrame(columns=['Process_ID', 'Initial_Stock_material']),
+        '2_4_Initial_Stock': pd.DataFrame(columns=['Process_ID', 'Initial_Stock_material', 'Initial_Stock_WC[%]', 'Initial_Stock_DM[%]', 'Initial_Stock_CC[%]']),
         '2_5_dynamic_tcs': pd.DataFrame(columns=['TC_ID', 'Year', 'Value'])
     }
 

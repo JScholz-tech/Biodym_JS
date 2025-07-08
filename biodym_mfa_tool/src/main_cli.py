@@ -37,7 +37,7 @@ try:
     import ODYM_Classes as msc
     from tqdm import tqdm
 except ImportError as e:
-    print(f"❌ FATAL ERROR: Could not import required modules: {e}")
+    print(f"FATAL ERROR: Could not import required modules: {e}")
     print("Please ensure all dependencies are installed and paths are correct.")
     sys.exit(1)
 
@@ -82,22 +82,19 @@ Examples:
     parser.add_argument(
         '--start-year',
         type=int,
-        default=config.START_YEAR,
-        help=f'Start year for the analysis (default: {config.START_YEAR})'
+        help=f'Start year for the analysis'
     )
     
     parser.add_argument(
         '--end-year',
         type=int,
-        default=config.END_YEAR,
-        help=f'End year for the analysis (default: {config.END_YEAR})'
+        help=f'End year for the analysis'
     )
     
     parser.add_argument(
         '--elements',
         nargs='+',
-        default=config.ELEMENTS,
-        help=f'Elements to track (default: {config.ELEMENTS})'
+        help=f'Elements to track'
     )
     
     parser.add_argument(
@@ -109,8 +106,7 @@ Examples:
     parser.add_argument(
         '--iterations',
         type=int,
-        default=config.MC_ITERATIONS,
-        help=f'Number of Monte Carlo iterations (default: {config.MC_ITERATIONS})'
+        help=f'Number of Monte Carlo iterations'
     )
     
     parser.add_argument(
@@ -137,12 +133,12 @@ Examples:
 def validate_input_file(file_path):
     """Validate that the input file exists and is readable."""
     if not os.path.exists(file_path):
-        print(f"❌ ERROR: Input file not found: {file_path}")
+        print(f"ERROR: Input file not found: {file_path}")
         print("Please check the file path and try again.")
         return False
     
     if not file_path.endswith(('.xlsx', '.xls')):
-        print(f"❌ ERROR: Input file must be an Excel file (.xlsx or .xls): {file_path}")
+        print(f"ERROR: Input file must be an Excel file (.xlsx or .xls): {file_path}")
         return False
     
     return True
@@ -151,7 +147,7 @@ def validate_input_file(file_path):
 def run_mfa_analysis(args):
     """Run the MFA analysis with the given arguments."""
     print("=" * 60)
-    print("  🚀 BioDYM MFA Model - Starting Analysis")
+    print("  BioDYM MFA Model - Starting Analysis")
     print("=" * 60)
     
     # Validate input file
@@ -163,10 +159,10 @@ def run_mfa_analysis(args):
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir)
         if args.verbose:
-            print(f"📁 Created output directory: {output_dir}")
+            print(f"Created output directory: {output_dir}")
     
     # Configuration summary
-    print(f"\n📋 Configuration:")
+    print(f"\nConfiguration:")
     print(f"   Input file: {args.input}")
     print(f"   Output file: {args.output}")
     print(f"   Time range: {args.start_year} - {args.end_year}")
@@ -177,7 +173,7 @@ def run_mfa_analysis(args):
     
     try:
         # 1. SETUP AND CONFIGURATION
-        print(f"\n🔧 Phase 1: Model Setup")
+        print(f"\nPhase 1: Model Setup")
         if args.verbose:
             print("   Defining model scope...")
         
@@ -209,11 +205,11 @@ def run_mfa_analysis(args):
         
         mfa_system_configured, _ = system_setup.define_flows_and_parameters(mfa_system_base, all_excel_data)
         
-        print(f"   ✅ Setup complete: {len(mfa_system_configured.ProcessList)} processes, "
+        print(f"   Setup complete: {len(mfa_system_configured.ProcessList)} processes, "
               f"{len(mfa_system_configured.FlowDict)} flows, {len(mfa_system_configured.StockDict)} stocks")
         
         # 2. CALCULATION
-        print(f"\n🧮 Phase 2: Calculation")
+        print(f"\nPhase 2: Calculation")
         
         if args.monte_carlo:
             print(f"   Running Monte Carlo simulation ({args.iterations} iterations)...")
@@ -246,7 +242,7 @@ def run_mfa_analysis(args):
             mfa_system_with_results = None
             dsm_details = None
             
-            print(f"   ✅ Monte Carlo simulation complete!")
+            print(f"   Monte Carlo simulation complete!")
             
         else:
             print(f"   Running deterministic calculation...")
@@ -257,17 +253,17 @@ def run_mfa_analysis(args):
             
             df_mc_results = None
             
-            print(f"   ✅ Deterministic calculation complete!")
+            print(f"   Deterministic calculation complete!")
         
         # 3. RESULTS SUMMARY
         if args.summary:
-            print(f"\n📊 Results Summary")
+            print(f"\nResults Summary")
             print("-" * 40)
             
             if args.monte_carlo and df_mc_results is not None:
                 if 'final_C_stock_soil' in df_mc_results.columns:
                     final_c_stock = df_mc_results['final_C_stock_soil']
-                    print(f"🎲 Monte Carlo Results:")
+                    print(f"Monte Carlo Results:")
                     print(f"   Final Soil Carbon Stock:")
                     print(f"     Mean: {final_c_stock.mean():.2f} Mg C")
                     print(f"     5th percentile: {final_c_stock.quantile(0.05):.2f} Mg C")
@@ -275,7 +271,7 @@ def run_mfa_analysis(args):
                     print(f"     Standard deviation: {final_c_stock.std():.2f} Mg C")
             else:
                 if mfa_system_with_results is not None:
-                    print(f"📈 Deterministic Results:")
+                    print(f"Deterministic Results:")
                     print(f"   Final Stock Values (last year):")
                     for stock_name, stock_obj in mfa_system_with_results.StockDict.items():
                         if stock_name.startswith('S_'):
@@ -286,11 +282,11 @@ def run_mfa_analysis(args):
         
         # 4. EXPORT RESULTS
         if not args.no_export:
-            print(f"\n💾 Phase 3: Export Results")
+            print(f"\nPhase 3: Export Results")
             
             if mfa_system_with_results is not None:
                 utils.export_results_to_excel(mfa_system_with_results, args.output)
-                print(f"   ✅ Results exported to: {args.output}")
+                print(f"   Results exported to: {args.output}")
             
             if args.monte_carlo and df_mc_results is not None:
                 mc_output_path = args.output.replace('.xlsx', '_MonteCarlo.xlsx')
@@ -299,21 +295,21 @@ def run_mfa_analysis(args):
                     if 'final_C_stock_soil' in df_mc_results.columns:
                         summary_stats = df_mc_results['final_C_stock_soil'].describe()
                         summary_stats.to_frame('final_C_stock_soil').to_excel(writer, sheet_name='Summary_Stats')
-                print(f"   ✅ Monte Carlo results exported to: {mc_output_path}")
+                print(f"   Monte Carlo results exported to: {mc_output_path}")
         
         print(f"\n" + "=" * 60)
-        print(f"  ✅ BioDYM MFA Analysis Complete!")
+        print(f"  BioDYM MFA Analysis Complete!")
         print(f"=" * 60)
         
         if not args.no_export:
-            print(f"\n📁 Output files:")
+            print(f"\nOutput files:")
             if mfa_system_with_results is not None:
                 print(f"   - {args.output}")
             if args.monte_carlo and df_mc_results is not None:
                 mc_output_path = args.output.replace('.xlsx', '_MonteCarlo.xlsx')
                 print(f"   - {mc_output_path}")
         
-        print(f"\n💡 Next steps:")
+        print(f"\nNext steps:")
         print(f"   - Open the exported Excel files for detailed data")
         print(f"   - Use the Jupyter notebook for interactive visualizations")
         print(f"   - Modify parameters and re-run for different scenarios")
@@ -321,7 +317,7 @@ def run_mfa_analysis(args):
         return True
         
     except Exception as e:
-        print(f"\n❌ ERROR: Analysis failed: {e}")
+        print(f"\nERROR: Analysis failed: {e}")
         if args.verbose:
             import traceback
             traceback.print_exc()
@@ -341,4 +337,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main() 
+    main()

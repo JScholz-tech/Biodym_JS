@@ -233,14 +233,13 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
                 if param_name in mfa_system.ParameterDict:
                     content_value = mfa_system.ParameterDict[param_name].Values
                     flow.Values[:, i_elem] = flow.Values[:, 0] * content_value
-            # Now calculate CC as DM * CC_fraction
+            # Now calculate CC as material * CC_fraction
             if 'CC' in mfa_system.Elements:
                 cc_idx = mfa_system.Elements.index('CC')
-                dm_idx = mfa_system.Elements.index('DM')
                 param_name = f"CC_{flow.Name}"
                 if param_name in mfa_system.ParameterDict:
                     cc_fraction = mfa_system.ParameterDict[param_name].Values
-                    flow.Values[:, cc_idx] = flow.Values[:, dm_idx] * cc_fraction
+                    flow.Values[:, cc_idx] = flow.Values[:, 0] * cc_fraction
 
     mfa_system.Consistency_Check()
     return mfa_system, all_excel_data

@@ -531,8 +531,8 @@ def create_excel_template(output_path='data/01_input/BioDYM_MFA_Input_Template.x
     
     # Save the workbook
     wb.save(output_path)
-    print(f"✅ Excel template created successfully: {output_path}")
-    print(f"📊 Template includes {len(wb.sheetnames)} sheets:")
+    print(f"Excel template created successfully: {output_path}")
+    print(f"Template includes {len(wb.sheetnames)} sheets:")
     for sheet in wb.sheetnames:
         print(f"   - {sheet}")
     
@@ -541,8 +541,8 @@ def create_excel_template(output_path='data/01_input/BioDYM_MFA_Input_Template.x
 if __name__ == "__main__":
     # Create the template
     template_path = create_excel_template()
-    print(f"\n🎉 Template ready for use!")
-    print(f"📝 Next steps:")
+    print(f"\nTemplate ready for use!")
+    print(f"Next steps:")
     print(f"   1. Open {template_path}")
     print(f"   2. Configure your model in the 'Configuration' sheet")
     print(f"   3. Define your processes and flows")

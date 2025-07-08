@@ -86,7 +86,7 @@ def test_define_flows_and_parameters_logic():
     """
     # 1. ARRANGE
     # Setup a base MFA system
-    elements = ['material', 'WC', 'CC']
+    elements = ['material', 'WC', 'DM', 'CC']
     model_class, index_table = define_model_scope(2020, 2021, elements)
     mfa_system = initialize_mfa_system(model_class, index_table)
     # Manually add processes for the test, as load_and_define_processes is tested separately

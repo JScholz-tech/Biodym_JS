@@ -40,7 +40,8 @@ def calculate_fomp(mfa_system, fomp_params_config):
     inflows = [flow.Values for flow in mfa_system.FlowDict.values() if flow.P_End == process_id]
     inflow_values = sum(inflows) if inflows else np.zeros((num_years, num_elements))
 
-    new_outflow_values, current_stock = np.zeros_like(inflow_values), initial_stock_vector
+    new_outflow_values = np.zeros_like(inflow_values, dtype=float)
+    current_stock = initial_stock_vector
     for t in range(num_years):
         outflow_t = (inflow_values[t, :] * f) + (current_stock * k1) + (inflow_values[t, :] * k2)
         new_outflow_values[t, :] = outflow_t
