@@ -141,8 +141,10 @@ def test_define_flows_and_parameters_logic():
     np.testing.assert_array_almost_equal(
         input_flow.Values[:, 1], [50, 55]
     )  # WC = material * 0.5
+    # Note: The order of elements is ["material", "WC", "DM", "CC"]
+    # So index 3 is CC, not index 2
     np.testing.assert_array_almost_equal(
-        input_flow.Values[:, 2], [20, 22]
+        input_flow.Values[:, 3], [20, 22]
     )  # CC = material * 0.2
 
 

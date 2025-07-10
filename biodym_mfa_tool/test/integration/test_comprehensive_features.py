@@ -90,7 +90,6 @@ def test_excel_configuration_loading():
         print(f"   End Year: {config_obj.End_Year}")
         print(f"   Monte Carlo: {config_obj.Run_Monte_Carlo_Simulation}")
         print(f"   MC Iterations: {config_obj.Monte_Carlo_Iterations}")
-        return True
     except Exception as e:
         print(f"❌ Error loading configuration: {e}")
         return False
@@ -161,7 +160,6 @@ def test_monte_carlo_visualization():
     except Exception as e:
         print(f"❌ Error in MC parameter importance: {e}")
 
-    return True
 
 
 def test_scenario_comparison():
@@ -252,7 +250,6 @@ def test_scenario_comparison():
         )
         print(f"✅ Scenario comparison exported to: {export_path}")
 
-        return True
 
     except Exception as e:
         print(f"❌ Error in scenario comparison: {e}")
@@ -315,7 +312,6 @@ def test_data_input_improvements():
             except Exception as e:
                 print(f"   ❌ Error processing file: {e}")
 
-    return True
 
 
 def test_full_workflow():
@@ -403,7 +399,6 @@ def test_full_workflow():
         print(f"      Stocks: {len(mfa_system_base.StockDict)}")
         print(f"      Parameters: {len(mfa_system_base.ParameterDict)}")
 
-        return True
 
     except Exception as e:
         print(f"❌ Error in complete workflow: {e}")

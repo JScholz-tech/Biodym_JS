@@ -11,6 +11,7 @@ import os
 import pandas as pd
 import numpy as np
 import tempfile
+import pytest
 
 # Add framework path to be able to import ODYM.
 # This replicates the logic in main.py for the test environment.
@@ -143,7 +144,7 @@ class TestSampleParameters:
 
     def test_sample_parameters_unknown_distribution(self, capsys):
         """
-        Tests that unknown distribution types are handled gracefully with a warning.
+        Tests that unknown distribution types raise an appropriate error.
         """
         # 1. ARRANGE
         uncertainty_defs = {
@@ -154,14 +155,9 @@ class TestSampleParameters:
             }
         }
 
-        # 2. ACT
-        result = sample_parameters(uncertainty_defs)
-        captured = capsys.readouterr()
-
-        # 3. ASSERT
-        assert "unknown_param" not in result  # Parameter should not be sampled
-        assert "WARNING: Unknown distribution type" in captured.out
-        assert "unknown_distribution" in captured.out
+        # 2. ACT & 3. ASSERT
+        with pytest.raises(ValueError, match="Unknown distribution type: unknown_distribution"):
+            result = sample_parameters(uncertainty_defs)
 
 
 class TestExportResultsToExcel:
@@ -214,36 +210,36 @@ class TestExportResultsToExcel:
             # Read the exported Excel file and verify its contents
             with pd.ExcelFile(output_path) as xls:
                 # Check that both sheets exist
-                assert "Flows_ts" in xls.sheet_names
-                assert "Stocks_ts" in xls.sheet_names
+                assert "Flows" in xls.sheet_names
+                assert "Stocks" in xls.sheet_names
 
                 # Read flows sheet
-                flows_df = pd.read_excel(xls, "Flows_ts")
+                flows_df = pd.read_excel(xls, "Flows")
                 assert len(flows_df) == 2  # 2 years × 1 flow
-                assert "Flow_ID" in flows_df.columns
+                assert "Flow" in flows_df.columns
                 assert "Year" in flows_df.columns
                 assert "material" in flows_df.columns
                 assert "WC" in flows_df.columns
 
                 # Check specific flow values
                 flow_2020 = flows_df[
-                    (flows_df["Flow_ID"] == "F_0_1") & (flows_df["Year"] == 2020)
+                    (flows_df["Flow"] == "F_0_1") & (flows_df["Year"] == 2020)
                 ]
                 assert len(flow_2020) == 1
                 assert flow_2020["material"].iloc[0] == 100.0
                 assert flow_2020["WC"].iloc[0] == 50.0
 
                 # Read stocks sheet
-                stocks_df = pd.read_excel(xls, "Stocks_ts")
+                stocks_df = pd.read_excel(xls, "Stocks")
                 assert len(stocks_df) == 2  # 2 years × 1 stock
-                assert "Stock_ID" in stocks_df.columns
+                assert "Stock" in stocks_df.columns
                 assert "Year" in stocks_df.columns
                 assert "material" in stocks_df.columns
                 assert "WC" in stocks_df.columns
 
                 # Check specific stock values
                 stock_2021 = stocks_df[
-                    (stocks_df["Stock_ID"] == "S_1") & (stocks_df["Year"] == 2021)
+                    (stocks_df["Stock"] == "S_1") & (stocks_df["Year"] == 2021)
                 ]
                 assert len(stock_2021) == 1
                 assert stock_2021["material"].iloc[0] == 220.0
@@ -292,12 +288,12 @@ class TestExportResultsToExcel:
 
             # Read the exported Excel file
             with pd.ExcelFile(output_path) as xls:
-                assert "Flows_ts" in xls.sheet_names
-                assert "Stocks_ts" in xls.sheet_names
+                assert "Flows" in xls.sheet_names
+                assert "Stocks" in xls.sheet_names
 
                 # Check that sheets are empty (except headers)
-                flows_df = pd.read_excel(xls, "Flows_ts")
-                stocks_df = pd.read_excel(xls, "Stocks_ts")
+                flows_df = pd.read_excel(xls, "Flows")
+                stocks_df = pd.read_excel(xls, "Stocks")
 
                 assert len(flows_df) == 0  # No flows to export
                 assert len(stocks_df) == 0  # No stocks to export

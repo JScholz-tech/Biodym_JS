@@ -36,10 +36,14 @@ def sample_parameters(uncertainty_params):
             value = np.random.normal(mean, std)
         elif distribution == "uniform":
             value = np.random.uniform(min_val, max_val)
+        elif distribution == "triangular":
+            mode = param_def.get("mode", (min_val + max_val) / 2)
+            value = np.random.triangular(min_val, mode, max_val)
         elif distribution == "lognormal":
             value = np.random.lognormal(mean, std)
         else:
-            value = mean  # Default to mean if distribution not recognized
+            # Raise an error for unknown distributions
+            raise ValueError(f"Unknown distribution type: {distribution}")
 
         # Apply bounds if specified
         if min_val is not None:
@@ -60,10 +64,18 @@ def export_results_to_excel(mfa_system_results, output_path):
         mfa_system_results (odym.MFAsystem): The solved MFA system object.
         output_path (str): Path where the Excel file should be saved.
     """
+    if mfa_system_results is None:
+        print("Export skipped: No results to export.")
+        return
+        
     print(f"--> Exporting results to '{output_path}'...")
 
-    time_index = mfa_system_results.IndexTable.Classification["Time"].Items
-    elements = mfa_system_results.Elements
+    try:
+        time_index = mfa_system_results.IndexTable.Classification["Time"].Items
+        elements = mfa_system_results.Elements
+    except AttributeError as e:
+        print(f"Export skipped: Error: {e}")
+        return
 
     with pd.ExcelWriter(output_path) as writer:
         # --- Export Flows ---
