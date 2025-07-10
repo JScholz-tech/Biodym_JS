@@ -12,7 +12,7 @@ calculation modes (e.g., deterministic vs. Monte Carlo) here.
 # ==============================================================================
 # Path to the primary Excel input file containing all model definitions
 # and data.
-EXCEL_FILE_PATH = '250625_Template_CS0.xlsx'
+EXCEL_FILE_PATH = "250625_Template_CS0.xlsx"
 
 # ==============================================================================
 # MODEL SCOPE
@@ -22,7 +22,7 @@ START_YEAR = 2025
 # The last year of the analysis.
 END_YEAR = 2050
 # List of elements/substances to be tracked throughout the system.
-ELEMENTS = ['material', 'WC', 'DM', 'CC']
+ELEMENTS = ["material", "WC", "DM", "CC"]
 
 # ==============================================================================
 # CALCULATION SWITCHES

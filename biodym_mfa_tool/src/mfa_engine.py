@@ -7,13 +7,12 @@ Analysis, including system setup, the iterative solver, and the specific
 implementations for the Dynamic Stock Model (DSM) and First-Order Model
 Process (FOMP).
 """
+
 import numpy as np
 import pandas as pd
-import copy
 
 # These are imported by main.py and are available in this namespace
 import ODYM_Classes as msc
-import dynamic_stock_model as dsm
 
 
 def define_model_scope(start_year, end_year, elements):
@@ -32,17 +31,25 @@ def define_model_scope(start_year, end_year, elements):
     ModelClassification = {}
     MyYears = list(np.arange(start_year, end_year + 1))
 
-    ModelClassification['Time'] = msc.Classification(Name='Time', Dimension='Time', ID=1, Items=MyYears)
-    ModelClassification['Element'] = msc.Classification(Name='Elements', Dimension='Element', ID=2, Items=elements)
+    ModelClassification["Time"] = msc.Classification(
+        Name="Time", Dimension="Time", ID=1, Items=MyYears
+    )
+    ModelClassification["Element"] = msc.Classification(
+        Name="Elements", Dimension="Element", ID=2, Items=elements
+    )
 
-    IndexTable = pd.DataFrame({
-        'Aspect': ['Time', 'Element'],
-        'Description': ['Model aspect "time"', 'Model aspect "Element"'],
-        'Dimension': ['Time', 'Element'],
-        'Classification': [ModelClassification[Aspect] for Aspect in ['Time', 'Element']],
-        'IndexLetter': ['t', 'e']
-    })
-    IndexTable.set_index('Aspect', inplace=True)
+    IndexTable = pd.DataFrame(
+        {
+            "Aspect": ["Time", "Element"],
+            "Description": ['Model aspect "time"', 'Model aspect "Element"'],
+            "Dimension": ["Time", "Element"],
+            "Classification": [
+                ModelClassification[Aspect] for Aspect in ["Time", "Element"]
+            ],
+            "IndexLetter": ["t", "e"],
+        }
+    )
+    IndexTable.set_index("Aspect", inplace=True)
 
     print("--> Model scope and classifications defined.")
     return ModelClassification, IndexTable

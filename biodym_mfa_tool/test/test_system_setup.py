@@ -18,17 +18,24 @@ try:
     import ODYM_Classes as msc
 except ImportError:
     # Get the absolute path to the project's root directory (biodym_mfa_tool)
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     # Get the parent directory of the project root to find the 'framework' folder
     project_root_parent = os.path.dirname(project_root)
     # Construct the path to the ODYM modules
-    odym_path = os.path.join(project_root_parent, 'framework', 'ODYM-master_20241127', 'odym', 'modules')
+    odym_path = os.path.join(
+        project_root_parent, "framework", "ODYM-master_20241127", "odym", "modules"
+    )
     sys.path.insert(0, odym_path)
     import ODYM_Classes as msc
 
-from system_setup import (define_model_scope, initialize_mfa_system, load_and_define_processes,
-                          define_flows_and_parameters, create_dynamic_tc_parameters)
-import data_loader # Import the module to mock its functions
+from system_setup import (
+    define_model_scope,
+    initialize_mfa_system,
+    load_and_define_processes,
+    define_flows_and_parameters,
+    create_dynamic_tc_parameters,
+)
+import data_loader  # Import the module to mock its functions
 
 
 def test_define_model_scope_structure_and_content():
@@ -37,7 +44,7 @@ def test_define_model_scope_structure_and_content():
     and index table structures with the correct content.
     """
     # 1. ARRANGE: Define simple inputs for the test.
-    start, end, elements = 2020, 2022, ['A', 'B']
+    start, end, elements = 2020, 2022, ["A", "B"]
 
     # 2. ACT: Run the function to get the actual output.
     model_class, index_table = define_model_scope(start, end, elements)
@@ -45,12 +52,12 @@ def test_define_model_scope_structure_and_content():
     # 3. ASSERT: Perform a series of checks on the output.
     assert isinstance(model_class, dict)
     assert isinstance(index_table, pd.DataFrame)
-    assert 'Time' in model_class and 'Element' in model_class
-    assert isinstance(model_class['Time'], msc.Classification)
-    assert model_class['Time'].Items == [2020, 2021, 2022]
-    assert model_class['Element'].Items == ['A', 'B']
-    assert index_table.loc['Time']['IndexLetter'] == 't'
-    assert index_table.loc['Element']['IndexLetter'] == 'e'
+    assert "Time" in model_class and "Element" in model_class
+    assert isinstance(model_class["Time"], msc.Classification)
+    assert model_class["Time"].Items == [2020, 2021, 2022]
+    assert model_class["Element"].Items == ["A", "B"]
+    assert index_table.loc["Time"]["IndexLetter"] == "t"
+    assert index_table.loc["Element"]["IndexLetter"] == "e"
 
 
 def test_initialize_mfa_system_creation():
@@ -59,7 +66,7 @@ def test_initialize_mfa_system_creation():
     and initialized MFAsystem object.
     """
     # 1. ARRANGE: Use the define_model_scope function to create valid inputs.
-    start, end, elements = 2020, 2022, ['A', 'B']
+    start, end, elements = 2020, 2022, ["A", "B"]
     model_class, index_table = define_model_scope(start, end, elements)
 
     # 2. ACT: Run the function to get the actual MFA system object.
@@ -67,8 +74,8 @@ def test_initialize_mfa_system_creation():
 
     # 3. ASSERT: Check the properties of the created object.
     assert isinstance(mfa_system, msc.MFAsystem)
-    assert mfa_system.Name == 'RyeStrawMFA'
-    assert mfa_system.Unit == 'Mg'
+    assert mfa_system.Name == "RyeStrawMFA"
+    assert mfa_system.Unit == "Mg"
     assert mfa_system.Time_Start == start
     assert mfa_system.Time_End == end
     assert mfa_system.Elements == elements
@@ -86,34 +93,40 @@ def test_define_flows_and_parameters_logic():
     """
     # 1. ARRANGE
     # Setup a base MFA system
-    elements = ['material', 'WC', 'DM', 'CC']
+    elements = ["material", "WC", "DM", "CC"]
     model_class, index_table = define_model_scope(2020, 2021, elements)
     mfa_system = initialize_mfa_system(model_class, index_table)
     # Manually add processes for the test, as load_and_define_processes is tested separately
-    mfa_system.ProcessList.append(msc.Process(Name='Environment', ID=0))
-    mfa_system.ProcessList.append(msc.Process(Name='Process 1', ID=1))
-    mfa_system.ProcessList.append(msc.Process(Name='Process 2', ID=2))
+    mfa_system.ProcessList.append(msc.Process(Name="Environment", ID=0))
+    mfa_system.ProcessList.append(msc.Process(Name="Process 1", ID=1))
+    mfa_system.ProcessList.append(msc.Process(Name="Process 2", ID=2))
 
     # Mock the Excel data dictionary with all necessary sheets
-    mock_flow_def = pd.DataFrame({
-        'Flow_ID': ['F_00_01', 'F_01_02'],
-        'Name(EN)': ['Primary Input', 'Transfer'],
-        'Process_ID_O': [0, 1],
-        'Process_ID_I': [1, 2],
-        'WC': [0.5, np.nan],  # 50% water content for the input flow
-        'CC': [0.2, np.nan]   # 20% carbon content for the input flow
-    })
-    mock_flow_data = pd.DataFrame({
-        'Flow_ID': ['F_00_01', 'F_00_01'],
-        'Year_Flow': [2020, 2021],
-        'Flow_Py': [100, 110]  # Material flow over time
-    })
+    mock_flow_def = pd.DataFrame(
+        {
+            "Flow_ID": ["F_00_01", "F_01_02"],
+            "Name(EN)": ["Primary Input", "Transfer"],
+            "Process_ID_O": [0, 1],
+            "Process_ID_I": [1, 2],
+            "WC": [0.5, np.nan],  # 50% water content for the input flow
+            "CC": [0.2, np.nan],  # 20% carbon content for the input flow
+        }
+    )
+    mock_flow_data = pd.DataFrame(
+        {
+            "Flow_ID": ["F_00_01", "F_00_01"],
+            "Year_Flow": [2020, 2021],
+            "Flow_Py": [100, 110],  # Material flow over time
+        }
+    )
     mock_excel_data = {
-        '1_1_Definition_Flows': mock_flow_def,
-        '1_2_Data_Flows': mock_flow_data,
+        "1_1_Definition_Flows": mock_flow_def,
+        "1_2_Data_Flows": mock_flow_data,
         # Add the process definitions sheet, which the function needs to check for initial stocks.
-        '2_1_Definition_Processes': pd.DataFrame(columns=['ID', 'Initial_Stock?']),
-        '2_5_dynamic_tcs': pd.DataFrame(columns=['TC_ID', 'Year', 'Value']) # Empty but present
+        "2_1_Definition_Processes": pd.DataFrame(columns=["ID", "Initial_Stock?"]),
+        "2_5_dynamic_tcs": pd.DataFrame(
+            columns=["TC_ID", "Year", "Value"]
+        ),  # Empty but present
     }
 
     # 2. ACT
@@ -121,10 +134,16 @@ def test_define_flows_and_parameters_logic():
 
     # 3. ASSERT
     # Check the elemental composition calculation for the primary input flow
-    input_flow = mfa_system_result.FlowDict['F_00_01']
-    np.testing.assert_array_almost_equal(input_flow.Values[:, 0], [100, 110]) # material
-    np.testing.assert_array_almost_equal(input_flow.Values[:, 1], [50, 55])   # WC = material * 0.5
-    np.testing.assert_array_almost_equal(input_flow.Values[:, 2], [20, 22])   # CC = material * 0.2
+    input_flow = mfa_system_result.FlowDict["F_00_01"]
+    np.testing.assert_array_almost_equal(
+        input_flow.Values[:, 0], [100, 110]
+    )  # material
+    np.testing.assert_array_almost_equal(
+        input_flow.Values[:, 1], [50, 55]
+    )  # WC = material * 0.5
+    np.testing.assert_array_almost_equal(
+        input_flow.Values[:, 2], [20, 22]
+    )  # CC = material * 0.2
 
 
 def test_create_dynamic_tc_parameters_success():
@@ -134,22 +153,18 @@ def test_create_dynamic_tc_parameters_success():
     # 1. ARRANGE
     # Define a time vector and some sparse data points for a TC.
     time_vector = [2020, 2021, 2022, 2023]
-    dynamic_tc_data = pd.DataFrame({
-        'TC_ID': ['TC_A', 'TC_A'],
-        'Year': [2020, 2023],
-        'Value': [0.1, 0.4]
-    })
+    dynamic_tc_data = pd.DataFrame(
+        {"TC_ID": ["TC_A", "TC_A"], "Year": [2020, 2023], "Value": [0.1, 0.4]}
+    )
     # The expected result after linear interpolation over the time_vector.
-    expected_result = {
-        'TC_A': np.array([0.1, 0.2, 0.3, 0.4])
-    }
+    expected_result = {"TC_A": np.array([0.1, 0.2, 0.3, 0.4])}
 
     # 2. ACT
     actual_result = create_dynamic_tc_parameters(dynamic_tc_data, time_vector)
 
     # 3. ASSERT
-    assert 'TC_A' in actual_result
-    np.testing.assert_array_almost_equal(actual_result['TC_A'], expected_result['TC_A'])
+    assert "TC_A" in actual_result
+    np.testing.assert_array_almost_equal(actual_result["TC_A"], expected_result["TC_A"])
 
 
 def test_create_dynamic_tc_parameters_duplicate_error():
@@ -159,11 +174,13 @@ def test_create_dynamic_tc_parameters_duplicate_error():
     # 1. ARRANGE
     # Define a time vector and data with a duplicate entry for TC_A in 2020.
     time_vector = [2020, 2021, 2022]
-    duplicate_data = pd.DataFrame({
-        'TC_ID': ['TC_A', 'TC_A'],
-        'Year': [2020, 2020], # Duplicate year for the same TC_ID
-        'Value': [0.1, 0.5]
-    })
+    duplicate_data = pd.DataFrame(
+        {
+            "TC_ID": ["TC_A", "TC_A"],
+            "Year": [2020, 2020],  # Duplicate year for the same TC_ID
+            "Value": [0.1, 0.5],
+        }
+    )
 
     # 2. ACT & 3. ASSERT
     # Use pytest.raises to confirm that a ValueError is raised.
@@ -178,11 +195,13 @@ def test_create_dynamic_tc_parameters_missing_columns():
     # 1. ARRANGE
     # Define a time vector and data missing the 'Value' column.
     time_vector = [2020, 2021, 2022]
-    incomplete_data = pd.DataFrame({
-        'TC_ID': ['TC_A', 'TC_B'],
-        'Year': [2020, 2021]
-        # Missing 'Value' column
-    })
+    incomplete_data = pd.DataFrame(
+        {
+            "TC_ID": ["TC_A", "TC_B"],
+            "Year": [2020, 2021],
+            # Missing 'Value' column
+        }
+    )
 
     # 2. ACT & 3. ASSERT
     # Use pytest.raises to confirm that a ValueError is raised.
@@ -197,32 +216,38 @@ def test_load_and_define_processes(mocker):
     """
     # 1. ARRANGE
     # Create a base MFA system to be modified
-    model_class, index_table = define_model_scope(2020, 2021, ['material'])
+    model_class, index_table = define_model_scope(2020, 2021, ["material"])
     mfa_system = initialize_mfa_system(model_class, index_table)
 
     # Create mock data that `pd.read_excel` will be forced to return
-    mock_process_def = pd.DataFrame({
-        'ID': [0, 1, 2],
-        'Name(EN)': ['Environment', 'Process A', 'Process B (with stock)'],
-        'Stock?': ['No', 'No', 'Yes'],
-        'Initial_Stock?': ['No', 'No', 'No']
-    })
-    mock_excel_data = {'2_1_Definition_Processes': mock_process_def}
+    mock_process_def = pd.DataFrame(
+        {
+            "ID": [0, 1, 2],
+            "Name(EN)": ["Environment", "Process A", "Process B (with stock)"],
+            "Stock?": ["No", "No", "Yes"],
+            "Initial_Stock?": ["No", "No", "No"],
+        }
+    )
+    mock_excel_data = {"2_1_Definition_Processes": mock_process_def}
 
     # Use the mocker to replace external calls
-    mocker.patch('pandas.read_excel', return_value=mock_excel_data)
-    mocker.patch('data_loader.validate_input_data', return_value=None) # Assume validation works
+    mocker.patch("pandas.read_excel", return_value=mock_excel_data)
+    mocker.patch(
+        "data_loader.validate_input_data", return_value=None
+    )  # Assume validation works
 
     # 2. ACT
-    mfa_system_result, _ = load_and_define_processes(mfa_system, "fake/path.xlsx", data_loader)
+    mfa_system_result, _ = load_and_define_processes(
+        mfa_system, "fake/path.xlsx", data_loader
+    )
 
     # 3. ASSERT
     # Check that processes were added
     assert len(mfa_system_result.ProcessList) == 3
-    assert mfa_system_result.ProcessList[1].Name == 'Process A'
+    assert mfa_system_result.ProcessList[1].Name == "Process A"
 
     # Check that stocks were created ONLY for the correct process
-    assert 'S_1' not in mfa_system_result.StockDict
-    assert 'S_2' in mfa_system_result.StockDict
-    assert 'dS_2' in mfa_system_result.StockDict
-    assert isinstance(mfa_system_result.StockDict['S_2'], msc.Stock)
+    assert "S_1" not in mfa_system_result.StockDict
+    assert "S_2" in mfa_system_result.StockDict
+    assert "dS_2" in mfa_system_result.StockDict
+    assert isinstance(mfa_system_result.StockDict["S_2"], msc.Stock)

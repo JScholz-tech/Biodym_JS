@@ -23,30 +23,32 @@ Copy this entire section into your first Jupyter cell:
 import os
 import sys
 import pandas as pd
-import numpy as np
 import warnings
-warnings.filterwarnings('ignore')
+from IPython.display import display
+import ipywidgets as widgets
+
+
+warnings.filterwarnings("ignore")
 
 # Add project paths - Jupyter notebook version
 # Get the current working directory (where the notebook is located)
 current_dir = os.getcwd()
-src_path = os.path.join(current_dir, 'src')
+src_path = os.path.join(current_dir, "src")
 sys.path.insert(0, src_path)
 
 # Add ODYM framework path (adjust as needed)
 project_root_parent = os.path.dirname(current_dir)
-odym_path = os.path.join(project_root_parent, 'framework', 'ODYM-master_20241127', 'odym', 'modules')
+odym_path = os.path.join(
+    project_root_parent, "framework", "ODYM-master_20241127", "odym", "modules"
+)
 sys.path.insert(0, odym_path)
 
 # Import BioDYM modules
 try:
-    import config
-    import data_loader
-    import system_setup
-    import utils
-    from engine import solver
-    import plotting
-    import ODYM_Classes as msc
+    from src import config, data_loader, system_setup, utils, plotting
+    from src.engine import solver
+    from odym.modules import ODYM_Classes as msc
+
     print("✅ All modules imported successfully!")
 except ImportError as e:
     print(f"❌ Import error: {e}")
@@ -62,55 +64,45 @@ except ImportError as e:
 # GOLDEN DATASET: Minimal End-to-End Test & Visualization
 # ==============================================================================
 
-import os
-import sys
-import pandas as pd
-import numpy as np
-
-# Add project and ODYM framework paths
-current_dir = os.getcwd()
-src_path = os.path.join(current_dir, 'src')
-sys.path.insert(0, src_path)
-project_root_parent = os.path.dirname(current_dir)
-odym_path = os.path.join(project_root_parent, 'framework', 'ODYM-master_20241127', 'odym', 'modules')
-sys.path.insert(0, odym_path)
-
-# Import BioDYM modules
-import config, data_loader, system_setup
-from engine import solver
-import plotting
-
 # Set path to golden dataset
-golden_path = 'test_data/golden_dataset.xlsx'
+golden_path = "test_data/golden_dataset.xlsx"
+
 
 # --- Define config as a class instance ---
 class AnalysisConfig:
     def __init__(self):
         self.excel_file_path = golden_path
-        self.output_path = 'data/02_output/results.xlsx'
+        self.output_path = "data/02_output/results.xlsx"
         self.start_year = 2025
         self.end_year = 2030
-        self.elements = ['material', 'WC', 'DM', 'CC']
+        self.elements = ["material", "WC", "DM", "CC"]
         self.run_monte_carlo = False
         self.mc_iterations = 100
         self.RUN_DSM_CALCULATION = False
         self.RUN_FOMP_CALCULATION = True
 
-config = AnalysisConfig()
-print("✅ Config loaded:", vars(config))
+
+config_obj = AnalysisConfig()
+print("✅ Config loaded:", vars(config_obj))
 
 # Load and validate data
-input_data = pd.read_excel(config.excel_file_path, sheet_name=None, header=0, engine='openpyxl', na_values=['N.A.', 'NA', 'n/a'])
+input_data = pd.read_excel(
+    config_obj.excel_file_path,
+    sheet_name=None,
+    header=0,
+    engine="openpyxl",
+    na_values=["N.A.", "NA", "n/a"],
+)
 data_loader.validate_input_data(input_data)
 print("✅ Data validation passed!")
 
 # Model setup
 model_classification, index_table = system_setup.define_model_scope(
-    config.start_year, config.end_year, config.elements
+    config_obj.start_year, config_obj.end_year, config_obj.elements
 )
 mfa_system_base = system_setup.initialize_mfa_system(model_classification, index_table)
 mfa_system_base, all_excel_data = system_setup.load_and_define_processes(
-    mfa_system_base, config.excel_file_path, data_loader
+    mfa_system_base, config_obj.excel_file_path, data_loader
 )
 mfa_system_configured, all_excel_data = system_setup.define_flows_and_parameters(
     mfa_system_base, all_excel_data
@@ -121,7 +113,7 @@ uncertainty_params = data_loader.load_uncertainty_definitions(all_excel_data)
 
 # Run calculation
 mfa_system_with_results, dsm_details = solver.run_mfa_calculation(
-    mfa_system_configured, dsm_params, fomp_params, config
+    mfa_system_configured, dsm_params, fomp_params, config_obj
 )
 print("✅ Calculation complete!")
 
@@ -139,48 +131,47 @@ print("🌊 Sankey Diagram")
 plotting.plot_interactive_sankey(mfa_system_with_results)
 
 
-
-
-
 """
 Copy this entire section into your second Jupyter cell:
 """
+
 
 # Configuration settings
 class AnalysisConfig:
     def __init__(self):
         # File paths
-        self.excel_file_path = 'data/01_input/250625_Template_CS0.xlsx'
-        self.output_path = 'data/02_output/results.xlsx'
-        
+        self.excel_file_path = "data/01_input/250625_Template_CS0.xlsx"
+        self.output_path = "data/02_output/results.xlsx"
+
         # Model scope
         self.start_year = 2025
         self.end_year = 2050
-        self.elements = ['material', 'WC', 'DM', 'CC']
-        
+        self.elements = ["material", "WC", "DM", "CC"]
+
         # Calculation options
         self.run_monte_carlo = False
         self.mc_iterations = 100
-        
+
         # Model components - using uppercase names that solver expects
         self.RUN_DSM_CALCULATION = True
         self.RUN_FOMP_CALCULATION = True
 
+
 # Create configuration instance
-config = AnalysisConfig()
+config_obj = AnalysisConfig()
 
 # Validate configuration
 print("📋 Analysis Configuration:")
-print(f"   Input file: {config.excel_file_path}")
-print(f"   Time range: {config.start_year} - {config.end_year}")
-print(f"   Elements: {', '.join(config.elements)}")
-print(f"   Monte Carlo: {'Yes' if config.run_monte_carlo else 'No'}")
-if config.run_monte_carlo:
-    print(f"   MC iterations: {config.mc_iterations}")
+print(f"   Input file: {config_obj.excel_file_path}")
+print(f"   Time range: {config_obj.start_year} - {config_obj.end_year}")
+print(f"   Elements: {', '.join(config_obj.elements)}")
+print(f"   Monte Carlo: {'Yes' if config_obj.run_monte_carlo else 'No'}")
+if config_obj.run_monte_carlo:
+    print(f"   MC iterations: {config_obj.mc_iterations}")
 
 # Validate configuration
 print("\n🔍 Configuration Validation:")
-is_valid = utils.print_configuration_summary(config)
+is_valid = utils.print_configuration_summary(config_obj)
 
 if not is_valid:
     print("\n❌ Please fix configuration issues before proceeding.")
@@ -194,31 +185,42 @@ Copy this entire section into your third Jupyter cell:
 """
 
 # Check input file
-if os.path.exists(config.excel_file_path):
-    print(f"✅ Input file found: {config.excel_file_path}")
-    
+if os.path.exists(config_obj.excel_file_path):
+    print(f"✅ Input file found: {config_obj.excel_file_path}")
+
     # Load and validate data
     try:
-        input_data = pd.read_excel(config.excel_file_path, sheet_name=None, header=0,
-                                   engine='openpyxl', na_values=['N.A.', 'NA', 'n/a'])
+        input_data = pd.read_excel(
+            config_obj.excel_file_path,
+            sheet_name=None,
+            header=0,
+            engine="openpyxl",
+            na_values=["N.A.", "NA", "n/a"],
+        )
         data_loader.validate_input_data(input_data)
         print("✅ Data validation passed!")
-        
+
         # Show available sheets
         print(f"\n📊 Available data sheets: {list(input_data.keys())}")
-        
+
         # Show basic info
-        if '0_Metadata' in input_data:
-            metadata = input_data['0_Metadata']
-            print(f"\n📋 Dataset: {metadata.get('Dataset_Name', 'Unknown').iloc[0] if len(metadata) > 0 else 'Unknown'}")
-            print(f"   Version: {metadata.get('Version', 'Unknown').iloc[0] if len(metadata) > 0 else 'Unknown'}")
-            print(f"   Author: {metadata.get('Author', 'Unknown').iloc[0] if len(metadata) > 0 else 'Unknown'}")
-        
+        if "0_Metadata" in input_data:
+            metadata = input_data["0_Metadata"]
+            print(
+                f"\n📋 Dataset: {metadata.get('Dataset_Name', 'Unknown').iloc[0] if len(metadata) > 0 else 'Unknown'}"
+            )
+            print(
+                f"   Version: {metadata.get('Version', 'Unknown').iloc[0] if len(metadata) > 0 else 'Unknown'}"
+            )
+            print(
+                f"   Author: {metadata.get('Author', 'Unknown').iloc[0] if len(metadata) > 0 else 'Unknown'}"
+            )
+
     except Exception as e:
         print(f"❌ Data validation failed: {e}")
         raise
 else:
-    print(f"❌ Input file not found: {config.excel_file_path}")
+    print(f"❌ Input file not found: {config_obj.excel_file_path}")
     print("Please check the file path in the configuration above.")
 
 # ==============================================================================
@@ -233,7 +235,7 @@ print("🔧 Setting up MFA model...")
 
 # 1. Define model scope
 model_classification, index_table = system_setup.define_model_scope(
-    config.start_year, config.end_year, config.elements
+    config_obj.start_year, config_obj.end_year, config_obj.elements
 )
 
 # 2. Initialize MFA system
@@ -241,7 +243,7 @@ mfa_system_base = system_setup.initialize_mfa_system(model_classification, index
 
 # 3. Load data and define processes
 mfa_system_base, all_excel_data = system_setup.load_and_define_processes(
-    mfa_system_base, config.excel_file_path, data_loader
+    mfa_system_base, config_obj.excel_file_path, data_loader
 )
 
 # 4. Load model parameters
@@ -250,7 +252,9 @@ fomp_params = data_loader.load_fomp_parameters(all_excel_data)
 uncertainty_params = data_loader.load_uncertainty_definitions(all_excel_data)
 
 # 5. Configure system with flows and parameters
-mfa_system_configured, _ = system_setup.define_flows_and_parameters(mfa_system_base, all_excel_data)
+mfa_system_configured, _ = system_setup.define_flows_and_parameters(
+    mfa_system_base, all_excel_data
+)
 
 print("✅ Model setup complete!")
 print(f"   Processes: {len(mfa_system_configured.ProcessList)}")
@@ -268,49 +272,53 @@ Copy this entire section into your fifth Jupyter cell:
 # Run calculations
 print("\n🧮 Running MFA calculations...")
 
-if config.run_monte_carlo:
-    print(f"   Monte Carlo simulation ({config.mc_iterations} iterations)")
-    
+if config_obj.run_monte_carlo:
+    print(f"   Monte Carlo simulation ({config_obj.mc_iterations} iterations)")
+
     # Monte Carlo simulation
     mc_run_results = []
-    
-    for i in range(config.mc_iterations):
+
+    for i in range(config_obj.mc_iterations):
         if i % 10 == 0:  # Progress indicator
-            print(f"   Progress: {i}/{config.mc_iterations}")
-        
+            print(f"   Progress: {i}/{config_obj.mc_iterations}")
+
         # Sample parameters
         sampled_values = utils.sample_parameters(uncertainty_params)
-        tc_updates = {k: v for k, v in sampled_values.items() if k.startswith('TC_')}
-        
+        tc_updates = {k: v for k, v in sampled_values.items() if k.startswith("TC_")}
+
         # Run calculation
         run_results, _ = solver.run_mfa_calculation(
-            mfa_system_configured, dsm_params, fomp_params, config, tc_updates=tc_updates
+            mfa_system_configured,
+            dsm_params,
+            fomp_params,
+            config_obj,
+            tc_updates=tc_updates,
         )
-        
+
         # Extract KPIs
         if run_results:
-            final_c_stock_soil = run_results.StockDict['S_8'].Values[-1, 3]
+            final_c_stock_soil = run_results.StockDict["S_8"].Values[-1, 3]
             current_run_data = sampled_values.copy()
-            current_run_data['run_id'] = i
-            current_run_data['final_C_stock_soil'] = final_c_stock_soil
+            current_run_data["run_id"] = i
+            current_run_data["final_C_stock_soil"] = final_c_stock_soil
             mc_run_results.append(current_run_data)
-    
+
     df_mc_results = pd.DataFrame(mc_run_results)
     mfa_system_with_results = None
     dsm_details = None
-    
+
     print("✅ Monte Carlo simulation complete!")
-    
+
 else:
     print("   Deterministic calculation")
-    
+
     # Single deterministic run
     mfa_system_with_results, dsm_details = solver.run_mfa_calculation(
-        mfa_system_configured, dsm_params, fomp_params, config
+        mfa_system_configured, dsm_params, fomp_params, config_obj
     )
-    
+
     df_mc_results = None
-    
+
     print("✅ Deterministic calculation complete!")
 
 # ==============================================================================
@@ -344,7 +352,7 @@ if mfa_system_with_results is not None:
     plotting.plot_mass_balance_error(mfa_system_with_results)
     # Additional mass balance summary
     print("\n📊 Mass Balance Summary:")
-    time_items = mfa_system_with_results.IndexTable.Classification['Time'].Items
+    time_items = mfa_system_with_results.IndexTable.Classification["Time"].Items
     element_items = mfa_system_with_results.Elements
     # Check final year mass balance
     final_year_idx = -1
@@ -352,10 +360,22 @@ if mfa_system_with_results is not None:
         element_index = element_items.index(element)
         total_error = 0
         for p in mfa_system_with_results.ProcessList:
-            in_val = sum(f.Values[final_year_idx, element_index] for f in mfa_system_with_results.FlowDict.values() if f.P_End == p.ID)
-            out_val = sum(f.Values[final_year_idx, element_index] for f in mfa_system_with_results.FlowDict.values() if f.P_Start == p.ID)
-            ds_val = mfa_system_with_results.StockDict.get(f'dS_{p.ID}', None)
-            ds_sum = ds_val.Values[final_year_idx, element_index] if ds_val is not None else 0
+            in_val = sum(
+                f.Values[final_year_idx, element_index]
+                for f in mfa_system_with_results.FlowDict.values()
+                if f.P_End == p.ID
+            )
+            out_val = sum(
+                f.Values[final_year_idx, element_index]
+                for f in mfa_system_with_results.FlowDict.values()
+                if f.P_Start == p.ID
+            )
+            ds_val = mfa_system_with_results.StockDict.get(f"dS_{p.ID}", None)
+            ds_sum = (
+                ds_val.Values[final_year_idx, element_index]
+                if ds_val is not None
+                else 0
+            )
             error = in_val - out_val - ds_sum
             total_error += abs(error)
         print(f"   {element.upper()}: Total absolute error = {total_error:.6f} Mg")
@@ -368,9 +388,11 @@ if mfa_system_with_results is not None:
 elif df_mc_results is not None:
     print("[Monte Carlo mode: Showing MC output distribution for a key result]")
     try:
-        if 'final_C_stock_soil' in df_mc_results.columns:
-            plotting.plot_mc_distribution(df_mc_results, column_name='final_C_stock_soil', unit='Mg C')
-            print(df_mc_results['final_C_stock_soil'].describe())
+        if "final_C_stock_soil" in df_mc_results.columns:
+            plotting.plot_mc_distribution(
+                df_mc_results, column_name="final_C_stock_soil", unit="Mg C"
+            )
+            print(df_mc_results["final_C_stock_soil"].describe())
         else:
             print("No 'final_C_stock_soil' column found in MC results.")
     except Exception as e:
@@ -413,9 +435,11 @@ elif df_mc_results is not None:
     # Example: Show histogram for a flow-related output if present
     try:
         # Replace 'final_flow_value' with your actual MC output column name for flows
-        flow_col = [col for col in df_mc_results.columns if 'flow' in col.lower()]
+        flow_col = [col for col in df_mc_results.columns if "flow" in col.lower()]
         if flow_col:
-            plotting.plot_mc_distribution(df_mc_results, column_name=flow_col[0], unit='Mg')
+            plotting.plot_mc_distribution(
+                df_mc_results, column_name=flow_col[0], unit="Mg"
+            )
             print(df_mc_results[flow_col[0]].describe())
         else:
             print("No flow-related output column found in MC results.")
@@ -460,9 +484,11 @@ elif df_mc_results is not None:
     print("[Monte Carlo mode: Showing MC output distribution for a key stock]")
     try:
         # Replace 'final_C_stock_soil' with your actual MC output column name for stocks
-        if 'final_C_stock_soil' in df_mc_results.columns:
-            plotting.plot_mc_distribution(df_mc_results, column_name='final_C_stock_soil', unit='Mg C')
-            print(df_mc_results['final_C_stock_soil'].describe())
+        if "final_C_stock_soil" in df_mc_results.columns:
+            plotting.plot_mc_distribution(
+                df_mc_results, column_name="final_C_stock_soil", unit="Mg C"
+            )
+            print(df_mc_results["final_C_stock_soil"].describe())
         else:
             print("No 'final_C_stock_soil' column found in MC results.")
     except Exception as e:
@@ -539,10 +565,13 @@ elif df_mc_results is not None:
     print("[Monte Carlo mode: Showing MC boxplot for a key stock]")
     try:
         import matplotlib.pyplot as plt
-        if 'final_C_stock_soil' in df_mc_results.columns:
+
+        if "final_C_stock_soil" in df_mc_results.columns:
             plt.figure()
-            df_mc_results['final_C_stock_soil'].plot(kind='box', title='Final Soil Carbon Stock (MC)')
-            plt.ylabel('Mg C')
+            df_mc_results["final_C_stock_soil"].plot(
+                kind="box", title="Final Soil Carbon Stock (MC)"
+            )
+            plt.ylabel("Mg C")
             plt.show()
         else:
             print("No 'final_C_stock_soil' column found in MC results.")
@@ -582,8 +611,16 @@ elif df_mc_results is not None:
     print("[Monte Carlo mode: Showing MC sensitivity scatter plot]")
     try:
         # Example: Sensitivity of 'fomp_8_k1' vs 'final_C_stock_soil'
-        if 'fomp_8_k1' in df_mc_results.columns and 'final_C_stock_soil' in df_mc_results.columns:
-            plotting.plot_mc_sensitivity_scatter(df_mc_results, input_param_name='fomp_8_k1', output_param_name='final_C_stock_soil', unit='Mg C')
+        if (
+            "fomp_8_k1" in df_mc_results.columns
+            and "final_C_stock_soil" in df_mc_results.columns
+        ):
+            plotting.plot_mc_sensitivity_scatter(
+                df_mc_results,
+                input_param_name="fomp_8_k1",
+                output_param_name="final_C_stock_soil",
+                unit="Mg C",
+            )
         else:
             print("Required columns for sensitivity scatter not found in MC results.")
     except Exception as e:
@@ -619,7 +656,9 @@ print("=" * 50)
 print("These plots show inflow, stock, and outflow dynamics for selected processes.")
 
 if mfa_system_with_results is not None:
-    plotting.plot_process_dynamics(mfa_system_with_results, all_excel_data['2_1_Definition_Processes'])
+    plotting.plot_process_dynamics(
+        mfa_system_with_results, all_excel_data["2_1_Definition_Processes"]
+    )
 else:
     print("❌ No deterministic results available for process dynamics")
 
@@ -749,9 +788,9 @@ scenario_manager = utils.ScenarioManager()
 # Save current scenario
 current_scenario_name = "baseline_scenario"
 scenario_manager.save_scenario(
-    current_scenario_name, 
-    config, 
-    description="Baseline scenario with current parameters"
+    current_scenario_name,
+    config_obj,
+    description="Baseline scenario with current parameters",
 )
 
 # List available scenarios
@@ -764,21 +803,21 @@ for scenario in scenarios:
 print("\n🔄 Creating Alternative Scenarios...")
 
 # Scenario 1: High recycling
-config_high_recycling = utils.create_config_from_scenario(AnalysisConfig, scenario_manager.load_scenario(current_scenario_name))
+config_high_recycling = utils.create_config_from_scenario(
+    AnalysisConfig, scenario_manager.load_scenario(current_scenario_name)
+)
 config_high_recycling.mc_iterations = 50  # Reduce MC iterations for faster testing
 scenario_manager.save_scenario(
-    "high_recycling", 
-    config_high_recycling, 
-    description="High recycling rate scenario"
+    "high_recycling", config_high_recycling, description="High recycling rate scenario"
 )
 
 # Scenario 2: Extended time horizon
-config_extended = utils.create_config_from_scenario(AnalysisConfig, scenario_manager.load_scenario(current_scenario_name))
+config_extended = utils.create_config_from_scenario(
+    AnalysisConfig, scenario_manager.load_scenario(current_scenario_name)
+)
 config_extended.end_year = 2060
 scenario_manager.save_scenario(
-    "extended_horizon", 
-    config_extended, 
-    description="Extended time horizon to 2060"
+    "extended_horizon", config_extended, description="Extended time horizon to 2060"
 )
 
 print("✅ Alternative scenarios created successfully!")
@@ -810,34 +849,36 @@ print("💾 Exporting Results")
 print("=" * 30)
 
 # Create output directory if it doesn't exist
-output_dir = os.path.dirname(config.output_path)
+output_dir = os.path.dirname(config_obj.output_path)
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
     print(f"📁 Created output directory: {output_dir}")
 
 # Export deterministic results
 if mfa_system_with_results is not None:
-    utils.export_results_to_excel(mfa_system_with_results, config.output_path)
-    print(f"✅ Results exported to: {config.output_path}")
-    
+    utils.export_results_to_excel(mfa_system_with_results, config_obj.output_path)
+    print(f"✅ Results exported to: {config_obj.output_path}")
+
     # Show what was exported
     print("\n📊 Exported data includes:")
     print(f"   - Flows time series ({len(mfa_system_with_results.FlowDict)} flows)")
     print(f"   - Stocks time series ({len(mfa_system_with_results.StockDict)} stocks)")
-    print(f"   - Time range: {config.start_year} - {config.end_year}")
-    print(f"   - Elements: {', '.join(config.elements)}")
+    print(f"   - Time range: {config_obj.start_year} - {config_obj.end_year}")
+    print(f"   - Elements: {', '.join(config_obj.elements)}")
 
 # Export Monte Carlo results
-if config.run_monte_carlo and df_mc_results is not None:
-    mc_output_path = config.output_path.replace('.xlsx', '_MonteCarlo.xlsx')
+if config_obj.run_monte_carlo and df_mc_results is not None:
+    mc_output_path = config_obj.output_path.replace(".xlsx", "_MonteCarlo.xlsx")
     with pd.ExcelWriter(mc_output_path) as writer:
-        df_mc_results.to_excel(writer, sheet_name='MC_Results', index=False)
-        
+        df_mc_results.to_excel(writer, sheet_name="MC_Results", index=False)
+
         # Add summary statistics
-        if 'final_C_stock_soil' in df_mc_results.columns:
-            summary_stats = df_mc_results['final_C_stock_soil'].describe()
-            summary_stats.to_frame('final_C_stock_soil').to_excel(writer, sheet_name='Summary_Stats')
-    
+        if "final_C_stock_soil" in df_mc_results.columns:
+            summary_stats = df_mc_results["final_C_stock_soil"].describe()
+            summary_stats.to_frame("final_C_stock_soil").to_excel(
+                writer, sheet_name="Summary_Stats"
+            )
+
     print(f"✅ Monte Carlo results exported to: {mc_output_path}")
     print(f"   - {len(df_mc_results)} simulation runs")
     print(f"   - {len(df_mc_results.columns)} parameters tracked")
@@ -857,22 +898,22 @@ Copy these code snippets into your Jupyter cells as needed to enhance your Sanke
 """
 
 # --- Export Button for Plotly Figures (SVG/PNG) ---
-import plotly.graph_objects as go
-import ipywidgets as widgets
-
 def show_export_buttons(fig, filename_base="sankey_diagram"):
     def export_svg(_):
         fig.write_image(f"{filename_base}.svg")
         print(f"Exported as {filename_base}.svg")
+
     def export_png(_):
         fig.write_image(f"{filename_base}.png")
         print(f"Exported as {filename_base}.png")
+
     btn_svg = widgets.Button(description="Export as SVG")
     btn_png = widgets.Button(description="Export as PNG")
     btn_svg.on_click(export_svg)
     btn_png.on_click(export_png)
     display(widgets.HBox([btn_svg, btn_png]))
     fig.show()
+
 
 # Usage example (after creating your Sankey fig):
 # show_export_buttons(fig)
@@ -881,9 +922,9 @@ def show_export_buttons(fig, filename_base="sankey_diagram"):
 # Define your process types and assign colors
 process_types = ["DSM", "FOMP", "Regular"]
 type_colors = {
-    'DSM': '#ff7f0e',      # Orange
-    'FOMP': '#2ca02c',    # Green
-    'Regular': '#1f77b4'  # Blue
+    "DSM": "#ff7f0e",  # Orange
+    "FOMP": "#2ca02c",  # Green
+    "Regular": "#1f77b4",  # Blue
 }
 # Suppose you have a list of node types in node_types
 # node_colors = [type_colors.get(t, '#cccccc') for t in node_types]
@@ -897,4 +938,4 @@ type_colors = {
 - Use high-contrast colors for clarity.
 - Remove unnecessary gridlines and backgrounds.
 - Label nodes and flows clearly.
-""" 
+"""
