@@ -1,0 +1,27 @@
+{
+  "id": "python-repository-documentation",
+  "started": "2025-07-10T20:01:00Z",
+  "lastUpdated": "2025-07-10T20:04:00Z",
+  "status": "active",
+  "phase": "complete",
+  "progress": {
+    "discovery": { "answered": 5, "total": 5 },
+    "detail": { "answered": 5, "total": 5 }
+  },
+  "contextFiles": [
+    "README.md",
+    "README2.0.md", 
+    "biodym_mfa_tool/README.md",
+    "biodym_mfa_tool/src/main.py",
+    "biodym_mfa_tool/src/data_loader.py",
+    "studies/*/",
+    "basic_examples/*/"
+  ],
+  "relatedFeatures": [
+    "ODYM MFA framework",
+    "Excel-based configuration",
+    "Jupyter notebook interface",
+    "CLI automation",
+    "Monte Carlo simulation"
+  ]
+}
