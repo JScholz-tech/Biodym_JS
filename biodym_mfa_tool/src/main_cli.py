@@ -20,12 +20,18 @@ import pandas as pd
 src_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, src_path)
 
-# Add ODYM framework to path
-project_root_parent = os.path.dirname(os.path.dirname(src_path))
+# Add ODYM framework to path (now inside biodym_mfa_tool)
+biodym_mfa_tool_dir = os.path.dirname(src_path)
 odym_path = os.path.join(
-    project_root_parent, "framework", "ODYM-master_20241127", "odym", "modules"
+    biodym_mfa_tool_dir, "framework", "ODYM-master_20241127", "odym", "modules"
 )
 sys.path.insert(0, odym_path)
+
+# Add bioDYM add-on to path (now inside biodym_mfa_tool)
+biodym_addon_path = os.path.join(
+    biodym_mfa_tool_dir, "framework", "bioDYM_add-on", "modules"
+)
+sys.path.insert(0, biodym_addon_path)
 
 # Import BioDYM modules
 try:
@@ -148,12 +154,18 @@ def run_mfa_analysis(args):
         if args.verbose:
             print(f"Created output directory: {output_dir}")
 
+    # Set defaults if not provided
+    start_year = args.start_year if args.start_year is not None else 2025
+    end_year = args.end_year if args.end_year is not None else 2050
+    elements = args.elements if args.elements is not None else ['material', 'WC', 'DM', 'CC']
+
     # Configuration summary
     print("\nConfiguration:")
     print(f"   Input file: {args.input}")
     print(f"   Output file: {args.output}")
-    print(f"   Time range: {args.start_year} - {args.end_year}")
-    print(f"   Elements: {', '.join(args.elements)}")
+    print(f"   Time range: {start_year} - {end_year}")
+    elements_str = ', '.join(elements)
+    print(f"   Elements: {elements_str}")
     print(f"   Monte Carlo: {'Yes' if args.monte_carlo else 'No'}")
     if args.monte_carlo:
         print(f"   Iterations: {args.iterations}")
@@ -165,7 +177,7 @@ def run_mfa_analysis(args):
             print("   Defining model scope...")
 
         model_classification, index_table = system_setup.define_model_scope(
-            args.start_year, args.end_year, args.elements
+            start_year, end_year, elements
         )
 
         if args.verbose:

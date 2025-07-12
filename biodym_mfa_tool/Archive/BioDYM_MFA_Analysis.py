@@ -47,7 +47,7 @@ sys.path.insert(0, odym_path)
 try:
     from src import config, data_loader, system_setup, utils, plotting
     from src.engine import solver
-    from odym.modules import ODYM_Classes as msc
+    import ODYM_Classes as msc
 
     print("✅ All modules imported successfully!")
 except ImportError as e:

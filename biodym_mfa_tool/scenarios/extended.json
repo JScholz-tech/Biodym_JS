@@ -1,7 +1,7 @@
 {
   "name": "extended",
   "description": "Extended time horizon",
-  "created": "2025-07-10T21:06:00.039495",
+  "created": "2025-07-12T13:19:32.976496",
   "config": {
     "End_Year": 2060,
     "Monte_Carlo_Iterations": 200,

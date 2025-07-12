@@ -8,7 +8,7 @@ interface between the raw data and the core model logic.
 """
 
 import pandas as pd
-from odym.modules import ODYM_Classes as msc
+import ODYM_Classes as msc
 
 
 def validate_input_data(excel_data_dict):
