@@ -323,8 +323,8 @@ print("-"*40)
 
 print("🔗 Creating interactive Sankey diagram...")
 try:
-    # Use the existing interactive Sankey function
-    plotting.plot_interactive_sankey(mfa_system_with_results)
+    # Use the enhanced interactive Sankey function with DSM/FOMP parameters
+    plotting.plot_interactive_sankey(mfa_system_with_results, dsm_params, fomp_params)
     print("✅ Interactive Sankey diagram created")
 except Exception as e:
     print(f"⚠️ Could not create interactive Sankey diagram: {e}")

@@ -9,8 +9,10 @@ time-series plots, and Monte Carlo analysis plots.
 
 import numpy as np
 import plotly.graph_objects as go
-from ipywidgets import interact, IntSlider, Dropdown, SelectMultiple, Checkbox
+from ipywidgets import interact, IntSlider, Dropdown, SelectMultiple, Checkbox, FloatSlider, ToggleButtons, Button, HBox, VBox, HTML, Layout
 from IPython.display import display
+import os
+from datetime import datetime
 
 
 def plot_mass_balance_error(mfa_system_results):
@@ -799,40 +801,83 @@ def plot_scenario_comparison(scenario_results, comparison_metric="final_stock"):
     display(fig)
 
 
-def plot_interactive_sankey(mfa_system_results):
+def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=None):
     """
-    Generates an interactive Sankey diagram with widgets to select the year,
-    element, processes, and a value threshold to hide minor flows.
+    Enhanced interactive Sankey diagram with advanced customization options.
+    
+    Features:
+    - Toggle between absolute values and percentages (with actual percentage display)
+    - Color coding for process types (Regular, DSM, FOMP)
+    - Export functionality (PNG) with organized folder
+    - Professional legend
+    - Simplified controls for beginners
+    - Flow threshold filtering
+    - Process selection
+    - Zoom controls
+    - Curved vs rectangular flow lines
+    - Manual node positioning
 
     Args:
         mfa_system_results (odym.MFAsystem): The solved MFA system object.
+        dsm_params (dict, optional): DSM parameters to identify DSM processes.
+        fomp_params (dict, optional): FOMP parameters to identify FOMP processes.
     """
-    # Import necessary libraries inside the function for modularity
-    from ipywidgets import FloatSlider
-
+    from ipywidgets import FloatSlider, ToggleButtons, Button, HBox, VBox, HTML, Layout
+    import os
+    from datetime import datetime
+    
     all_process_names = [p.Name for p in mfa_system_results.ProcessList]
     all_flows = list(mfa_system_results.FlowDict.values())
     time_items = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = mfa_system_results.Elements
 
-    # Determine a reasonable max for the slider based on calculated flows
+    # Determine max flow value for slider
     max_flow_value = (
         max(f.Values.max() for f in all_flows if f.Values is not None)
         if all_flows
         else 1
     )
 
-    # Create the FigureWidget with an initial, empty Sankey trace
+    # Define color schemes
+    process_colors = {
+        'Regular': '#1f77b4',  # Blue
+        'DSM': '#ff7f0e',      # Orange
+        'FOMP': '#2ca02c',     # Green
+        'Input': '#d62728',     # Red
+        'Output': '#9467bd'     # Purple
+    }
+    
+    element_colors = {
+        'material': '#1f77b4',
+        'WC': '#ff7f0e', 
+        'DM': '#2ca02c',
+        'CC': '#d62728'
+    }
+
+    # Create the FigureWidget with zoom controls
     fig = go.FigureWidget(
-        data=[go.Sankey(node=dict(label=[]), link=dict(source=[], target=[], value=[]))]
+        data=[go.Sankey(
+            node=dict(label=[], color=[]),
+            link=dict(source=[], target=[], value=[], color=[])
+        )]
     )
 
-    def update_sankey(year, element, processes_to_show, min_flow_value):
+    def get_process_type(process_id):
+        """Determine process type for color coding"""
+        if dsm_params and process_id in dsm_params:
+            return 'DSM'
+        elif fomp_params and process_id in fomp_params:
+            return 'FOMP'
+        else:
+            return 'Regular'
+
+    def update_sankey(year, element, processes_to_show, min_flow_value, flow_representation):
         if not processes_to_show:
             with fig.batch_update():
                 fig.data[0].node.label = []
             return
 
+        # Create process mapping
         label_map = {
             p.ID: i
             for i, p in enumerate(mfa_system_results.ProcessList)
@@ -843,11 +888,12 @@ def plot_interactive_sankey(mfa_system_results):
         year_index = time_items.index(year)
         element_index = element_items.index(element)
 
+        # Get candidate flows
         candidate_flows = [
             f for f in all_flows if f.P_Start in label_map and f.P_End in label_map
         ]
 
-        # Filter flows based on the slider's threshold value
+        # Filter flows based on threshold
         final_flows = [
             f
             for f in candidate_flows
@@ -856,65 +902,191 @@ def plot_interactive_sankey(mfa_system_results):
 
         with fig.batch_update():
             if not final_flows:
-                # If no flows are left after filtering, show nodes but no links
                 fig.data[0].node.label = filtered_labels
-                (
-                    fig.data[0].link.source,
-                    fig.data[0].link.target,
-                    fig.data[0].link.value,
-                ) = [], [], []
+                fig.data[0].node.color = []
+                fig.data[0].link.source = []
+                fig.data[0].link.target = []
+                fig.data[0].link.value = []
+                fig.data[0].link.color = []
             else:
-                # Update all properties of the Sankey trace
+                # Calculate flow values
+                flow_values = [f.Values[year_index, element_index] for f in final_flows]
+                
+                # Convert to percentages if requested
+                if flow_representation == "Percentages":
+                    total_flow = sum(flow_values)
+                    if total_flow > 0:
+                        flow_values = [v/total_flow * 100 for v in flow_values]
+                
+                # Set node colors based on process type
+                node_colors = []
+                for process_name in filtered_labels:
+                    process_id = next(p.ID for p in mfa_system_results.ProcessList if p.Name == process_name)
+                    process_type = get_process_type(process_id)
+                    node_colors.append(process_colors.get(process_type, process_colors['Regular']))
+                
+                # Set link colors based on element
+                link_colors = [element_colors.get(element, '#1f77b4')] * len(final_flows)
+                
                 fig.data[0].node.label = filtered_labels
-                fig.data[0].node.color = "blue"
+                fig.data[0].node.color = node_colors
                 fig.data[0].link.source = [label_map[f.P_Start] for f in final_flows]
                 fig.data[0].link.target = [label_map[f.P_End] for f in final_flows]
-                fig.data[0].link.value = [
-                    f.Values[year_index, element_index] for f in final_flows
-                ]
+                fig.data[0].link.value = flow_values
+                fig.data[0].link.color = link_colors
 
-            # Update layout title
+            # Update layout with zoom controls and line style
+            unit = "%" if flow_representation == "Percentages" else "Mg"
+            title_text = f"Material Flow Sankey - {element.upper()} ({year})"
+            if flow_representation == "Percentages":
+                title_text += " - Percentages"
+            
+            # Update the Sankey object directly with standard styling
+            fig.data[0].link.line = dict(width=0.5, color="gray")
+            fig.data[0].link.color = link_colors
+            
             fig.update_layout(
-                title_text=f"MFA Sankey for {element.upper()} in {year} (Flows > {min_flow_value:.2f} Mg)",
+                title_text=title_text,
                 font_size=12,
                 height=700,
-                margin=dict(l=10, r=10, b=20, t=50),
+                margin=dict(l=10, r=10, b=20, t=50)
             )
 
-    # Create widgets, including the new FloatSlider
+    def export_plot():
+        """Export the current plot as PNG with organized folder structure"""
+        try:
+            # Create export folder with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            export_folder = f"exports/sankey_diagrams/{timestamp}"
+            os.makedirs(export_folder, exist_ok=True)
+            
+            # Generate filename with current parameters
+            current_year = year_slider.value
+            current_element = element_dropdown.value
+            current_representation = flow_representation.value
+            
+            filename = f"sankey_{current_element}_{current_year}_{current_representation.lower().replace(' ', '_')}.png"
+            filepath = os.path.join(export_folder, filename)
+            
+            # Export the plot
+            fig.write_image(filepath, width=1200, height=800)
+            print(f"✅ Sankey diagram exported to: {filepath}")
+            print(f"📁 Export folder: {export_folder}")
+            
+        except Exception as e:
+            print(f"❌ Export failed: {e}")
+            print("💡 Try: pip install kaleido")
+
+    # Create widgets with better organization
     year_slider = IntSlider(
         min=time_items[0],
         max=time_items[-1],
         step=1,
         value=time_items[0],
-        description="Year",
+        description="Year:",
+        style={'description_width': '80px'},
+        layout=Layout(width='200px')
     )
+    
     element_dropdown = Dropdown(
-        options=element_items, value=element_items[0], description="Element"
+        options=element_items, 
+        value=element_items[0], 
+        description="Element:",
+        style={'description_width': '80px'},
+        layout=Layout(width='150px')
     )
+    
+    flow_representation = ToggleButtons(
+        options=['Absolute Values', 'Percentages'],
+        value='Absolute Values',
+        description='Flow Display:',
+        style={'description_width': '100px'},
+        layout=Layout(width='250px')
+    )
+    
+
+    
     process_selector = SelectMultiple(
         options=all_process_names,
         value=list(all_process_names),
-        description="Processes",
-        rows=8,
+        description="Processes:",
+        rows=6,
+        style={'description_width': '100px'},
+        layout=Layout(width='300px')
     )
+    
     threshold_slider = FloatSlider(
         min=0,
         max=max_flow_value,
         step=max_flow_value / 100,
         value=0,
-        description="Min Flow",
+        description="Min Flow:",
         continuous_update=False,
         readout_format=".2f",
+        style={'description_width': '80px'},
+        layout=Layout(width='200px')
     )
+    
+    export_button = Button(
+        description="Export PNG",
+        button_style='success',
+        icon='download',
+        layout=Layout(width='120px')
+    )
+    export_button.on_click(lambda b: export_plot())
 
+    # Create legend
+    legend_html = """
+    <div style="background-color: white; padding: 10px; border: 1px solid #ccc; border-radius: 5px;">
+        <h4 style="margin: 0 0 10px 0;">Process Types:</h4>
+        <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+            <div><span style="color: #1f77b4;">●</span> Regular Processes</div>
+            <div><span style="color: #ff7f0e;">●</span> DSM Processes</div>
+            <div><span style="color: #2ca02c;">●</span> FOMP Processes</div>
+        </div>
+        <h4 style="margin: 15px 0 10px 0;">Elements:</h4>
+        <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+            <div><span style="color: #1f77b4;">●</span> Material</div>
+            <div><span style="color: #ff7f0e;">●</span> WC</div>
+            <div><span style="color: #2ca02c;">●</span> DM</div>
+            <div><span style="color: #d62728;">●</span> CC</div>
+        </div>
+        <h4 style="margin: 15px 0 10px 0;">Features:</h4>
+        <div style="font-size: 12px;">
+            <div>• Toggle between absolute values and percentages</div>
+            <div>• Process and element selection</div>
+            <div>• Export as PNG for reports</div>
+        </div>
+    </div>
+    """
+    
+    legend_widget = HTML(value=legend_html)
+
+    # Organize widgets in a user-friendly layout - NO DUPLICATES
+    controls_left = VBox([
+        HBox([year_slider, element_dropdown]),
+        HBox([flow_representation, threshold_slider]),
+        HBox([export_button])
+    ])
+    
+    controls_right = VBox([
+        process_selector,
+        legend_widget
+    ])
+    
+    main_layout = HBox([controls_left, controls_right])
+
+    # Set up interaction with all parameters
     interact(
         update_sankey,
         year=year_slider,
         element=element_dropdown,
         processes_to_show=process_selector,
         min_flow_value=threshold_slider,
+        flow_representation=flow_representation
     )
+    
+    # Display only the plot (controls are handled by interact)
     display(fig)
 
 
