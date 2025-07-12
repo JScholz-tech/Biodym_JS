@@ -21,7 +21,7 @@ git clone https://github.com/yourusername/Biodym_JS.git
 cd Biodym_JS
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r biodym_mfa_tool/requirements.txt
 ```
 
 ### 2. Prepare Your Data
@@ -49,27 +49,30 @@ jupyter notebook
 
 ## 📚 Documentation
 
-- **[Quick Start Tutorial](docs/QUICKSTART.md)** - Step-by-step guide using a simple example
-- **[Excel Template Guide](docs/EXCEL_TEMPLATE_GUIDE.md)** - How to structure your input data
-- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
-- **[Migration Guide](docs/MIGRATION_GUIDE.md)** - Moving from old notebooks to the new tool
+- **[Quick Start Tutorial](biodym_mfa_tool/docs/QUICKSTART.md)** - Step-by-step guide using a simple example
+- **[Excel Template Guide](biodym_mfa_tool/docs/EXCEL_TEMPLATE_GUIDE.md)** - How to structure your input data
+- **[Troubleshooting](biodym_mfa_tool/docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Migration Guide](biodym_mfa_tool/docs/MIGRATION_GUIDE.md)** - Moving from old notebooks to the new tool
 
-## 🔧 Tool Structure
+## 🔧 Project Structure
 
-BioDYM offers two approaches:
+The BioDYM project is organized as follows:
 
-### Modern Modular Tool (Recommended)
-Located in `biodym_mfa_tool/` - A production-ready application with:
-- Command-line interface for easy automation
-- Jupyter interface for interactive analysis  
-- Modular Python API for custom workflows
-- Comprehensive error checking and validation
+### Main Application (`biodym_mfa_tool/`)
+- **`src/`** - Core application source code
+- **`framework/`** - ODYM framework and bioDYM add-ons
+- **`data/`** - Input/output data templates
+- **`test_data/`** - Test datasets and golden dataset
+- **`scenarios/`** - Scenario configuration files
+- **`docs/`** - Complete documentation
+- **`examples/`** - Basic examples and tutorials
+- **`studies/`** - Case studies and research examples
+- **`tests/`** - Comprehensive test suite
+- **`installation/`** - Installation guides and Docker setup
 
-### Legacy Notebooks
-Located in `studies/` and `basic_examples/` - Original Jupyter notebooks for:
-- Learning MFA concepts
-- Understanding the mathematical foundations
-- Reproducing published case studies
+### Legacy Content
+- **`Archive/`** - Old notebooks and deprecated code
+- **`BioDYM Databasestructure/`** - Database-related files
 
 ## 📊 Example Studies
 
@@ -127,7 +130,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📬 Getting Help
 
-- **Documentation**: Start with the [Quick Start Tutorial](docs/QUICKSTART.md)
+- **Documentation**: Start with the [Quick Start Tutorial](biodym_mfa_tool/docs/QUICKSTART.md)
 - **Issues**: Report bugs or request features on [GitHub Issues](https://github.com/yourusername/Biodym_JS/issues)
 - **Discussions**: Join our [GitHub Discussions](https://github.com/yourusername/Biodym_JS/discussions)
 
