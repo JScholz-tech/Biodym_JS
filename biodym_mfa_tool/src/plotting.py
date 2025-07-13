@@ -15,12 +15,267 @@ import os
 from datetime import datetime
 
 
-def plot_mass_balance_error(mfa_system_results):
+def plot_monte_carlo_integrated_dashboard(mfa_system_results, mc_results=None, dsm_params=None, fomp_params=None):
     """
-    Creates an interactive bar chart showing the mass balance error for each process.
-    Error = Inflows - Outflows - dS. An error of 0 means perfect balance.
-    This is the FIRST and most important visualization for validation.
+    Creates an integrated Monte Carlo dashboard that combines deterministic and MC results.
+    
+    Args:
+        mfa_system_results (odym.MFAsystem): The solved MFA system object.
+        mc_results (pd.DataFrame, optional): Monte Carlo results DataFrame.
+        dsm_params (dict, optional): DSM parameters.
+        fomp_params (dict, optional): FOMP parameters.
+    """
+    from plotly.subplots import make_subplots
+    import pandas as pd
+    
+    # Check if MC results are available
+    has_mc = mc_results is not None and hasattr(mc_results, 'empty') and not mc_results.empty
+    
+    # Create subplot layout
+    if has_mc:
+        fig = make_subplots(
+            rows=2, cols=2,
+            subplot_titles=(
+                "Deterministic vs MC Stock Evolution",
+                "MC Distribution Analysis", 
+                "MC Sensitivity Analysis",
+                "MC Confidence Intervals"
+            ),
+            specs=[[{"secondary_y": False}, {"secondary_y": False}],
+                   [{"secondary_y": False}, {"secondary_y": False}]]
+        )
+    else:
+        fig = make_subplots(
+            rows=1, cols=1,
+            subplot_titles=("Stock Evolution (Deterministic Only)")
+        )
+    
+    time_items = mfa_system_results.IndexTable.Classification["Time"].Items
+    element_items = mfa_system_results.Elements
+    
+    # Get stock data
+    stock_names = [name for name in mfa_system_results.StockDict.keys() if name.startswith("S_")]
+    
+    def update_dashboard(element, stock_selection, mc_analysis_type):
+        element_index = element_items.index(element)
+        
+        with fig.batch_update():
+            fig.data = []
+            
+            # Plot 1: Stock Evolution (Deterministic + MC if available)
+            if has_mc:
+                # Deterministic line
+                total_deterministic = np.zeros(len(time_items))
+                for stock_name in stock_names:
+                    stock_obj = mfa_system_results.StockDict[stock_name]
+                    total_deterministic += stock_obj.Values[:, element_index]
+                
+                fig.add_trace(
+                    go.Scatter(
+                        x=time_items,
+                        y=total_deterministic,
+                        mode="lines",
+                        name="Deterministic",
+                        line=dict(color="#1f77b4", width=3),
+                        showlegend=True
+                    ),
+                    row=1, col=1
+                )
+                
+                # MC mean line
+                if mc_results is not None and hasattr(mc_results, 'columns') and f"Total_Stock_{element}" in mc_results.columns:
+                    mc_mean = mc_results[f"Total_Stock_{element}"].mean()
+                    mc_std = mc_results[f"Total_Stock_{element}"].std()
+                    
+                    fig.add_trace(
+                        go.Scatter(
+                            x=time_items,
+                            y=[mc_mean] * len(time_items),
+                            mode="lines",
+                            name="MC Mean",
+                            line=dict(color="#ff7f0e", width=2, dash="dash"),
+                            showlegend=True
+                        ),
+                        row=1, col=1
+                    )
+                    
+                    # MC confidence bands
+                    fig.add_trace(
+                        go.Scatter(
+                            x=time_items,
+                            y=[mc_mean + 2*mc_std] * len(time_items),
+                            mode="lines",
+                            name="MC +2σ",
+                            line=dict(color="#ff7f0e", width=1, dash="dot"),
+                            showlegend=False
+                        ),
+                        row=1, col=1
+                    )
+                    
+                    fig.add_trace(
+                        go.Scatter(
+                            x=time_items,
+                            y=[mc_mean - 2*mc_std] * len(time_items),
+                            mode="lines",
+                            name="MC -2σ",
+                            line=dict(color="#ff7f0e", width=1, dash="dot"),
+                            fill="tonexty",
+                            fillcolor="rgba(255,127,14,0.2)",
+                            showlegend=False
+                        ),
+                        row=1, col=1
+                    )
+                
+                # Plot 2: MC Distribution
+                if mc_results is not None and hasattr(mc_results, 'columns') and f"Total_Stock_{element}" in mc_results.columns:
+                    fig.add_trace(
+                        go.Histogram(
+                            x=mc_results[f"Total_Stock_{element}"],
+                            nbinsx=30,
+                            name="MC Distribution",
+                            marker_color="#ff7f0e",
+                            opacity=0.7
+                        ),
+                        row=1, col=2
+                    )
+                
+                # Plot 3: MC Sensitivity (if parameter columns exist)
+                if mc_analysis_type == "Sensitivity" and mc_results is not None and hasattr(mc_results, 'columns') and len(mc_results.columns) > 2:
+                    # Find parameter columns (exclude result columns)
+                    param_cols = [col for col in mc_results.columns 
+                                if not col.startswith("Total_Stock") and col != "iteration"]
+                    if param_cols:
+                        param_col = param_cols[0]  # Use first parameter
+                        fig.add_trace(
+                            go.Scatter(
+                                x=mc_results[param_col],
+                                y=mc_results[f"Total_Stock_{element}"],
+                                mode="markers",
+                                name="Sensitivity",
+                                marker=dict(color="#2ca02c", size=4, opacity=0.6)
+                            ),
+                            row=2, col=1
+                        )
+                
+                # Plot 4: MC Confidence Intervals
+                if mc_results is not None and hasattr(mc_results, 'columns') and f"Total_Stock_{element}" in mc_results.columns:
+                    percentiles = [5, 25, 50, 75, 95]
+                    values = [mc_results[f"Total_Stock_{element}"].quantile(p/100) for p in percentiles]
+                    
+                    fig.add_trace(
+                        go.Box(
+                            y=mc_results[f"Total_Stock_{element}"],
+                            name="MC Distribution",
+                            marker_color="#ff7f0e",
+                            boxpoints="outliers"
+                        ),
+                        row=2, col=2
+                    )
+                
+            else:
+                # Deterministic only
+                total_stock = np.zeros(len(time_items))
+                for stock_name in stock_names:
+                    stock_obj = mfa_system_results.StockDict[stock_name]
+                    total_stock += stock_obj.Values[:, element_index]
+                
+                fig.add_trace(
+                    go.Scatter(
+                        x=time_items,
+                        y=total_stock,
+                        mode="lines",
+                        name=f"Total Stock ({element.upper()})",
+                        line=dict(color="#1f77b4", width=3)
+                    )
+                )
+            
+            # Update layout
+            fig.update_layout(
+                title=f"Monte Carlo Integrated Dashboard - {element.upper()}",
+                height=800 if has_mc else 500,
+                showlegend=True
+            )
+    
+    # Create widgets
+    element_dropdown = Dropdown(
+        options=element_items,
+        value=element_items[0],
+        description="Element:"
+    )
+    
+    stock_dropdown = Dropdown(
+        options=["Total Stock"] + stock_names,
+        value="Total Stock",
+        description="Stock:"
+    )
+    
+    mc_analysis_dropdown = Dropdown(
+        options=["Distribution", "Sensitivity", "Confidence"],
+        value="Distribution",
+        description="MC Analysis:"
+    )
+    
+    # Create interactive plot
+    interact(update_dashboard, 
+             element=element_dropdown,
+             stock_selection=stock_dropdown,
+             mc_analysis_type=mc_analysis_dropdown)
+    
+    display(fig)
 
+
+def plot_enhanced_export_options(fig, filename_prefix="plot"):
+    """
+    Enhanced export functionality with multiple formats and batch capabilities.
+    
+    Args:
+        fig: Plotly figure object
+        filename_prefix (str): Prefix for exported files
+    """
+    from datetime import datetime
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Create export buttons
+    export_png_btn = Button(description="Export PNG")
+    export_pdf_btn = Button(description="Export PDF")
+    export_svg_btn = Button(description="Export SVG")
+    export_html_btn = Button(description="Export HTML")
+    
+    def export_png(b):
+        filename = f"{filename_prefix}_{timestamp}.png"
+        fig.write_image(filename, width=1200, height=800, scale=2)
+        print(f"✅ Exported: {filename}")
+    
+    def export_pdf(b):
+        filename = f"{filename_prefix}_{timestamp}.pdf"
+        fig.write_image(filename, width=1200, height=800)
+        print(f"✅ Exported: {filename}")
+    
+    def export_svg(b):
+        filename = f"{filename_prefix}_{timestamp}.svg"
+        fig.write_image(filename, width=1200, height=800)
+        print(f"✅ Exported: {filename}")
+    
+    def export_html(b):
+        filename = f"{filename_prefix}_{timestamp}.html"
+        fig.write_html(filename, include_plotlyjs=True)
+        print(f"✅ Exported: {filename}")
+    
+    export_png_btn.on_click(export_png)
+    export_pdf_btn.on_click(export_pdf)
+    export_svg_btn.on_click(export_svg)
+    export_html_btn.on_click(export_html)
+    
+    # Display export controls
+    export_controls = HBox([export_png_btn, export_pdf_btn, export_svg_btn, export_html_btn])
+    display(export_controls)
+
+
+def plot_optimized_mass_balance_error(mfa_system_results):
+    """
+    Optimized version of mass balance error plot with enhanced performance.
+    
     Args:
         mfa_system_results (odym.MFAsystem): The solved MFA system object.
     """
@@ -34,22 +289,30 @@ def plot_mass_balance_error(mfa_system_results):
         year_index = time_items.index(year)
         element_index = element_items.index(element)
 
+        # Pre-calculate flow sums for better performance
+        inflow_sums = {}
+        outflow_sums = {}
+        
+        for flow_id, flow in mfa_system_results.FlowDict.items():
+            flow_value = flow.Values[year_index, element_index]
+            
+            # Inflows
+            if flow.P_End not in inflow_sums:
+                inflow_sums[flow.P_End] = 0
+            inflow_sums[flow.P_End] += flow_value
+            
+            # Outflows
+            if flow.P_Start not in outflow_sums:
+                outflow_sums[flow.P_Start] = 0
+            outflow_sums[flow.P_Start] += flow_value
+
         errors = []
         for p in mfa_system_results.ProcessList:
-            in_val = sum(
-                f.Values[year_index, element_index]
-                for f in mfa_system_results.FlowDict.values()
-                if f.P_End == p.ID
-            )
-            out_val = sum(
-                f.Values[year_index, element_index]
-                for f in mfa_system_results.FlowDict.values()
-                if f.P_Start == p.ID
-            )
+            in_val = inflow_sums.get(p.ID, 0)
+            out_val = outflow_sums.get(p.ID, 0)
+            
             ds_val = mfa_system_results.StockDict.get(f"dS_{p.ID}", None)
-            ds_sum = (
-                ds_val.Values[year_index, element_index] if ds_val is not None else 0
-            )
+            ds_sum = ds_val.Values[year_index, element_index] if ds_val is not None else 0
 
             error = in_val - out_val - ds_sum
             errors.append(error)
@@ -93,6 +356,22 @@ def plot_mass_balance_error(mfa_system_results):
 
     interact(update_plot, year=year_slider, element=element_dropdown)
     display(fig)
+    
+    # Add enhanced export options
+    plot_enhanced_export_options(fig, "mass_balance_error")
+
+
+def plot_mass_balance_error(mfa_system_results):
+    """
+    Creates an interactive bar chart showing the mass balance error for each process.
+    Error = Inflows - Outflows - dS. An error of 0 means perfect balance.
+    This is the FIRST and most important visualization for validation.
+
+    Args:
+        mfa_system_results (odym.MFAsystem): The solved MFA system object.
+    """
+    # Use optimized version
+    plot_optimized_mass_balance_error(mfa_system_results)
 
 
 def plot_stock_evolution(mfa_system_results, dsm_params=None, fomp_params=None):
@@ -806,15 +1085,12 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
     Enhanced interactive Sankey diagram with advanced customization options.
     
     Features:
-    - Toggle between absolute values and percentages (with actual percentage display)
     - Color coding for process types (Regular, DSM, FOMP)
     - Export functionality (PNG) with organized folder
     - Professional legend
-    - Simplified controls for beginners
     - Flow threshold filtering
-    - Process selection
-    - Zoom controls
-    - Curved vs rectangular flow lines
+    - Process selection (multi-select, all selected by default)
+    - Proper zoom and frame controls
     - Manual node positioning
 
     Args:
@@ -822,7 +1098,7 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
         dsm_params (dict, optional): DSM parameters to identify DSM processes.
         fomp_params (dict, optional): FOMP parameters to identify FOMP processes.
     """
-    from ipywidgets import FloatSlider, ToggleButtons, Button, HBox, VBox, HTML, Layout
+    from ipywidgets import FloatSlider, Button, HBox, VBox, HTML, Layout, Dropdown, SelectMultiple
     import os
     from datetime import datetime
     
@@ -854,11 +1130,23 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
         'CC': '#d62728'
     }
 
-    # Create the FigureWidget with zoom controls
+    # Create the FigureWidget with proper zoom controls
     fig = go.FigureWidget(
         data=[go.Sankey(
-            node=dict(label=[], color=[]),
-            link=dict(source=[], target=[], value=[], color=[])
+            node=dict(
+                label=[],
+                color=[],
+                pad=20,
+                thickness=15,
+                line=dict(color="black", width=0.5)
+            ),
+            link=dict(
+                source=[],
+                target=[],
+                value=[],
+                color=[]
+            ),
+            arrangement="snap"
         )]
     )
 
@@ -871,7 +1159,7 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
         else:
             return 'Regular'
 
-    def update_sankey(year, element, processes_to_show, min_flow_value, flow_representation):
+    def update_sankey(year, element, processes_to_show, min_flow_value):
         if not processes_to_show:
             with fig.batch_update():
                 fig.data[0].node.label = []
@@ -912,12 +1200,6 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
                 # Calculate flow values
                 flow_values = [f.Values[year_index, element_index] for f in final_flows]
                 
-                # Convert to percentages if requested
-                if flow_representation == "Percentages":
-                    total_flow = sum(flow_values)
-                    if total_flow > 0:
-                        flow_values = [v/total_flow * 100 for v in flow_values]
-                
                 # Set node colors based on process type
                 node_colors = []
                 for process_name in filtered_labels:
@@ -935,21 +1217,19 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
                 fig.data[0].link.value = flow_values
                 fig.data[0].link.color = link_colors
 
-            # Update layout with zoom controls and line style
-            unit = "%" if flow_representation == "Percentages" else "Mg"
+            # Update layout with proper zoom and frame controls
             title_text = f"Material Flow Sankey - {element.upper()} ({year})"
-            if flow_representation == "Percentages":
-                title_text += " - Percentages"
-            
-            # Update the Sankey object directly with standard styling
-            fig.data[0].link.line = dict(width=0.5, color="gray")
-            fig.data[0].link.color = link_colors
             
             fig.update_layout(
                 title_text=title_text,
                 font_size=12,
-                height=700,
-                margin=dict(l=10, r=10, b=20, t=50)
+                height=900,  # Reduced height
+                width=1400,  # Reduced width
+                margin=dict(l=100, r=100, b=100, t=120),  # Reduced margins
+                dragmode='pan',
+                hovermode='closest',
+                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)
             )
 
     def export_plot():
@@ -963,21 +1243,26 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
             # Generate filename with current parameters
             current_year = year_slider.value
             current_element = element_dropdown.value
-            current_representation = flow_representation.value
             
-            filename = f"sankey_{current_element}_{current_year}_{current_representation.lower().replace(' ', '_')}.png"
+            filename = f"sankey_{current_element}_{current_year}.png"
             filepath = os.path.join(export_folder, filename)
             
-            # Export the plot
-            fig.write_image(filepath, width=1200, height=800)
-            print(f"✅ Sankey diagram exported to: {filepath}")
-            print(f"📁 Export folder: {export_folder}")
-            
+            # Ensure the figure has data before exporting
+            if len(fig.data[0].node.label) > 0:
+                # Export the plot with current dimensions
+                fig.write_image(filepath, width=1400, height=900, scale=2)
+                print(f"✅ Sankey diagram exported to: {filepath}")
+                print(f"📁 Export folder: {export_folder}")
+            else:
+                print("⚠️ No data to export. Please select processes and ensure flows are visible.")
+                
         except Exception as e:
             print(f"❌ Export failed: {e}")
-            print("💡 Try: pip install kaleido")
+            print("💡 Make sure kaleido is installed: pip install kaleido")
+            import traceback
+            traceback.print_exc()
 
-    # Create widgets with better organization
+    # Create widgets with better organization and longer sliders
     year_slider = IntSlider(
         min=time_items[0],
         max=time_items[-1],
@@ -985,7 +1270,7 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
         value=time_items[0],
         description="Year:",
         style={'description_width': '80px'},
-        layout=Layout(width='200px')
+        layout=Layout(width='400px')
     )
     
     element_dropdown = Dropdown(
@@ -993,26 +1278,16 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
         value=element_items[0], 
         description="Element:",
         style={'description_width': '80px'},
-        layout=Layout(width='150px')
+        layout=Layout(width='200px')
     )
     
-    flow_representation = ToggleButtons(
-        options=['Absolute Values', 'Percentages'],
-        value='Absolute Values',
-        description='Flow Display:',
-        style={'description_width': '100px'},
-        layout=Layout(width='250px')
-    )
-    
-
-    
+    # Multi-select process selector, all selected by default
     process_selector = SelectMultiple(
         options=all_process_names,
-        value=list(all_process_names),
+        value=tuple(all_process_names),
         description="Processes:",
-        rows=6,
         style={'description_width': '100px'},
-        layout=Layout(width='300px')
+        layout=Layout(width='400px')
     )
     
     threshold_slider = FloatSlider(
@@ -1024,7 +1299,7 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
         continuous_update=False,
         readout_format=".2f",
         style={'description_width': '80px'},
-        layout=Layout(width='200px')
+        layout=Layout(width='400px')
     )
     
     export_button = Button(
@@ -1036,58 +1311,67 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
     export_button.on_click(lambda b: export_plot())
 
     # Create legend
-    legend_html = """
-    <div style="background-color: white; padding: 10px; border: 1px solid #ccc; border-radius: 5px;">
-        <h4 style="margin: 0 0 10px 0;">Process Types:</h4>
+    legend_html = f"""
+    <div style="margin: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9;">
+        <h4 style="margin: 0 0 10px 0;">Legend</h4>
         <div style="display: flex; flex-wrap: wrap; gap: 15px;">
-            <div><span style="color: #1f77b4;">●</span> Regular Processes</div>
-            <div><span style="color: #ff7f0e;">●</span> DSM Processes</div>
-            <div><span style="color: #2ca02c;">●</span> FOMP Processes</div>
+            <div style="display: flex; align-items: center;">
+                <div style="width: 20px; height: 20px; background-color: {process_colors['Regular']}; margin-right: 5px;"></div>
+                <span>Regular Process</span>
+            </div>
+            <div style="display: flex; align-items: center;">
+                <div style="width: 20px; height: 20px; background-color: {process_colors['DSM']}; margin-right: 5px;"></div>
+                <span>DSM Process</span>
+            </div>
+            <div style="display: flex; align-items: center;">
+                <div style="width: 20px; height: 20px; background-color: {process_colors['FOMP']}; margin-right: 5px;"></div>
+                <span>FOMP Process</span>
+            </div>
         </div>
-        <h4 style="margin: 15px 0 10px 0;">Elements:</h4>
-        <div style="display: flex; flex-wrap: wrap; gap: 15px;">
-            <div><span style="color: #1f77b4;">●</span> Material</div>
-            <div><span style="color: #ff7f0e;">●</span> WC</div>
-            <div><span style="color: #2ca02c;">●</span> DM</div>
-            <div><span style="color: #d62728;">●</span> CC</div>
-        </div>
-        <h4 style="margin: 15px 0 10px 0;">Features:</h4>
-        <div style="font-size: 12px;">
-            <div>• Toggle between absolute values and percentages</div>
-            <div>• Process and element selection</div>
-            <div>• Export as PNG for reports</div>
+        <div style="margin-top: 10px;">
+            <strong>Element Colors:</strong>
+            <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 20px; height: 20px; background-color: {element_colors['material']}; margin-right: 5px;"></div>
+                    <span>Material</span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 20px; height: 20px; background-color: {element_colors['WC']}; margin-right: 5px;"></div>
+                    <span>WC</span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 20px; height: 20px; background-color: {element_colors['DM']}; margin-right: 5px;"></div>
+                    <span>DM</span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 20px; height: 20px; background-color: {element_colors['CC']}; margin-right: 5px;"></div>
+                    <span>CC</span>
+                </div>
+            </div>
         </div>
     </div>
     """
     
     legend_widget = HTML(value=legend_html)
 
-    # Organize widgets in a user-friendly layout - NO DUPLICATES
-    controls_left = VBox([
+    # Set up interaction with all parameters
+    from ipywidgets import interactive
+    ui = VBox([
         HBox([year_slider, element_dropdown]),
-        HBox([flow_representation, threshold_slider]),
-        HBox([export_button])
-    ])
-    
-    controls_right = VBox([
-        process_selector,
+        HBox([process_selector, threshold_slider]),
+        HBox([export_button]),
         legend_widget
     ])
-    
-    main_layout = HBox([controls_left, controls_right])
-
-    # Set up interaction with all parameters
-    interact(
+    out = interactive(
         update_sankey,
         year=year_slider,
         element=element_dropdown,
         processes_to_show=process_selector,
-        min_flow_value=threshold_slider,
-        flow_representation=flow_representation
+        min_flow_value=threshold_slider
     )
-    
-    # Display only the plot (controls are handled by interact)
+    display(ui)
     display(fig)
+    out.update()
 
 
 def plot_process_dynamics(mfa_system_results, process_definitions):
