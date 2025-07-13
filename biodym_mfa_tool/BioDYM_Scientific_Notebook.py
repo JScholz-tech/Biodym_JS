@@ -14,18 +14,24 @@
 
 # # BioDYM Material Flow Analysis - Scientific Notebook
 # 
-# A streamlined notebook for Material Flow Analysis using the BioDYM framework.
+# A streamlined notebook for Material Flow Analysis using the BioDYM framework with enhanced plotting capabilities.
 # 
-# ## Workflow
-# 1. **Load Excel File** - Define input data
-# 2. **Confirm Configuration** - Review loaded data and settings
-# 3. **Run Calculation** - Execute MFA analysis
-# 4. **Mass Balance Check** - Verify calculation accuracy
-# 5. **Visualizations** - Display all available plots
+# ## Workflow Overview
+# 
+# This notebook follows a structured approach to Material Flow Analysis:
+# 
+# 1. **Setup and Data Loading** - Prepare environment and load input data
+# 2. **Calculation & Validation** - Execute MFA analysis and verify results
+# 3. **Visualization** - Comprehensive analysis and exploration
+# 4. **Export** - Save results and generate documentation
 # 
 # ---
 
-# ## 1. Setup and Imports
+# # 1. Setup and Data Loading
+# 
+# This section prepares the analysis environment and loads the input data.
+
+# ## 1.1 Environment Setup
 
 import os
 import sys
@@ -71,7 +77,7 @@ except ImportError as e:
 plt.style.use('default')
 print("📊 Plotting environment ready")
 
-# ## 2. Define Input File
+# ## 1.2 Data Input Configuration
 # 
 # **Change this variable to your Excel file:**
 
@@ -79,7 +85,7 @@ input_file = "data/01_input/250707_Template_CS1.xlsx"
 
 print(f"📁 Input file: {input_file}")
 
-# ## 3. Load and Validate Data
+# ## 1.3 Data Loading and Validation
 
 print("\n" + "="*60)
 print("📊 LOADING AND VALIDATING DATA")
@@ -119,7 +125,7 @@ if missing_sheets:
 else:
     print("\n✅ All required sheets present")
 
-# ## 4. Extract Configuration from Data
+# ## 1.4 System Configuration Extraction
 
 print("\n" + "="*60)
 print("⚙️ EXTRACTING CONFIGURATION")
@@ -149,7 +155,7 @@ print(f"📈 DSM available: {'Yes' if has_dsm else 'No'}")
 has_fomp = '3_2_Definition_FOMP' in input_data.keys()
 print(f"🌱 FOMP available: {'Yes' if has_fomp else 'No'}")
 
-# ## 5. Confirm Configuration
+# ## 1.5 Configuration Review
 
 print("\n" + "="*60)
 print("✅ CONFIGURATION CONFIRMATION")
@@ -167,7 +173,11 @@ config_summary = f"""
 
 display(Markdown(config_summary))
 
-# ## 6. Run MFA Calculation
+# # 2. Calculation & Validation
+# 
+# This section executes the MFA calculation and immediately validates the results through mass balance checks.
+
+# ## 2.1 Model Initialization
 
 print("\n" + "="*60)
 print("🚀 RUNNING MFA CALCULATION")
@@ -217,6 +227,8 @@ except Exception as e:
     print(f"❌ Error loading parameters: {e}")
     raise
 
+# ## 2.2 MFA Calculation Execution
+
 # 5. Define flows and parameters
 print("🔗 Defining flows and parameters...")
 try:
@@ -242,7 +254,7 @@ except Exception as e:
     traceback.print_exc()
     raise
 
-# ## 7. Mass Balance Check
+# ## 2.3 Mass Balance Validation
 
 print("\n" + "="*60)
 print("⚖️ MASS BALANCE VERIFICATION")
@@ -270,7 +282,19 @@ if mass_balance_errors:
 else:
     print("✅ All mass balances within acceptable limits")
 
-# ## 8. Results Overview
+# Mass Balance Error Visualization
+print("\n⚖️ Creating optimized mass balance error plots...")
+try:
+    # Use the optimized mass balance error function
+    plotting.plot_optimized_mass_balance_error(mfa_system_with_results)
+    print("✅ Optimized mass balance error plots created")
+    print("   🚀 Performance: Pre-calculated flow sums, memory optimized")
+    print("   🎨 Visualization: Color-coded errors (red=created, green=destroyed)")
+    print("   📁 Export: Enhanced export options (PNG, PDF, SVG, HTML)")
+except Exception as e:
+    print(f"⚠️ Could not create mass balance error plots: {e}")
+
+# ## 2.4 Results Overview
 
 print("\n" + "="*60)
 print("📈 RESULTS OVERVIEW")
@@ -307,26 +331,28 @@ if flow_summary:
     flows_df = pd.DataFrame(flow_summary)
     display(flows_df.head(10))  # Show first 10 flows
 
-# ## 9. Visualizations
+# # 3. Visualization
+# 
+# This section provides comprehensive analysis and exploration through various visualization tools.
 
 print("\n" + "="*60)
-print("📊 VISUALIZATIONS")
+print("📊 VISUALIZATION")
 print("="*60)
 
-# ============================================================================
-# 3.1 System Overview - Sankey Diagram
-# ============================================================================
+# ## 3.1 System Overview
 
 print("\n" + "-"*40)
-print("3.1 SYSTEM OVERVIEW - SANKEY DIAGRAM")
+print("3.1 SYSTEM OVERVIEW")
 print("-"*40)
+
+# ### 3.1.1 Material Flow Sankey Diagram
 
 print("🔗 Creating interactive Sankey diagram...")
 try:
     # Use the enhanced interactive Sankey function with DSM/FOMP parameters
     plotting.plot_interactive_sankey(mfa_system_with_results, dsm_params, fomp_params)
     print("✅ Interactive Sankey diagram created")
-    print("   📊 Features: Toggle absolute/percentage values, color coding, export options")
+    print("   📊 Features: Multi-process selection, color coding, export options")
     print("   🎨 Process types: Regular (blue), DSM (orange), FOMP (green)")
     print("   📁 Export: PNG with timestamped filenames in organized folders")
 except Exception as e:
@@ -334,77 +360,41 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
-# ============================================================================
-# 3.2 System Overview - Stock Overview
-# ============================================================================
+# ### 3.1.2 Stock Bar Chart
+
+print("\n📊 Creating stock bar chart...")
+try:
+    # Use the new simple stock bar chart function
+    plotting.plot_stock_bars_simple(mfa_system_with_results, dsm_params, fomp_params)
+    print("✅ Stock bar chart created")
+    print("   📊 Features: Multi-process selection, element selection, year slider")
+    print("   🎨 Color coding: Regular (blue), DSM (orange), FOMP (green)")
+    print("   📈 Interactive: Real-time updates with widget controls")
+except Exception as e:
+    print(f"⚠️ Could not create stock bar chart: {e}")
+
+# ### 3.1.3 Individual Process Analysis
+
+print("\n📊 Creating individual process analysis...")
+try:
+    # Use the new individual process analysis function
+    plotting.plot_individual_process_analysis(mfa_system_with_results, dsm_params, fomp_params)
+    print("✅ Individual process analysis created")
+    print("   📊 Features: 3-panel layout (Input | Stock | Outflow)")
+    print("   🎛️ Controls: Process selection, element selection")
+    print("   🎨 Color coding: Regular (blue), DSM (orange), FOMP (green)")
+except Exception as e:
+    print(f"⚠️ Could not create individual process analysis: {e}")
+
+# ## 3.2 Individual Process Analysis
 
 print("\n" + "-"*40)
-print("3.2 SYSTEM OVERVIEW - STOCK OVERVIEW")
+print("3.2 INDIVIDUAL PROCESS ANALYSIS")
 print("-"*40)
 
-print("📊 Creating stock evolution plots...")
-try:
-    # Use the existing stock evolution function
-    plotting.plot_stock_evolution(mfa_system_with_results, dsm_params, fomp_params)
-    print("✅ Stock evolution plots created")
-except Exception as e:
-    print(f"⚠️ Could not create stock evolution plots: {e}")
+# ### 3.2.1 DSM Process Analysis
 
-# ============================================================================
-# 3.3 System Overview - Flow Overview
-# ============================================================================
-
-print("\n" + "-"*40)
-print("3.3 SYSTEM OVERVIEW - FLOW OVERVIEW")
-print("-"*40)
-
-print("🔄 Creating flow dynamics plots...")
-try:
-    # Use the existing flow dynamics function
-    plotting.plot_flow_dynamics(mfa_system_with_results)
-    print("✅ Flow dynamics plots created")
-except Exception as e:
-    print(f"⚠️ Could not create flow dynamics plots: {e}")
-
-# ============================================================================
-# 3.4 System Overview - Mass Balance Check
-# ============================================================================
-
-print("\n" + "-"*40)
-print("3.4 SYSTEM OVERVIEW - MASS BALANCE CHECK")
-print("-"*40)
-
-print("⚖️ Creating optimized mass balance error plots...")
-try:
-    # Use the optimized mass balance error function
-    plotting.plot_optimized_mass_balance_error(mfa_system_with_results)
-    print("✅ Optimized mass balance error plots created")
-    print("   🚀 Performance: Pre-calculated flow sums, memory optimized")
-    print("   🎨 Visualization: Color-coded errors (red=created, green=destroyed)")
-    print("   📁 Export: Enhanced export options (PNG, PDF, SVG, HTML)")
-except Exception as e:
-    print(f"⚠️ Could not create mass balance error plots: {e}")
-
-# ============================================================================
-# 3.5 Individual Process Analysis
-# ============================================================================
-
-print("\n" + "-"*40)
-print("3.5 INDIVIDUAL PROCESS ANALYSIS")
-print("-"*40)
-
-# 3.5.1 Regular Processes
-print("\n📋 3.5.1 Regular Process Dynamics:")
-try:
-    # Load process definitions for smart titles
-    process_definitions = input_data['2_1_Definition_Processes']
-    plotting.plot_process_dynamics(mfa_system_with_results, process_definitions)
-    print("✅ Regular process dynamics plots created")
-except Exception as e:
-    print(f"⚠️ Could not create regular process dynamics: {e}")
-
-# 3.5.2 DSM Processes
-print("\n📈 3.5.2 DSM Process Analysis:")
+print("\n📈 3.2.1 DSM Process Analysis:")
 try:
     if has_dsm and dsm_details:
         plotting.plot_dsm_stock_details(mfa_system_with_results, dsm_params, dsm_details)
@@ -414,8 +404,9 @@ try:
 except Exception as e:
     print(f"⚠️ Could not create DSM process analysis: {e}")
 
-# 3.5.3 FOMP Processes
-print("\n🌱 3.5.3 FOMP Process Analysis:")
+# ### 3.2.2 FOMP Process Analysis
+
+print("\n🌱 3.2.2 FOMP Process Analysis:")
 try:
     if has_fomp and fomp_params:
         plotting.plot_fomp_stock_details(mfa_system_with_results, fomp_params)
@@ -425,32 +416,15 @@ try:
 except Exception as e:
     print(f"⚠️ Could not create FOMP process analysis: {e}")
 
-# ============================================================================
-# 3.6 Individual Stock Analysis
-# ============================================================================
+# ## 3.3 Detailed Component Analysis
 
 print("\n" + "-"*40)
-print("3.6 INDIVIDUAL STOCK ANALYSIS")
+print("3.3 DETAILED COMPONENT ANALYSIS")
 print("-"*40)
 
-print("📊 Creating individual stock analysis...")
-try:
-    plotting.plot_individual_stocks(mfa_system_with_results, dsm_params, fomp_params)
-    print("✅ Individual stock analysis created")
-    print("   🎨 Features: Process type color coding, delta stock visualization")
-    print("   📊 Options: Multi-stock selection, bar/line charts, cumulative values")
-except Exception as e:
-    print(f"⚠️ Could not create individual stock analysis: {e}")
+# ### 3.3.1 Individual Flow Analysis
 
-# ============================================================================
-# 3.7 Individual Flow Analysis
-# ============================================================================
-
-print("\n" + "-"*40)
-print("3.7 INDIVIDUAL FLOW ANALYSIS")
-print("-"*40)
-
-print("🔄 Creating individual flow analysis...")
+print("\n🔄 Creating individual flow analysis...")
 try:
     plotting.plot_individual_flows(mfa_system_with_results)
     print("✅ Individual flow analysis created")
@@ -459,28 +433,22 @@ try:
 except Exception as e:
     print(f"⚠️ Could not create individual flow analysis: {e}")
 
-# ============================================================================
-# 3.8 System Efficiency Analysis
-# ============================================================================
+# ### 3.3.2 System Efficiency Metrics
 
-print("\n" + "-"*40)
-print("3.8 SYSTEM EFFICIENCY ANALYSIS")
-print("-"*40)
-
-print("📈 Creating system efficiency metrics...")
+print("\n📈 Creating system efficiency metrics...")
 try:
     plotting.plot_system_efficiency_metrics(mfa_system_with_results)
     print("✅ System efficiency metrics created")
 except Exception as e:
     print(f"⚠️ Could not create system efficiency metrics: {e}")
 
-# ============================================================================
-# 3.9 Summary Dashboard
-# ============================================================================
+# ## 3.4 Advanced Analysis
 
 print("\n" + "-"*40)
-print("3.9 SUMMARY DASHBOARD")
+print("3.4 ADVANCED ANALYSIS")
 print("-"*40)
+
+# ### 3.4.1 Summary Dashboard
 
 print("📊 Creating summary dashboard...")
 try:
@@ -489,15 +457,9 @@ try:
 except Exception as e:
     print(f"⚠️ Could not create summary dashboard: {e}")
 
-# ============================================================================
-# 3.10 Monte Carlo Analysis (if available)
-# ============================================================================
+# ### 3.4.2 Monte Carlo Uncertainty Analysis
 
-print("\n" + "-"*40)
-print("3.10 MONTE CARLO ANALYSIS")
-print("-"*40)
-
-print("🎲 Creating integrated Monte Carlo dashboard...")
+print("\n🎲 Creating integrated Monte Carlo dashboard...")
 try:
     # Create sample MC results for demonstration (replace with actual MC data)
     if has_mc:
@@ -546,11 +508,15 @@ try:
 except Exception as e:
     print(f"⚠️ Could not create individual MC plots: {e}")
 
-# ## 10. Export Results
+# # 4. Export
+# 
+# This section saves results and generates documentation for the analysis.
 
 print("\n" + "="*60)
 print("💾 EXPORTING RESULTS")
 print("="*60)
+
+# ## 4.1 Results Export
 
 # Export to Excel
 output_file = "data/02_output/results_scientific.xlsx"
@@ -559,6 +525,8 @@ try:
     print(f"✅ Results exported to: {output_file}")
 except Exception as e:
     print(f"⚠️ Export error: {e}")
+
+# ## 4.2 Configuration Export
 
 # Export configuration summary
 config_file = output_file.replace('.xlsx', '_config.xlsx')
@@ -577,7 +545,7 @@ try:
 except Exception as e:
     print(f"⚠️ Config export error: {e}")
 
-# ## 11. Summary
+# ## 4.3 Analysis Summary
 
 print("\n" + "="*60)
 print("🎉 ANALYSIS COMPLETE")

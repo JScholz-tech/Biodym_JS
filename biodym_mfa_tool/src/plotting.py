@@ -603,7 +603,7 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
 def plot_fomp_stock_details(mfa_system_results, fomp_params):
     """
     Creates detailed stock evolution plots specifically for FOMP processes.
-    Shows organic matter accumulation and mineralization.
+    Shows organic matter accumulation and mineralization with enhanced design.
 
     Args:
         mfa_system_results (odym.MFAsystem): The solved MFA system object.
@@ -613,12 +613,25 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
         print("No FOMP processes found to plot.")
         return
 
+    from ipywidgets import Dropdown, HBox, VBox, HTML, Layout, Button
+    from IPython.display import display
+    import os
+    from datetime import datetime
+
     time_items = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = mfa_system_results.Elements
 
+    # Define consistent color scheme
+    colors = {
+        'stock': '#2ca02c',      # Green for organic matter stock
+        'input': '#1f77b4',      # Blue for input
+        'output': '#d62728',      # Red for mineralization
+        'background': '#f9f9f9'   # Light background
+    }
+
     fig = go.FigureWidget()
 
-    def update_plot(process_id, element):
+    def update_plot(process_id, element, show_cumulative):
         element_index = element_items.index(element)
 
         with fig.batch_update():
@@ -644,62 +657,220 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
                 if f.P_Start == process_id
             )
 
-            # Plot stock evolution
+            # Plot stock evolution (always shown)
             fig.add_trace(
                 go.Scatter(
                     x=time_items,
                     y=stock_values,
-                    mode="lines",
+                    mode="lines+markers",
                     name="Organic Matter Stock",
-                    line=dict(color="#2ca02c", width=3),
+                    line=dict(color=colors['stock'], width=3),
+                    marker=dict(size=4),
+                    hovertemplate="<b>Stock</b><br>Year: %{x}<br>Mass: %{y:.2f} Mg<extra></extra>"
                 )
             )
 
-            # Plot cumulative inflow and outflow
-            cumulative_inflow = np.cumsum(inflow_ts)
-            cumulative_outflow = np.cumsum(outflow_ts)
+            if show_cumulative:
+                # Plot cumulative inflow and outflow
+                cumulative_inflow = np.cumsum(inflow_ts)
+                cumulative_outflow = np.cumsum(outflow_ts)
 
-            fig.add_trace(
-                go.Scatter(
-                    x=time_items,
-                    y=cumulative_inflow,
-                    mode="lines",
-                    name="Cumulative Input",
-                    line=dict(color="#1f77b4", width=2, dash="dash"),
+                fig.add_trace(
+                    go.Scatter(
+                        x=time_items,
+                        y=cumulative_inflow,
+                        mode="lines+markers",
+                        name="Cumulative Input",
+                        line=dict(color=colors['input'], width=2, dash="dash"),
+                        marker=dict(size=3),
+                        hovertemplate="<b>Cumulative Input</b><br>Year: %{x}<br>Mass: %{y:.2f} Mg<extra></extra>"
+                    )
                 )
-            )
 
-            fig.add_trace(
-                go.Scatter(
-                    x=time_items,
-                    y=cumulative_outflow,
-                    mode="lines",
-                    name="Cumulative Mineralization",
-                    line=dict(color="#d62728", width=2, dash="dot"),
+                fig.add_trace(
+                    go.Scatter(
+                        x=time_items,
+                        y=cumulative_outflow,
+                        mode="lines+markers",
+                        name="Cumulative Mineralization",
+                        line=dict(color=colors['output'], width=2, dash="dot"),
+                        marker=dict(size=3),
+                        hovertemplate="<b>Cumulative Mineralization</b><br>Year: %{x}<br>Mass: %{y:.2f} Mg<extra></extra>"
+                    )
                 )
-            )
+            else:
+                # Plot annual inflow and outflow
+                fig.add_trace(
+                    go.Scatter(
+                        x=time_items,
+                        y=inflow_ts,
+                        mode="lines+markers",
+                        name="Annual Input",
+                        line=dict(color=colors['input'], width=2, dash="dash"),
+                        marker=dict(size=3),
+                        hovertemplate="<b>Annual Input</b><br>Year: %{x}<br>Mass: %{y:.2f} Mg<extra></extra>"
+                    )
+                )
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=time_items,
+                        y=outflow_ts,
+                        mode="lines+markers",
+                        name="Annual Mineralization",
+                        line=dict(color=colors['output'], width=2, dash="dot"),
+                        marker=dict(size=3),
+                        hovertemplate="<b>Annual Mineralization</b><br>Year: %{x}<br>Mass: %{y:.2f} Mg<extra></extra>"
+                    )
+                )
 
             process_name = next(
                 (p.Name for p in mfa_system_results.ProcessList if p.ID == process_id),
                 f"Process {process_id}",
             )
+            
+            # Enhanced layout
             fig.update_layout(
-                title=f"FOMP Stock Evolution: {process_name} ({element.upper()})",
+                title=dict(
+                    text=f"FOMP Analysis: {process_name} ({element.upper()})",
+                    x=0.5,
+                    font=dict(size=16, color='#2c3e50')
+                ),
                 xaxis_title="Year",
-                yaxis_title="Mass in Mg",
+                yaxis_title=f"Mass ({element.upper()}) in Mg",
                 hovermode="x unified",
+                height=500,
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                font=dict(size=12),
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                ),
+                margin=dict(l=80, r=80, t=100, b=80)
+            )
+            
+            # Enhanced axes
+            fig.update_xaxes(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor='#e1e5e9',
+                zeroline=True,
+                zerolinecolor='#2c3e50',
+                zerolinewidth=1
+            )
+            fig.update_yaxes(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor='#e1e5e9',
+                zeroline=True,
+                zerolinecolor='#2c3e50',
+                zerolinewidth=1
             )
 
-    # Create widgets
-    process_dropdown = Dropdown(
-        options=list(fomp_params.keys()), description="FOMP Process:"
-    )
-    element_dropdown = Dropdown(
-        options=element_items, value=element_items[0], description="Element:"
-    )
+    def export_plot():
+        """Export the current plot with enhanced options"""
+        try:
+            # Create export folder with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            export_folder = f"exports/fomp_analysis/{timestamp}"
+            os.makedirs(export_folder, exist_ok=True)
+            
+            # Generate filename with current parameters
+            current_process = process_dropdown.value
+            current_element = element_dropdown.value
+            
+            filename = f"fomp_{current_process}_{current_element}.png"
+            filepath = os.path.join(export_folder, filename)
+            
+            # Export the plot
+            fig.write_image(filepath, width=1200, height=600, scale=2)
+            print(f"✅ FOMP analysis exported to: {filepath}")
+            print(f"📁 Export folder: {export_folder}")
+            
+        except Exception as e:
+            print(f"❌ Export failed: {e}")
+            print("💡 Make sure kaleido is installed: pip install kaleido")
 
-    interact(update_plot, process_id=process_dropdown, element=element_dropdown)
+    # Create enhanced widgets
+    process_dropdown = Dropdown(
+        options=list(fomp_params.keys()),
+        description="FOMP Process:",
+        style={'description_width': '120px'},
+        layout=Layout(width='300px')
+    )
+    
+    element_dropdown = Dropdown(
+        options=element_items,
+        value=element_items[0],
+        description="Element:",
+        style={'description_width': '80px'},
+        layout=Layout(width='200px')
+    )
+    
+    cumulative_checkbox = Dropdown(
+        options=["Annual Values", "Cumulative Values"],
+        value="Annual Values",
+        description="Display:",
+        style={'description_width': '80px'},
+        layout=Layout(width='200px')
+    )
+    
+    export_button = Button(
+        description="Export PNG",
+        button_style='success',
+        icon='download',
+        layout=Layout(width='120px')
+    )
+    export_button.on_click(lambda b: export_plot())
+
+    # Create legend
+    legend_html = f"""
+    <div style="margin: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: {colors['background']};">
+        <h4 style="margin: 0 0 10px 0;">FOMP Analysis Legend</h4>
+        <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+            <div style="display: flex; align-items: center;">
+                <div style="width: 20px; height: 20px; background-color: {colors['stock']}; margin-right: 5px;"></div>
+                <span>Organic Matter Stock</span>
+            </div>
+            <div style="display: flex; align-items: center;">
+                <div style="width: 20px; height: 20px; background-color: {colors['input']}; margin-right: 5px;"></div>
+                <span>Input (Annual/Cumulative)</span>
+            </div>
+            <div style="display: flex; align-items: center;">
+                <div style="width: 20px; height: 20px; background-color: {colors['output']}; margin-right: 5px;"></div>
+                <span>Mineralization (Annual/Cumulative)</span>
+            </div>
+        </div>
+        <div style="margin-top: 10px; font-size: 12px; color: #666;">
+            <strong>FOMP Process:</strong> First-Order Mineralization Process for organic matter dynamics
+        </div>
+    </div>
+    """
+    
+    legend_widget = HTML(value=legend_html)
+
+    # Set up interaction with enhanced layout
+    from ipywidgets import interactive
+    ui = VBox([
+        HBox([process_dropdown, element_dropdown, cumulative_checkbox]),
+        HBox([export_button]),
+        legend_widget
+    ])
+    
+    out = interactive(
+        update_plot,
+        process_id=process_dropdown,
+        element=element_dropdown,
+        show_cumulative=cumulative_checkbox
+    )
+    
+    display(ui)
     display(fig)
+    out.update()
 
 
 def plot_system_efficiency_metrics(mfa_system_results):
@@ -2558,3 +2729,368 @@ def plot_stock_bars_by_year(mfa_system_results):
 
     interact(update_plot, year=year_dropdown, element=element_dropdown)
     display(fig)
+
+
+def plot_stock_bars_simple(mfa_system_results, dsm_params=None, fomp_params=None):
+    """
+    Creates a simple bar chart of all stocks in the system with interactive widgets.
+    
+    Features:
+    - Bar chart showing stock values for selected processes and elements
+    - Process selection widget (multi-select)
+    - Element selection widget
+    - Year selection for time series analysis
+    - Color coding for process types (Regular, DSM, FOMP)
+    
+    Args:
+        mfa_system_results (odym.MFAsystem): The solved MFA system object.
+        dsm_params (dict, optional): DSM parameters to identify DSM processes.
+        fomp_params (dict, optional): FOMP parameters to identify FOMP processes.
+    """
+    from ipywidgets import IntSlider, Dropdown, SelectMultiple, HBox, VBox, HTML, Layout
+    from IPython.display import display
+    import plotly.graph_objects as go
+    
+    # Get available data
+    stock_names = [name for name in mfa_system_results.StockDict.keys() if name.startswith("S_")]
+    process_names = [p.Name for p in mfa_system_results.ProcessList if f"S_{p.ID}" in stock_names]
+    time_items = mfa_system_results.IndexTable.Classification["Time"].Items
+    element_items = mfa_system_results.Elements
+    
+    if not stock_names:
+        print("No stocks found in the system to plot.")
+        return
+    
+    # Define color schemes
+    process_colors = {
+        'Regular': '#1f77b4',  # Blue
+        'DSM': '#ff7f0e',      # Orange
+        'FOMP': '#2ca02c',     # Green
+    }
+    
+    def get_process_type(process_id):
+        """Determine process type for color coding"""
+        if dsm_params and process_id in dsm_params:
+            return 'DSM'
+        elif fomp_params and process_id in fomp_params:
+            return 'FOMP'
+        else:
+            return 'Regular'
+    
+    # Create the FigureWidget
+    fig = go.FigureWidget()
+    
+    def update_stock_bars(selected_processes, selected_element, selected_year):
+        """Update the bar chart based on widget selections"""
+        if not selected_processes:
+            with fig.batch_update():
+                fig.data = []
+            return
+        
+        year_index = time_items.index(selected_year)
+        element_index = element_items.index(selected_element)
+        
+        # Get stock values for selected processes
+        stock_values = []
+        stock_labels = []
+        bar_colors = []
+        
+        for process_name in selected_processes:
+            process_id = next(p.ID for p in mfa_system_results.ProcessList if p.Name == process_name)
+            stock_name = f"S_{process_id}"
+            
+            if stock_name in mfa_system_results.StockDict:
+                stock_obj = mfa_system_results.StockDict[stock_name]
+                value = stock_obj.Values[year_index, element_index]
+                stock_values.append(value)
+                stock_labels.append(process_name)
+                
+                # Set color based on process type
+                process_type = get_process_type(process_id)
+                bar_colors.append(process_colors.get(process_type, process_colors['Regular']))
+        
+        with fig.batch_update():
+            fig.data = []
+            
+            if stock_values:
+                fig.add_trace(go.Bar(
+                    x=stock_labels,
+                    y=stock_values,
+                    marker_color=bar_colors,
+                    name=f"Stock Values ({selected_element.upper()})"
+                ))
+                
+                fig.update_layout(
+                    title=f"Stock Values by Process - {selected_element.upper()} ({selected_year})",
+                    xaxis_title="Process",
+                    yaxis_title=f"Stock ({selected_element.upper()}) in Mg",
+                    height=500,
+                    showlegend=False
+                )
+    
+    # Create widgets
+    year_slider = IntSlider(
+        min=time_items[0],
+        max=time_items[-1],
+        step=1,
+        value=time_items[0],
+        description="Year:",
+        style={'description_width': '80px'},
+        layout=Layout(width='300px')
+    )
+    
+    element_dropdown = Dropdown(
+        options=element_items,
+        value=element_items[0],
+        description="Element:",
+        style={'description_width': '80px'},
+        layout=Layout(width='200px')
+    )
+    
+    process_selector = SelectMultiple(
+        options=process_names,
+        value=tuple(process_names),  # All processes selected by default
+        description="Processes:",
+        style={'description_width': '100px'},
+        layout=Layout(width='400px')
+    )
+    
+    # Create legend
+    legend_html = f"""
+    <div style="margin: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9;">
+        <h4 style="margin: 0 0 10px 0;">Process Types</h4>
+        <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+            <div style="display: flex; align-items: center;">
+                <div style="width: 20px; height: 20px; background-color: {process_colors['Regular']}; margin-right: 5px;"></div>
+                <span>Regular Process</span>
+            </div>
+            <div style="display: flex; align-items: center;">
+                <div style="width: 20px; height: 20px; background-color: {process_colors['DSM']}; margin-right: 5px;"></div>
+                <span>DSM Process</span>
+            </div>
+            <div style="display: flex; align-items: center;">
+                <div style="width: 20px; height: 20px; background-color: {process_colors['FOMP']}; margin-right: 5px;"></div>
+                <span>FOMP Process</span>
+            </div>
+        </div>
+    </div>
+    """
+    
+    legend_widget = HTML(value=legend_html)
+    
+    # Set up interaction
+    from ipywidgets import interactive
+    ui = VBox([
+        HBox([year_slider, element_dropdown]),
+        HBox([process_selector]),
+        legend_widget
+    ])
+    
+    out = interactive(
+        update_stock_bars,
+        selected_processes=process_selector,
+        selected_element=element_dropdown,
+        selected_year=year_slider
+    )
+    
+    display(ui)
+    display(fig)
+    out.update()
+
+
+def plot_individual_process_analysis(mfa_system_results, dsm_params=None, fomp_params=None):
+    """
+    Creates a 3-panel analysis for individual processes showing input, stock, and outflow over time.
+    
+    Features:
+    - 3-panel layout: Input | Stock | Outflow
+    - Process selection dropdown
+    - Element selection dropdown
+    - Time series analysis for selected process
+    - Color coding for process types (Regular, DSM, FOMP)
+    
+    Args:
+        mfa_system_results (odym.MFAsystem): The solved MFA system object.
+        dsm_params (dict, optional): DSM parameters to identify DSM processes.
+        fomp_params (dict, optional): FOMP parameters to identify FOMP processes.
+    """
+    from ipywidgets import Dropdown, HBox, VBox, HTML, Layout
+    from IPython.display import display
+    from plotly.subplots import make_subplots
+    import plotly.graph_objects as go
+    
+    # Get available data
+    stock_names = [name for name in mfa_system_results.StockDict.keys() if name.startswith("S_")]
+    process_names = [p.Name for p in mfa_system_results.ProcessList if f"S_{p.ID}" in stock_names]
+    time_items = mfa_system_results.IndexTable.Classification["Time"].Items
+    element_items = mfa_system_results.Elements
+    
+    if not stock_names:
+        print("No processes with stocks found to analyze.")
+        return
+    
+    # Define color schemes
+    process_colors = {
+        'Regular': '#1f77b4',  # Blue
+        'DSM': '#ff7f0e',      # Orange
+        'FOMP': '#2ca02c',     # Green
+    }
+    
+    def get_process_type(process_id):
+        """Determine process type for color coding"""
+        if dsm_params and process_id in dsm_params:
+            return 'DSM'
+        elif fomp_params and process_id in fomp_params:
+            return 'FOMP'
+        else:
+            return 'Regular'
+    
+    # Create the FigureWidget with 3 subplots
+    fig = go.FigureWidget(
+        make_subplots(
+            rows=1, cols=3,
+            subplot_titles=("Input Over Time", "Stock Over Time", "Outflow Over Time"),
+            specs=[[{"secondary_y": False}, {"secondary_y": False}, {"secondary_y": False}]]
+        )
+    )
+    
+    def update_process_analysis(selected_process, selected_element):
+        """Update the 3-panel analysis based on widget selections"""
+        if not selected_process:
+            with fig.batch_update():
+                fig.data = []
+            return
+        
+        process_id = next(p.ID for p in mfa_system_results.ProcessList if p.Name == selected_process)
+        element_index = element_items.index(selected_element)
+        process_type = get_process_type(process_id)
+        line_color = process_colors.get(process_type, process_colors['Regular'])
+        
+        with fig.batch_update():
+            fig.data = []
+            
+            # Panel 1: Input over time
+            inflow_ts = sum(
+                f.Values[:, element_index]
+                for f in mfa_system_results.FlowDict.values()
+                if f.P_End == process_id
+            )
+            
+            fig.add_trace(
+                go.Scatter(
+                    x=time_items,
+                    y=inflow_ts,
+                    mode="lines+markers",
+                    name="Input",
+                    line=dict(color=line_color, width=2),
+                    marker=dict(size=4)
+                ),
+                row=1, col=1
+            )
+            
+            # Panel 2: Stock over time
+            stock_name = f"S_{process_id}"
+            if stock_name in mfa_system_results.StockDict:
+                stock_obj = mfa_system_results.StockDict[stock_name]
+                stock_ts = stock_obj.Values[:, element_index]
+                
+                fig.add_trace(
+                    go.Scatter(
+                        x=time_items,
+                        y=stock_ts,
+                        mode="lines+markers",
+                        name="Stock",
+                        line=dict(color=line_color, width=2),
+                        marker=dict(size=4)
+                    ),
+                    row=1, col=2
+                )
+            
+            # Panel 3: Outflow over time
+            outflow_ts = sum(
+                f.Values[:, element_index]
+                for f in mfa_system_results.FlowDict.values()
+                if f.P_Start == process_id
+            )
+            
+            fig.add_trace(
+                go.Scatter(
+                    x=time_items,
+                    y=outflow_ts,
+                    mode="lines+markers",
+                    name="Outflow",
+                    line=dict(color=line_color, width=2),
+                    marker=dict(size=4)
+                ),
+                row=1, col=3
+            )
+            
+            # Update layout
+            fig.update_layout(
+                title=f"Process Analysis: {selected_process} ({selected_element.upper()})",
+                height=400,
+                showlegend=False
+            )
+            
+            # Update axes labels
+            fig.update_xaxes(title_text="Year")
+            fig.update_yaxes(title_text=f"Mass ({selected_element.upper()}) in Mg", row=1, col=1)
+            fig.update_yaxes(title_text=f"Stock ({selected_element.upper()}) in Mg", row=1, col=2)
+            fig.update_yaxes(title_text=f"Mass ({selected_element.upper()}) in Mg", row=1, col=3)
+    
+    # Create widgets
+    process_dropdown = Dropdown(
+        options=process_names,
+        value=process_names[0] if process_names else None,
+        description="Process:",
+        style={'description_width': '100px'},
+        layout=Layout(width='300px')
+    )
+    
+    element_dropdown = Dropdown(
+        options=element_items,
+        value=element_items[0],
+        description="Element:",
+        style={'description_width': '80px'},
+        layout=Layout(width='200px')
+    )
+    
+    # Create legend
+    legend_html = f"""
+    <div style="margin: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9;">
+        <h4 style="margin: 0 0 10px 0;">Process Types</h4>
+        <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+            <div style="display: flex; align-items: center;">
+                <div style="width: 20px; height: 20px; background-color: {process_colors['Regular']}; margin-right: 5px;"></div>
+                <span>Regular Process</span>
+            </div>
+            <div style="display: flex; align-items: center;">
+                <div style="width: 20px; height: 20px; background-color: {process_colors['DSM']}; margin-right: 5px;"></div>
+                <span>DSM Process</span>
+            </div>
+            <div style="display: flex; align-items: center;">
+                <div style="width: 20px; height: 20px; background-color: {process_colors['FOMP']}; margin-right: 5px;"></div>
+                <span>FOMP Process</span>
+            </div>
+        </div>
+    </div>
+    """
+    
+    legend_widget = HTML(value=legend_html)
+    
+    # Set up interaction
+    from ipywidgets import interactive
+    ui = VBox([
+        HBox([process_dropdown, element_dropdown]),
+        legend_widget
+    ])
+    
+    out = interactive(
+        update_process_analysis,
+        selected_process=process_dropdown,
+        selected_element=element_dropdown
+    )
+    
+    display(ui)
+    display(fig)
+    out.update()
