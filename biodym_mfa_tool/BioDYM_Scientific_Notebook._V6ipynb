@@ -214,26 +214,16 @@
      "name": "stderr",
      "output_type": "stream",
      "text": [
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n"
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n"
      ]
     },
     {
@@ -247,26 +237,16 @@
      "name": "stderr",
      "output_type": "stream",
      "text": [
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n"
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n"
      ]
     }
    ],
@@ -696,26 +676,16 @@
      "name": "stderr",
      "output_type": "stream",
      "text": [
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n"
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n"
      ]
     },
     {
@@ -732,26 +702,16 @@
      "name": "stderr",
      "output_type": "stream",
      "text": [
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning:\n",
-      "\n",
-      "Data Validation extension is not supported and will be removed\n",
-      "\n"
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n"
      ]
     }
    ],
@@ -1317,7 +1277,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "1401d19ff7604946bf6d6ffe06541f59",
+       "model_id": "043ad3c366214b77bd7928cdeefad633",
        "version_major": 2,
        "version_minor": 0
       },
@@ -1331,21 +1291,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "2417707138e348ae8f500d0650bb57ff",
-       "version_major": 2,
-       "version_minor": 0
-      },
-      "text/plain": [
-       "HBox(children=(VBox(children=(HBox(children=(IntSlider(value=2025, description='Year:', layout=Layout(width='2…"
-      ]
-     },
-     "metadata": {},
-     "output_type": "display_data"
-    },
-    {
-     "data": {
-      "application/vnd.jupyter.widget-view+json": {
-       "model_id": "5363a27a47fa44e58918c4e1f0fd106a",
+       "model_id": "0a6f1f4dd4f449638fe1f90574a5b4eb",
        "version_major": 2,
        "version_minor": 0
       },
@@ -1371,12 +1317,10 @@
        "                                 Utilization in construction, Incineration,\n",
        "                                 Incorporation, Animal bedding, Lithosphere]},\n",
        "              'type': 'sankey',\n",
-       "              'uid': 'ccdd2a17-a263-436a-a5ec-8bc3432a4d18'}],\n",
-       "    'layout': {'dragmode': 'pan',\n",
-       "               'font': {'size': 12},\n",
+       "              'uid': '23a920bd-093d-4b2f-95ec-b203531c7fab'}],\n",
+       "    'layout': {'font': {'size': 12},\n",
        "               'height': 700,\n",
        "               'margin': {'b': 20, 'l': 10, 'r': 10, 't': 50},\n",
-       "               'modebar': {'activecolor': 'red', 'bgcolor': 'rgba(255,255,255,0.8)', 'color': 'black', 'orientation': 'v'},\n",
        "               'template': '...',\n",
        "               'title': {'text': 'Material Flow Sankey - MATERIAL (2025)'}}\n",
        "})"
@@ -1454,7 +1398,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "d5010a705c6046478959edb8ecac2e74",
+       "model_id": "5ac2fc2c79084faabe7cca543b99afd3",
        "version_major": 2,
        "version_minor": 0
       },
@@ -1468,7 +1412,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "1232bb6ebf2a48358ce6efc36588fbac",
+       "model_id": "7678d3a80a814c42b66e8d367aa1f6c5",
        "version_major": 2,
        "version_minor": 0
       },
@@ -1478,7 +1422,7 @@
        "              'mode': 'lines',\n",
        "              'name': 'Total Stock (MATERIAL)',\n",
        "              'type': 'scatter',\n",
-       "              'uid': '38caf50d-0636-462d-8742-b73a8421f2c0',\n",
+       "              'uid': '93ae7bfa-cf13-4c7f-bde3-8f598eec7ff5',\n",
        "              'x': [2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034,\n",
        "                    2035, 2036, 2037, 2038, 2039, 2040, 2041, 2042, 2043, 2044,\n",
        "                    2045, 2046, 2047, 2048, 2049, 2050],\n",
@@ -1624,7 +1568,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "8f593f91fb7141da875a61a719761367",
+       "model_id": "923dff44acc845e7996eebe7617d42a7",
        "version_major": 2,
        "version_minor": 0
       },
@@ -1638,7 +1582,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "a6d7254f40364dc6ab7d7aa5679320b1",
+       "model_id": "ce852c51eeb34b75bf8dca737fef183a",
        "version_major": 2,
        "version_minor": 0
       },
@@ -1648,7 +1592,7 @@
        "                                   #7f7f7f, #7f7f7f, #7f7f7f, #7f7f7f, #7f7f7f,\n",
        "                                   #7f7f7f]},\n",
        "              'type': 'bar',\n",
-       "              'uid': '49066c85-f976-44d6-8526-68724583a66f',\n",
+       "              'uid': '7b7ba48f-f7b0-4678-8f8d-2c26f226b1d3',\n",
        "              'x': [Atmosphere, Environment, Cultivation, Harvest, Grain\n",
        "                    Processing & Consumption, Straw d&C, Utilization in\n",
        "                    construction, Incineration, Incorporation, Animal bedding,\n",
@@ -1795,7 +1739,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "df1b597fd9d044c9b764f0372dc9812b",
+       "model_id": "fcc1bcef535840a891e6c5f34f0a7835",
        "version_major": 2,
        "version_minor": 0
       },
@@ -1809,7 +1753,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "fe70740c7f17449ebe458b30ee4b0b07",
+       "model_id": "48d8c00319e44a3db2ddc96c1f9524e9",
        "version_major": 2,
        "version_minor": 0
       },
@@ -1819,7 +1763,7 @@
        "              'mode': 'lines',\n",
        "              'name': 'Organic Matter Stock',\n",
        "              'type': 'scatter',\n",
-       "              'uid': '3c33c101-bab5-4891-84e0-e331fd5fe02d',\n",
+       "              'uid': 'ff516606-b10b-4c01-95da-7dc283b56bd6',\n",
        "              'x': [2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034,\n",
        "                    2035, 2036, 2037, 2038, 2039, 2040, 2041, 2042, 2043, 2044,\n",
        "                    2045, 2046, 2047, 2048, 2049, 2050],\n",
@@ -1833,7 +1777,7 @@
        "              'mode': 'lines',\n",
        "              'name': 'Cumulative Input',\n",
        "              'type': 'scatter',\n",
-       "              'uid': '7f9f9ea6-9bc4-429b-bdc5-4b19b1e9a7db',\n",
+       "              'uid': '60d6fde3-3944-4014-a3d5-3b98ff2c69cb',\n",
        "              'x': [2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034,\n",
        "                    2035, 2036, 2037, 2038, 2039, 2040, 2041, 2042, 2043, 2044,\n",
        "                    2045, 2046, 2047, 2048, 2049, 2050],\n",
@@ -1844,7 +1788,7 @@
        "              'mode': 'lines',\n",
        "              'name': 'Cumulative Mineralization',\n",
        "              'type': 'scatter',\n",
-       "              'uid': '55aaf410-4e4e-40ab-b2e8-eb8210b627be',\n",
+       "              'uid': '1ab0f6d8-2409-4c95-85b6-152060afc8e5',\n",
        "              'x': [2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034,\n",
        "                    2035, 2036, 2037, 2038, 2039, 2040, 2041, 2042, 2043, 2044,\n",
        "                    2045, 2046, 2047, 2048, 2049, 2050],\n",
@@ -1935,7 +1879,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "de79ad1727f94e03b0cc396742d210b3",
+       "model_id": "2d4266d2749e4235824f87223c361b45",
        "version_major": 2,
        "version_minor": 0
       },
@@ -1949,7 +1893,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "05d4ee66d4574b249beddc4bcda9f8d4",
+       "model_id": "d8ebee9b94bc4c1ca154554c7a005dd7",
        "version_major": 2,
        "version_minor": 0
       },
@@ -2028,7 +1972,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "ff7bf5583473438da60e9f650bc8a267",
+       "model_id": "9da3595ec4384133bd3f3b52a3b53b61",
        "version_major": 2,
        "version_minor": 0
       },
@@ -2042,7 +1986,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "08cc15a342c447d4b356228f11c57401",
+       "model_id": "df8cd9234c544feeaa89669129ff480a",
        "version_major": 2,
        "version_minor": 0
       },
@@ -2051,7 +1995,7 @@
        "    'data': [{'mode': 'lines+markers',\n",
        "              'name': 'F_00_02',\n",
        "              'type': 'scatter',\n",
-       "              'uid': '0d270212-4de4-41d0-af91-8c6115467167',\n",
+       "              'uid': 'c5651c09-cb17-4264-958c-d9c4ad31dd3e',\n",
        "              'x': [2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034,\n",
        "                    2035, 2036, 2037, 2038, 2039, 2040, 2041, 2042, 2043, 2044,\n",
        "                    2045, 2046, 2047, 2048, 2049, 2050],\n",
@@ -2137,7 +2081,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "48224ced0c194ab98240042c385ef085",
+       "model_id": "443bc3d71c0c4ed89fcab8970a57a4b6",
        "version_major": 2,
        "version_minor": 0
       },
@@ -2151,7 +2095,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "3fc51e0ef5254385b1e2e8f01fea72e2",
+       "model_id": "76020a3e3f344a1abe528475ff24278b",
        "version_major": 2,
        "version_minor": 0
       },
@@ -2161,7 +2105,7 @@
        "              'mode': 'lines+markers',\n",
        "              'name': 'Recycling Rate (%)',\n",
        "              'type': 'scatter',\n",
-       "              'uid': '72d260e3-0d20-48e0-b39b-b74615dae55e',\n",
+       "              'uid': 'baedda63-55e7-454f-8420-0b167753ee40',\n",
        "              'x': [2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034,\n",
        "                    2035, 2036, 2037, 2038, 2039, 2040, 2041, 2042, 2043, 2044,\n",
        "                    2045, 2046, 2047, 2048, 2049, 2050],\n",
@@ -3851,9 +3795,13 @@
    "notebook_metadata_filter": "-all"
   },
   "kernelspec": {
-   "display_name": "Python 3",
+   "display_name": "biODYM_anaconda_environment",
    "language": "python",
    "name": "python3"
+  },
+  "language_info": {
+   "name": "python",
+   "version": "3.12.7"
   }
  },
  "nbformat": 4,

@@ -433,29 +433,23 @@ try:
 except Exception as e:
     print(f"⚠️ Could not create individual flow analysis: {e}")
 
-# ### 3.3.2 System Efficiency Metrics
-
-print("\n📈 Creating system efficiency metrics...")
-try:
-    plotting.plot_system_efficiency_metrics(mfa_system_with_results)
-    print("✅ System efficiency metrics created")
-except Exception as e:
-    print(f"⚠️ Could not create system efficiency metrics: {e}")
-
-# ## 3.4 Advanced Analysis
+# ## 3.4 Stock Overview
 
 print("\n" + "-"*40)
-print("3.4 ADVANCED ANALYSIS")
+print("3.4 STOCK OVERVIEW")
 print("-"*40)
 
-# ### 3.4.1 Summary Dashboard
+# ### 3.4.1 Total Stock Evolution
 
-print("📊 Creating summary dashboard...")
+print("📊 Creating stock overview...")
 try:
-    plotting.plot_summary_dashboard(mfa_system_with_results, dsm_params, fomp_params)
-    print("✅ Summary dashboard created")
+    plotting.plot_stock_overview(mfa_system_with_results, dsm_params, fomp_params)
+    print("✅ Stock overview created")
+    print("   📊 Features: Total stock evolution for all elements")
+    print("   📈 Interactive: Hover for detailed values")
+    print("   🎨 Elements: Color-coded by element type")
 except Exception as e:
-    print(f"⚠️ Could not create summary dashboard: {e}")
+    print(f"⚠️ Could not create stock overview: {e}")
 
 # ### 3.4.2 Monte Carlo Uncertainty Analysis
 

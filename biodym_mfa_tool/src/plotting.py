@@ -1047,9 +1047,10 @@ def plot_system_efficiency_metrics(mfa_system_results):
     display(fig)
 
 
-def plot_summary_dashboard(mfa_system_results, dsm_params=None, fomp_params=None):
+def plot_stock_overview(mfa_system_results, dsm_params=None, fomp_params=None):
     """
-    Creates a comprehensive summary dashboard showing key KPIs and system status.
+    Creates a simplified stock overview showing total stock evolution for all elements.
+    This is a streamlined version of the summary dashboard focusing only on stock dynamics.
 
     Args:
         mfa_system_results (odym.MFAsystem): The solved MFA system object.
@@ -1061,23 +1062,14 @@ def plot_summary_dashboard(mfa_system_results, dsm_params=None, fomp_params=None
     time_items = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = mfa_system_results.Elements
 
-    # Create subplots
+    # Create a single subplot for stock evolution
     fig = make_subplots(
-        rows=2,
-        cols=2,
-        subplot_titles=(
-            "Total Stock Evolution",
-            "System Flows",
-            "Process Types",
-            "Key Metrics",
-        ),
-        specs=[
-            [{"type": "scatter"}, {"type": "scatter"}],
-            [{"type": "bar"}, {"type": "indicator"}],
-        ],
+        rows=1,
+        cols=1,
+        subplot_titles=("Total Stock Evolution by Element"),
     )
 
-    # 1. Total Stock Evolution (all elements)
+    # Plot total stock evolution for all elements
     for i, element in enumerate(element_items):
         element_index = element_items.index(element)
         total_stock = np.zeros(len(time_items))
@@ -1091,79 +1083,39 @@ def plot_summary_dashboard(mfa_system_results, dsm_params=None, fomp_params=None
             go.Scatter(
                 x=time_items,
                 y=total_stock,
-                mode="lines",
+                mode="lines+markers",
                 name=f"Total {element.upper()}",
+                line=dict(width=3),
+                marker=dict(size=4)
             ),
             row=1,
             col=1,
         )
 
-    # 2. System Flows (material only)
-    material_index = (
-        element_items.index("material") if "material" in element_items else 0
-    )
-    total_flows = np.zeros(len(time_items))
-
-    for flow_name, flow_obj in mfa_system_results.FlowDict.items():
-        total_flows += flow_obj.Values[:, material_index]
-
-    fig.add_trace(
-        go.Scatter(
-            x=time_items, y=total_flows, mode="lines", name="Total System Flows"
-        ),
-        row=1,
-        col=2,
+    # Update layout
+    fig.update_layout(
+        title="Stock Overview - Total System Stocks by Element",
+        xaxis_title="Year",
+        yaxis_title="Total Stock in Mg",
+        height=500,
+        showlegend=True,
+        hovermode="x unified"
     )
 
-    # 3. Process Types Distribution
-    process_types = ["Regular", "DSM", "FOMP"]
-    process_counts = [
-        len(
-            [
-                p
-                for p in mfa_system_results.ProcessList
-                if p.ID not in (dsm_params or {}) and p.ID not in (fomp_params or {})
-            ]
-        ),
-        len(dsm_params or {}),
-        len(fomp_params or {}),
-    ]
-
-    fig.add_trace(
-        go.Bar(x=process_types, y=process_counts, name="Process Count"), row=2, col=1
-    )
-
-    # 4. Key Metrics (latest year)
-    latest_year_idx = -1
-    total_stock_latest = sum(
-        stock_obj.Values[latest_year_idx, 0]
-        for stock_name, stock_obj in mfa_system_results.StockDict.items()
-        if stock_name.startswith("S_")
-    )
-
-    fig.add_trace(
-        go.Indicator(
-            mode="gauge+number+delta",
-            value=total_stock_latest,
-            title={"text": f"Total Stock ({time_items[latest_year_idx]})"},
-            gauge={
-                "axis": {"range": [None, total_stock_latest * 1.2]},
-                "bar": {"color": "darkblue"},
-                "steps": [
-                    {"range": [0, total_stock_latest * 0.5], "color": "lightgray"},
-                    {
-                        "range": [total_stock_latest * 0.5, total_stock_latest],
-                        "color": "gray",
-                    },
-                ],
-            },
-        ),
-        row=2,
-        col=2,
-    )
-
-    fig.update_layout(height=800, title_text="BioDYM MFA System Dashboard")
     fig.show()
+
+
+def plot_summary_dashboard(mfa_system_results, dsm_params=None, fomp_params=None):
+    """
+    Creates a comprehensive summary dashboard showing key KPIs and system status.
+
+    Args:
+        mfa_system_results (odym.MFAsystem): The solved MFA system object.
+        dsm_params (dict, optional): DSM parameters configuration.
+        fomp_params (dict, optional): FOMP parameters configuration.
+    """
+    # Use the simplified stock overview instead
+    plot_stock_overview(mfa_system_results, dsm_params, fomp_params)
 
 
 def plot_scenario_comparison(scenario_results, comparison_metric="final_stock"):
