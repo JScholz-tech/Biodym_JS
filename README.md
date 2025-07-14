@@ -137,3 +137,35 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 *Last updated: January 2025 | Version: 1.0*
+
+## BioDYM Extension: Stock-Outflow Transfer Coefficients (TCs)
+
+**Note:** This feature is a custom extension to the ODYM framework, developed specifically for BioDYM. It is **not** part of the standard ODYM release.
+
+### What is it?
+This extension allows you to define transfer coefficients (TCs) that control outflows directly from initial stocks of any process. It enables modeling of processes where material is gradually consumed from an initial stock, independent of regular inflows/outflows.
+
+### Why was it added?
+Standard ODYM does not provide a built-in mechanism for stock-driven outflows using user-defined TCs. Many real-world systems (e.g., landfills, storage, legacy stocks) require this feature for accurate modeling.
+
+### How does it work?
+- You can specify stock-outflow TCs directly in the `2_4_Initial_Stock` sheet of your input Excel file.
+- For each process, you can define:
+  - `Stock_Outflow_TC`: A unique ID for the stock-outflow TC
+  - `Destination_Process`: The process that receives the outflow
+  - `Annual_Consumption_Rate`: The fraction of the initial stock consumed per year (e.g., 0.1 for 10%/year)
+- The BioDYM engine will automatically create flows that consume the initial stock at the specified rate and send it to the destination process.
+
+### Example
+| Process_ID | Initial_Stock_material | ... | Stock_Outflow_TC | Destination_Process | Annual_Consumption_Rate |
+|------------|-----------------------|-----|------------------|--------------------|------------------------|
+| 9          | 10000.0               | ... | STC_09_07        | 7                  | 0.1                    |
+
+This will consume 10% of the initial stock of process 9 (Animal bedding) per year and send it to process 7 (Incineration).
+
+### Code Location
+- The main logic is implemented in `src/engine/solver.py` in the function `process_stock_outflow_tcs`.
+- This function and related logic are clearly marked as BioDYM extensions in the code and documentation.
+
+### Disclaimer
+This feature is not part of the official ODYM framework and may not be compatible with future ODYM updates. It is maintained as part of the BioDYM project.
