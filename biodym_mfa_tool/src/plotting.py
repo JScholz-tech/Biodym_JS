@@ -13,6 +13,10 @@ from ipywidgets import interact, IntSlider, Dropdown, SelectMultiple, Checkbox, 
 from IPython.display import display
 import os
 from datetime import datetime
+import networkx as nx
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.patches import FancyBboxPatch, ConnectionPatch
 
 
 def plot_monte_carlo_integrated_dashboard(mfa_system_results, mc_results=None, dsm_params=None, fomp_params=None):
@@ -3440,3 +3444,540 @@ def plot_dsm_outflow_details(mfa_system_results, dsm_params, dsm_details):
         element=element_dropdown,
         view_mode=view_dropdown
     )
+
+
+def plot_flow_chart(mfa_system_results, title="System Flow Chart", layout_type="hierarchical"):
+    """
+    Creates a comprehensive flow chart visualization from process and flow data.
+    
+    Args:
+        mfa_system_results (odym.MFAsystem): The MFA system object with processes and flows.
+        title (str): Title for the flow chart.
+        layout_type (str): Layout type - "hierarchical", "circular", or "force_directed".
+    """
+    import networkx as nx
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as patches
+    from matplotlib.patches import FancyBboxPatch, ConnectionPatch
+    import numpy as np
+    
+    # Create directed graph
+    G = nx.DiGraph()
+    
+    # Add processes as nodes
+    process_positions = {}
+    process_types = {}
+    
+    # Categorize processes by type
+    for process in mfa_system_results.ProcessList:
+        process_id = process.ID
+        process_name = process.Name
+        
+        # Determine process type based on name or ID
+        if process_id == 0:
+            process_type = "boundary"
+        elif "input" in process_name.lower() or "source" in process_name.lower():
+            process_type = "input"
+        elif "output" in process_name.lower() or "sink" in process_name.lower():
+            process_type = "output"
+        elif "treatment" in process_name.lower() or "processing" in process_name.lower():
+            process_type = "treatment"
+        elif "use" in process_name.lower() or "consumption" in process_name.lower():
+            process_type = "use"
+        else:
+            process_type = "process"
+        
+        process_types[process_id] = process_type
+        G.add_node(process_id, name=process_name, type=process_type)
+    
+    # Add flows as edges
+    flow_data = {}
+    for flow_id, flow in mfa_system_results.FlowDict.items():
+        start_id = flow.P_Start
+        end_id = flow.P_End
+        
+        # Calculate average flow value for edge weight
+        if flow.Values is not None:
+            avg_flow = np.mean(flow.Values[:, 0])  # Material dimension
+        else:
+            avg_flow = 0.0
+        
+        G.add_edge(start_id, end_id, 
+                   flow_id=flow_id, 
+                   name=flow.Name, 
+                   weight=avg_flow)
+        flow_data[(start_id, end_id)] = {
+            'flow_id': flow_id,
+            'name': flow.Name,
+            'weight': avg_flow
+        }
+    
+    # Create figure and axis
+    fig, ax = plt.subplots(1, 1, figsize=(16, 12))
+    
+    # Define layout based on type
+    if layout_type == "hierarchical":
+        pos = nx.spring_layout(G, k=3, iterations=50)
+    elif layout_type == "circular":
+        pos = nx.circular_layout(G)
+    else:  # force_directed
+        pos = nx.spring_layout(G, k=2, iterations=100)
+    
+    # Define colors for different process types
+    color_map = {
+        'boundary': '#ff9999',    # Light red
+        'input': '#99ccff',       # Light blue
+        'treatment': '#99ff99',   # Light green
+        'use': '#ffcc99',         # Light orange
+        'output': '#ff99cc',      # Light pink
+        'process': '#cccccc'      # Light gray
+    }
+    
+    # Draw nodes
+    node_colors = [color_map.get(process_types[node], '#cccccc') for node in G.nodes()]
+    node_sizes = [300 if process_types[node] == 'boundary' else 200 for node in G.nodes()]
+    
+    nx.draw_networkx_nodes(G, pos, 
+                          node_color=node_colors,
+                          node_size=node_sizes,
+                          alpha=0.8,
+                          edgecolors='black',
+                          linewidths=2)
+    
+    # Draw edges with flow values
+    edge_weights = [G[u][v]['weight'] for u, v in G.edges()]
+    max_weight = max(edge_weights) if edge_weights else 1
+    
+    # Normalize edge widths
+    edge_widths = [2 + 8 * (w / max_weight) for w in edge_weights]
+    
+    nx.draw_networkx_edges(G, pos,
+                          edge_color='gray',
+                          width=edge_widths,
+                          alpha=0.7,
+                          arrows=True,
+                          arrowsize=20,
+                          arrowstyle='->')
+    
+    # Add node labels
+    node_labels = {node: f"{node}\n{G.nodes[node]['name']}" for node in G.nodes()}
+    nx.draw_networkx_labels(G, pos, node_labels, font_size=8, font_weight='bold')
+    
+    # Add edge labels (flow values)
+    edge_labels = {}
+    for u, v in G.edges():
+        weight = G[u][v]['weight']
+        if weight > 0:
+            edge_labels[(u, v)] = f"{weight:.1f}"
+    
+    nx.draw_networkx_edge_labels(G, pos, edge_labels, font_size=7)
+    
+    # Create legend
+    legend_elements = []
+    for process_type, color in color_map.items():
+        legend_elements.append(patches.Patch(color=color, label=process_type.title()))
+    
+    ax.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1, 1))
+    
+    # Add title and labels
+    plt.title(title, fontsize=16, fontweight='bold', pad=20)
+    plt.xlabel("Process Flow Direction", fontsize=12)
+    plt.ylabel("Process Hierarchy", fontsize=12)
+    
+    # Add statistics text
+    stats_text = f"""
+    System Statistics:
+    • Processes: {len(G.nodes())}
+    • Flows: {len(G.edges())}
+    • Total Flow: {sum(edge_weights):.1f} units
+    • Average Flow: {np.mean(edge_weights):.1f} units
+    """
+    
+    plt.figtext(0.02, 0.02, stats_text, fontsize=10, 
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return fig, G
+
+
+def plot_interactive_flow_chart(mfa_system_results, title="Interactive System Flow Chart"):
+    """
+    Creates an interactive flow chart with Plotly for better exploration.
+    
+    Args:
+        mfa_system_results (odym.MFAsystem): The MFA system object with processes and flows.
+        title (str): Title for the flow chart.
+    """
+    import networkx as nx
+    import plotly.graph_objects as go
+    from ipywidgets import Dropdown, Checkbox, FloatSlider, VBox, HBox, HTML
+    from IPython.display import display
+    
+    # Create directed graph
+    G = nx.DiGraph()
+    
+    # Add processes as nodes
+    process_types = {}
+    for process in mfa_system_results.ProcessList:
+        process_id = process.ID
+        process_name = process.Name
+        
+        # Determine process type
+        if process_id == 0:
+            process_type = "boundary"
+        elif "input" in process_name.lower():
+            process_type = "input"
+        elif "output" in process_name.lower():
+            process_type = "output"
+        elif "treatment" in process_name.lower():
+            process_type = "treatment"
+        elif "use" in process_name.lower():
+            process_type = "use"
+        else:
+            process_type = "process"
+        
+        process_types[process_id] = process_type
+        G.add_node(process_id, name=process_name, type=process_type)
+    
+    # Add flows as edges
+    for flow_id, flow in mfa_system_results.FlowDict.items():
+        start_id = flow.P_Start
+        end_id = flow.P_End
+        
+        if flow.Values is not None:
+            avg_flow = np.mean(flow.Values[:, 0])
+        else:
+            avg_flow = 0.0
+        
+        G.add_edge(start_id, end_id, 
+                   flow_id=flow_id, 
+                   name=flow.Name, 
+                   weight=avg_flow)
+    
+    # Create layout
+    pos = nx.spring_layout(G, k=3, iterations=50)
+    
+    # Prepare data for Plotly
+    edge_x = []
+    edge_y = []
+    edge_text = []
+    edge_widths = []
+    
+    for edge in G.edges():
+        x0, y0 = pos[edge[0]]
+        x1, y1 = pos[edge[1]]
+        edge_x.extend([x0, x1, None])
+        edge_y.extend([y0, y1, None])
+        
+        weight = G[edge[0]][edge[1]]['weight']
+        flow_name = G[edge[0]][edge[1]]['name']
+        edge_text.append(f"Flow: {flow_name}<br>Value: {weight:.2f}")
+        edge_widths.append(max(1, weight / 10))  # Normalize width
+    
+    # Node data
+    node_x = []
+    node_y = []
+    node_text = []
+    node_colors = []
+    
+    color_map = {
+        'boundary': '#ff9999',
+        'input': '#99ccff',
+        'treatment': '#99ff99',
+        'use': '#ffcc99',
+        'output': '#ff99cc',
+        'process': '#cccccc'
+    }
+    
+    for node in G.nodes():
+        x, y = pos[node]
+        node_x.append(x)
+        node_y.append(y)
+        
+        process_name = G.nodes[node]['name']
+        process_type = G.nodes[node]['type']
+        node_text.append(f"Process {node}<br>{process_name}<br>Type: {process_type}")
+        node_colors.append(color_map.get(process_type, '#cccccc'))
+    
+    def create_flow_chart(show_flow_values=True, min_flow_threshold=0.0, selected_process_types=None):
+        if selected_process_types is None:
+            selected_process_types = list(color_map.keys())
+        
+        # Filter edges based on threshold and process types
+        filtered_edges = []
+        filtered_edge_text = []
+        filtered_edge_widths = []
+        
+        for i, edge in enumerate(G.edges()):
+            weight = G[edge[0]][edge[1]]['weight']
+            start_type = G.nodes[edge[0]]['type']
+            end_type = G.nodes[edge[1]]['type']
+            
+            if (weight >= min_flow_threshold and 
+                start_type in selected_process_types and 
+                end_type in selected_process_types):
+                x0, y0 = pos[edge[0]]
+                x1, y1 = pos[edge[1]]
+                filtered_edges.extend([x0, x1, None])
+                filtered_edges.extend([y0, y1, None])
+                
+                flow_name = G[edge[0]][edge[1]]['name']
+                if show_flow_values:
+                    filtered_edge_text.append(f"Flow: {flow_name}<br>Value: {weight:.2f}")
+                else:
+                    filtered_edge_text.append(f"Flow: {flow_name}")
+                filtered_edge_widths.append(max(1, weight / 10))
+        
+        # Create edge trace
+        edge_trace = go.Scatter(
+            x=[filtered_edges[i] for i in range(0, len(filtered_edges), 3)],
+            y=[filtered_edges[i+1] for i in range(0, len(filtered_edges), 3)],
+            line=dict(width=filtered_edge_widths, color='gray'),
+            hoverinfo='text',
+            text=filtered_edge_text,
+            mode='lines',
+            showlegend=False
+        )
+        
+        # Create node trace
+        node_trace = go.Scatter(
+            x=node_x,
+            y=node_y,
+            mode='markers+text',
+            hoverinfo='text',
+            text=[f"P{node}" for node in G.nodes()],
+            textposition="middle center",
+            marker=dict(
+                size=20,
+                color=node_colors,
+                line=dict(width=2, color='black')
+            ),
+            textfont=dict(size=10, color='black')
+        )
+        
+        # Create figure
+        fig = go.Figure(data=[edge_trace, node_trace],
+                       layout=go.Layout(
+                           title=title,
+                           showlegend=False,
+                           hovermode='closest',
+                           margin=dict(b=20,l=5,r=5,t=40),
+                           xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                           yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                           width=800,
+                           height=600
+                       ))
+        
+        return fig
+    
+    # Create widgets
+    show_flow_values = Checkbox(
+        value=True,
+        description='Show Flow Values',
+        style={'description_width': 'initial'}
+    )
+    
+    min_flow_slider = FloatSlider(
+        value=0.0,
+        min=0.0,
+        max=max([G[u][v]['weight'] for u, v in G.edges()]) if G.edges() else 1.0,
+        step=0.1,
+        description='Min Flow Threshold:',
+        style={'description_width': 'initial'}
+    )
+    
+    process_type_dropdown = Dropdown(
+        options=list(color_map.keys()),
+        value=list(color_map.keys()),
+        description='Process Types:',
+        style={'description_width': 'initial'}
+    )
+    
+    # Create initial plot
+    fig = create_flow_chart()
+    
+    def update_plot(change):
+        fig.data = []
+        new_fig = create_flow_chart(
+            show_flow_values=show_flow_values.value,
+            min_flow_threshold=min_flow_slider.value,
+            selected_process_types=process_type_dropdown.value
+        )
+        fig.add_traces(new_fig.data)
+        fig.update_layout(new_fig.layout)
+    
+    # Link widgets to update function
+    show_flow_values.observe(update_plot, names='value')
+    min_flow_slider.observe(update_plot, names='value')
+    process_type_dropdown.observe(update_plot, names='value')
+    
+    # Display widgets and plot
+    controls = VBox([
+        HTML("<h4>Flow Chart Controls</h4>"),
+        HBox([show_flow_values, min_flow_slider]),
+        process_type_dropdown
+    ])
+    
+    display(controls)
+    display(fig)
+    
+    return fig, G
+
+
+def plot_system_architecture_diagram(mfa_system_results, title="System Architecture"):
+    """
+    Creates a system architecture diagram showing the hierarchical structure
+    of processes and their relationships.
+    
+    Args:
+        mfa_system_results (odym.MFAsystem): The MFA system object.
+        title (str): Title for the diagram.
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as patches
+    from matplotlib.patches import FancyBboxPatch, ConnectionPatch
+    import numpy as np
+    
+    # Categorize processes
+    process_categories = {
+        'input': [],
+        'treatment': [],
+        'use': [],
+        'output': [],
+        'boundary': []
+    }
+    
+    for process in mfa_system_results.ProcessList:
+        process_id = process.ID
+        process_name = process.Name
+        
+        if process_id == 0:
+            process_categories['boundary'].append((process_id, process_name))
+        elif "input" in process_name.lower():
+            process_categories['input'].append((process_id, process_name))
+        elif "treatment" in process_name.lower() or "processing" in process_name.lower():
+            process_categories['treatment'].append((process_id, process_name))
+        elif "use" in process_name.lower():
+            process_categories['use'].append((process_id, process_name))
+        elif "output" in process_name.lower():
+            process_categories['output'].append((process_id, process_name))
+        else:
+            process_categories['treatment'].append((process_id, process_name))
+    
+    # Create figure
+    fig, ax = plt.subplots(1, 1, figsize=(16, 10))
+    
+    # Define colors and positions
+    colors = {
+        'boundary': '#ffcccc',
+        'input': '#ccffcc',
+        'treatment': '#ccccff',
+        'use': '#ffffcc',
+        'output': '#ffccff'
+    }
+    
+    # Calculate positions for each category
+    y_positions = {
+        'boundary': 0.9,
+        'input': 0.7,
+        'treatment': 0.5,
+        'use': 0.3,
+        'output': 0.1
+    }
+    
+    # Draw process boxes
+    process_positions = {}
+    box_width = 0.15
+    box_height = 0.08
+    
+    for category, processes in process_categories.items():
+        if processes:
+            x_start = 0.1
+            x_spacing = (0.8 - len(processes) * box_width) / (len(processes) + 1)
+            
+            for i, (process_id, process_name) in enumerate(processes):
+                x = x_start + i * (box_width + x_spacing)
+                y = y_positions[category]
+                
+                # Create rounded rectangle
+                box = FancyBboxPatch(
+                    (x, y), box_width, box_height,
+                    boxstyle="round,pad=0.01",
+                    facecolor=colors[category],
+                    edgecolor='black',
+                    linewidth=2
+                )
+                ax.add_patch(box)
+                
+                # Add text
+                ax.text(x + box_width/2, y + box_height/2, 
+                       f"P{process_id}\n{process_name[:15]}...",
+                       ha='center', va='center', fontsize=8, fontweight='bold')
+                
+                process_positions[process_id] = (x + box_width/2, y + box_height/2)
+    
+    # Draw flow arrows
+    for flow_id, flow in mfa_system_results.FlowDict.items():
+        start_id = flow.P_Start
+        end_id = flow.P_End
+        
+        if start_id in process_positions and end_id in process_positions:
+            start_pos = process_positions[start_id]
+            end_pos = process_positions[end_id]
+            
+            # Calculate arrow properties
+            if flow.Values is not None:
+                avg_flow = np.mean(flow.Values[:, 0])
+                arrow_width = max(1, avg_flow / 100)  # Normalize width
+            else:
+                arrow_width = 1
+            
+            # Create arrow
+            arrow = ConnectionPatch(
+                start_pos, end_pos, "data", "data",
+                arrowstyle="->", shrinkA=5, shrinkB=5,
+                mutation_scale=20, fc="gray", ec="gray",
+                linewidth=arrow_width
+            )
+            ax.add_patch(arrow)
+            
+            # Add flow label
+            mid_x = (start_pos[0] + end_pos[0]) / 2
+            mid_y = (start_pos[1] + end_pos[1]) / 2
+            ax.text(mid_x, mid_y, flow_id, fontsize=6, ha='center', va='center',
+                   bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8))
+    
+    # Add category labels
+    for category, y_pos in y_positions.items():
+        if process_categories[category]:
+            ax.text(0.02, y_pos + box_height/2, f"{category.title()}:", 
+                   fontsize=12, fontweight='bold', va='center')
+    
+    # Set up the plot
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_aspect('equal')
+    ax.axis('off')
+    
+    plt.title(title, fontsize=16, fontweight='bold', pad=20)
+    
+    # Add statistics
+    stats_text = f"""
+    System Overview:
+    • Total Processes: {len(mfa_system_results.ProcessList)}
+    • Total Flows: {len(mfa_system_results.FlowDict)}
+    • Input Processes: {len(process_categories['input'])}
+    • Treatment Processes: {len(process_categories['treatment'])}
+    • Use Processes: {len(process_categories['use'])}
+    • Output Processes: {len(process_categories['output'])}
+    """
+    
+    plt.figtext(0.02, 0.02, stats_text, fontsize=10,
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return fig
