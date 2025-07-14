@@ -29,7 +29,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 1,
    "id": "5115779e",
    "metadata": {},
    "outputs": [],
@@ -47,7 +47,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 2,
    "id": "dcee730d",
    "metadata": {},
    "outputs": [],
@@ -59,7 +59,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 3,
    "id": "a99dd768",
    "metadata": {},
    "outputs": [],
@@ -74,7 +74,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 4,
    "id": "b75ad7e7",
    "metadata": {},
    "outputs": [],
@@ -88,7 +88,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 5,
    "id": "cbef87bc",
    "metadata": {},
    "outputs": [
@@ -117,7 +117,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 6,
    "id": "f0356e51",
    "metadata": {},
    "outputs": [
@@ -147,7 +147,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 7,
    "id": "d3cc542e",
    "metadata": {},
    "outputs": [],
@@ -157,7 +157,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 8,
    "id": "47803dd4",
    "metadata": {},
    "outputs": [
@@ -183,7 +183,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 9,
    "id": "e76935ae",
    "metadata": {},
    "outputs": [
@@ -206,7 +206,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 10,
    "id": "c442fde0",
    "metadata": {},
    "outputs": [
@@ -214,6 +214,8 @@
      "name": "stderr",
      "output_type": "stream",
      "text": [
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
       "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
       "  warn(msg)\n",
       "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
@@ -244,8 +246,6 @@
       "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
       "  warn(msg)\n",
       "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
-      "  warn(msg)\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
       "  warn(msg)\n"
      ]
     }
@@ -268,7 +268,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 11,
    "id": "f0d68eef",
    "metadata": {},
    "outputs": [
@@ -286,9 +286,9 @@
       "   1_2_Data_Flows: 349 rows × 37 columns\n",
       "   2_1_Definition_Processes: 57 rows × 38 columns\n",
       "   2_3_Process_TCs: 63 rows × 21 columns\n",
+      "   3_1_Definition_DSM: 50 rows × 18 columns\n",
       "   2_4_Initial_Stock: 62 rows × 15 columns\n",
       "   2_5_dynamic_tcs: 150 rows × 65 columns\n",
-      "   3_1_Definition_DSM: 50 rows × 18 columns\n",
       "   3_2_Definition_FOMP: 46 rows × 13 columns\n",
       "   4_1_Uncertainty_Parameters: 12 rows × 9 columns\n",
       "   3. TC_Data: 0 rows × 0 columns\n",
@@ -309,7 +309,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 12,
    "id": "6d429ca3",
    "metadata": {},
    "outputs": [],
@@ -326,7 +326,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 13,
    "id": "10fce2b7",
    "metadata": {},
    "outputs": [
@@ -357,7 +357,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 14,
    "id": "c9d8635b",
    "metadata": {},
    "outputs": [
@@ -380,7 +380,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 15,
    "id": "ef4c00e3",
    "metadata": {},
    "outputs": [],
@@ -394,7 +394,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 16,
    "id": "afd80bd7",
    "metadata": {},
    "outputs": [
@@ -412,7 +412,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 17,
    "id": "4fa711cb",
    "metadata": {},
    "outputs": [
@@ -432,7 +432,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 18,
    "id": "57746460",
    "metadata": {},
    "outputs": [
@@ -452,7 +452,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 19,
    "id": "eb39cdb2",
    "metadata": {},
    "outputs": [
@@ -472,7 +472,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 20,
    "id": "c580d153",
    "metadata": {},
    "outputs": [
@@ -500,7 +500,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 21,
    "id": "0dec963b",
    "metadata": {},
    "outputs": [
@@ -523,7 +523,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 22,
    "id": "c9851a13",
    "metadata": {},
    "outputs": [],
@@ -541,7 +541,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 23,
    "id": "a3e859c7",
    "metadata": {},
    "outputs": [
@@ -579,7 +579,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 24,
    "id": "02588563",
    "metadata": {},
    "outputs": [
@@ -602,7 +602,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 25,
    "id": "8510f33b",
    "metadata": {},
    "outputs": [
@@ -631,7 +631,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 26,
    "id": "63cfc634",
    "metadata": {},
    "outputs": [
@@ -660,7 +660,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 27,
    "id": "57effade",
    "metadata": {},
    "outputs": [
@@ -685,6 +685,16 @@
       "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
       "  warn(msg)\n",
       "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
+      "  warn(msg)\n",
+      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
       "  warn(msg)\n"
      ]
     },
@@ -696,22 +706,6 @@
       "--> Input data validation successful. All required sheets and columns are present.\n",
       "--> Stock values initialized.\n",
       "✅ Processes and data loaded\n"
-     ]
-    },
-    {
-     "name": "stderr",
-     "output_type": "stream",
-     "text": [
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
-      "  warn(msg)\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
-      "  warn(msg)\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
-      "  warn(msg)\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
-      "  warn(msg)\n",
-      "c:\\Users\\Johannes\\anaconda3\\envs\\biODYM_anaconda_environment\\Lib\\site-packages\\openpyxl\\worksheet\\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed\n",
-      "  warn(msg)\n"
      ]
     }
    ],
@@ -730,7 +724,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 28,
    "id": "f761b6f3",
    "metadata": {},
    "outputs": [
@@ -764,7 +758,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 29,
    "id": "6158073b",
    "metadata": {},
    "outputs": [
@@ -796,7 +790,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 30,
    "id": "7ea98f41",
    "metadata": {},
    "outputs": [
@@ -836,7 +830,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 31,
    "id": "9049a09e",
    "metadata": {},
    "outputs": [
@@ -859,7 +853,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 32,
    "id": "17af190a",
    "metadata": {},
    "outputs": [],
@@ -882,7 +876,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 33,
    "id": "fe2ef506",
    "metadata": {},
    "outputs": [
@@ -913,7 +907,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 34,
    "id": "98287fee",
    "metadata": {},
    "outputs": [
@@ -936,7 +930,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 35,
    "id": "1c5a1f29",
    "metadata": {},
    "outputs": [
@@ -964,7 +958,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 36,
    "id": "5342f66f",
    "metadata": {},
    "outputs": [
@@ -1038,7 +1032,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 37,
    "id": "e491d756",
    "metadata": {},
    "outputs": [
@@ -1067,7 +1061,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 38,
    "id": "40a1619e",
    "metadata": {},
    "outputs": [
@@ -1207,7 +1201,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 39,
    "id": "a5e92a73",
    "metadata": {},
    "outputs": [
@@ -1240,7 +1234,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 40,
    "id": "7395a816",
    "metadata": {},
    "outputs": [
@@ -1263,7 +1257,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 41,
    "id": "8d07d131",
    "metadata": {},
    "outputs": [
@@ -1277,12 +1271,12 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "043ad3c366214b77bd7928cdeefad633",
+       "model_id": "b5e314e2c59a468d90fd81bf316f6b4f",
        "version_major": 2,
        "version_minor": 0
       },
       "text/plain": [
-       "interactive(children=(IntSlider(value=2025, description='Year:', layout=Layout(width='200px'), max=2050, min=2…"
+       "VBox(children=(HBox(children=(IntSlider(value=2025, description='Year:', layout=Layout(width='400px'), max=205…"
       ]
      },
      "metadata": {},
@@ -1291,17 +1285,17 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "0a6f1f4dd4f449638fe1f90574a5b4eb",
+       "model_id": "b8e0876f9a304d15a4c3c802f7676688",
        "version_major": 2,
        "version_minor": 0
       },
       "text/plain": [
        "FigureWidget({\n",
-       "    'data': [{'link': {'color': [#1f77b4, #1f77b4, #1f77b4, #1f77b4, #1f77b4,\n",
+       "    'data': [{'arrangement': 'snap',\n",
+       "              'link': {'color': [#1f77b4, #1f77b4, #1f77b4, #1f77b4, #1f77b4,\n",
        "                                 #1f77b4, #1f77b4, #1f77b4, #1f77b4, #1f77b4,\n",
        "                                 #1f77b4, #1f77b4, #1f77b4, #1f77b4, #1f77b4,\n",
        "                                 #1f77b4, #1f77b4, #1f77b4],\n",
-       "                       'line': {'color': 'gray', 'width': 0.5},\n",
        "                       'source': [0, 1, 2, 3, 3, 4, 4, 5, 6, 7, 7, 5, 8, 5, 9, 9,\n",
        "                                  10, 10],\n",
        "                       'target': [2, 2, 3, 4, 5, 0, 1, 6, 7, 0, 1, 8, 10, 9, 0, 1,\n",
@@ -1315,14 +1309,22 @@
        "                       'label': [Atmosphere, Environment, Cultivation, Harvest,\n",
        "                                 Grain Processing & Consumption, Straw d&C,\n",
        "                                 Utilization in construction, Incineration,\n",
-       "                                 Incorporation, Animal bedding, Lithosphere]},\n",
+       "                                 Incorporation, Animal bedding, Lithosphere],\n",
+       "                       'line': {'color': 'black', 'width': 0.5},\n",
+       "                       'pad': 20,\n",
+       "                       'thickness': 15},\n",
        "              'type': 'sankey',\n",
-       "              'uid': '23a920bd-093d-4b2f-95ec-b203531c7fab'}],\n",
-       "    'layout': {'font': {'size': 12},\n",
-       "               'height': 700,\n",
-       "               'margin': {'b': 20, 'l': 10, 'r': 10, 't': 50},\n",
+       "              'uid': 'f33e79a3-94e6-46af-860f-c0ef982ac31d'}],\n",
+       "    'layout': {'dragmode': 'pan',\n",
+       "               'font': {'size': 12},\n",
+       "               'height': 900,\n",
+       "               'hovermode': 'closest',\n",
+       "               'margin': {'b': 100, 'l': 100, 'r': 100, 't': 120},\n",
        "               'template': '...',\n",
-       "               'title': {'text': 'Material Flow Sankey - MATERIAL (2025)'}}\n",
+       "               'title': {'text': 'Material Flow Sankey - MATERIAL (2025)'},\n",
+       "               'width': 1400,\n",
+       "               'xaxis': {'showgrid': False, 'showticklabels': False, 'zeroline': False},\n",
+       "               'yaxis': {'showgrid': False, 'showticklabels': False, 'zeroline': False}}\n",
        "})"
       ]
      },
@@ -1361,7 +1363,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 42,
    "id": "7155f48a",
    "metadata": {},
    "outputs": [
@@ -1384,7 +1386,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 43,
    "id": "b12c4c00",
    "metadata": {},
    "outputs": [
@@ -1398,7 +1400,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "5ac2fc2c79084faabe7cca543b99afd3",
+       "model_id": "184d748c53294c3f983e3731562c0c2e",
        "version_major": 2,
        "version_minor": 0
       },
@@ -1412,7 +1414,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "7678d3a80a814c42b66e8d367aa1f6c5",
+       "model_id": "aef63026cb2e4799b08618e85f64c9eb",
        "version_major": 2,
        "version_minor": 0
       },
@@ -1422,7 +1424,7 @@
        "              'mode': 'lines',\n",
        "              'name': 'Total Stock (MATERIAL)',\n",
        "              'type': 'scatter',\n",
-       "              'uid': '93ae7bfa-cf13-4c7f-bde3-8f598eec7ff5',\n",
+       "              'uid': '17c478de-7fa9-41dd-a8cc-b0e1f0b8b982',\n",
        "              'x': [2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034,\n",
        "                    2035, 2036, 2037, 2038, 2039, 2040, 2041, 2042, 2043, 2044,\n",
        "                    2045, 2046, 2047, 2048, 2049, 2050],\n",
@@ -1473,7 +1475,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 44,
    "id": "29ce40a4",
    "metadata": {},
    "outputs": [
@@ -1496,7 +1498,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 45,
    "id": "7bbb0b97",
    "metadata": {},
    "outputs": [
@@ -1531,7 +1533,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 46,
    "id": "5eb71bad",
    "metadata": {},
    "outputs": [
@@ -1554,7 +1556,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 47,
    "id": "1c1510af",
    "metadata": {},
    "outputs": [
@@ -1568,7 +1570,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "923dff44acc845e7996eebe7617d42a7",
+       "model_id": "028194d5ed5542e7a240cefaa91e6006",
        "version_major": 2,
        "version_minor": 0
       },
@@ -1582,7 +1584,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "ce852c51eeb34b75bf8dca737fef183a",
+       "model_id": "ec7b78b95b004d1b8a2e621319c8642e",
        "version_major": 2,
        "version_minor": 0
       },
@@ -1592,7 +1594,7 @@
        "                                   #7f7f7f, #7f7f7f, #7f7f7f, #7f7f7f, #7f7f7f,\n",
        "                                   #7f7f7f]},\n",
        "              'type': 'bar',\n",
-       "              'uid': '7b7ba48f-f7b0-4678-8f8d-2c26f226b1d3',\n",
+       "              'uid': '430b9379-5a9f-47ec-9415-3c78582cc1a1',\n",
        "              'x': [Atmosphere, Environment, Cultivation, Harvest, Grain\n",
        "                    Processing & Consumption, Straw d&C, Utilization in\n",
        "                    construction, Incineration, Incorporation, Animal bedding,\n",
@@ -1609,6 +1611,20 @@
        "               'title': {'text': 'Mass Balance Error Check for MATERIAL in 2025'},\n",
        "               'yaxis': {'title': {'text': 'Error in Mg (positive = mass created)'}}}\n",
        "})"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "application/vnd.jupyter.widget-view+json": {
+       "model_id": "95d61196b1fb487480085ff7f8bb5682",
+       "version_major": 2,
+       "version_minor": 0
+      },
+      "text/plain": [
+       "HBox(children=(Button(description='Export PNG', style=ButtonStyle()), Button(description='Export PDF', style=B…"
       ]
      },
      "metadata": {},
@@ -1644,7 +1660,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 48,
    "id": "9d19c9e7",
    "metadata": {},
    "outputs": [
@@ -1667,7 +1683,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 49,
    "id": "d5ceb5eb",
    "metadata": {},
    "outputs": [
@@ -1695,7 +1711,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 50,
    "id": "ccdcad10",
    "metadata": {},
    "outputs": [
@@ -1724,7 +1740,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 51,
    "id": "00f2743e",
    "metadata": {},
    "outputs": [
@@ -1739,12 +1755,12 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "fcc1bcef535840a891e6c5f34f0a7835",
+       "model_id": "224ce06149814dc1be83dcecbcf9b32e",
        "version_major": 2,
        "version_minor": 0
       },
       "text/plain": [
-       "interactive(children=(Dropdown(description='FOMP Process:', options=(10,), value=10), Dropdown(description='El…"
+       "VBox(children=(HBox(children=(Dropdown(description='FOMP Process:', layout=Layout(width='300px'), options=(10,…"
       ]
      },
      "metadata": {},
@@ -1753,17 +1769,19 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "48d8c00319e44a3db2ddc96c1f9524e9",
+       "model_id": "fd18565c045b4272ab2a1b2d21c9d6d3",
        "version_major": 2,
        "version_minor": 0
       },
       "text/plain": [
        "FigureWidget({\n",
-       "    'data': [{'line': {'color': '#2ca02c', 'width': 3},\n",
-       "              'mode': 'lines',\n",
+       "    'data': [{'hovertemplate': '<b>Stock</b><br>Year: %{x}<br>Mass: %{y:.2f} Mg<extra></extra>',\n",
+       "              'line': {'color': '#2ca02c', 'width': 3},\n",
+       "              'marker': {'size': 4},\n",
+       "              'mode': 'lines+markers',\n",
        "              'name': 'Organic Matter Stock',\n",
        "              'type': 'scatter',\n",
-       "              'uid': 'ff516606-b10b-4c01-95da-7dc283b56bd6',\n",
+       "              'uid': '22f188c9-641f-4785-85ce-5acfafe07fb8',\n",
        "              'x': [2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034,\n",
        "                    2035, 2036, 2037, 2038, 2039, 2040, 2041, 2042, 2043, 2044,\n",
        "                    2045, 2046, 2047, 2048, 2049, 2050],\n",
@@ -1773,22 +1791,26 @@
        "                          442.34237184, 485.95131254, 530.65672973, 576.43121149, 623.2480312 ,\n",
        "                          671.08113042, 719.90510216, 769.69517461, 820.42719524, 872.07761536,\n",
        "                          924.62347498])},\n",
-       "             {'line': {'color': '#1f77b4', 'dash': 'dash', 'width': 2},\n",
-       "              'mode': 'lines',\n",
+       "             {'hovertemplate': '<b>Cumulative Input</b><br>Year: %{x}<br>Mass: %{y:.2f} Mg<extra></extra>',\n",
+       "              'line': {'color': '#1f77b4', 'dash': 'dash', 'width': 2},\n",
+       "              'marker': {'size': 3},\n",
+       "              'mode': 'lines+markers',\n",
        "              'name': 'Cumulative Input',\n",
        "              'type': 'scatter',\n",
-       "              'uid': '60d6fde3-3944-4014-a3d5-3b98ff2c69cb',\n",
+       "              'uid': '1c9ba0f8-9360-4c24-b81c-adb0b427d0ec',\n",
        "              'x': [2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034,\n",
        "                    2035, 2036, 2037, 2038, 2039, 2040, 2041, 2042, 2043, 2044,\n",
        "                    2045, 2046, 2047, 2048, 2049, 2050],\n",
        "              'y': array([  30.,   63.,   99.,  138.,  180.,  225.,  273.,  324.,  378.,  435.,\n",
        "                           495.,  498.,  564.,  633.,  705.,  780.,  858.,  939., 1023., 1110.,\n",
        "                          1200., 1293., 1389., 1488., 1590., 1695.])},\n",
-       "             {'line': {'color': '#d62728', 'dash': 'dot', 'width': 2},\n",
-       "              'mode': 'lines',\n",
+       "             {'hovertemplate': ('<b>Cumulative Mineralization</' ... 'ss: %{y:.2f} Mg<extra></extra>'),\n",
+       "              'line': {'color': '#d62728', 'dash': 'dot', 'width': 2},\n",
+       "              'marker': {'size': 3},\n",
+       "              'mode': 'lines+markers',\n",
        "              'name': 'Cumulative Mineralization',\n",
        "              'type': 'scatter',\n",
-       "              'uid': '1ab0f6d8-2409-4c95-85b6-152060afc8e5',\n",
+       "              'uid': '7b6cc2cf-9a8a-4f2c-b28c-d6449c7b4d8d',\n",
        "              'x': [2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034,\n",
        "                    2035, 2036, 2037, 2038, 2039, 2040, 2041, 2042, 2043, 2044,\n",
        "                    2045, 2046, 2047, 2048, 2049, 2050],\n",
@@ -1798,11 +1820,31 @@
        "                          294.04868746, 327.34327027, 362.56878851, 399.7519688 , 438.91886958,\n",
        "                          480.09489784, 523.30482539, 568.57280476, 615.92238464, 665.37652502,\n",
        "                          716.9576119 ])}],\n",
-       "    'layout': {'hovermode': 'x unified',\n",
+       "    'layout': {'font': {'size': 12},\n",
+       "               'height': 500,\n",
+       "               'hovermode': 'x unified',\n",
+       "               'legend': {'orientation': 'h', 'x': 1, 'xanchor': 'right', 'y': 1.02, 'yanchor': 'bottom'},\n",
+       "               'margin': {'b': 80, 'l': 80, 'r': 80, 't': 100},\n",
+       "               'paper_bgcolor': 'white',\n",
+       "               'plot_bgcolor': 'white',\n",
        "               'template': '...',\n",
-       "               'title': {'text': 'FOMP Stock Evolution: Lithosphere (MATERIAL)'},\n",
-       "               'xaxis': {'title': {'text': 'Year'}},\n",
-       "               'yaxis': {'title': {'text': 'Mass in Mg'}}}\n",
+       "               'title': {'font': {'color': '#2c3e50', 'size': 16},\n",
+       "                         'text': 'FOMP Analysis: Lithosphere (MATERIAL)',\n",
+       "                         'x': 0.5},\n",
+       "               'xaxis': {'gridcolor': '#e1e5e9',\n",
+       "                         'gridwidth': 1,\n",
+       "                         'showgrid': True,\n",
+       "                         'title': {'text': 'Year'},\n",
+       "                         'zeroline': True,\n",
+       "                         'zerolinecolor': '#2c3e50',\n",
+       "                         'zerolinewidth': 1},\n",
+       "               'yaxis': {'gridcolor': '#e1e5e9',\n",
+       "                         'gridwidth': 1,\n",
+       "                         'showgrid': True,\n",
+       "                         'title': {'text': 'Mass (MATERIAL) in Mg'},\n",
+       "                         'zeroline': True,\n",
+       "                         'zerolinecolor': '#2c3e50',\n",
+       "                         'zerolinewidth': 1}}\n",
        "})"
       ]
      },
@@ -1842,7 +1884,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 52,
    "id": "c0fb7a57",
    "metadata": {},
    "outputs": [
@@ -1865,7 +1907,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 53,
    "id": "a7331679",
    "metadata": {},
    "outputs": [
@@ -1879,7 +1921,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "2d4266d2749e4235824f87223c361b45",
+       "model_id": "8f4b1ded70b6416eb53d8332a393e126",
        "version_major": 2,
        "version_minor": 0
       },
@@ -1893,7 +1935,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "d8ebee9b94bc4c1ca154554c7a005dd7",
+       "model_id": "3e26c0a78efe4a96871f70a7cee46ff5",
        "version_major": 2,
        "version_minor": 0
       },
@@ -1935,7 +1977,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 54,
    "id": "8242ae08",
    "metadata": {},
    "outputs": [
@@ -1958,7 +2000,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 55,
    "id": "068d9e46",
    "metadata": {},
    "outputs": [
@@ -1972,7 +2014,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "9da3595ec4384133bd3f3b52a3b53b61",
+       "model_id": "e339d64e5f4b440eb7ea357f09a9c065",
        "version_major": 2,
        "version_minor": 0
       },
@@ -1986,7 +2028,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "df8cd9234c544feeaa89669129ff480a",
+       "model_id": "80cb09be8307411294b4724fb2daa99f",
        "version_major": 2,
        "version_minor": 0
       },
@@ -1995,7 +2037,7 @@
        "    'data': [{'mode': 'lines+markers',\n",
        "              'name': 'F_00_02',\n",
        "              'type': 'scatter',\n",
-       "              'uid': 'c5651c09-cb17-4264-958c-d9c4ad31dd3e',\n",
+       "              'uid': '0a4f7980-caf4-4331-8352-391db203b079',\n",
        "              'x': [2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034,\n",
        "                    2035, 2036, 2037, 2038, 2039, 2040, 2041, 2042, 2043, 2044,\n",
        "                    2045, 2046, 2047, 2048, 2049, 2050],\n",
@@ -2044,7 +2086,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 56,
    "id": "e16560dd",
    "metadata": {},
    "outputs": [
@@ -2067,7 +2109,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 57,
    "id": "8dd3c114",
    "metadata": {},
    "outputs": [
@@ -2081,7 +2123,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "443bc3d71c0c4ed89fcab8970a57a4b6",
+       "model_id": "a74501779dcc4f7e86e27ee2f720748e",
        "version_major": 2,
        "version_minor": 0
       },
@@ -2095,7 +2137,7 @@
     {
      "data": {
       "application/vnd.jupyter.widget-view+json": {
-       "model_id": "76020a3e3f344a1abe528475ff24278b",
+       "model_id": "76f7e11aed674da2b939a8961c8ed55e",
        "version_major": 2,
        "version_minor": 0
       },
@@ -2105,7 +2147,7 @@
        "              'mode': 'lines+markers',\n",
        "              'name': 'Recycling Rate (%)',\n",
        "              'type': 'scatter',\n",
-       "              'uid': 'baedda63-55e7-454f-8420-0b167753ee40',\n",
+       "              'uid': '677e64dd-4e28-47fc-bbfd-4e6f9e61f9c3',\n",
        "              'x': [2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034,\n",
        "                    2035, 2036, 2037, 2038, 2039, 2040, 2041, 2042, 2043, 2044,\n",
        "                    2045, 2046, 2047, 2048, 2049, 2050],\n",
@@ -2157,7 +2199,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 58,
    "id": "134bd6ad",
    "metadata": {},
    "outputs": [
@@ -2180,7 +2222,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 59,
    "id": "c2875482",
    "metadata": {},
    "outputs": [
@@ -2199,7 +2241,13 @@
        },
        "data": [
         {
-         "mode": "lines",
+         "line": {
+          "width": 3
+         },
+         "marker": {
+          "size": 4
+         },
+         "mode": "lines+markers",
          "name": "Total MATERIAL",
          "type": "scatter",
          "x": [
@@ -2262,7 +2310,13 @@
          "yaxis": "y"
         },
         {
-         "mode": "lines",
+         "line": {
+          "width": 3
+         },
+         "marker": {
+          "size": 4
+         },
+         "mode": "lines+markers",
          "name": "Total WC",
          "type": "scatter",
          "x": [
@@ -2325,7 +2379,13 @@
          "yaxis": "y"
         },
         {
-         "mode": "lines",
+         "line": {
+          "width": 3
+         },
+         "marker": {
+          "size": 4
+         },
+         "mode": "lines+markers",
          "name": "Total DM",
          "type": "scatter",
          "x": [
@@ -2388,7 +2448,13 @@
          "yaxis": "y"
         },
         {
-         "mode": "lines",
+         "line": {
+          "width": 3
+         },
+         "marker": {
+          "size": 4
+         },
+         "mode": "lines+markers",
          "name": "Total CC",
          "type": "scatter",
          "x": [
@@ -2449,130 +2515,6 @@
           -3.410605131648481e-13
          ],
          "yaxis": "y"
-        },
-        {
-         "mode": "lines",
-         "name": "Total System Flows",
-         "type": "scatter",
-         "x": [
-          2025,
-          2026,
-          2027,
-          2028,
-          2029,
-          2030,
-          2031,
-          2032,
-          2033,
-          2034,
-          2035,
-          2036,
-          2037,
-          2038,
-          2039,
-          2040,
-          2041,
-          2042,
-          2043,
-          2044,
-          2045,
-          2046,
-          2047,
-          2048,
-          2049,
-          2050
-         ],
-         "xaxis": "x2",
-         "y": [
-          948.133,
-          1043.492975,
-          1138.893950625,
-          1234.334901859375,
-          1329.8148293128907,
-          1425.3327585800685,
-          1520.8877396155667,
-          1616.4788461251774,
-          1712.105174972048,
-          1807.7658455977469,
-          1903.4599994578032,
-          102.9207994713581,
-          2093.852079484574,
-          2189.66907749746,
-          2285.5156505600235,
-          2381.391059296023,
-          2477.294582813622,
-          2573.2255182432814,
-          2669.1831802871993,
-          2765.1669007800197,
-          2861.176028260519,
-          2957.2099275540063,
-          3053.267979365156,
-          3149.3495798810272,
-          3245.454140384001,
-          3341.5810868744015
-         ],
-         "yaxis": "y2"
-        },
-        {
-         "name": "Process Count",
-         "type": "bar",
-         "x": [
-          "Regular",
-          "DSM",
-          "FOMP"
-         ],
-         "xaxis": "x3",
-         "y": [
-          10,
-          0,
-          1
-         ],
-         "yaxis": "y3"
-        },
-        {
-         "domain": {
-          "x": [
-           0.55,
-           1
-          ],
-          "y": [
-           0,
-           0.375
-          ]
-         },
-         "gauge": {
-          "axis": {
-           "range": [
-            null,
-            1.3642420526593923e-13
-           ]
-          },
-          "bar": {
-           "color": "darkblue"
-          },
-          "steps": [
-           {
-            "color": "lightgray",
-            "range": [
-             0,
-             5.684341886080802e-14
-            ]
-           },
-           {
-            "color": "gray",
-            "range": [
-             5.684341886080802e-14,
-             1.1368683772161603e-13
-            ]
-           }
-          ]
-         },
-         "mode": "gauge+number+delta",
-         "title": {
-          "text": "Total Stock (2050)"
-         },
-         "type": "indicator",
-         "value": 1.1368683772161603e-13
         }
        ],
        "layout": {
@@ -2582,55 +2524,18 @@
            "size": 16
           },
           "showarrow": false,
-          "text": "Total Stock Evolution",
-          "x": 0.225,
+          "text": "T",
+          "x": 0.5,
           "xanchor": "center",
           "xref": "paper",
           "y": 1,
-          "yanchor": "bottom",
-          "yref": "paper"
-         },
-         {
-          "font": {
-           "size": 16
-          },
-          "showarrow": false,
-          "text": "System Flows",
-          "x": 0.775,
-          "xanchor": "center",
-          "xref": "paper",
-          "y": 1,
-          "yanchor": "bottom",
-          "yref": "paper"
-         },
-         {
-          "font": {
-           "size": 16
-          },
-          "showarrow": false,
-          "text": "Process Types",
-          "x": 0.225,
-          "xanchor": "center",
-          "xref": "paper",
-          "y": 0.375,
-          "yanchor": "bottom",
-          "yref": "paper"
-         },
-         {
-          "font": {
-           "size": 16
-          },
-          "showarrow": false,
-          "text": "Key Metrics",
-          "x": 0.775,
-          "xanchor": "center",
-          "xref": "paper",
-          "y": 0.375,
           "yanchor": "bottom",
           "yref": "paper"
          }
         ],
-        "height": 800,
+        "height": 500,
+        "hovermode": "x unified",
+        "showlegend": true,
         "template": {
          "data": {
           "bar": [
@@ -3448,49 +3353,27 @@
          }
         },
         "title": {
-         "text": "BioDYM MFA System Dashboard"
+         "text": "Stock Overview - Total System Stocks by Element"
         },
         "xaxis": {
          "anchor": "y",
          "domain": [
           0,
-          0.45
-         ]
-        },
-        "xaxis2": {
-         "anchor": "y2",
-         "domain": [
-          0.55,
           1
-         ]
-        },
-        "xaxis3": {
-         "anchor": "y3",
-         "domain": [
-          0,
-          0.45
-         ]
+         ],
+         "title": {
+          "text": "Year"
+         }
         },
         "yaxis": {
          "anchor": "x",
          "domain": [
-          0.625,
-          1
-         ]
-        },
-        "yaxis2": {
-         "anchor": "x2",
-         "domain": [
-          0.625,
-          1
-         ]
-        },
-        "yaxis3": {
-         "anchor": "x3",
-         "domain": [
           0,
-          0.375
-         ]
+          1
+         ],
+         "title": {
+          "text": "Total Stock in Mg"
+         }
         }
        }
       }
@@ -3527,7 +3410,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 60,
    "id": "d0b9df09",
    "metadata": {},
    "outputs": [
@@ -3550,7 +3433,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 61,
    "id": "9b35bcea",
    "metadata": {},
    "outputs": [
@@ -3589,7 +3472,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 62,
    "id": "93e5be19",
    "metadata": {},
    "outputs": [
@@ -3612,7 +3495,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 63,
    "id": "26fae7ba",
    "metadata": {},
    "outputs": [
@@ -3637,7 +3520,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 64,
    "id": "f3030588",
    "metadata": {},
    "outputs": [
@@ -3678,7 +3561,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 65,
    "id": "b116cfdf",
    "metadata": {},
    "outputs": [
@@ -3701,7 +3584,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 66,
    "id": "e85f9290",
    "metadata": {},
    "outputs": [],
@@ -3730,7 +3613,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 67,
    "id": "25e6f207",
    "metadata": {},
    "outputs": [
@@ -3771,7 +3654,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": 68,
    "id": "386ca2c0",
    "metadata": {},
    "outputs": [
@@ -3800,7 +3683,15 @@
    "name": "python3"
   },
   "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
    "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
    "version": "3.12.7"
   }
  },

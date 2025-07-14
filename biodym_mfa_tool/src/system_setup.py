@@ -189,6 +189,9 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
     """
     print("--> Defining flows, parameters, and setting all initial values...")
 
+    # Initialize parameter counter
+    parameter_id_counter = 1
+
     flow_definitions = all_excel_data["1_1_Definition_Flows"]
     for _, row in flow_definitions.iterrows():
         if pd.notna(row["Name(EN)"]):
@@ -211,7 +214,7 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
                 flow_obj.Values[:, 0] = np.array(flow_time_series["Flow_Py"]).ravel()
     print("--> Populated data for primary input flows.")
 
-    initial_stock_data = all_excel_data.get("2_4_Process_Stock_")
+    initial_stock_data = all_excel_data.get("2_4_Initial_Stock")
     process_definitions = all_excel_data["2_1_Definition_Processes"]
     if initial_stock_data is not None:
         for _, row in process_definitions.iterrows():
@@ -232,8 +235,34 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
                         dm_p = stock_data_row["Initial_Stock_DM[%]"].iloc[0]
                         cc_p = stock_data_row["Initial_Stock_CC[%]"].iloc[0]
                         stock_s.Values[0, :] = [mat, mat * wc_p, mat * dm_p, mat * cc_p]
+                        
+                        # Process stock-outflow TCs if available
+                        if "Stock_Outflow_TC" in stock_data_row.columns and pd.notna(stock_data_row["Stock_Outflow_TC"].iloc[0]):
+                            tc_id = stock_data_row["Stock_Outflow_TC"].iloc[0]
+                            destination_process = int(stock_data_row["Destination_Process"].iloc[0])
+                            consumption_rate = float(stock_data_row["Annual_Consumption_Rate"].iloc[0])
+                            
+                            # Create stock-outflow parameter
+                            mfa_system.ParameterDict[tc_id] = msc.Parameter(
+                                Name=tc_id,
+                                ID=parameter_id_counter,
+                                Values=consumption_rate,
+                                Unit="1/year"
+                            )
+                            parameter_id_counter += 1
+                            
+                            # Store stock-outflow info for later processing
+                            if not hasattr(mfa_system, 'stock_outflow_tcs'):
+                                mfa_system.stock_outflow_tcs = {}
+                            mfa_system.stock_outflow_tcs[process_id] = {
+                                'tc_id': tc_id,
+                                'destination_process': destination_process,
+                                'consumption_rate': consumption_rate,
+                                'initial_stock': stock_s.Values[0, :].copy()
+                            }
+                            
+                            print(f"--> Added stock-outflow TC: {tc_id} for process {process_id} -> {destination_process} (rate: {consumption_rate})")
 
-    parameter_id_counter = 1
     tc_definitions = all_excel_data.get("2_3_Process_TCs")
     if tc_definitions is not None:
         for _, row in tc_definitions.iterrows():

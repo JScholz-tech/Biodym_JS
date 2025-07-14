@@ -47,6 +47,7 @@ try:
     import utils
     from engine import solver
     import plotting
+    import ODYM_Classes as msc
     from tqdm import tqdm
 except ImportError as e:
     print(f"FATAL ERROR: A required module could not be imported: {e}")
@@ -88,6 +89,25 @@ def main():
     mfa_system_configured, _ = system_setup.define_flows_and_parameters(
         mfa_system_base, all_excel_data
     )
+
+    # Process dynamic TCs if available
+    dynamic_tc_sheet = all_excel_data.get('2_5_dynamic_tcs')
+    if dynamic_tc_sheet is not None and not dynamic_tc_sheet.empty:
+        print("--> Processing dynamic transfer coefficients...")
+        dynamic_tcs = system_setup.create_dynamic_tc_parameters(
+            dynamic_tc_sheet, mfa_system_configured.IndexTable.Classification['Time'].Items
+        )
+        # Add dynamic TCs to the system parameters
+        for name, values in dynamic_tcs.items():
+            mfa_system_configured.ParameterDict[name] = msc.Parameter(
+                Name=name,
+                ID=len(mfa_system_configured.ParameterDict) + 1,
+                Values=values,
+                Unit="1"
+            )
+        print(f"--> Dynamic TCs processed: {len(dynamic_tcs)} parameters added")
+    else:
+        print("--> No dynamic TCs found in input data")
 
     # --- 2. CALCULATION ---
     print("\n--- PHASE 2: CALCULATION ---")

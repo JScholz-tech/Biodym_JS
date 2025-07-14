@@ -68,6 +68,7 @@ try:
     import utils
     from engine import solver
     import plotting
+    import ODYM_Classes as msc
     print("✅ BioDYM modules imported successfully")
 except ImportError as e:
     print(f"❌ Import error: {e}")
@@ -81,7 +82,7 @@ print("📊 Plotting environment ready")
 # 
 # **Change this variable to your Excel file:**
 
-input_file = "data/01_input/250707_Template_CS1.xlsx"
+input_file = "data/01_input/250714_Template_CS1.xlsx"
 
 print(f"📁 Input file: {input_file}")
 
@@ -173,6 +174,16 @@ config_summary = f"""
 
 display(Markdown(config_summary))
 
+# ---
+# BioDYM Extension Notice
+# ---
+
+from IPython.display import display, Markdown
+
+display(Markdown('''
+**Note:** The stock-outflow transfer coefficient feature is a custom extension to the ODYM framework, developed specifically for BioDYM. It is not part of the standard ODYM release.
+'''))
+
 # # 2. Calculation & Validation
 # 
 # This section executes the MFA calculation and immediately validates the results through mass balance checks.
@@ -240,6 +251,29 @@ try:
 except Exception as e:
     print(f"❌ Error defining flows and parameters: {e}")
     raise
+
+# 5.1 Process dynamic TCs
+print("🔄 Processing dynamic transfer coefficients...")
+try:
+    dynamic_tc_sheet = all_excel_data.get('2_5_dynamic_tcs')
+    if dynamic_tc_sheet is not None and not dynamic_tc_sheet.empty:
+        dynamic_tcs = system_setup.create_dynamic_tc_parameters(
+            dynamic_tc_sheet, mfa_system_configured.IndexTable.Classification['Time'].Items
+        )
+        # Add dynamic TCs to the system parameters
+        for name, values in dynamic_tcs.items():
+            mfa_system_configured.ParameterDict[name] = msc.Parameter(
+                Name=name,
+                ID=len(mfa_system_configured.ParameterDict) + 1,
+                Values=values,
+                Unit="1"
+            )
+        print(f"✅ Dynamic TCs processed: {len(dynamic_tcs)} parameters added")
+    else:
+        print("ℹ️ No dynamic TCs found in input data")
+except Exception as e:
+    print(f"⚠️ Warning: Could not process dynamic TCs: {e}")
+    print("   Continuing with static TCs only")
 
 # 6. Run calculation
 print("🧮 Running calculation...")
@@ -399,14 +433,35 @@ try:
     if has_dsm and dsm_details:
         plotting.plot_dsm_stock_details(mfa_system_with_results, dsm_params, dsm_details)
         print("✅ DSM process analysis plots created")
+        print("   📊 Features: Individual/Cumulative views, lifetime display")
+        print("   🎨 Enhanced styling with export functionality")
     else:
         print("ℹ️ No DSM processes available")
 except Exception as e:
     print(f"⚠️ Could not create DSM process analysis: {e}")
 
-# ### 3.2.2 FOMP Process Analysis
+# ### 3.2.2 DSM Outflow Analysis
 
-print("\n🌱 3.2.2 FOMP Process Analysis:")
+print("\n📤 3.2.2 DSM Outflow Analysis:")
+try:
+    if has_dsm and dsm_details:
+        # Check if DSM outflow widgets have already been created to prevent duplicates
+        if hasattr(plotting.plot_dsm_outflow_details, '_widgets_created'):
+            print("DSM outflow widgets already created. Skipping duplicate creation.")
+        else:
+            plotting.plot_dsm_outflow_details(mfa_system_with_results, dsm_params, dsm_details)
+            print("✅ DSM outflow analysis plots created")
+            print("   📊 Features: Outflow patterns, cumulative analysis")
+            print("   📈 Reference: Stock levels for context")
+            print("   🎨 Interactive: Process and element selection")
+    else:
+        print("ℹ️ No DSM processes available")
+except Exception as e:
+    print(f"⚠️ Could not create DSM outflow analysis: {e}")
+
+# ### 3.2.3 FOMP Process Analysis
+
+print("\n🌱 3.2.3 FOMP Process Analysis:")
 try:
     if has_fomp and fomp_params:
         plotting.plot_fomp_stock_details(mfa_system_with_results, fomp_params)
