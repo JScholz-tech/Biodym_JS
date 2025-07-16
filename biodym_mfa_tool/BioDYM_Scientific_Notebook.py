@@ -512,43 +512,43 @@ print("\n" + "-"*40)
 print("3.5 FLOW CHART VISUALIZATION")
 print("-"*40)
 
-# ### 3.5.1 Basic Flow Chart
+# ### 3.5.1 Basic Flow Chart (Excel-based)
 
-print("📊 Creating basic flow chart...")
+print("📊 Creating basic flow chart from Excel data...")
 try:
-    fig1, G1 = plotting.plot_flow_chart(
-        mfa_system_with_results, 
+    fig1, G1 = plotting.plot_simple_flow_chart_from_excel(
+        input_file,
         title="BioDYM System Flow Chart",
-        layout_type="hierarchical"
+        layout_type="left_to_right"
     )
     print("✅ Basic flow chart created")
-    print("   📊 Features: Process nodes, flow arrows, value labels")
-    print("   🎨 Color coding: Process types (boundary, input, treatment, use, output)")
-    print("   📈 Edge width: Proportional to flow values")
+    print("   📊 Features: Process nodes, flow arrows, clean layout")
+    print("   🎨 Style: Engineering-standard, left-to-right layout")
+    print("   📁 Export: PNG, PDF, SVG formats available")
 except Exception as e:
     print(f"⚠️ Could not create basic flow chart: {e}")
 
-# ### 3.5.2 Interactive Flow Chart
+# ### 3.5.2 Interactive Flow Chart (Excel-based)
 
-print("\n📊 Creating interactive flow chart...")
+print("\n📊 Creating interactive flow chart from Excel data...")
 try:
-    fig2, G2 = plotting.plot_interactive_flow_chart(
-        mfa_system_with_results,
+    fig2 = plotting.plot_interactive_flow_chart_from_excel(
+        input_file,
         title="Interactive BioDYM System Flow Chart"
     )
     print("✅ Interactive flow chart created")
-    print("   📊 Features: Filter by process type, flow threshold, show/hide values")
-    print("   🎛️ Controls: Process type selection, minimum flow threshold")
-    print("   📈 Interactive: Real-time updates with widget controls")
+    print("   📊 Features: Interactive nodes, hover information, zoom controls")
+    print("   🎨 Color coding: Process types (input, treatment, use, output)")
+    print("   📈 Interactive: Hover for details, zoom and pan controls")
 except Exception as e:
     print(f"⚠️ Could not create interactive flow chart: {e}")
 
-# ### 3.5.3 System Architecture Diagram
+# ### 3.5.3 System Architecture Diagram (Excel-based)
 
-print("\n📊 Creating system architecture diagram...")
+print("\n📊 Creating system architecture diagram from Excel data...")
 try:
-    fig3 = plotting.plot_system_architecture_diagram(
-        mfa_system_with_results,
+    fig3 = plotting.plot_system_architecture_from_excel(
+        input_file,
         title="BioDYM System Architecture"
     )
     print("✅ System architecture diagram created")
