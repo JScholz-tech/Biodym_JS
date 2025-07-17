@@ -25,13 +25,13 @@ from .monte_carlo import plot_monte_carlo_integrated_dashboard, plot_mc_distribu
 from .scenario import plot_scenario_comparison
 from .utils import plot_enhanced_export_options
 
-# Flow chart plotting
-from .flow_charts import (
-    plot_simple_flow_chart_from_excel,
-    plot_interactive_flow_chart_from_excel,
-    plot_system_architecture_from_excel,
-    create_flow_chart_export_controls
-)
+# Flow chart plotting - using Graphviz functions instead
+# from .flow_charts import (
+#     plot_simple_flow_chart_from_excel,
+#     plot_interactive_flow_chart_from_excel,
+#     plot_system_architecture_from_excel,
+#     create_flow_chart_export_controls
+# )
 
 # Legacy function names for backward compatibility
 def plot_flow_chart(mfa_system_results, title="System Flow Chart", layout_type="hierarchical"):
@@ -47,9 +47,7 @@ def plot_flow_chart(mfa_system_results, title="System Flow Chart", layout_type="
     Returns:
         tuple: (matplotlib figure, networkx graph)
     """
-    # This would need to be implemented to work with MFA system results
-    # For now, we'll use the Excel-based version
-    print("⚠️ Legacy plot_flow_chart called. Consider using plot_simple_flow_chart_from_excel instead.")
+    print("⚠️ Legacy plot_flow_chart called. Consider using plot_graphviz_flow_chart_sankey_style instead.")
     return None, None
 
 def plot_interactive_flow_chart(mfa_system_results, title="Interactive System Flow Chart"):
@@ -64,7 +62,7 @@ def plot_interactive_flow_chart(mfa_system_results, title="Interactive System Fl
     Returns:
         plotly.graph_objects.Figure: Interactive flow chart.
     """
-    print("⚠️ Legacy plot_interactive_flow_chart called. Consider using plot_interactive_flow_chart_from_excel instead.")
+    print("⚠️ Legacy plot_interactive_flow_chart called. Consider using plot_graphviz_flow_chart_sankey_style instead.")
     return None
 
 def plot_system_architecture_diagram(mfa_system_results, title="System Architecture"):
@@ -79,5 +77,5 @@ def plot_system_architecture_diagram(mfa_system_results, title="System Architect
     Returns:
         plotly.graph_objects.Figure: System architecture diagram.
     """
-    print("⚠️ Legacy plot_system_architecture_diagram called. Consider using plot_system_architecture_from_excel instead.")
+    print("⚠️ Legacy plot_system_architecture_diagram called. Consider using plot_graphviz_flow_chart_sankey_style instead.")
     return None

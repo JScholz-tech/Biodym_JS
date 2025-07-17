@@ -7,7 +7,7 @@ This file contains the functions for generating interactive Sankey diagrams.
 """
 
 import plotly.graph_objects as go
-from ipywidgets import FloatSlider, Button, HBox, VBox, HTML, Layout, Dropdown, SelectMultiple
+from ipywidgets import FloatSlider, IntSlider, Button, HBox, VBox, HTML, Layout, Dropdown, SelectMultiple
 import os
 from datetime import datetime
 

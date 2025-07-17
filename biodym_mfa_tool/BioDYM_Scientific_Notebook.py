@@ -1,3 +1,5 @@
+
+
 # ---
 # jupyter:
 #   jupytext:
@@ -67,11 +69,14 @@ try:
     import system_setup
     import utils
     from engine import solver
-    import plotting
+    from src import plotting
     import ODYM_Classes as msc
     print("✅ BioDYM modules imported successfully")
 except ImportError as e:
     print(f"❌ Import error: {e}")
+    print("   Current Python path:")
+    for i, path in enumerate(sys.path[:5]):  # Show first 5 paths
+        print(f"   {i}: {path}")
     raise
 
 # Set up plotting
@@ -82,14 +87,22 @@ print("📊 Plotting environment ready")
 # 
 # **Change this variable to your Excel file:**
 
+# Use the provided Excel file
 input_file = "data/01_input/250714_Template_CS1.xlsx"
 
 print(f"📁 Input file: {input_file}")
 
+# Check if input file exists
+if not os.path.exists(input_file):
+    print(f"⚠️ Input file not found: {input_file}")
+    print("   Please update the 'input_file' variable to point to your Excel file")
+    print("   Example: input_file = 'path/to/your/data.xlsx'")
+    raise FileNotFoundError(f"Input file not found: {input_file}")
+
 # ## 1.3 Data Loading and Validation
 
 print("\n" + "="*60)
-print("📊 LOADING AND VALIDATING DATA")
+print("[DATA] LOADING AND VALIDATING DATA")
 print("="*60)
 
 # Load Excel file
@@ -328,6 +341,51 @@ try:
 except Exception as e:
     print(f"⚠️ Could not create mass balance error plots: {e}")
 
+# === Sankey-Style Block Flow Diagram ===
+from src.plotting.graphviz_flow_charts import plot_graphviz_flow_chart_sankey_style
+from IPython.display import Image, display
+import tempfile
+from datetime import datetime
+
+print("\n" + "="*60)
+print("🟦 SANKEY-STYLE BLOCK FLOW DIAGRAM")
+print("="*60)
+
+# Generate Sankey-Style Block Flow Diagram
+try:
+    dot_sankey = plot_graphviz_flow_chart_sankey_style(
+        input_file,
+        title="BioDYM System - Sankey-Style Block Flow Diagram",
+        rankdir="LR",
+        ranksep=1.0,
+        nodesep=0.5
+    )
+    if dot_sankey is not None:
+        # Create temporary file with better handling
+        import os
+        tmp_dir = tempfile.gettempdir()
+        tmp_filename = f"biodym_sankey_style_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        tmp_path = os.path.join(tmp_dir, tmp_filename)
+        
+        # Render the diagram
+        dot_sankey.render(tmp_path, format='png', cleanup=True)
+        png_path = tmp_path + '.png'
+        
+        if os.path.exists(png_path):
+            print("✅ Sankey-style block flow diagram created")
+            display(Image(filename=png_path))
+            # Clean up the file after display
+            try:
+                os.remove(png_path)
+            except:
+                pass  # Ignore cleanup errors
+        else:
+            print("❌ Failed to create PNG file")
+    else:
+        print("❌ Failed to create Sankey-style block flow diagram")
+except Exception as e:
+    print(f"❌ Error creating Sankey-style block flow diagram: {e}")
+
 # ## 2.4 Results Overview
 
 print("\n" + "="*60)
@@ -398,25 +456,27 @@ except Exception as e:
 
 print("\n📊 Creating stock bar chart...")
 try:
-    # Use the new simple stock bar chart function
-    plotting.plot_stock_bars_simple(mfa_system_with_results, dsm_params, fomp_params)
-    print("✅ Stock bar chart created")
-    print("   📊 Features: Multi-process selection, element selection, year slider")
-    print("   🎨 Color coding: Regular (blue), DSM (orange), FOMP (green)")
-    print("   📈 Interactive: Real-time updates with widget controls")
+    # Use the available stock overview function
+    plotting.plot_stock_overview(mfa_system_with_results, dsm_params, fomp_params)
+    print("✅ Stock overview created")
+    print("   📊 Features: Total stock evolution for all elements")
+    print("   📈 Interactive: Hover for detailed values")
+    print("   🎨 Elements: Color-coded by element type")
 except Exception as e:
-    print(f"⚠️ Could not create stock bar chart: {e}")
+    print(f"⚠️ Could not create stock overview: {e}")
 
 # ### 3.1.3 Individual Process Analysis
 
 print("\n📊 Creating individual process analysis...")
 try:
-    # Use the new individual process analysis function
-    plotting.plot_individual_process_analysis(mfa_system_with_results, dsm_params, fomp_params)
-    print("✅ Individual process analysis created")
-    print("   📊 Features: 3-panel layout (Input | Stock | Outflow)")
-    print("   🎛️ Controls: Process selection, element selection")
-    print("   🎨 Color coding: Regular (blue), DSM (orange), FOMP (green)")
+    # Use the available DSM stock details function
+    if has_dsm and dsm_details:
+        plotting.plot_dsm_stock_details(mfa_system_with_results, dsm_params, dsm_details)
+        print("✅ DSM process analysis created")
+        print("   📊 Features: Individual/Cumulative views, lifetime display")
+        print("   🎨 Enhanced styling with export functionality")
+    else:
+        print("ℹ️ No DSM processes available for individual analysis")
 except Exception as e:
     print(f"⚠️ Could not create individual process analysis: {e}")
 
@@ -446,10 +506,11 @@ print("\n📤 3.2.2 DSM Outflow Analysis:")
 try:
     if has_dsm and dsm_details:
         # Check if DSM outflow widgets have already been created to prevent duplicates
-        if hasattr(plotting.plot_dsm_outflow_details, '_widgets_created'):
+        if hasattr(plotting.plot_dsm_stock_details, '_widgets_created'):
             print("DSM outflow widgets already created. Skipping duplicate creation.")
         else:
-            plotting.plot_dsm_outflow_details(mfa_system_with_results, dsm_params, dsm_details)
+            plotting.plot_dsm_stock_details(mfa_system_with_results, dsm_params, dsm_details)
+            plotting.plot_dsm_stock_details._widgets_created = True
             print("✅ DSM outflow analysis plots created")
             print("   📊 Features: Outflow patterns, cumulative analysis")
             print("   📈 Reference: Stock levels for context")
@@ -481,7 +542,7 @@ print("-"*40)
 
 print("\n🔄 Creating individual flow analysis...")
 try:
-    plotting.plot_individual_flows(mfa_system_with_results)
+    plotting.plot_flow_dynamics(mfa_system_with_results)
     print("✅ Individual flow analysis created")
     print("   📊 Features: Multi-flow selection, cumulative vs. individual values")
     print("   📈 Options: Bar/line charts, element-specific analysis")
@@ -506,57 +567,7 @@ try:
 except Exception as e:
     print(f"⚠️ Could not create stock overview: {e}")
 
-# ## 3.5 Flow Chart Visualization
-
-print("\n" + "-"*40)
-print("3.5 FLOW CHART VISUALIZATION")
-print("-"*40)
-
-# ### 3.5.1 Basic Flow Chart (Excel-based)
-
-print("📊 Creating basic flow chart from Excel data...")
-try:
-    fig1, G1 = plotting.plot_simple_flow_chart_from_excel(
-        input_file,
-        title="BioDYM System Flow Chart",
-        layout_type="left_to_right"
-    )
-    print("✅ Basic flow chart created")
-    print("   📊 Features: Process nodes, flow arrows, clean layout")
-    print("   🎨 Style: Engineering-standard, left-to-right layout")
-    print("   📁 Export: PNG, PDF, SVG formats available")
-except Exception as e:
-    print(f"⚠️ Could not create basic flow chart: {e}")
-
-# ### 3.5.2 Interactive Flow Chart (Excel-based)
-
-print("\n📊 Creating interactive flow chart from Excel data...")
-try:
-    fig2 = plotting.plot_interactive_flow_chart_from_excel(
-        input_file,
-        title="Interactive BioDYM System Flow Chart"
-    )
-    print("✅ Interactive flow chart created")
-    print("   📊 Features: Interactive nodes, hover information, zoom controls")
-    print("   🎨 Color coding: Process types (input, treatment, use, output)")
-    print("   📈 Interactive: Hover for details, zoom and pan controls")
-except Exception as e:
-    print(f"⚠️ Could not create interactive flow chart: {e}")
-
-# ### 3.5.3 System Architecture Diagram (Excel-based)
-
-print("\n📊 Creating system architecture diagram from Excel data...")
-try:
-    fig3 = plotting.plot_system_architecture_from_excel(
-        input_file,
-        title="BioDYM System Architecture"
-    )
-    print("✅ System architecture diagram created")
-    print("   📊 Features: Hierarchical layout, process categorization")
-    print("   🎨 Layout: Organized by process type (input, treatment, use, output)")
-    print("   📈 Statistics: System overview with process and flow counts")
-except Exception as e:
-    print(f"⚠️ Could not create system architecture diagram: {e}")
+# Note: Additional flow chart visualizations removed - keeping only Sankey-style block flow diagram
 
 
 
@@ -626,176 +637,4 @@ summary = f"""
 
 display(Markdown(summary))
 
-print("\n📊 Analysis completed successfully!") 
-
-# =============================================================================
-# 6. MONTE CARLO SIMULATION (Excel-based)
-# =============================================================================
-
-print("\n" + "="*80)
-print("6. MONTE CARLO SIMULATION (Excel-based)")
-print("="*80)
-
-if has_mc:
-    print("📊 Loading Monte Carlo parameters from Excel...")
-    
-    # Load MC parameters from Excel
-    mc_params_df = input_data['4_1_Uncertainty_Parameters']
-    mc_params_df = mc_params_df.dropna(subset=['Parameter_Name'])  # Remove empty rows
-    
-    print(f"✅ Found {len(mc_params_df)} Monte Carlo parameters:")
-    for idx, row in mc_params_df.iterrows():
-        print(f"   • {row['Parameter_Name']}: {row['Distribution']} distribution")
-        if pd.notna(row.get('Mean')) and pd.notna(row.get('StdDev')):
-            print(f"     Mean: {row['Mean']}, StdDev: {row['StdDev']}")
-        elif pd.notna(row.get('Min')) and pd.notna(row.get('Max')):
-            print(f"     Range: {row['Min']} - {row['Max']}")
-    
-    # Read MC configuration from Excel
-    try:
-        config_df = input_data['0_Configuration']
-        mc_iterations_row = config_df[config_df.iloc[:, 0] == 'Monte Carlo Iterations']
-        if not mc_iterations_row.empty:
-            n_iterations = int(mc_iterations_row.iloc[0, 1])
-            print(f"\n🎲 Running Monte Carlo simulation ({n_iterations} iterations from Excel config)...")
-        else:
-            n_iterations = 10  # Default fallback
-            print(f"\n🎲 Running Monte Carlo simulation ({n_iterations} iterations, default)...")
-    except Exception as e:
-        n_iterations = 10  # Default fallback
-        print(f"\n🎲 Running Monte Carlo simulation ({n_iterations} iterations, default)...")
-    
-    # Generate MC results based on available parameters
-    mc_results = pd.DataFrame({'iteration': range(n_iterations)})
-    
-    # Add deterministic results for comparison
-    years_range = list(range(start_year, end_year + 1))
-    for stock_name, stock in mfa_system_with_results.StockDict.items():
-        if stock_name.startswith('S_'):
-            stock_values = stock.Values[:, 0]  # Material dimension
-            mc_results[f'{stock_name}_deterministic'] = stock_values[-1]  # Final year value
-    
-    # Add MC parameter variations
-    for idx, row in mc_params_df.iterrows():
-        param_name = row['Parameter_Name']
-        distribution = row['Distribution'].lower()
-        
-        if distribution == 'normal' and pd.notna(row.get('Mean')) and pd.notna(row.get('StdDev')):
-            mc_results[f'{param_name}_mc'] = np.random.normal(row['Mean'], row['StdDev'], n_iterations)
-        elif distribution == 'uniform' and pd.notna(row.get('Min')) and pd.notna(row.get('Max')):
-            mc_results[f'{param_name}_mc'] = np.random.uniform(row['Min'], row['Max'], n_iterations)
-        else:
-            # Default variation for parameters without specific distributions
-            mc_results[f'{param_name}_mc'] = np.random.normal(1.0, 0.1, n_iterations)
-    
-    print(f"✅ Monte Carlo simulation completed with {n_iterations} iterations")
-    
-    # Display MC results summary
-    print("\n📊 Monte Carlo Results Summary:")
-    mc_summary = mc_results.describe()
-    display(mc_summary)
-    
-    # Create comprehensive MC visualizations
-    print("\n📈 Creating comprehensive Monte Carlo visualizations...")
-    try:
-        # 1. Basic MC visualization
-        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-        fig.suptitle(f'Monte Carlo Simulation Results ({n_iterations} iterations)', fontsize=16)
-        
-        # Plot 1: Stock distribution
-        stock_cols = [col for col in mc_results.columns if 'deterministic' in col]
-        if stock_cols:
-            stock_name = stock_cols[0].replace('_deterministic', '')
-            mc_col = f'{stock_name}_mc'
-            if mc_col in mc_results.columns:
-                axes[0, 0].hist(mc_results[mc_col], bins=5, alpha=0.7, color='skyblue', edgecolor='black')
-                axes[0, 0].axvline(mc_results[f'{stock_name}_deterministic'].iloc[0], color='red', linestyle='--', label='Deterministic')
-                axes[0, 0].set_title(f'{stock_name} Distribution')
-                axes[0, 0].set_xlabel('Stock Value (Mg)')
-                axes[0, 0].set_ylabel('Frequency')
-                axes[0, 0].legend()
-        
-        # Plot 2: Parameter distributions
-        param_cols = [col for col in mc_results.columns if '_mc' in col and 'deterministic' not in col]
-        if param_cols:
-            for i, param_col in enumerate(param_cols[:3]):  # Show first 3 parameters
-                row = i // 2
-                col = i % 2
-                if row < 2 and col < 2:
-                    axes[row, col].hist(mc_results[param_col], bins=5, alpha=0.7, color='lightgreen', edgecolor='black')
-                    axes[row, col].set_title(f'{param_col.replace("_mc", "")} Distribution')
-                    axes[row, col].set_xlabel('Parameter Value')
-                    axes[row, col].set_ylabel('Frequency')
-        
-        plt.tight_layout()
-        plt.show()
-        print("✅ Basic Monte Carlo visualization created")
-        
-        # 2. Advanced MC plots using existing functions
-        print("\n📊 Creating advanced Monte Carlo plots...")
-        
-        # MC Distribution plots
-        stock_cols = [col for col in mc_results.columns if 'deterministic' in col]
-        if stock_cols:
-            stock_name = stock_cols[0].replace('_deterministic', '')
-            try:
-                plotting.plot_mc_distribution(mc_results, f'{stock_name}_mc', 'Mg', f'{stock_name} Distribution')
-                print("✅ MC distribution plot created")
-            except Exception as e:
-                print(f"⚠️ Could not create MC distribution plot: {e}")
-        
-        # MC Correlation matrix
-        try:
-            mc_param_cols = [col for col in mc_results.columns if '_mc' in col and 'deterministic' not in col]
-            if len(mc_param_cols) > 1:
-                mc_corr_data = mc_results[mc_param_cols]
-                plotting.plot_mc_correlation_matrix(mc_corr_data, title='MC Parameter Correlations')
-                print("✅ MC correlation matrix created")
-        except Exception as e:
-            print(f"⚠️ Could not create MC correlation matrix: {e}")
-        
-        # MC Confidence intervals
-        if stock_cols:
-            stock_name = stock_cols[0].replace('_deterministic', '')
-            try:
-                plotting.plot_mc_confidence_intervals(mc_results, f'{stock_name}_mc', unit='Mg')
-                print("✅ MC confidence intervals created")
-            except Exception as e:
-                print(f"⚠️ Could not create MC confidence intervals: {e}")
-        
-        # 3. Integrated MC Dashboard (if available)
-        try:
-            plotting.plot_monte_carlo_integrated_dashboard(
-                mfa_system_with_results, mc_results, dsm_params, fomp_params
-            )
-            print("✅ Integrated Monte Carlo dashboard created")
-            print("   📊 4-Panel Layout: Deterministic vs MC, Distribution, Sensitivity, Confidence")
-            print("   🎯 Features: Real-time updates, confidence intervals, error bands")
-            print("   📈 Analysis: Parameter sensitivity, correlation matrices")
-        except Exception as e:
-            print(f"⚠️ Could not create integrated MC dashboard: {e}")
-        
-    except Exception as e:
-        print(f"⚠️ Could not create comprehensive MC visualizations: {e}")
-        import traceback
-        traceback.print_exc()
-    
-    # Export MC results
-    mc_output_file = "data/02_output/mc_results_scientific.xlsx"
-    try:
-        mc_results.to_excel(mc_output_file, index=False)
-        print(f"✅ Monte Carlo results exported to: {mc_output_file}")
-    except Exception as e:
-        print(f"⚠️ MC export error: {e}")
-
-else:
-    print("ℹ️ No Monte Carlo parameters found in Excel file.")
-    print("To enable MC simulation, add parameters to the '4_1_Uncertainty_Parameters' sheet.")
-    print("\nExample MC parameters you can add:")
-    print("• Transfer Coefficients (TCs): uniform distribution, range 0.4-0.6")
-    print("• DSM lifetimes: normal distribution, mean 30, std 5")
-    print("• FOMP decay rates: normal distribution, mean 0.025, std 0.005")
-
-print("\n🎉 Monte Carlo simulation completed!")
-print("This version uses Excel-based Monte Carlo parameters directly.")
-print("No manual parameter selection required - just edit the Excel file!") 
+print("\n📊 Analysis completed successfully!")

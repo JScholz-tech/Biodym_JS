@@ -14,7 +14,6 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.patches import FancyBboxPatch
 import numpy as np
-import networkx as nx
 
 
 def plot_graphviz_flow_chart(excel_file_path, title="BioDYM System Flow Chart", 
@@ -510,16 +509,13 @@ def compare_graphviz_layouts(excel_file_path):
     return layouts 
 
 
-def plot_graphviz_flow_chart_sankey_style(excel_file_path, title="BioDYM System Flow Chart", 
-                                         rankdir="LR", ranksep=1.0, nodesep=0.5,
-                                         flow_threshold=0.0):
+def plot_graphviz_flow_chart_sankey_style(excel_file_path, title="BioDYM System - Sankey-Style Block Flow Diagram", 
+                                         rankdir="LR", ranksep=1.0, nodesep=0.5):
     """
-    Create a Graphviz flow chart using Sankey-style positioning.
+    Create a clean, professional Sankey-style block flow diagram using Graphviz.
     
-    This function applies the same positioning logic as Sankey diagrams:
-    - Uses flow values to influence node positioning
-    - Positions nodes based on their connections and flow importance
-    - Maintains hierarchical structure while considering flow weights
+    This function creates a minimalist, engineering-standard flow chart that mimics
+    Sankey diagram principles with clean, orthogonal edges and uniform nodes.
     
     Args:
         excel_file_path (str): Path to the Excel file
@@ -527,7 +523,6 @@ def plot_graphviz_flow_chart_sankey_style(excel_file_path, title="BioDYM System 
         rankdir (str): Direction ('LR', 'TB', 'RL', 'BT')
         ranksep (float): Separation between ranks
         nodesep (float): Separation between nodes
-        flow_threshold (float): Minimum flow value to consider for positioning
         
     Returns:
         graphviz.Digraph: Graphviz diagram object
@@ -541,22 +536,48 @@ def plot_graphviz_flow_chart_sankey_style(excel_file_path, title="BioDYM System 
         processes_df = processes_df.dropna(subset=['ID', 'Name(EN)'])
         flows_df = flows_df.dropna(subset=['Flow_ID', 'Name(EN)', 'Process_ID_O', 'Process_ID_I'])
         
-        # Create NetworkX graph for Sankey-style positioning
-        G = nx.DiGraph()
+        # Create Graphviz digraph with clean, professional styling
+        dot = graphviz.Digraph(comment=title)
+        dot.attr(rankdir=rankdir, ranksep=str(ranksep), nodesep=str(nodesep))
+        dot.attr(label=title, labelloc="t", fontname="Arial", fontsize="14")
         
-        # Add processes as nodes
-        process_positions = {}
+        # Set global node and edge attributes for clean, professional style
+        dot.attr('node', 
+                shape='box', 
+                style='filled', 
+                fillcolor='white', 
+                color='black', 
+                fontcolor='black',
+                fontname='Arial', 
+                fontsize='10',
+                margin='0.2')
+        dot.attr('edge', 
+                color='black',
+                fontcolor='black',
+                fontname='Arial', 
+                fontsize='8',
+                arrowsize='0.8',
+                penwidth='1.0',
+                splines='ortho')
+        
+        # Add processes as nodes with uniform appearance
         for _, process in processes_df.iterrows():
             process_id = process['ID']
             process_name = process['Name(EN)']
             
+            # Scalar-safe checks
             if (isinstance(process_id, float) and pd.isna(process_id)) or (isinstance(process_name, float) and pd.isna(process_name)) or str(process_name).strip() == '':
                 continue
                 
             process_name = str(process_name)
-            G.add_node(str(process_id), name=process_name)
+            
+            # Create node label
+            node_label = f"{process_id}: {process_name}"
+            
+            # All nodes have uniform appearance (clean, professional)
+            dot.node(str(process_id), node_label)
         
-        # Add flows as edges with weights (using flow IDs as proxy for importance)
+        # Add flows as edges
         for _, flow in flows_df.iterrows():
             flow_id = flow['Flow_ID']
             flow_name = flow['Name(EN)']
@@ -569,84 +590,14 @@ def plot_graphviz_flow_chart_sankey_style(excel_file_path, title="BioDYM System 
                 (isinstance(process_i, float) and pd.isna(process_i))):
                 continue
                 
-            # Use flow ID as weight (higher ID = more important flow)
-            weight = float(flow_id.split('_')[-1]) if '_' in str(flow_id) else 1.0
-            G.add_edge(str(process_o), str(process_i), weight=weight, name=str(flow_name))
+            flow_name = str(flow_name)
+            edge_label = f"{flow_id}: {flow_name}"
+            
+            # Add edge with orthogonal routing for clean appearance
+            dot.edge(str(process_o), str(process_i), label=edge_label)
         
-        # Calculate Sankey-style positions using NetworkX
-        if len(G.nodes()) > 0:
-            # Use spring layout with weights to simulate Sankey positioning
-            pos = nx.spring_layout(G, k=2, iterations=50, weight='weight')
-            
-            # Convert positions to Graphviz rank constraints
-            # Group nodes by their x-coordinate (for LR layout)
-            x_coords = {node: pos[node][0] for node in G.nodes()}
-            y_coords = {node: pos[node][1] for node in G.nodes()}
-            
-            # Sort nodes by x-coordinate for ranking
-            sorted_nodes = sorted(G.nodes(), key=lambda x: x_coords[x])
-            
-            # Create Graphviz digraph
-            dot = graphviz.Digraph(comment=title)
-            dot.attr(rankdir=rankdir, ranksep=str(ranksep), nodesep=str(nodesep))
-            dot.attr(label=title, labelloc="t", fontname="Arial", fontsize="14")
-            
-            # Set global node and edge attributes
-            dot.attr('node', 
-                    shape='box', 
-                    style='filled', 
-                    fillcolor='white', 
-                    color='black', 
-                    fontcolor='black',
-                    fontname='Arial', 
-                    fontsize='10',
-                    margin='0.2')
-            dot.attr('edge', 
-                    color='black',
-                    fontcolor='black',
-                    fontname='Arial', 
-                    fontsize='8',
-                    arrowsize='0.8',
-                    penwidth='1.0',
-                    splines='ortho')
-            
-            # Add nodes with Sankey-style positioning
-            for i, node in enumerate(sorted_nodes):
-                process_name = G.nodes[node]['name']
-                node_label = f"{node}: {process_name}"
-                
-                # Create subgraph for each rank to maintain positioning
-                with dot.subgraph() as s:
-                    s.attr(rank='same')
-                    s.node(node, node_label)
-            
-            # Add edges
-            for _, flow in flows_df.iterrows():
-                flow_id = flow['Flow_ID']
-                flow_name = flow['Name(EN)']
-                process_o = flow['Process_ID_O']
-                process_i = flow['Process_ID_I']
-                
-                if ((isinstance(flow_id, float) and pd.isna(flow_id)) or
-                    (isinstance(flow_name, float) and pd.isna(flow_name)) or str(flow_name).strip() == '' or
-                    (isinstance(process_o, float) and pd.isna(process_o)) or
-                    (isinstance(process_i, float) and pd.isna(process_i))):
-                    continue
-                    
-                flow_name = str(flow_name)
-                edge_label = f"{flow_id}: {flow_name}"
-                
-                # Add edge with weight-based styling
-                weight = G.get_edge_data(str(process_o), str(process_i), {}).get('weight', 1.0)
-                penwidth = min(3.0, max(0.5, weight / 10.0))  # Scale penwidth based on weight
-                
-                dot.edge(str(process_o), str(process_i), label=edge_label, penwidth=str(penwidth))
-            
-            return dot
-        else:
-            print("⚠️ No valid processes found for Sankey-style positioning")
-            return None
-            
+        return dot
+        
     except Exception as e:
         print(f"Error creating Sankey-style Graphviz flow chart: {e}")
         return None
@@ -727,7 +678,8 @@ def plot_graphviz_flow_chart_force_directed(excel_file_path, title="BioDYM Syste
             edge_label = f"{flow_id}: {flow_name}"
             
             # Add edge with weight (using flow ID as proxy)
-            weight = float(flow_id.split('_')[-1]) if '_' in str(flow_id) else 1.0
+            flow_id_str = str(flow_id)
+            weight = float(flow_id_str.split('_')[-1]) if '_' in flow_id_str else 1.0
             dot.edge(str(process_o), str(process_i), label=edge_label, weight=str(weight))
         
         return dot
