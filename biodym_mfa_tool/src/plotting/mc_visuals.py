@@ -55,8 +55,29 @@ def plot_interactive_mc_histogram(mc_results_df):
             fig_widget.data = []
             fig_widget.add_trace(go.Histogram(x=mc_results_df[col_name], nbinsx=30))
             mean_val = mc_results_df[col_name].mean()
-            fig_widget.add_vline(x=mean_val, line_dash="dash", line_color="red", 
-                               annotation_text=f"Mean: {mean_val:.2f}")
+            
+            # Add mean line using shapes (without annotation)
+            fig_widget.add_shape(
+                type="line",
+                x0=mean_val, x1=mean_val,
+                y0=0, y1=1,
+                yref="paper",
+                line=dict(color="red", width=2, dash="dash")
+            )
+            
+            # Add annotation separately
+            fig_widget.add_annotation(
+                x=mean_val,
+                y=1.02,
+                yref="paper",
+                text=f"Mean: {mean_val:.2f}",
+                showarrow=False,
+                font=dict(color="red", size=12),
+                bgcolor="white",
+                bordercolor="red",
+                borderwidth=1
+            )
+            
             fig_widget.update_layout(
                 title=f"Distribution for {stock} ({element})",
                 xaxis_title="Value", yaxis_title="Frequency"

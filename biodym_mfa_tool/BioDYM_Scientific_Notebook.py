@@ -452,33 +452,35 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
-# ### 3.1.2 Stock Bar Chart
+# ### 3.1.2 Stock Evolution Analysis
 
-print("\n📊 Creating stock bar chart...")
+print("\n📊 Creating stock evolution analysis...")
 try:
-    # Use the available stock overview function
-    plotting.plot_stock_overview(mfa_system_with_results, dsm_params, fomp_params)
-    print("✅ Stock overview created")
-    print("   📊 Features: Total stock evolution for all elements")
-    print("   📈 Interactive: Hover for detailed values")
-    print("   🎨 Elements: Color-coded by element type")
+    # Use the stock evolution function which provides both individual and total views
+    plotting.plot_stock_evolution(mfa_system_with_results, dsm_params, fomp_params)
+    print("✅ Stock evolution analysis created")
+    print("   📊 Features: Individual stocks vs total stock views")
+    print("   📈 Interactive: Process type highlighting (DSM/FOMP/Regular)")
+    print("   🎨 Elements: Color-coded by process type")
 except Exception as e:
-    print(f"⚠️ Could not create stock overview: {e}")
+    print(f"⚠️ Could not create stock evolution analysis: {e}")
 
-# ### 3.1.3 Individual Process Analysis
+# ### 3.1.3 Process Dynamics Analysis
 
-print("\n📊 Creating individual process analysis...")
+print("\n📊 Creating process dynamics analysis...")
 try:
-    # Use the available DSM stock details function
-    if has_dsm and dsm_details:
-        plotting.plot_dsm_stock_details(mfa_system_with_results, dsm_params, dsm_details)
-        print("✅ DSM process analysis created")
-        print("   📊 Features: Individual/Cumulative views, lifetime display")
-        print("   🎨 Enhanced styling with export functionality")
+    # Use the process dynamics function for general process analysis
+    if '2_1_Definition_Processes' in input_data:
+        process_definitions = input_data['2_1_Definition_Processes']
+        plotting.plot_process_dynamics(mfa_system_with_results, process_definitions)
+        print("✅ Process dynamics analysis created")
+        print("   📊 Features: Inflow, Stock, and Outflow for each process")
+        print("   📈 Interactive: Process and element selection")
+        print("   🎨 Smart titles based on process types")
     else:
-        print("ℹ️ No DSM processes available for individual analysis")
+        print("ℹ️ Process definitions not available for dynamics analysis")
 except Exception as e:
-    print(f"⚠️ Could not create individual process analysis: {e}")
+    print(f"⚠️ Could not create process dynamics analysis: {e}")
 
 # ## 3.2 Individual Process Analysis
 
@@ -500,25 +502,20 @@ try:
 except Exception as e:
     print(f"⚠️ Could not create DSM process analysis: {e}")
 
-# ### 3.2.2 DSM Outflow Analysis
+# ### 3.2.2 DSM Stock Composition Analysis
 
-print("\n📤 3.2.2 DSM Outflow Analysis:")
+print("\n📊 3.2.2 DSM Stock Composition Analysis:")
 try:
     if has_dsm and dsm_details:
-        # Check if DSM outflow widgets have already been created to prevent duplicates
-        if hasattr(plotting.plot_dsm_stock_details, '_widgets_created'):
-            print("DSM outflow widgets already created. Skipping duplicate creation.")
-        else:
-            plotting.plot_dsm_stock_details(mfa_system_with_results, dsm_params, dsm_details)
-            plotting.plot_dsm_stock_details._widgets_created = True
-            print("✅ DSM outflow analysis plots created")
-            print("   📊 Features: Outflow patterns, cumulative analysis")
-            print("   📈 Reference: Stock levels for context")
-            print("   🎨 Interactive: Process and element selection")
+        plotting.plot_dynamic_stock_composition(dsm_details, mfa_system_with_results)
+        print("✅ DSM stock composition analysis created")
+        print("   📊 Features: Initial stock decay vs new stock accumulation")
+        print("   📈 Options: Line charts or stacked bar charts")
+        print("   🎨 Interactive: Process and element selection")
     else:
         print("ℹ️ No DSM processes available")
 except Exception as e:
-    print(f"⚠️ Could not create DSM outflow analysis: {e}")
+    print(f"⚠️ Could not create DSM stock composition analysis: {e}")
 
 # ### 3.2.3 FOMP Process Analysis
 
@@ -548,24 +545,6 @@ try:
     print("   📈 Options: Bar/line charts, element-specific analysis")
 except Exception as e:
     print(f"⚠️ Could not create individual flow analysis: {e}")
-
-# ## 3.4 Stock Overview
-
-print("\n" + "-"*40)
-print("3.4 STOCK OVERVIEW")
-print("-"*40)
-
-# ### 3.4.1 Total Stock Evolution
-
-print("📊 Creating stock overview...")
-try:
-    plotting.plot_stock_overview(mfa_system_with_results, dsm_params, fomp_params)
-    print("✅ Stock overview created")
-    print("   📊 Features: Total stock evolution for all elements")
-    print("   📈 Interactive: Hover for detailed values")
-    print("   🎨 Elements: Color-coded by element type")
-except Exception as e:
-    print(f"⚠️ Could not create stock overview: {e}")
 
 # Note: Additional flow chart visualizations removed - keeping only Sankey-style block flow diagram
 
@@ -638,3 +617,39 @@ summary = f"""
 display(Markdown(summary))
 
 print("\n📊 Analysis completed successfully!")
+
+# Monte Carlo Analysis with proper error handling
+try:
+    from src.engine.mc_simulation import run_mc_simulation
+    from src.plotting.mc_visuals import plot_interactive_mc_histogram, plot_interactive_tornado
+
+    print("\n" + "="*60)
+    print("🎲 MONTE CARLO SIMULATION")
+    print("="*60)
+
+    if has_mc:
+        mc_results = run_mc_simulation(
+            mfa_system_configured, input_data, dsm_params, fomp_params, config
+        )
+
+        if mc_results is not None and not mc_results.empty:
+            print("✅ Monte Carlo simulation completed")
+            print("📊 Creating Monte Carlo stock histogram...")
+            plot_interactive_mc_histogram(mc_results)
+            stock_mc_cols = [col for col in mc_results.columns if col.endswith('_mc') and col.startswith('S_')]
+            if stock_mc_cols:
+                print("📈 Creating tornado plot for sensitivity analysis...")
+                plot_interactive_tornado(mc_results)
+            else:
+                print("ℹ️ No stock columns found for tornado plot.")
+        else:
+            print("ℹ️ Monte Carlo simulation ran, but no results were generated. Check uncertainty definitions.")
+    else:
+        print("ℹ️ Monte Carlo analysis is disabled in the configuration. Skipping.")
+
+except ImportError as e:
+    print(f"⚠️ Monte Carlo modules not available: {e}")
+except Exception as e:
+    print(f"⚠️ Monte Carlo simulation failed: {e}")
+    import traceback
+    traceback.print_exc()
