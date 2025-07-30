@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -%-
 """
 Monte Carlo Simulation Engine.
 
@@ -36,8 +36,8 @@ def run_mc_simulation(
                       simulation, with columns for each stock and element.
                       Returns None if no uncertainty parameters are defined.
     """
-    if '4_1_Uncertainty_Parameters' not in input_data:
-        print("INFO: No uncertainty parameters found. Skipping Monte Carlo simulation.")
+    if '4_1_Uncertainty_Parameters' not in input_data or input_data['4_1_Uncertainty_Parameters'].empty:
+        print("INFO: No uncertainty parameters found or sheet is empty. Skipping Monte Carlo simulation.")
         return None
 
     mc_params_df = input_data['4_1_Uncertainty_Parameters'].dropna(subset=['Parameter_Name'])
@@ -62,20 +62,29 @@ def run_mc_simulation(
         for _, row in mc_params_df.iterrows():
             param_name = row['Parameter_Name']
             dist = row['Distribution'].lower()
-            
             val = None
+
             if dist == 'normal':
                 if 'Mean' in row and 'StdDev' in row and pd.notna(row['Mean']) and pd.notna(row['StdDev']):
                     val = np.random.normal(row['Mean'], row['StdDev'])
             elif dist == 'uniform':
                 if 'Min' in row and 'Max' in row and pd.notna(row['Min']) and pd.notna(row['Max']):
                     val = np.random.uniform(row['Min'], row['Max'])
-            
-            if val is not None and param_name in mfa_system_iter.ParameterDict:
+
+            if val is not None:
                 iter_params[param_name] = val
-                # This part assumes the parameter is a simple value.
-                # Needs enhancement for complex parameter types.
-                mfa_system_iter.ParameterDict[param_name].Values = np.array([val])
+                if param_name in mfa_system_iter.ParameterDict:
+                    mfa_system_iter.ParameterDict[param_name].Values = np.array([val])
+                elif param_name.startswith('TC_'):
+                    for flow in mfa_system_iter.FlowDict.values():
+                        if flow.Name == param_name:
+                            flow.TC = val
+                            break
+                elif param_name.startswith('dS_'):
+                    stock_id = param_name.split('_')[1]
+                    stock_name = f"S_{stock_id}"
+                    if stock_name in mfa_system_iter.StockDict:
+                        mfa_system_iter.StockDict[stock_name].Values[0, 0] = val
 
         mfa_results_iter, _ = solver.run_mfa_calculation(
             mfa_system_iter, dsm_params, fomp_params, config
@@ -94,7 +103,6 @@ def run_mc_simulation(
     
     results_df = pd.DataFrame(all_results)
     
-    # Export results
     try:
         results_df.to_excel("data/02_output/mc_results_detailed.xlsx", index=False)
         print("[MC] Detailed Monte Carlo results exported to 'data/02_output/mc_results_detailed.xlsx'")

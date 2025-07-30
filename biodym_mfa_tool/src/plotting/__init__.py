@@ -10,7 +10,7 @@ from the `plotting` package.
 from .sankey import plot_interactive_sankey
 from .dynamics import (
     plot_process_dynamics,
-    plot_stock_evolution,
+    
     plot_dynamic_stock_composition,
     plot_fomp_dynamics,
     plot_flow_dynamics,
@@ -19,6 +19,7 @@ from .dynamics import (
     plot_system_efficiency_metrics,
     plot_stock_overview,
     plot_summary_dashboard,
+    plot_stock_bar_chart,
 )
 from .validation import plot_mass_balance_error, plot_optimized_mass_balance_error
 from .monte_carlo import plot_monte_carlo_integrated_dashboard, plot_mc_distribution

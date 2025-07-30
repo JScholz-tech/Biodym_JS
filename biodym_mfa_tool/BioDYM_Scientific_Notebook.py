@@ -88,7 +88,7 @@ print("📊 Plotting environment ready")
 # **Change this variable to your Excel file:**
 
 # Use the provided Excel file
-input_file = "data/01_input/250714_Template_CS1.xlsx"
+input_file = "data/01_input/250730_Template_CS2.xlsx"
 
 print(f"📁 Input file: {input_file}")
 
@@ -452,20 +452,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
-# ### 3.1.2 Stock Evolution Analysis
-
-print("\n📊 Creating stock evolution analysis...")
-try:
-    # Use the stock evolution function which provides both individual and total views
-    plotting.plot_stock_evolution(mfa_system_with_results, dsm_params, fomp_params)
-    print("✅ Stock evolution analysis created")
-    print("   📊 Features: Individual stocks vs total stock views")
-    print("   📈 Interactive: Process type highlighting (DSM/FOMP/Regular)")
-    print("   🎨 Elements: Color-coded by process type")
-except Exception as e:
-    print(f"⚠️ Could not create stock evolution analysis: {e}")
-
-# ### 3.1.3 Process Dynamics Analysis
+# ### 3.1.2 Process Dynamics Analysis
 
 print("\n📊 Creating process dynamics analysis...")
 try:
@@ -481,6 +468,19 @@ try:
         print("ℹ️ Process definitions not available for dynamics analysis")
 except Exception as e:
     print(f"⚠️ Could not create process dynamics analysis: {e}")
+
+# ### 3.1.3 Stock Levels Bar Chart
+
+print("\n📊 Creating stock levels bar chart...")
+try:
+    # Use the new stock bar chart function
+    plotting.plot_stock_bar_chart(mfa_system_with_results, title="Stock Levels Over Time")
+    print("✅ Stock levels bar chart created")
+    print("   📊 Features: Interactive slider to view stocks per year")
+    print("   🎨 Styling: Clear, publication-ready design")
+except Exception as e:
+    print(f"⚠️ Could not create stock levels bar chart: {e}")
+
 
 # ## 3.2 Individual Process Analysis
 
@@ -620,8 +620,8 @@ print("\n📊 Analysis completed successfully!")
 
 # Monte Carlo Analysis with proper error handling
 try:
-    from src.engine.mc_simulation import run_mc_simulation
-    from src.plotting.mc_visuals import plot_interactive_mc_histogram, plot_interactive_tornado
+    from engine.mc_simulation import run_mc_simulation
+    from plotting.mc_visuals import plot_interactive_mc_histogram, plot_interactive_tornado
 
     print("\n" + "="*60)
     print("🎲 MONTE CARLO SIMULATION")

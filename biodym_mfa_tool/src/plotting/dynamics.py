@@ -1,4 +1,3 @@
-
 # -*- coding: utf-8 -*-
 """
 Dynamics Plotting Module.
@@ -12,113 +11,9 @@ import plotly.graph_objects as go
 from ipywidgets import interact, IntSlider, Dropdown, SelectMultiple, Checkbox
 from IPython.display import display
 from plotly.subplots import make_subplots
+import pandas as pd
 
-def plot_stock_evolution(mfa_system_results, dsm_params=None, fomp_params=None):
-    """
-    Creates an interactive plot showing the evolution of all stocks over time.
-    Special highlighting for DSM and FOMP processes.
 
-    Args:
-        mfa_system_results (odym.MFAsystem): The solved MFA system object.
-        dsm_params (dict, optional): DSM parameters to identify DSM processes.
-        fomp_params (dict, optional): FOMP parameters to identify FOMP processes.
-    """
-    time_items = mfa_system_results.IndexTable.Classification["Time"].Items
-    element_items = mfa_system_results.Elements
-
-    # Identify process types
-    dsm_processes = set(dsm_params.keys()) if dsm_params else set()
-    fomp_processes = set(fomp_params.keys()) if fomp_params else set()
-
-    # Get stocks (exclude delta stocks)
-    stock_names = [
-        name for name in mfa_system_results.StockDict.keys() if name.startswith("S_")
-    ]
-    process_names = [
-        p.Name for p in mfa_system_results.ProcessList if f"S_{p.ID}" in stock_names
-    ]
-
-    fig = go.FigureWidget()
-
-    def update_plot(element, show_individual):
-        element_index = element_items.index(element)
-
-        with fig.batch_update():
-            fig.data = []
-
-            if show_individual == "Individual Stocks":
-                # Show individual stock lines
-                for i, stock_name in enumerate(stock_names):
-                    stock_obj = mfa_system_results.StockDict[stock_name]
-                    stock_values = stock_obj.Values[:, element_index]
-
-                    # Determine line style based on process type
-                    process_id = int(stock_name.split("_")[1])
-                    if process_id in dsm_processes:
-                        line_style = dict(
-                            color="#ff7f0e", width=3, dash="dash"
-                        )  # Orange, dashed
-                        name_prefix = "DSM: "
-                    elif process_id in fomp_processes:
-                        line_style = dict(
-                            color="#2ca02c", width=3, dash="dot"
-                        )  # Green, dot-dash
-                        name_prefix = "FOMP: "
-                    else:
-                        line_style = dict(color="#1f77b4", width=2)  # Blue, solid
-                        name_prefix = ""
-
-                    fig.add_trace(
-                        go.Scatter(
-                            x=time_items,
-                            y=stock_values,
-                            mode="lines",
-                            name=f"{name_prefix}{process_names[i]}",
-                            line=line_style,
-                        )
-                    )
-
-                fig.update_layout(
-                    title=f"Individual Stock Evolution ({element.upper()})",
-                    xaxis_title="Year",
-                    yaxis_title="Stock in Mg",
-                    hovermode="x unified",
-                )
-            else:
-                # Show total stock
-                total_stock = np.zeros(len(time_items))
-                for stock_name in stock_names:
-                    stock_obj = mfa_system_results.StockDict[stock_name]
-                    total_stock += stock_obj.Values[:, element_index]
-
-                fig.add_trace(
-                    go.Scatter(
-                        x=time_items,
-                        y=total_stock,
-                        mode="lines",
-                        name=f"Total Stock ({element.upper()})",
-                        line=dict(color="#d62728", width=3),
-                    )
-                )
-
-                fig.update_layout(
-                    title=f"Total System Stock Evolution ({element.upper()})",
-                    xaxis_title="Year",
-                    yaxis_title="Total Stock in Mg",
-                )
-
-    # Create widgets
-    element_dropdown = Dropdown(
-        options=element_items, value=element_items[0], description="Element:"
-    )
-    view_checkbox = Dropdown(
-        options=["Total Stock", "Individual Stocks"],
-        value="Total Stock",
-        description="View:",
-    )
-
-    interact(update_plot, element=element_dropdown, show_individual=view_checkbox)
-    display(fig)
 
 def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
     """
@@ -442,7 +337,7 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
                         name="Cumulative Input",
                         line=dict(color=colors['input'], width=2, dash="dash"),
                         marker=dict(size=3),
-                        hovertemplate="<b>Cumulative Input</b><br>Year: %{x}<br>Mass: %{y:.2f} Mg<extra></extra>"
+                        hovertemplate="<b>Cumulative Input</b><br>Year: %{x}<br>Mass: %{y:.2f}} Mg<extra></extra>"
                     )
                 )
 
@@ -454,7 +349,7 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
                         name="Cumulative Mineralization",
                         line=dict(color=colors['output'], width=2, dash="dot"),
                         marker=dict(size=3),
-                        hovertemplate="<b>Cumulative Mineralization</b><br>Year: %{x}<br>Mass: %{y:.2f} Mg<extra></extra>"
+                        hovertemplate="<b>Cumulative Mineralization</b><br>Year: %{x}<br>Mass: %{y:.2f}} Mg<extra></extra>"
                     )
                 )
             else:
@@ -467,7 +362,7 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
                         name="Annual Input",
                         line=dict(color=colors['input'], width=2, dash="dash"),
                         marker=dict(size=3),
-                        hovertemplate="<b>Annual Input</b><br>Year: %{x}<br>Mass: %{y:.2f} Mg<extra></extra>"
+                        hovertemplate="<b>Annual Input</b><br>Year: %{x}<br>Mass: %{y:.2f}} Mg<extra></extra>"
                     )
                 )
 
@@ -479,7 +374,7 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
                         name="Annual Mineralization",
                         line=dict(color=colors['output'], width=2, dash="dot"),
                         marker=dict(size=3),
-                        hovertemplate="<b>Annual Mineralization</b><br>Year: %{x}<br>Mass: %{y:.2f} Mg<extra></extra>"
+                        hovertemplate="<b>Annual Mineralization</b><br>Year: %{x}<br>Mass: %{y:.2f}} Mg<extra></extra>"
                     )
                 )
 
@@ -892,13 +787,9 @@ def plot_process_dynamics(mfa_system_results, process_definitions):
             f"Warning: Column '{PROCESS_TYPE_COLUMN_NAME}' not found. Smart titles disabled."
         )
 
-    process_options = {
-        p.Name: p.ID
-        for p in mfa_system_results.ProcessList
-        if f"S_{p.ID}" in mfa_system_results.StockDict
-    }
+    process_options = {p.Name: p.ID for p in mfa_system_results.ProcessList}
     if not process_options:
-        print("No processes with stocks found to plot.")
+        print("No processes found to plot.")
         return
 
     element_items = mfa_system_results.Elements
@@ -911,16 +802,31 @@ def plot_process_dynamics(mfa_system_results, process_definitions):
         pid = process_options[process_name]
         element_index = element_items.index(element)
 
+        # If the sum is empty, it returns a scalar 0, which causes a Plotly error.
+        # We provide a zero-array of the correct length as the start value for sum.
         inflow_ts = sum(
-            f.Values[:, element_index]
-            for f in mfa_system_results.FlowDict.values()
-            if f.P_End == pid
+            (
+                f.Values[:, element_index]
+                for f in mfa_system_results.FlowDict.values()
+                if f.P_End == pid
+            ),
+            np.zeros(len(time_axis)),
         )
-        stock_ts = mfa_system_results.StockDict[f"S_{pid}"].Values[:, element_index]
+        
+        # Gracefully handle processes without a stock
+        stock_obj = mfa_system_results.StockDict.get(f"S_{pid}")
+        if stock_obj:
+            stock_ts = stock_obj.Values[:, element_index]
+        else:
+            stock_ts = np.zeros(len(time_axis)) # Plot a flat line at zero
+
         outflow_ts = sum(
-            f.Values[:, element_index]
-            for f in mfa_system_results.FlowDict.values()
-            if f.P_Start == pid
+            (
+                f.Values[:, element_index]
+                for f in mfa_system_results.FlowDict.values()
+                if f.P_Start == pid
+            ),
+            np.zeros(len(time_axis)),
         )
 
         subplot_titles = (
@@ -976,6 +882,8 @@ def plot_process_dynamics(mfa_system_results, process_definitions):
     element_dropdown = Dropdown(
         options=element_items, value=element_items[0], description="Element:"
     )
+    interact(update_plot, process_name=process_dropdown, element=element_dropdown)
+    display(fig)
 
 def plot_dynamic_stock_composition(dsm_details, mfa_system_results):
     """
@@ -1233,3 +1141,102 @@ def plot_flow_dynamics(mfa_system_results):
         options=element_items, value=element_items[0], description="Element:"
     )
     chart_type_checkbox = Checkbox(value=False, description="Show as Bar Chart")
+
+def plot_stock_bar_chart(mfa_system, title="Stock Levels Over Time"):
+    """
+    Generates an interactive bar chart of stock levels with a time slider
+    and element selection dropdown.
+
+    Displays process names instead of IDs and allows for a polished,
+    publication-ready visualization of stock evolution.
+
+    Parameters
+    ----------
+    mfa_system : object
+        The MFA system object containing calculated results.
+    title : str, optional
+        The title for the plot.
+    """
+    if not hasattr(mfa_system, 'StockDict') or not mfa_system.StockDict:
+        print("No stocks available to plot.")
+        return
+
+    years = mfa_system.IndexTable.Classification['Time'].Items
+    elements = mfa_system.Elements
+    
+    # Create a mapping from process ID to process name
+    process_id_to_name = {p.ID: p.Name for p in mfa_system.ProcessList}
+
+    # Prepare the data in a long-format DataFrame for easier filtering
+    all_stocks_data = []
+    for stock_name, stock in mfa_system.StockDict.items():
+        if stock_name.startswith('S_'):
+            process_id = int(stock_name.split('_')[1])
+            process_name = process_id_to_name.get(process_id, f"Process {process_id}")
+            for i, year in enumerate(years):
+                for j, element in enumerate(elements):
+                    all_stocks_data.append({
+                        'Year': year,
+                        'Element': element,
+                        'Process': process_name,
+                        'Value': stock.Values[i, j]
+                    })
+
+    if not all_stocks_data:
+        print("No absolute stock data found to plot.")
+        return
+
+    df = pd.DataFrame(all_stocks_data)
+    fig = go.FigureWidget()
+
+    def update_plot(year, element):
+        with fig.batch_update():
+            fig.data = []
+            df_filtered = df[(df['Year'] == year) & (df['Element'] == element)]
+            
+            # Determine colors based on value (positive/negative)
+            colors = ['#2ca02c' if val >= 0 else '#d62728' for val in df_filtered['Value']]
+
+            fig.add_trace(
+                go.Bar(
+                    x=df_filtered['Process'],
+                    y=df_filtered['Value'],
+                    marker_color=colors,
+                    hovertemplate="<b>%{x}</b><br>Stock: %{y:.2f} Mg<extra></extra>"
+                )
+            )
+
+            fig.update_layout(
+                title=dict(
+                    text=f"{title} - {element.upper()} ({year})",
+                    x=0.5,
+                    font=dict(size=20, family="Arial, sans-serif")
+                ),
+                xaxis_title="Process Name",
+                yaxis_title="Stock Value (Mass Units)",
+                template="plotly_white",
+                font=dict(family="Arial, sans-serif", size=12),
+                xaxis=dict(
+                    tickangle=-45,
+                    showgrid=False,
+                    linecolor='black',
+                    linewidth=1
+                ),
+                yaxis=dict(
+                    gridcolor='lightgrey',
+                    linecolor='black',
+                    linewidth=1,
+                    zeroline=True,
+                    zerolinecolor='rgba(0,0,0,0.5)',
+                    zerolinewidth=1
+                ),
+                showlegend=False
+            )
+
+    # Create widgets
+    year_slider = IntSlider(min=min(years), max=max(years), step=1, value=min(years), description='Year')
+    element_dropdown = Dropdown(options=elements, value=elements[0], description='Element')
+
+    # Display widgets and plot
+    interact(update_plot, year=year_slider, element=element_dropdown)
+    display(fig)
