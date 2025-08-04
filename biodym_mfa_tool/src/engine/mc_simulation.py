@@ -44,7 +44,7 @@ def run_mc_simulation(
     
     try:
         n_iterations = int(input_data['0_Configuration'].loc[
-            input_data['0_Configuration'].iloc[:, 0] == 'Monte Carlo Iterations'
+            input_data['0_Configuration'].iloc[:, 0].str.strip() == 'Monte Carlo Iterations'
         ].iloc[0, 1])
     except (KeyError, IndexError, ValueError):
         n_iterations = 10  # Default fallback
