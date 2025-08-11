@@ -88,7 +88,7 @@ print("📊 Plotting environment ready")
 # **Change this variable to your Excel file:**
 
 # Use the provided Excel file
-input_file = "data/01_input/250730_Template_CS2.xlsx"
+input_file = "data/01_input/250805_Template_CS2.xlsx"
 
 print(f"📁 Input file: {input_file}")
 
@@ -646,7 +646,6 @@ try:
             print("ℹ️ Monte Carlo simulation ran, but no results were generated. Check uncertainty definitions.")
     else:
         print("ℹ️ Monte Carlo analysis is disabled in the configuration. Skipping.")
-
 except ImportError as e:
     print(f"⚠️ Monte Carlo modules not available: {e}")
 except Exception as e:

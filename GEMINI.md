@@ -23,21 +23,31 @@
 
 ## B. Development Environment & Setup
 
-6.  **Python Version:** Python 3.12.x
-7.  **Dependency Manager:** pip
-8.  **Install Dependencies:**
-    *   **NOTE:** This is a temporary setup. The two requirement files will be consolidated into one in the future.
-    *   `pip install -r requirements.txt`
-    *   `pip install -r framework/ODYM-master_20241127/Requirements.txt`
+6.  **Python Version:** Python 3.13.x (or newer)
+7.  **Dependency Manager:** `uv` (recommended) or `pip`
+8.  **Install Dependencies:** This project has a two-step installation. Run both commands in your virtual environment:
+    ```bash
+    # 1. Install main tool dependencies
+    uv pip install -r biodym_mfa_tool/requirements.txt
+
+    # 2. Install ODYM framework dependencies
+    uv pip install -r biodym_mfa_tool/framework/ODYM-master_20241127/Requirements.txt
+    ```
 9.  **Environment Variables:** None required.
 10. **External Services:** None required.
 
 ## C. Codebase Architecture & Conventions
 
-11. **Primary Architectural Pattern:** Layered architecture (Data -> Model -> Engine -> Visualization).
-12. **Main Directory Responsibilities (`src/`):**
-    *   `src/engine/`: Core calculation logic (DSM, FOMP, solver).
-    *   `src/`: High-level orchestration (main CLI, data loading, plotting, system setup).
+11. **Primary Architectural Pattern:** The tool is orchestrated via a scientific workflow in a Jupyter Notebook. The notebook serves as the main entry point, sequentially calling modular Python scripts for data loading, core calculations, and visualization.
+12. **Main Directory Responsibilities:**
+    *   `biodym_mfa_tool/`: The primary directory for the tool.
+        *   `BioDYM_Scientific_Notebook.ipynb`: The main user interface and workflow orchestrator. It is synced with `BioDYM_Scientific_Notebook.py` using Jupytext.
+        *   `data/`: Handles all data input and output.
+        *   `src/`: Contains all core logic as Python modules.
+            *   `data_loader.py`, `system_setup.py`: Handle data import and model configuration.
+            *   `engine/`: Core calculation logic (MFA solver, DSM, FOMP).
+            *   `plotting/`: All visualization and charting functions.
+        *   `framework/`: Contains the foundational ODYM framework, which is treated as a read-only library.
 13. **Naming Conventions:**
     *   Files & Variables: `snake_case`
     *   Classes: `PascalCase`
@@ -53,29 +63,6 @@
     *   Use Python's built-in `logging` module instead of `print()`. A basic configuration in the main entry point is sufficient. This allows for different log levels (e.g., INFO, DEBUG, ERROR).
 17. **Docstring Style (Strict Policy):**
     *   All functions and classes **MUST** be documented using the **NumPy docstring style** to ensure clarity for the scientific community.
-    *   **Example:**
-        ```python
-        def my_function(param1, param2):
-            """A brief summary of the function.
-
-            A more detailed explanation of what the function does and its
-            purpose.
-
-            Parameters
-            ----------
-            param1 : int
-                Description of the first parameter.
-            param2 : str
-                Description of the second parameter.
-
-            Returns
-            -------
-            bool
-                Description of the return value.
-            """
-            # function code here
-            pass
-        ```
 
 ## D. Testing & Quality Assurance
 
@@ -92,15 +79,20 @@
 23. **Autonomy:** Proceed with best judgment for routine changes and bugfixes. Ask for confirmation before major refactors or changes to core calculation logic.
 24. **Commit Message Format (Strict Requirement):**
     *   All commits **MUST** follow the **Conventional Commits** standard.
-    *   **Example:**
-        ```
-        feat(dsm): add support for fixed lifetime in DSM parameter sheet
-
-        - DSM now accepts 'Fixed' as a lifetime type for deterministic modeling.
-        - Updated golden dataset and test logic to match.
-        ```
 25. **Final Output:** Summarize changes in chat and commit them locally.
 26. **Handle with Care:**
-    *   Do not modify `framework/ODYM-master_YYYYMMDD/`.
+    *   **Do not modify the `framework/ODYM-master_YYYYMMDD/` directory.** It is a foundational library and should be treated as read-only.
     *   Be careful with `test_data/golden_dataset.xlsx`.
     *   Do not overwrite user data in `data/`.
+
+## F. Project Status & Roadmap
+
+*   **Last Activity:** Code cleanup and documentation consolidation (2025-08-11).
+*   **Next Steps:**
+    1.  Perform a file audit to identify and remove unnecessary files from the repository.
+    2.  Future cleanup: Consolidate the two `requirements.txt` files into a single file.
+*   **Key Commands:**
+    *   **Run Application:** Open and execute the cells in `biodym_mfa_tool/BioDYM_Scientific_Notebook.ipynb` using a Jupyter environment (e.g., Jupyter Lab, VS Code).
+    *   **Run Tests:** `pytest`
+    *   **Format Code:** `ruff format .`
+    *   **Lint Code:** `ruff check .`
