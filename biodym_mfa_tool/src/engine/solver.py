@@ -170,16 +170,10 @@ def run_mfa_calculation(
                         total_inflow_values = sum(f.Values for f in input_flows)
                         tc_value = mfa_system.ParameterDict[param_name].Values
                         flow.Values[:, 0] = total_inflow_values[:, 0] * tc_value
-                        for i_elem in range(1, len(mfa_system.Elements)):
-                            composition_factor = np.divide(
-                                total_inflow_values[:, i_elem],
-                                total_inflow_values[:, 0],
-                                out=np.zeros_like(total_inflow_values[:, 0]),
-                                where=total_inflow_values[:, 0] != 0,
-                            )
-                            flow.Values[:, i_elem] = (
-                                flow.Values[:, 0] * composition_factor
-                            )
+                        for i_elem, element in enumerate(mfa_system.Elements[1:], start=1):
+                            param_name_element = f"{element}_{flow.Name}"
+                            if param_name_element in mfa_system.ParameterDict:
+                                flow.Values[:, i_elem] = flow.Values[:, 0] * mfa_system.ParameterDict[param_name_element].Values
                         something_changed_in_tc_loop = True
                         something_changed_in_main_loop = True
             if not something_changed_in_tc_loop:
