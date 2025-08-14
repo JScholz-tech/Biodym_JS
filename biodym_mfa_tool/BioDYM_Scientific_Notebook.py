@@ -330,14 +330,35 @@ else:
     print("✅ All mass balances within acceptable limits")
 
 # Mass Balance Error Visualization
-print("\n⚖️ Creating optimized mass balance error plots...")
+print("\n⚖️ Creating mass balance error plots...")
 try:
-    # Use the optimized mass balance error function
+    # Display the general overview plot
+    print("\n--- General Overview: Total Absolute Errors ---")
+    
+    # --- DEBUG CELL ---
+    print("\n" + "="*30)
+    print("🔬 DEBUGGING FLOW F_00_02")
+    print("="*30)
+    try:
+        debug_flow = mfa_system_with_results.FlowDict.get('F_00_02')
+        if debug_flow:
+            print("Elements:", mfa_system_with_results.Elements)
+            print("Flow F_00_02 Values (first 5 years):")
+            print(pd.DataFrame(debug_flow.Values[:5, :], columns=mfa_system_with_results.Elements).to_string())
+        else:
+            print("Flow F_00_02 not found in the system.")
+    except Exception as e:
+        print(f"Error during debug: {e}")
+    print("="*30)
+    # --- END DEBUG CELL ---
+    
+    plotting.plot_total_mass_balance_error(mfa_system_with_results)
+    
+    # Display the time-specific interactive plot
+    print("\n--- Time-Specific View: Interactive Error Check ---")
     plotting.plot_optimized_mass_balance_error(mfa_system_with_results)
-    print("✅ Optimized mass balance error plots created")
-    print("   🚀 Performance: Pre-calculated flow sums, memory optimized")
-    print("   🎨 Visualization: Color-coded errors (red=created, green=destroyed)")
-    print("   📁 Export: Enhanced export options (PNG, PDF, SVG, HTML)")
+    
+    print("✅ Mass balance error plots created")
 except Exception as e:
     print(f"⚠️ Could not create mass balance error plots: {e}")
 

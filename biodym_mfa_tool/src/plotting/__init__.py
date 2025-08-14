@@ -21,7 +21,7 @@ from .dynamics import (
     plot_summary_dashboard,
     plot_stock_bar_chart,
 )
-from .validation import plot_mass_balance_error, plot_optimized_mass_balance_error
+from .validation import plot_mass_balance_error, plot_optimized_mass_balance_error, plot_total_mass_balance_error
 from .monte_carlo import plot_monte_carlo_integrated_dashboard, plot_mc_distribution
 from .mc_visuals import plot_interactive_mc_histogram, plot_interactive_tornado
 from .scenario import plot_scenario_comparison

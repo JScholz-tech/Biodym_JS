@@ -169,11 +169,22 @@ def run_mfa_calculation(
                     ):
                         total_inflow_values = sum(f.Values for f in input_flows)
                         tc_value = mfa_system.ParameterDict[param_name].Values
+                        
+                        # 1. Calculate the total material of the outflow based on the TC
                         flow.Values[:, 0] = total_inflow_values[:, 0] * tc_value
+
+                        # 2. Apply the explicitly defined flow-specific compositions
                         for i_elem, element in enumerate(mfa_system.Elements[1:], start=1):
                             param_name_element = f"{element}_{flow.Name}"
                             if param_name_element in mfa_system.ParameterDict:
-                                flow.Values[:, i_elem] = flow.Values[:, 0] * mfa_system.ParameterDict[param_name_element].Values
+                                # If WC_F_00_02 exists, use its value
+                                content_fraction = mfa_system.ParameterDict[param_name_element].Values
+                                flow.Values[:, i_elem] = flow.Values[:, 0] * content_fraction
+                            else:
+                                # If a specific composition is not defined, set it to 0.
+                                # This makes the Excel definitions the single source of truth.
+                                flow.Values[:, i_elem] = 0
+                        
                         something_changed_in_tc_loop = True
                         something_changed_in_main_loop = True
             if not something_changed_in_tc_loop:

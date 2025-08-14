@@ -1,0 +1,37 @@
+Problem Documentation: Unexpected Carbon Flow to Environment_Output
+
+Date: Mittwoch, 13. August 2025
+Current Working Directory: C:\Users\Johannes\Nextcloud\BioDYM\bioDYM-CERT-edit-main
+Excel File: biodym_mfa_tool/data/01_input/250813_Template_CS2.xlsx
+
+Problem:
+An unexpected high carbon flow is observed to the 'Environment_Output' process (Process ID 12) in the MFA tool results, despite the intention that no carbon should be transferred to this output.
+
+Root Cause Identified:
+The carbon flow originates from materials entering specific processes that contain carbon, which are then routed to 'Environment_Output' via static Transfer Coefficients (TCs).
+
+Details:
+1.  In the '1_1_Definition_Flows' sheet, the direct emission flows to 'Environment_Output' (e.g., F_04_12, F_07_12, F_09_12, F_10_12) explicitly list their 'CC_FM[%]' (Carbon Content in Fresh Mass) as 0.00. This suggests an intent for these specific emissions to be carbon-free.
+
+2.  However, the '2_3_Process_TCs' sheet defines static TCs for these same flows (e.g., TC_04_12, TC_07_12, TC_09_12, TC_10_12) with a 'TC_Value' of 0.5872. This 'TC_Value' represents the fraction of *material* flowing from the source process to 'Environment_Output'.
+
+3.  Crucially, the *input materials* to these source processes contain significant carbon:
+    *   'Grain Processing & Consumption' (ID 4) receives 'Grain' (F_03_04) with CC_DM[%] = 0.48.
+    *   'Incineration' (ID 7) receives 'Straw_roof_used' (F_06_07) with CC_DM[%] = 0.48.
+    *   'Animal bedding' (ID 9) receives 'Straw_animal_bedding' (F_05_09) with CC_DM[%] = 0.48.
+    *   'Lithosphere' (ID 10) receives 'Straw_lithosphere' (F_08_10) with CC_DM[%] = 0.48.
+
+    Since the material entering these processes contains carbon, and a fraction of this material is routed to 'Environment_Output' via the TC, the carbon contained within that material is also transferred, regardless of the 'CC_FM[%]' listed for the emission flow itself. The model calculates elemental flow based on material mass flow and material composition.
+
+Proposed Solutions/Options:
+To eliminate the carbon flow to 'Environment_Output', you need to decide on your modeling intent:
+
+1.  **If no carbon should ever reach 'Environment_Output' from these processes:**
+    *   **Option A (Recommended):** Set the 'TC_Value' to 0.00 in the '2_3_Process_TCs' sheet for flows F_04_12, F_07_12, F_09_12, and F_10_12. This will stop the material (and thus carbon) from being routed to 'Environment_Output' via these TCs.
+    *   **Option B:** Introduce a new process step that explicitly removes or transforms the carbon *before* the material is routed to 'Environment_Output'.
+
+2.  **If the material flow to 'Environment_Output' is correct, but you want to represent the *emitted substance* as carbon-free (e.g., only water vapor is emitted):**
+    *   This indicates a conceptual conflict. The model is behaving as designed. You would need to re-evaluate the carbon content of the *input materials* if they are not truly carbon-containing, or explicitly model a carbon transformation/removal step within the processes that changes the material's composition before emission.
+
+Next Steps for Tomorrow:
+Review this documentation and decide on the preferred solution based on your modeling goals. We can then implement the changes in the Excel file.
