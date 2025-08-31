@@ -11,6 +11,111 @@ import numpy as np
 import copy
 from . import solver
 
+def validate_mc_parameters(mc_params_df, mfa_system):
+    """
+    Validates MC parameters to ensure mass balance and prevent conflicts.
+    
+    Args:
+        mc_params_df (pd.DataFrame): MC parameters from Excel
+        mfa_system (odym.MFAsystem): The MFA system to validate against
+        
+    Returns:
+        tuple: (validated_params_df, warnings_list)
+    """
+    warnings = []
+    validated_params = mc_params_df.copy()
+    
+    # Check for dynamic TC conflicts
+    dynamic_tc_processes = set()
+    for flow in mfa_system.FlowDict.values():
+        if hasattr(flow, 'TC') and isinstance(flow.TC, np.ndarray) and len(flow.TC) > 1:
+            process_id = flow.P_Start
+            dynamic_tc_processes.add(process_id)
+    
+    # Check for TC mass balance issues
+    tc_params = validated_params[validated_params['Parameter_Name'].str.startswith('TC_', na=False)]
+    
+    for _, row in tc_params.iterrows():
+        tc_name = row['Parameter_Name']
+        # Extract process ID from TC name (e.g., TC_05_06 -> process 5)
+        try:
+            process_id = int(tc_name.split('_')[1])
+            
+            # Check if this process has dynamic TCs
+            if process_id in dynamic_tc_processes:
+                warnings.append(f"⚠️ WARNING: {tc_name} conflicts with dynamic TCs in process {process_id}")
+            
+            # Check if this process has multiple outputs
+            process_flows = [f for f in mfa_system.FlowDict.values() if f.P_Start == process_id]
+            if len(process_flows) > 1:
+                # Check if all TCs for this process are defined in MC
+                process_tcs = [p for p in tc_params['Parameter_Name'] if p.startswith(f'TC_{process_id}_')]
+                if len(process_tcs) < len(process_flows):
+                    missing_tcs = [f.Name for f in process_flows if f.Name not in process_tcs]
+                    warnings.append(f"⚠️ WARNING: Process {process_id} has {len(process_flows)} outputs but only {len(process_tcs)} TCs in MC. Missing: {missing_tcs}")
+                    
+        except (ValueError, IndexError):
+            warnings.append(f"⚠️ WARNING: Could not parse process ID from {tc_name}")
+    
+    return validated_params, warnings
+
+def normalize_tcs_for_process(mfa_system, process_id, varied_tc_name, varied_tc_value):
+    """
+    Ensures all TCs for a process sum to 1.0 by normalizing them.
+    
+    Args:
+        mfa_system (odym.MFAsystem): The MFA system
+        process_id (int): Process ID to normalize
+        varied_tc_name (str): Name of the TC that was varied
+        varied_tc_value (float): New value for the varied TC
+        
+    Returns:
+        dict: Dictionary of normalized TC values
+    """
+    # Get all flows for this process
+    process_flows = [f for f in mfa_system.FlowDict.values() if f.P_Start == process_id]
+    
+    if len(process_flows) <= 1:
+        # Single output process - no normalization needed
+        return {varied_tc_name: varied_tc_value}
+    
+    # Get current TC values
+    current_tcs = {}
+    for flow in process_flows:
+        if hasattr(flow, 'TC'):
+            if isinstance(flow.TC, np.ndarray):
+                current_tcs[flow.Name] = flow.TC[0] if len(flow.TC) > 0 else 0.0
+            else:
+                current_tcs[flow.Name] = float(flow.TC)
+        else:
+            current_tcs[flow.Name] = 0.0
+    
+    # Update the varied TC
+    current_tcs[varied_tc_name] = varied_tc_value
+    
+    # Calculate normalization factor
+    total_tc = sum(current_tcs.values())
+    if total_tc > 0:
+        normalization_factor = 1.0 / total_tc
+        
+        # Apply normalization to all TCs
+        normalized_tcs = {}
+        for flow in process_flows:
+            normalized_tcs[flow.Name] = current_tcs[flow.Name] * normalization_factor
+            # Update the flow's TC value
+            flow.TC = np.array([normalized_tcs[flow.Name]])
+        
+        return normalized_tcs
+    else:
+        # If total is 0, distribute equally
+        equal_tc = 1.0 / len(process_flows)
+        normalized_tcs = {}
+        for flow in process_flows:
+            normalized_tcs[flow.Name] = equal_tc
+            flow.TC = np.array([equal_tc])
+        
+        return normalized_tcs
+
 def run_mc_simulation(
     mfa_system_configured, 
     input_data, 
@@ -23,6 +128,9 @@ def run_mc_simulation(
 
     For each iteration, it updates the parameters of a deep-copied MFA system,
     runs the solver, and collects the final stock values for all elements.
+    
+    IMPORTANT: This function ensures mass balance by normalizing TCs to sum to 1.0
+    and prevents conflicts between dynamic TCs and MC simulation.
 
     Args:
         mfa_system_configured (odym.MFAsystem): The pre-configured MFA system.
@@ -42,6 +150,16 @@ def run_mc_simulation(
 
     mc_params_df = input_data['4_1_Uncertainty_Parameters'].dropna(subset=['Parameter_Name'])
     
+    # Validate MC parameters and check for conflicts
+    validated_params, warnings = validate_mc_parameters(mc_params_df, mfa_system_configured)
+    
+    # Print warnings if any
+    if warnings:
+        print("\n[MC] Parameter Validation Warnings:")
+        for warning in warnings:
+            print(f"  {warning}")
+        print()
+    
     try:
         n_iterations = int(input_data['0_Configuration'].loc[
             input_data['0_Configuration'].iloc[:, 0].str.strip() == 'Monte Carlo Iterations'
@@ -50,6 +168,7 @@ def run_mc_simulation(
         n_iterations = 10  # Default fallback
     
     print(f"\n[MC] Running Monte Carlo simulation with {n_iterations} iterations...")
+    print(f"[MC] Using {len(validated_params)} validated parameters...")
 
     all_results = []
     
@@ -59,7 +178,10 @@ def run_mc_simulation(
         
         iter_params = {'iteration': i}
 
-        for _, row in mc_params_df.iterrows():
+        # Sample parameters with mass balance normalization
+        tc_updates = {}  # Store TC updates for normalization
+        
+        for _, row in validated_params.iterrows():
             param_name = row['Parameter_Name']
             dist = row['Distribution'].lower()
             val = None
@@ -73,18 +195,37 @@ def run_mc_simulation(
 
             if val is not None:
                 iter_params[param_name] = val
+                
                 if param_name in mfa_system_iter.ParameterDict:
                     mfa_system_iter.ParameterDict[param_name].Values = np.array([val])
                 elif param_name.startswith('TC_'):
-                    for flow in mfa_system_iter.FlowDict.values():
-                        if flow.Name == param_name:
-                            flow.TC = val
-                            break
+                    # Store TC update for later normalization
+                    tc_updates[param_name] = val
                 elif param_name.startswith('dS_'):
                     stock_id = param_name.split('_')[1]
                     stock_name = f"S_{stock_id}"
                     if stock_name in mfa_system_iter.StockDict:
                         mfa_system_iter.StockDict[stock_name].Values[0, 0] = val
+        
+        # Apply TC updates with mass balance normalization
+        for tc_name, tc_value in tc_updates.items():
+            try:
+                # Extract process ID from TC name (e.g., TC_05_06 -> process 5)
+                process_id = int(tc_name.split('_')[1])
+                
+                # Normalize TCs for this process to ensure mass balance
+                normalized_tcs = normalize_tcs_for_process(mfa_system_iter, process_id, tc_name, tc_value)
+                
+                # Update iter_params with normalized values
+                for norm_tc_name, norm_tc_value in normalized_tcs.items():
+                    iter_params[norm_tc_name] = norm_tc_value
+                    
+            except (ValueError, IndexError):
+                # Fallback: direct assignment without normalization
+                for flow in mfa_system_iter.FlowDict.values():
+                    if flow.Name == tc_name:
+                        flow.TC = np.array([tc_value])
+                        break
 
         mfa_results_iter, _ = solver.run_mfa_calculation(
             mfa_system_iter, dsm_params, fomp_params, config
