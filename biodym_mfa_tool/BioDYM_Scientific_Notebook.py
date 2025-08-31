@@ -88,7 +88,7 @@ print("📊 Plotting environment ready")
 # **Change this variable to your Excel file:**
 
 # Use the provided Excel file
-input_file = "data/01_input/250813_CS1_simple_V1.xlsx"
+input_file = "data/01_input/250831_CS1_simple_V2.xlsx"
 
 print(f"📁 Input file: {input_file}")
 
@@ -150,6 +150,10 @@ try:
     config_dict = config.load_config_from_excel(input_file)
     print("✅ Configuration loaded from Excel config sheet")
     
+    # Create proper config object for the solver
+    config_obj = config.create_config_object(config_dict)
+    print("✅ Configuration object created")
+    
     # Use config values with fallbacks to data-driven values
     start_year = config_dict.get('Start Year', None)
     end_year = config_dict.get('End Year', None)
@@ -162,6 +166,9 @@ try:
     
     print(f"📅 Time range from config: {start_year} - {end_year}")
     print(f"🧪 Elements from config: {elements}")
+    print(f"🎲 Monte Carlo: {'Enabled' if config_obj.RUN_MONTE_CARLO == True else 'Disabled'}")
+    print(f"📊 DSM Calculation: {'Enabled' if config_obj.RUN_DSM_CALCULATION == True else 'Disabled'}")
+    print(f"🌱 FOMP Calculation: {'Enabled' if config_obj.RUN_FOMP_CALCULATION == True else 'Disabled'}")
 
 except Exception as e:
     print(f"⚠️ Could not load configuration: {e}")
@@ -174,8 +181,14 @@ except Exception as e:
     end_year = int(max(years))
     elements = ['material', 'WC', 'DM', 'CC']  # Default elements
     
+    # Create default config object
+    config_obj = config.get_default_config()
+    
     print(f"📅 Time range from data: {start_year} - {end_year}")
     print(f"🧪 Elements from data: {elements}")
+    print(f"🎲 Monte Carlo: {'Enabled' if config_obj.RUN_MONTE_CARLO == True else 'Disabled'}")
+    print(f"📊 DSM Calculation: {'Enabled' if config_obj.RUN_DSM_CALCULATION == True else 'Disabled'}")
+    print(f"🌱 FOMP Calculation: {'Enabled' if config_obj.RUN_FOMP_CALCULATION == True else 'Disabled'}")
 
 # Check for Monte Carlo parameters
 has_mc = '4_1_Uncertainty_Parameters' in input_data.keys()
@@ -273,7 +286,15 @@ except Exception as e:
 print("⚙️ Loading parameters...")
 try:
     dsm_params = data_loader.load_dsm_parameters(all_excel_data)
-    fomp_params = data_loader.load_fomp_parameters(all_excel_data)
+    
+    # Check FOMP configuration before loading parameters
+    if config_obj.RUN_FOMP_CALCULATION == True:
+        fomp_params = data_loader.load_fomp_parameters(all_excel_data)
+        print("✅ FOMP parameters loaded (FOMP enabled)")
+    else:
+        fomp_params = {}  # Empty FOMP parameters
+        print("ℹ️ FOMP parameters skipped (FOMP disabled)")
+    
     uncertainty_params = data_loader.load_uncertainty_definitions(all_excel_data)
     print("✅ Parameters loaded")
 except Exception as e:
@@ -321,7 +342,7 @@ except Exception as e:
 print("🧮 Running calculation...")
 try:
     mfa_system_with_results, dsm_details = solver.run_mfa_calculation(
-        mfa_system_configured, dsm_params, fomp_params, config
+        mfa_system_configured, dsm_params, fomp_params, config_obj
     )
     print("✅ Calculation completed successfully!")
 except Exception as e:
@@ -679,7 +700,7 @@ try:
 
     if has_mc:
         mc_results = run_mc_simulation(
-            mfa_system_configured, input_data, dsm_params, fomp_params, config
+            mfa_system_configured, input_data, dsm_params, fomp_params, config_obj
         )
 
         if mc_results is not None and not mc_results.empty:

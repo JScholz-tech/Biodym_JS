@@ -113,7 +113,8 @@ def load_dsm_parameters(excel_data):
 def load_fomp_parameters(excel_data):
     """
     Reads the '3_2_Definition_FOMP' sheet and constructs the FOMP_PARAMS dictionary.
-    This version handles the specific Excel structure with output_carbon_id and output_elemental_id.
+    This version handles the enhanced 2-pool FOMP structure with dual outflows.
+    Also loads input flow composition for proper carbon/environmental separation.
 
     Args:
         excel_data (dict): The dictionary of DataFrames loaded from Excel.
@@ -146,18 +147,74 @@ def load_fomp_parameters(excel_data):
 
         # Handle special case for outflow IDs
         if param_name == "output_carbon_id":
-            fomp_params[process_id]["outflow_id"] = value  # Map to expected parameter name
+            fomp_params[process_id]["outflow_id"] = value  # Primary outflow (carbon)
         elif param_name == "output_elemental_id":
-            fomp_params[process_id]["outflow_id_2"] = value  # Second outflow
+            fomp_params[process_id]["outflow_id_2"] = value  # Secondary outflow (environmental)
         else:
-            try:
-                fomp_params[process_id][param_name] = float(value)
-            except (ValueError, TypeError):
-                fomp_params[process_id][param_name] = value
+            # Handle pool-specific parameters
+            if "Labile pool" in param_name:
+                if "Inflow_fraction_f" in param_name:
+                    fomp_params[process_id]["Inflow_fraction_f (Labile pool)"] = float(value)
+                elif "decay_k1" in param_name:
+                    fomp_params[process_id]["decay_k1"] = float(value)
+            elif "Recalcitrant pool" in param_name:
+                if "Inflow_fraction_f" in param_name:
+                    fomp_params[process_id]["Inflow_fraction_f (Recalcitrant pool)"] = float(value)
+                elif "decay_k2" in param_name:
+                    fomp_params[process_id]["decay_k2"] = float(value)
+            else:
+                # Handle legacy parameters for backward compatibility
+                try:
+                    fomp_params[process_id][param_name] = float(value)
+                except (ValueError, TypeError):
+                    fomp_params[process_id][param_name] = value
+
+    # Load input flow composition for FOMP processes
+    if "1_1_Definition_Flows" in excel_data:
+        flows_df = excel_data["1_1_Definition_Flows"]
+        
+        # Find the input flow to FOMP process (assuming it's F_06_08 based on your case study)
+        fomp_input_flow = flows_df[flows_df['Flow_ID'] == 'F_06_08']
+        
+        if not fomp_input_flow.empty:
+            flow_row = fomp_input_flow.iloc[0]
+            
+            # Extract composition values
+            dm_fraction = flow_row.get('DM', 0.86)
+            cc_fraction = flow_row.get('CC', 0.4128)
+            wc_fraction = flow_row.get('WC', 0.14)
+            
+            # Add composition to all FOMP processes
+            for process_id in fomp_params:
+                fomp_params[process_id]["input_flow_composition"] = {
+                    'DM': float(dm_fraction) if pd.notna(dm_fraction) else 0.86,
+                    'CC': float(cc_fraction) if pd.notna(cc_fraction) else 0.4128,
+                    'WC': float(wc_fraction) if pd.notna(wc_fraction) else 0.14
+                }
+            
+            print(f"--> Loaded input flow composition: DM={dm_fraction}, CC={cc_fraction}, WC={wc_fraction}")
+        else:
+            print("--> Warning: Input flow F_06_08 not found, using default composition")
 
     print(
         f"--> Successfully loaded configurations for {len(fomp_params)} FOMP process(es)."
     )
+    
+    # Validate FOMP configurations
+    for process_id, params in fomp_params.items():
+        print(f"   Process {process_id}:")
+        if "outflow_id" in params:
+            print(f"     Carbon outflow: {params['outflow_id']}")
+        if "outflow_id_2" in params:
+            print(f"     Environmental outflow: {params['outflow_id_2']}")
+        if "decay_k1" in params:
+            print(f"     Labile decay rate: {params['decay_k1']}")
+        if "decay_k2" in params:
+            print(f"     Recalcitrant decay rate: {params['decay_k2']}")
+        if "input_flow_composition" in params:
+            comp = params["input_flow_composition"]
+            print(f"     Input composition: DM={comp['DM']:.3f}, CC={comp['CC']:.3f}, WC={comp['WC']:.3f}")
+    
     return fomp_params
 
 def load_uncertainty_definitions(excel_data):

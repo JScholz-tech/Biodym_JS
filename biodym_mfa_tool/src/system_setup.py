@@ -127,9 +127,32 @@ def load_and_define_processes(mfa_system, excel_path, data_loader):
                 mfa_system.StockDict[f"S_{process_id}"] = msc.Stock(
                     Name=f"S_{process_id}", P_Res=process_id, Type=0, Indices="t,e"
                 )
+                
+                # Check if this is a FOMP process - if so, mark it for zero stock
+                fomp_sheet = input_data.get("3_2_Definition_FOMP")
+                is_fomp_process = False
+                if fomp_sheet is not None:
+                    # Check BOTH: process has FOMP? = "Yes" AND exists in FOMP sheet
+                    fomp_processes = fomp_sheet[fomp_sheet["Process_ID"] == process_id]
+                    is_fomp_process = (row.get("FOMP?", "No") == "Yes") and (not fomp_processes.empty)
+                
+                if is_fomp_process:
+                    # Mark FOMP processes to start with zero stock
+                    mfa_system.StockDict[f"S_{process_id}"]._fomp_process = True
+                    print(f"--> Marked FOMP process {process_id} for zero stock initialization")
 
-    # Initialize stock values after all stocks are created
+    # Apply FOMP protection BEFORE stock initialization
+    for stock_name, stock_obj in mfa_system.StockDict.items():
+        if hasattr(stock_obj, '_fomp_process') and stock_obj._fomp_process:
+            # Force zero stock for FOMP processes BEFORE Initialize_StockValues
+            stock_obj.Values = np.zeros((len(mfa_system.IndexTable.Classification['Time'].Items), len(mfa_system.Elements)))
+            print(f"--> Set FOMP process stock {stock_name} to zero BEFORE initialization")
+            # Remove the marker
+            delattr(stock_obj, '_fomp_process')
+
+    # Initialize stock values after FOMP protection
     mfa_system.Initialize_StockValues()
+    
     print("--> Stock values initialized.")
 
     return mfa_system, input_data

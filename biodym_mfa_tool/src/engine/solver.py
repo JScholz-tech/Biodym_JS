@@ -138,6 +138,10 @@ def run_mfa_calculation(
     """
     mfa_system = copy.deepcopy(mfa_system_setup)
 
+    # --- DEBUGGING: Inspect FOMP configuration ---
+    print("\n--- 🕵️  DEBUGGING SOLVER SETUP 🕵️  ---")
+    print(f"FOMP Params Received: {fomp_params}")
+    
     if tc_updates:
         for param_name, new_value in tc_updates.items():
             if param_name in mfa_system.ParameterDict:
@@ -147,6 +151,19 @@ def run_mfa_calculation(
     dsm_processes = set(dsm_params.keys())
     fomp_processes = set(fomp_params.keys())
     special_processes = dsm_processes.union(fomp_processes)
+
+    # Create a set of FOMP-specific output flow names to protect them
+    fomp_output_flow_names = set()
+    for params in fomp_params.values():
+        if 'outflow_id' in params:
+            fomp_output_flow_names.add(params['outflow_id'])
+        if 'outflow_id_2' in params:
+            fomp_output_flow_names.add(params['outflow_id_2'])
+
+    print(f"Protected FOMP Processes (by ID): {fomp_processes}")
+    print(f"Protected FOMP Outflows (by Name): {fomp_output_flow_names}")
+    print("-------------------------------------")
+
     dsm_processes_run = {pid: False for pid in dsm_processes}
     fomp_processes_run = {pid: False for pid in fomp_processes}
 
@@ -155,7 +172,11 @@ def run_mfa_calculation(
         while True:
             something_changed_in_tc_loop = False
             for flow in mfa_system.FlowDict.values():
-                if np.any(flow.Values != 0) or flow.P_Start in special_processes:
+                # Skip flows that are already calculated, are special, or are explicit FOMP outputs
+                if (np.any(flow.Values != 0) or 
+                    flow.P_Start in special_processes or 
+                    hasattr(flow, '_fomp_protected') or 
+                    flow.Name in fomp_output_flow_names):
                     continue
                 param_name = f"TC_{'_'.join(flow.Name.split('_')[1:3])}"
                 if param_name in mfa_system.ParameterDict:
@@ -217,11 +238,38 @@ def run_mfa_calculation(
                     if inflows_to_fomp and all(
                         np.any(f.Values != 0) for f in inflows_to_fomp
                     ):
+                        # --- Dynamically get the input flow composition ---
+                        # Assumption: The composition is defined by the primary input flow.
+                        # A more complex model might need to average or aggregate compositions.
+                        primary_input_flow = inflows_to_fomp[0]
+                        flow_name = primary_input_flow.Name
+                        
+                        try:
+                            composition = {
+                                'DM': mfa_system.ParameterDict[f'DM_{flow_name}'].Values,
+                                'CC': mfa_system.ParameterDict[f'CC_{flow_name}'].Values,
+                                'WC': mfa_system.ParameterDict[f'WC_{flow_name}'].Values,
+                            }
+                        except KeyError as e:
+                            print(f"❌ Error: Missing composition parameter for FOMP input flow {flow_name}: {e}")
+                            continue # Skip this FOMP process if composition is missing
+
                         mfa_system = fomp_model.calculate_fomp(
-                            mfa_system, {process_id: fomp_params[process_id]}
+                            mfa_system, 
+                            {process_id: fomp_params[process_id]},
+                            input_flow_composition=composition
                         )
                         fomp_processes_run[process_id] = True
                         something_changed_in_main_loop = True
+                        
+                        # Mark FOMP output flows as protected from composition override
+                        fomp_output_flows = [
+                            f for f in mfa_system.FlowDict.values() 
+                            if f.P_Start == process_id
+                        ]
+                        for flow in fomp_output_flows:
+                            flow._fomp_protected = True  # Mark as protected
+                            print(f"    Protected FOMP output flow: {flow.Name}")
 
         if not something_changed_in_main_loop and i > 0:
             break
