@@ -40,11 +40,7 @@ from plotting import (
     plot_interactive_sankey,
     plot_flow_dynamics,
     plot_stock_bar_chart,
-    plot_mc_distribution,
-    
-    plot_mc_correlation_matrix,
-    plot_mc_confidence_intervals,
-    plot_mc_parameter_importance
+    plot_mc_distribution
 )
 
 
