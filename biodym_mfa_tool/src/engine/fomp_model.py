@@ -56,3 +56,4 @@ def calculate_fomp(mfa_system, fomp_params_config):
 
     mfa_system.FlowDict[outflow_flow_name].Values = new_outflow_values
     return mfa_system
+

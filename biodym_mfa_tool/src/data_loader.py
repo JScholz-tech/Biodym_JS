@@ -110,7 +110,6 @@ def load_dsm_parameters(excel_data):
     )
     return dsm_params
 
-
 def load_fomp_parameters(excel_data):
     """
     Reads the '3_2_Definition_FOMP' sheet and constructs the FOMP_PARAMS dictionary.
@@ -154,7 +153,6 @@ def load_fomp_parameters(excel_data):
         f"--> Successfully loaded configurations for {len(fomp_params)} FOMP process(es)."
     )
     return fomp_params
-
 
 def load_uncertainty_definitions(excel_data):
     """

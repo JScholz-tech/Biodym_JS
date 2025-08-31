@@ -38,10 +38,10 @@ from plotting import (
     plot_enhanced_export_options,
     plot_optimized_mass_balance_error,
     plot_interactive_sankey,
-    plot_individual_flows,
-    plot_individual_stocks,
+    plot_flow_dynamics,
+    plot_stock_bar_chart,
     plot_mc_distribution,
-    plot_mc_sensitivity_scatter,
+    
     plot_mc_correlation_matrix,
     plot_mc_confidence_intervals,
     plot_mc_parameter_importance
@@ -228,8 +228,8 @@ class TestInteractiveSankey:
         mock_display.assert_called_once()
 
 
-class TestIndividualFlowAnalysis:
-    """Test cases for individual flow analysis."""
+class TestFlowDynamicsAnalysis:
+    """Test cases for flow dynamics analysis."""
 
     def setup_method(self):
         """Set up test fixtures."""
@@ -248,18 +248,18 @@ class TestIndividualFlowAnalysis:
 
     @patch('plotting.interact')
     @patch('plotting.display')
-    def test_plot_individual_flows(self, mock_display, mock_interact):
-        """Test individual flow analysis."""
+    def test_plot_flow_dynamics(self, mock_display, mock_interact):
+        """Test flow dynamics analysis."""
         # Act
-        plot_individual_flows(self.mock_mfa_system)
+        plot_flow_dynamics(self.mock_mfa_system)
         
         # Assert
         mock_interact.assert_called_once()
         mock_display.assert_called_once()
 
 
-class TestIndividualStockAnalysis:
-    """Test cases for individual stock analysis."""
+class TestStockBarChart:
+    """Test cases for stock bar chart analysis."""
 
     def setup_method(self):
         """Set up test fixtures."""
@@ -285,10 +285,10 @@ class TestIndividualStockAnalysis:
 
     @patch('plotting.interact')
     @patch('plotting.display')
-    def test_plot_individual_stocks(self, mock_display, mock_interact):
-        """Test individual stock analysis."""
+    def test_plot_stock_bar_chart(self, mock_display, mock_interact):
+        """Test stock bar chart analysis."""
         # Act
-        plot_individual_stocks(self.mock_mfa_system, dsm_params={1: {}}, fomp_params={2: {}})
+        plot_stock_bar_chart(self.mock_mfa_system)
         
         # Assert
         mock_interact.assert_called_once()
@@ -325,24 +325,7 @@ class TestMonteCarloPlots:
         # Assert - just check that the function can be called
         assert True
 
-    @patch('plotting.go.Figure')
-    def test_plot_mc_sensitivity_scatter(self, mock_figure):
-        """Test MC sensitivity scatter plot."""
-        # Arrange
-        mock_fig = Mock()
-        mock_figure.return_value = mock_fig
-        
-        # Act - this will fail due to missing sklearn, but that's expected
-        try:
-            plot_mc_sensitivity_scatter(
-                self.mc_results, 'parameter_1', 'Total_Stock_material', 'Mg'
-            )
-        except ModuleNotFoundError:
-            # Expected due to missing sklearn
-            pass
-        
-        # Assert - just check that the function exists and can be called
-        assert True
+    
 
     @patch('plotting.go.Figure')
     def test_plot_mc_correlation_matrix(self, mock_figure):
@@ -479,8 +462,8 @@ class TestPlottingIntegration:
         try:
             with patch('plotting.interact'), patch('plotting.display'):
                 plot_optimized_mass_balance_error(mock_mfa_system)
-                plot_individual_flows(mock_mfa_system)
-                plot_individual_stocks(mock_mfa_system)
+                plot_flow_dynamics(mock_mfa_system)
+                plot_stock_bar_chart(mock_mfa_system)
         except Exception as e:
             pytest.fail(f"Plotting functions should not raise exceptions: {e}")
 

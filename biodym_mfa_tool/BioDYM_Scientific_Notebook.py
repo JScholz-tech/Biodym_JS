@@ -88,7 +88,7 @@ print("📊 Plotting environment ready")
 # **Change this variable to your Excel file:**
 
 # Use the provided Excel file
-input_file = "data/01_input/250805_Template_CS2.xlsx"
+input_file = "data/01_input/250813_CS1_simple_V1.xlsx"
 
 print(f"📁 Input file: {input_file}")
 
