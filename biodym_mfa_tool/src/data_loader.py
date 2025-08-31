@@ -113,7 +113,7 @@ def load_dsm_parameters(excel_data):
 def load_fomp_parameters(excel_data):
     """
     Reads the '3_2_Definition_FOMP' sheet and constructs the FOMP_PARAMS dictionary.
-    This version ignores empty rows.
+    This version handles the specific Excel structure with output_carbon_id and output_elemental_id.
 
     Args:
         excel_data (dict): The dictionary of DataFrames loaded from Excel.
@@ -144,10 +144,16 @@ def load_fomp_parameters(excel_data):
         if process_id not in fomp_params:
             fomp_params[process_id] = {}
 
-        try:
-            fomp_params[process_id][param_name] = float(value)
-        except (ValueError, TypeError):
-            fomp_params[process_id][param_name] = value
+        # Handle special case for outflow IDs
+        if param_name == "output_carbon_id":
+            fomp_params[process_id]["outflow_id"] = value  # Map to expected parameter name
+        elif param_name == "output_elemental_id":
+            fomp_params[process_id]["outflow_id_2"] = value  # Second outflow
+        else:
+            try:
+                fomp_params[process_id][param_name] = float(value)
+            except (ValueError, TypeError):
+                fomp_params[process_id][param_name] = value
 
     print(
         f"--> Successfully loaded configurations for {len(fomp_params)} FOMP process(es)."

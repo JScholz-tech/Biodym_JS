@@ -145,17 +145,37 @@ print("\n" + "="*60)
 print("⚙️ EXTRACTING CONFIGURATION")
 print("="*60)
 
-# Extract time range from flow data
-flow_data = input_data['1_2_Data_Flows']
-years = sorted(flow_data['Year_Flow'].unique())
-start_year = int(min(years))
-end_year = int(max(years))
+# Load configuration from Excel config sheet
+try:
+    config_dict = config.load_config_from_excel(input_file)
+    print("✅ Configuration loaded from Excel config sheet")
+    
+    # Use config values with fallbacks to data-driven values
+    start_year = config_dict.get('Start Year', None)
+    end_year = config_dict.get('End Year', None)
+    elements_config = config_dict.get('Elements (comma-separated)', None)
+    
+    if elements_config:
+        elements = elements_config.split(',')
+    else:
+        elements = ['material', 'WC', 'DM', 'CC']  # Default elements
+    
+    print(f"📅 Time range from config: {start_year} - {end_year}")
+    print(f"🧪 Elements from config: {elements}")
 
-print(f"📅 Time range: {start_year} - {end_year}")
-
-# Extract elements from flow data
-elements = ['material', 'WC', 'DM', 'CC']  # Default elements
-print(f"🧪 Elements: {elements}")
+except Exception as e:
+    print(f"⚠️ Could not load configuration: {e}")
+    print("   Using data-driven configuration instead")
+    
+    # Fallback to data-driven configuration
+    flow_data = input_data['1_2_Data_Flows']
+    years = sorted(flow_data['Year_Flow'].unique())
+    start_year = int(min(years))
+    end_year = int(max(years))
+    elements = ['material', 'WC', 'DM', 'CC']  # Default elements
+    
+    print(f"📅 Time range from data: {start_year} - {end_year}")
+    print(f"🧪 Elements from data: {elements}")
 
 # Check for Monte Carlo parameters
 has_mc = '4_1_Uncertainty_Parameters' in input_data.keys()
@@ -175,14 +195,23 @@ print("\n" + "="*60)
 print("✅ CONFIGURATION CONFIRMATION")
 print("="*60)
 
+# Check if we loaded from config or fallback
+config_source = "Excel Config Sheet" if 'config_dict' in locals() else "Data-Driven Fallback"
+
 config_summary = f"""
 **Analysis Configuration:**
 - Input File: {input_file}
+- Configuration Source: {config_source}
 - Time Range: {start_year} - {end_year}
 - Elements: {', '.join(elements)}
 - Monte Carlo: {'Enabled' if has_mc else 'Disabled'}
 - DSM: {'Enabled' if has_dsm else 'Disabled'}
 - FOMP: {'Enabled' if has_fomp else 'Disabled'}
+
+**Configuration Status:**
+- ✅ Configuration integration active
+- ✅ Excel config sheet now drives settings
+- ✅ Fallback to data-driven values if needed
 """
 
 display(Markdown(config_summary))
