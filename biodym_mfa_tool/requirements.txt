@@ -16,6 +16,9 @@ ipywidgets>=7.0.0
 matplotlib>=3.3.0
 seaborn>=0.11.0
 
+# --- Image Export ---
+kaleido>=0.2.1
+
 # --- Utilities ---
 tqdm>=4.60.0
 

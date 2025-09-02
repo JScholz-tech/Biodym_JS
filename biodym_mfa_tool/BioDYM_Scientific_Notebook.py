@@ -600,6 +600,7 @@ try:
 except Exception as e:
     print(f"⚠️ Could not create FOMP process analysis: {e}")
 
+
 # ## 3.3 Detailed Component Analysis
 
 print("\n" + "-"*40)

@@ -14,7 +14,6 @@ from plotly.subplots import make_subplots
 import pandas as pd
 
 
-
 def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
     """
     Creates enhanced DSM stock evolution plots with both individual and cumulative views.
@@ -324,7 +323,7 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
                 )
             )
 
-            if show_cumulative:
+            if show_cumulative == "Cumulative Values":
                 # Plot cumulative inflow and outflow
                 cumulative_inflow = np.cumsum(inflow_ts)
                 cumulative_outflow = np.cumsum(outflow_ts)
@@ -674,7 +673,7 @@ def plot_system_efficiency_metrics(mfa_system_results):
                         x=time_items,
                         y=efficiency_rates,
                         mode="lines+markers",
-                        name="Material Efficiency (%)",
+                        name="Material Efficiency (%s)",
                         line=dict(color="#d62728", width=3),
                     )
                 )

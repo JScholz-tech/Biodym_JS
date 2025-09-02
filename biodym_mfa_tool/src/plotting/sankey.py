@@ -10,6 +10,63 @@ import plotly.graph_objects as go
 from ipywidgets import FloatSlider, IntSlider, Button, HBox, VBox, HTML, Layout, Dropdown, SelectMultiple
 import os
 from datetime import datetime
+import collections
+
+def _calculate_node_positions(processes, flows):
+    """
+    Calculates node x-positions for a Sankey diagram using a topological sort.
+    This helps in creating a structured, left-to-right flow.
+    Handles cycles by assigning all nodes in a cycle to the same layer.
+
+    Args:
+        processes (list): List of process objects from the MFA system.
+        flows (list): List of flow objects from the MFA system.
+
+    Returns:
+        dict: A dictionary mapping process ID to its x-coordinate (0 to 1).
+    """
+    nodes = {p.ID for p in processes}
+    if not nodes:
+        return {}
+
+    adj = {node: [] for node in nodes}
+    in_degree = {node: 0 for node in nodes}
+
+    for flow in flows:
+        if flow.P_Start in nodes and flow.P_End in nodes:
+            adj[flow.P_Start].append(flow.P_End)
+            in_degree[flow.P_End] += 1
+
+    # Kahn's algorithm for topological sorting
+    queue = collections.deque([node for node in nodes if in_degree[node] == 0])
+    layers = {node: 0 for node in nodes}
+    max_layer = 0
+
+    while queue:
+        u = queue.popleft()
+        for v in adj[u]:
+            in_degree[v] -= 1
+            # Assign layer based on the maximum layer of its predecessors
+            layers[v] = max(layers.get(v, 0), layers[u] + 1)
+            max_layer = max(max_layer, layers[v])
+            if in_degree[v] == 0:
+                queue.append(v)
+    
+    # Handle cycles: nodes left with non-zero in-degree are in cycles
+    # Assign them to a layer just after their non-cyclic predecessors if possible
+    # As a simple fix, we can place them in a layer beyond the max discovered layer
+    remaining_nodes = [node for node in nodes if in_degree[node] > 0]
+    if remaining_nodes:
+        max_layer += 1
+        for node in remaining_nodes:
+            layers[node] = max_layer
+
+    # Normalize positions to be between 0.1 and 0.9
+    if max_layer == 0:
+        return {node: 0.5 for node in nodes} # All nodes in one layer
+    
+    positions = {node: 0.1 + (layers[node] / max_layer) * 0.8 for node in nodes}
+    return positions
 
 def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=None):
     """
@@ -139,8 +196,17 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
                 # Set link colors based on element
                 link_colors = [element_colors.get(element, '#1f77b4')] * len(final_flows)
                 
+                # --- Automatic Layout Calculation ---
+                filtered_processes = [p for p in mfa_system_results.ProcessList if p.Name in filtered_labels]
+                node_positions = _calculate_node_positions(filtered_processes, final_flows)
+                
+                # Map positions to the order of labels
+                node_x_positions = [node_positions.get(p.ID, 0.5) for p in filtered_processes]
+
                 fig.data[0].node.label = filtered_labels
                 fig.data[0].node.color = node_colors
+                fig.data[0].node.x = node_x_positions # Apply calculated x-positions
+                
                 fig.data[0].link.source = [label_map[f.P_Start] for f in final_flows]
                 fig.data[0].link.target = [label_map[f.P_End] for f in final_flows]
                 fig.data[0].link.value = flow_values
