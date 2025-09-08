@@ -71,7 +71,6 @@ try:
     import utils
     from engine import solver
     from src import plotting
-    from src.plotting import scenario
     import ODYM_Classes as msc
     print("✅ BioDYM modules imported successfully")
 except ImportError as e:
@@ -202,54 +201,59 @@ if dsm_params and dsm_details_baseline:
 if fomp_params:
     plotting.plot_fomp_stock_details(mfa_results_baseline, fomp_params)
 
-# # 4. Scenario Analysis
-
-mfa_results_scenario = None  # Initialize scenario results to None
+# # 4. Scenario Analysis & Comparison
 
 if getattr(config_obj, 'Run_Scenario_Analysis', False):
-    SELECTED_SCENARIO_NAME = 'High_Recycling'  # WORKAROUND: Hardcoded scenario name
-    print("\n" + "="*60)
-    print(f"🎭 RUNNING SCENARIO: '{SELECTED_SCENARIO_NAME}'")
-    print("="*60)
+    # Find all scenarios defined in the config object
+    scenario_names_to_run = []
+    for i in range(1, 10): # Check for up to 9 scenarios
+        attr_name = f'Selected_Scenario_Name_{i}'
+        if hasattr(config_obj, attr_name):
+            scenario_name = getattr(config_obj, attr_name)
+            if scenario_name and not pd.isna(scenario_name):
+                scenario_names_to_run.append(scenario_name)
 
-    print("📄 Loading scenario definitions...")
-scenario_definitions = data_loader.load_scenario_definitions(all_excel_data)
-if SELECTED_SCENARIO_NAME not in scenario_definitions:
-    raise ValueError(f"Scenario '{SELECTED_SCENARIO_NAME}' not found in '5_1_Scenario_Manager' sheet!")
+    if not scenario_names_to_run:
+        print("⚠️ Scenario Analysis is enabled, but no scenarios are selected in the configuration.")
+    else:
+        print(f"Found {len(scenario_names_to_run)} scenarios to run: {scenario_names_to_run}")
+        all_scenario_results = {}
+        scenario_definitions = data_loader.load_scenario_definitions(all_excel_data)
 
-    print("🔧 Applying scenario...")
-mfa_system_scenario = copy.deepcopy(mfa_system_configured)
-mfa_system_scenario = system_setup.apply_scenario(mfa_system_scenario, scenario_definitions, SELECTED_SCENARIO_NAME)
+        for scenario_name in scenario_names_to_run:
+            print("\n" + "="*60)
+            print(f"🎭 RUNNING SCENARIO: '{scenario_name}'")
+            print("="*60)
 
-scenario_config_obj = copy.deepcopy(config_obj)
-scenario_config_obj.RUN_MONTE_CARLO = False
-print("   -> Monte Carlo explicitly DISABLED for scenario run.")
+            if scenario_name not in scenario_definitions:
+                print(f"⚠️ WARNING: Scenario '{scenario_name}' not found in '5_1_Scenario_Manager' sheet! Skipping.")
+                continue
 
-print("🧮 Running scenario calculation...")
-mfa_results_scenario, dsm_details_scenario = solver.run_mfa_calculation(mfa_system_scenario, dsm_params, fomp_params, scenario_config_obj)
-print("✅ Scenario calculation completed successfully!")
+            # Create a deep copy for each scenario run to ensure independence
+            mfa_system_scenario = copy.deepcopy(mfa_system_configured)
+            mfa_system_scenario = system_setup.apply_scenario(mfa_system_scenario, scenario_definitions, scenario_name)
 
-# # 5. Scenario vs. Baseline Comparison
+            # Run calculation with Monte Carlo disabled for the scenario
+            scenario_config_obj = copy.deepcopy(config_obj)
+            scenario_config_obj.RUN_MONTE_CARLO = False
+            
+            mfa_results_scenario, _ = solver.run_mfa_calculation(mfa_system_scenario, dsm_params, fomp_params, scenario_config_obj)
+            all_scenario_results[scenario_name] = mfa_results_scenario
+            print(f"✅ Scenario '{scenario_name}' calculation completed successfully!")
 
-if mfa_results_scenario:
-    SELECTED_SCENARIO_NAME = 'High_Recycling'  # WORKAROUND: Hardcoded scenario name
-    print("\n" + "="*60)
-    print("📊 SCENARIO VS. BASELINE COMPARISON")
-    print("="*60)
+        # After running all scenarios, generate the comparison plot
+        if all_scenario_results:
+            import importlib
+            importlib.reload(plotting)
+            print("\n" + "="*60)
+            print("📊 MULTI-SCENARIO VS. BASELINE COMPARISON")
+            print("="*60)
+            plotting.plot_multi_scenario_comparison(
+                baseline_results=mfa_results_baseline, 
+                all_scenario_results=all_scenario_results,
+                scenario_definitions=scenario_definitions
+            )
 
-    print("📈 Generating comparison plots...")
-    plotting.scenario.plot_stock_comparison(
-        baseline_results=mfa_results_baseline, 
-        scenario_results=mfa_results_scenario,
-        baseline_name='Baseline', 
-        scenario_name=SELECTED_SCENARIO_NAME
-    )
-    plotting.scenario.plot_flow_comparison(
-        baseline_results=mfa_results_baseline, 
-        scenario_results=mfa_results_scenario,
-        baseline_name='Baseline', 
-        scenario_name=SELECTED_SCENARIO_NAME
-    )
 
 # # 6. Export & Final Summary
 

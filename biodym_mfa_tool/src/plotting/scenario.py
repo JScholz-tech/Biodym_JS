@@ -5,78 +5,83 @@ Scenario Plotting Module.
 This file contains functions for plotting scenario comparison data.
 """
 
-# -*- coding: utf-8 -*-
-"""
-Scenario Plotting Module.
-
-This file contains functions for plotting scenario comparison data.
-"""
-
 import numpy as np
 import plotly.graph_objects as go
-from ipywidgets import interact, Dropdown
+from ipywidgets import interact, Dropdown, VBox, SelectMultiple, HTML
 from IPython.display import display
 
-def plot_stock_comparison(baseline_results, scenario_results, baseline_name="Baseline", scenario_name="Scenario"):
+def plot_multi_scenario_comparison(baseline_results, all_scenario_results, scenario_definitions):
     """
-    Creates an interactive line chart to compare a single stock between two model runs,
-    with a dropdown to select the stock.
+    Creates an interactive grouped bar chart to compare a metric across multiple scenarios,
+    allowing users to select which scenarios to display and view their parameters.
+
+    Args:
+        baseline_results (odym.MFAsystem): The baseline MFA system results.
+        all_scenario_results (dict): Dict with scenario names as keys and results as values.
+        scenario_definitions (dict): Dict with scenario names as keys and lists of parameter changes as values.
     """
-    stock_names = [s for s in baseline_results.StockDict.keys() if s.startswith('S_')]
+    if not all_scenario_results:
+        print("No scenario results to compare.")
+        return
 
-    def plot_selected_stock(stock_name):
-        fig = go.Figure()
-        time_vector = baseline_results.IndexTable.Classification['Time'].Items
+    elements = baseline_results.Elements
+    stocks = [s for s in baseline_results.StockDict.keys() if s.startswith('S_')]
+    flows = list(baseline_results.FlowDict.keys())
+    all_scenarios = list(all_scenario_results.keys())
 
-        # Baseline trace
-        baseline_stock = baseline_results.StockDict[stock_name].Values[:, 0]
-        fig.add_trace(go.Scatter(x=time_vector, y=baseline_stock, mode='lines', name=baseline_name))
+    # --- Widgets ---
+    metric_dropdown = Dropdown(options=['Final Stock', 'Total Flow'], description='Metric:')
+    item_dropdown = Dropdown(options=stocks, description='Item:')
+    element_dropdown = Dropdown(options=elements, description='Element:')
+    scenario_selector = SelectMultiple(options=all_scenarios, value=all_scenarios, description='Scenarios:', disabled=False)
+    parameter_display = HTML(value="")
 
-        # Scenario trace
-        if stock_name in scenario_results.StockDict:
-            scenario_stock = scenario_results.StockDict[stock_name].Values[:, 0]
-            fig.add_trace(go.Scatter(x=time_vector, y=scenario_stock, mode='lines', name=scenario_name, line=dict(dash='dash')))
+    def update_item_options(change):
+        if change.new == 'Final Stock':
+            item_dropdown.options = stocks
         else:
-            fig.add_trace(go.Scatter(x=time_vector, y=np.zeros(len(time_vector)), mode='lines', name=f"{scenario_name} (Not Found)", line=dict(dash='dash')))
-
-        fig.update_layout(
-            title=f"Stock Comparison: {stock_name}",
-            xaxis_title="Year",
-            yaxis_title="Stock Level (Mg)",
-            legend_title="Run"
-        )
-        fig.show()
-
-    interact(plot_selected_stock, stock_name=Dropdown(options=stock_names, description='Select Stock:'))
-
-def plot_flow_comparison(baseline_results, scenario_results, baseline_name="Baseline", scenario_name="Scenario"):
-    """
-    Creates an interactive line chart to compare a single flow between two model runs,
-    with a dropdown to select the flow.
-    """
-    flow_names = list(baseline_results.FlowDict.keys())
+            item_dropdown.options = flows
     
-    def plot_selected_flow(flow_name):
-        fig = go.Figure()
-        time_vector = baseline_results.IndexTable.Classification['Time'].Items
+    metric_dropdown.observe(update_item_options, names='value')
 
-        # Baseline trace
-        baseline_flow = baseline_results.FlowDict[flow_name].Values[:, 0]
-        fig.add_trace(go.Scatter(x=time_vector, y=baseline_flow, mode='lines', name=baseline_name))
+    fig = go.FigureWidget()
 
-        # Scenario trace
-        if flow_name in scenario_results.FlowDict:
-            scenario_flow = scenario_results.FlowDict[flow_name].Values[:, 0]
-            fig.add_trace(go.Scatter(x=time_vector, y=scenario_flow, mode='lines', name=scenario_name, line=dict(dash='dash')))
-        else:
-            fig.add_trace(go.Scatter(x=time_vector, y=np.zeros(len(time_vector)), mode='lines', name=f"{scenario_name} (Not Found)", line=dict(dash='dash')))
+    def plot_comparison(metric, item, element, selected_scenarios):
+        with fig.batch_update():
+            fig.data = []
+            element_index = elements.index(element)
+            
+            scenarios_to_plot = ['Baseline'] + list(selected_scenarios)
+            values = []
 
-        fig.update_layout(
-            title=f"Flow Comparison: {flow_name}",
-            xaxis_title="Year",
-            yaxis_title="Flow Rate (Mg/year)",
-            legend_title="Run"
-        )
-        fig.show()
+            # Get baseline value
+            if metric == 'Final Stock':
+                values.append(baseline_results.StockDict[item].Values[-1, element_index])
+            else: # Total Flow
+                values.append(np.sum(baseline_results.FlowDict[item].Values[:, element_index]))
 
-    interact(plot_selected_flow, flow_name=Dropdown(options=flow_names, description='Select Flow:'))
+            # Get scenario values
+            for scenario_name in selected_scenarios:
+                scenario_result = all_scenario_results[scenario_name]
+                if metric == 'Final Stock':
+                    values.append(scenario_result.StockDict.get(item, type('obj', (object,), {'Values': np.zeros_like(baseline_results.StockDict[item].Values)})).Values[-1, element_index])
+                else: # Total Flow
+                    values.append(np.sum(scenario_result.FlowDict.get(item, type('obj', (object,), {'Values': np.zeros_like(baseline_results.FlowDict[item].Values)})).Values[:, element_index]))
+            
+            fig.add_trace(go.Bar(x=scenarios_to_plot, y=values, name=item))
+            fig.update_layout(
+                title=f'{metric} Comparison: {item} ({element})',
+                yaxis_title='Value (Mg)'
+            )
+        
+        # Update parameter display
+        param_html = "<b>Scenario Definitions:</b><br>"
+        for scenario_name in selected_scenarios:
+            param_html += f"<b>{scenario_name}:</b><ul>"
+            for param in scenario_definitions.get(scenario_name, []):
+                param_html += f"<li>{param['Parameter_Name']} {param['Operation']} {param['New_Value']}</li>"
+            param_html += "</ul>"
+        parameter_display.value = param_html
+
+    interact(plot_comparison, metric=metric_dropdown, item=item_dropdown, element=element_dropdown, selected_scenarios=scenario_selector)
+    display(VBox([metric_dropdown, item_dropdown, element_dropdown, scenario_selector, fig, parameter_display]))

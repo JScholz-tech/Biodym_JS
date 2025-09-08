@@ -167,6 +167,14 @@
 - **Python Path Setup** - Multiple framework paths must be configured
 - **Memory Management** - Large datasets require efficient processing
 
+## 💡 A Note on Model Stability and Transfer Coefficients
+
+The calculation engine uses an iterative solver to balance the entire system. It loops through the calculations until all flows and stocks are stable. 
+
+If you define a set of **Transfer Coefficients (TCs)** for a process where the sum of the outflows is not equal to 1.0 (or 100%), it can lead to model instability. For example, setting a TC to 1.0 (100%) can create a feedback loop where material is passed between processes endlessly, causing the calculation to grow infinitely and never converge. 
+
+This will appear as a very long calculation time. If you experience this, please check that the sum of TCs for each process in your model equals 1.0.
+
 ---
 
 *Essential Knowledge Summary Created: 2025-08-31*  
