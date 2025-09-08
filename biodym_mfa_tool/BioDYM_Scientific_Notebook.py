@@ -1,6 +1,5 @@
-
-
-# ---
+# -*- coding: utf-8 -*- 
+# --- 
 # jupyter:
 #   jupytext:
 #     text_representation:
@@ -12,11 +11,11 @@
 #     display_name: Python 3
 #     language: python
 #     name: python3
-# ---
+# --- 
 
 # # BioDYM Material Flow Analysis - Scientific Notebook
 # 
-# A streamlined notebook for Material Flow Analysis using the BioDYM framework with enhanced plotting capabilities.
+# A streamlined notebook for Material Flow Analysis using the BioDYM framework with enhanced plotting capabilities. 
 # 
 # ## Workflow Overview
 # 
@@ -25,9 +24,10 @@
 # 1. **Setup and Data Loading** - Prepare environment and load input data
 # 2. **Calculation & Validation** - Execute MFA analysis and verify results
 # 3. **Visualization** - Comprehensive analysis and exploration
-# 4. **Export** - Save results and generate documentation
+# 4. **Scenario Analysis** - (Optional) Compare a scenario against the baseline
+# 5. **Export** - Save results and generate documentation
 # 
-# ---
+# --- 
 
 # # 1. Setup and Data Loading
 # 
@@ -44,6 +44,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 from IPython.display import display, HTML, Markdown
+import copy
 
 # Add BioDYM modules to path
 src_path = os.path.join(os.getcwd(), 'src')
@@ -70,6 +71,7 @@ try:
     import utils
     from engine import solver
     from src import plotting
+    from src.plotting import scenario
     import ODYM_Classes as msc
     print("✅ BioDYM modules imported successfully")
 except ImportError as e:
@@ -84,643 +86,203 @@ plt.style.use('default')
 print("📊 Plotting environment ready")
 
 # ## 1.2 Data Input Configuration
-# 
-# **Change this variable to your Excel file:**
 
-# Use the provided Excel file
-input_file = "data/01_input/250831_CS1_simple_V2.xlsx"
-
+# This is the only manual path setting required.
+input_file = "data/01_input/250902_CS1_Wheat_Straw.xlsx"
 print(f"📁 Input file: {input_file}")
-
-# Check if input file exists
 if not os.path.exists(input_file):
-    print(f"⚠️ Input file not found: {input_file}")
-    print("   Please update the 'input_file' variable to point to your Excel file")
-    print("   Example: input_file = 'path/to/your/data.xlsx'")
     raise FileNotFoundError(f"Input file not found: {input_file}")
 
-# ## 1.3 Data Loading and Validation
+# ## 1.3 System Configuration Extraction
 
 print("\n" + "="*60)
-print("[DATA] LOADING AND VALIDATING DATA")
+print("⚙️ EXTRACTING CONFIGURATION FROM EXCEL")
 print("="*60)
 
-# Load Excel file
+# Load the full dataset once. This will be passed to functions that need it.
+input_data = pd.read_excel(
+    input_file, sheet_name=None, header=0, engine='openpyxl', na_values=['N.A.', 'NA', 'n/a']
+)
+print(f"✅ Excel file loaded: {len(input_data)} sheets")
+
+# Use the robust loader from the config module. This function handles all errors
+# and fallbacks, guaranteeing a valid config object is returned.
+config_obj = config.load_configuration(input_file)
+print("✅ Configuration object loaded.")
+
+# Extract core values from the config object, with fallbacks to data-driven values
 try:
-    input_data = pd.read_excel(
-        input_file,
-        sheet_name=None,
-        header=0,
-        engine='openpyxl',
-        na_values=['N.A.', 'NA', 'n/a']
-    )
-    print(f"✅ Excel file loaded: {len(input_data)} sheets")
+    start_year = int(config_obj.Start_Year)
+    end_year = int(config_obj.End_Year)
+    elements = [elem.strip() for elem in config_obj.Elements_commaseparated.split(',')]
 except Exception as e:
-    print(f"❌ Error loading file: {e}")
-    raise
-
-# Display sheet overview
-print("\n📋 Sheet Overview:")
-for sheet_name, df in input_data.items():
-    print(f"   {sheet_name}: {df.shape[0]} rows × {df.shape[1]} columns")
-
-# Validate required sheets
-required_sheets = [
-    '1_1_Definition_Flows',
-    '1_2_Data_Flows', 
-    '2_1_Definition_Processes',
-    '2_4_Initial_Stock',  # Correct sheet name
-    '2_5_dynamic_tcs'
-]
-
-missing_sheets = [sheet for sheet in required_sheets if sheet not in input_data.keys()]
-if missing_sheets:
-    print(f"\n⚠️ Missing required sheets: {missing_sheets}")
-else:
-    print("\n✅ All required sheets present")
-
-# ## 1.4 System Configuration Extraction
-
-print("\n" + "="*60)
-print("⚙️ EXTRACTING CONFIGURATION")
-print("="*60)
-
-# Load configuration from Excel config sheet
-try:
-    config_dict = config.load_config_from_excel(input_file)
-    print("✅ Configuration loaded from Excel config sheet")
-    
-    # Create proper config object for the solver
-    config_obj = config.create_config_object(config_dict)
-    print("✅ Configuration object created")
-    
-    # Use config values with fallbacks to data-driven values
-    start_year = config_dict.get('Start Year', None)
-    end_year = config_dict.get('End Year', None)
-    elements_config = config_dict.get('Elements (comma-separated)', None)
-    
-    if elements_config:
-        elements = elements_config.split(',')
-    else:
-        elements = ['material', 'WC', 'DM', 'CC']  # Default elements
-    
-    print(f"📅 Time range from config: {start_year} - {end_year}")
-    print(f"🧪 Elements from config: {elements}")
-    print(f"🎲 Monte Carlo: {'Enabled' if config_obj.RUN_MONTE_CARLO == True else 'Disabled'}")
-    print(f"📊 DSM Calculation: {'Enabled' if config_obj.RUN_DSM_CALCULATION == True else 'Disabled'}")
-    print(f"🌱 FOMP Calculation: {'Enabled' if config_obj.RUN_FOMP_CALCULATION == True else 'Disabled'}")
-
-except Exception as e:
-    print(f"⚠️ Could not load configuration: {e}")
-    print("   Using data-driven configuration instead")
-    
-    # Fallback to data-driven configuration
+    print(f"⚠️ Could not get time/elements from config object: {e}. Falling back to data-driven values.")
     flow_data = input_data['1_2_Data_Flows']
     years = sorted(flow_data['Year_Flow'].unique())
     start_year = int(min(years))
     end_year = int(max(years))
-    elements = ['material', 'WC', 'DM', 'CC']  # Default elements
-    
-    # Create default config object
-    config_obj = config.get_default_config()
-    
-    print(f"📅 Time range from data: {start_year} - {end_year}")
-    print(f"🧪 Elements from data: {elements}")
-    print(f"🎲 Monte Carlo: {'Enabled' if config_obj.RUN_MONTE_CARLO == True else 'Disabled'}")
-    print(f"📊 DSM Calculation: {'Enabled' if config_obj.RUN_DSM_CALCULATION == True else 'Disabled'}")
-    print(f"🌱 FOMP Calculation: {'Enabled' if config_obj.RUN_FOMP_CALCULATION == True else 'Disabled'}")
+    elements = ['material', 'WC', 'DM', 'CC']
 
-# Check for Monte Carlo parameters
-has_mc = '4_1_Uncertainty_Parameters' in input_data.keys()
-print(f"🎲 Monte Carlo available: {'Yes' if has_mc else 'No'}")
+# Display final configuration summary
+run_scenario = getattr(config_obj, 'Run_Scenario_Analysis', False)
+selected_scenario = getattr(config_obj, 'Selected_Scenario_Name 1', getattr(config_obj, 'Selected_Scenario_Name', 'N/A'))
 
-# Check for DSM parameters
-has_dsm = '3_1_Definition_DSM' in input_data.keys()
-print(f"📈 DSM available: {'Yes' if has_dsm else 'No'}")
+print(f"\n-- Configuration Summary --")
+print(f"📅 Time range: {start_year} - {end_year}")
+print(f"🧪 Elements: {elements}")
+print(f"🎲 Monte Carlo: {'Enabled' if config_obj.RUN_MONTE_CARLO else 'Disabled'}")
+print(f"📊 DSM Calculation: {'Enabled' if config_obj.RUN_DSM_CALCULATION else 'Disabled'}")
+print(f"🌱 FOMP Calculation: {'Enabled' if config_obj.RUN_FOMP_CALCULATION else 'Disabled'}")
+print(f"🎭 Scenario Analysis: {'Enabled' if run_scenario else 'Disabled'}")
+if run_scenario:
+    print(f"   -> Selected Scenario: '{selected_scenario}'")
 
-# Check for FOMP parameters
-has_fomp = '3_2_Definition_FOMP' in input_data.keys()
-print(f"🌱 FOMP available: {'Yes' if has_fomp else 'No'}")
-
-# ## 1.5 Configuration Review
+# # 2. Baseline Calculation & Validation
 
 print("\n" + "="*60)
-print("✅ CONFIGURATION CONFIRMATION")
+print("🚀 RUNNING BASELINE MFA CALCULATION")
 print("="*60)
-
-# Check if we loaded from config or fallback
-config_source = "Excel Config Sheet" if 'config_dict' in locals() else "Data-Driven Fallback"
-
-config_summary = f"""
-**Analysis Configuration:**
-- Input File: {input_file}
-- Configuration Source: {config_source}
-- Time Range: {start_year} - {end_year}
-- Elements: {', '.join(elements)}
-- Monte Carlo: {'Enabled' if has_mc else 'Disabled'}
-- DSM: {'Enabled' if has_dsm else 'Disabled'}
-- FOMP: {'Enabled' if has_fomp else 'Disabled'}
-
-**Configuration Status:**
-- ✅ Configuration integration active
-- ✅ Excel config sheet now drives settings
-- ✅ Fallback to data-driven values if needed
-"""
-
-display(Markdown(config_summary))
-
-# ---
-# BioDYM Extension Notice
-# ---
-
-from IPython.display import display, Markdown
-
-display(Markdown('''
-**Note:** The stock-outflow transfer coefficient feature is a custom extension to the ODYM framework, developed specifically for BioDYM. It is not part of the standard ODYM release.
-'''))
-
-# # 2. Calculation & Validation
-# 
-# This section executes the MFA calculation and immediately validates the results through mass balance checks.
 
 # ## 2.1 Model Initialization
 
-print("\n" + "="*60)
-print("🚀 RUNNING MFA CALCULATION")
-print("="*60)
-
-# 1. Setup model scope
 print("📋 Setting up model scope...")
-try:
-    model_classification, index_table = system_setup.define_model_scope(
-        start_year, end_year, elements
-    )
-    print("✅ Model scope defined")
-except Exception as e:
-    print(f"❌ Error setting up model scope: {e}")
-    raise
+model_classification, index_table = system_setup.define_model_scope(start_year, end_year, elements)
 
-# 2. Initialize MFA system
 print("🔧 Initializing MFA system...")
-try:
-    mfa_system_base = system_setup.initialize_mfa_system(
-        model_classification, index_table
-    )
-    print("✅ MFA system initialized")
-except Exception as e:
-    print(f"❌ Error initializing MFA system: {e}")
-    raise
+mfa_system_base = system_setup.initialize_mfa_system(model_classification, index_table)
 
-# 3. Load and define processes
+# We pass the already loaded `input_data` to this function, no need to read the file again.
 print("📊 Loading processes and data...")
-try:
-    mfa_system_base, all_excel_data = system_setup.load_and_define_processes(
-        mfa_system_base, input_file, data_loader
-    )
-    print("✅ Processes and data loaded")
-except Exception as e:
-    print(f"❌ Error loading processes: {e}")
-    raise
+mfa_system_base, all_excel_data = system_setup.load_and_define_processes(mfa_system_base, input_data, data_loader)
 
-# 4. Load parameters
 print("⚙️ Loading parameters...")
-try:
-    dsm_params = data_loader.load_dsm_parameters(all_excel_data)
-    
-    # Check FOMP configuration before loading parameters
-    if config_obj.RUN_FOMP_CALCULATION == True:
-        fomp_params = data_loader.load_fomp_parameters(all_excel_data)
-        print("✅ FOMP parameters loaded (FOMP enabled)")
-    else:
-        fomp_params = {}  # Empty FOMP parameters
-        print("ℹ️ FOMP parameters skipped (FOMP disabled)")
-    
-    uncertainty_params = data_loader.load_uncertainty_definitions(all_excel_data)
-    print("✅ Parameters loaded")
-except Exception as e:
-    print(f"❌ Error loading parameters: {e}")
-    raise
+dsm_params = data_loader.load_dsm_parameters(all_excel_data)
+if config_obj.RUN_FOMP_CALCULATION:
+    fomp_params = data_loader.load_fomp_parameters(all_excel_data)
+else:
+    fomp_params = {}
+uncertainty_params = data_loader.load_uncertainty_definitions(all_excel_data)
 
-# ## 2.2 MFA Calculation Execution
+# ## 2.2 Baseline Calculation Execution
 
-# 5. Define flows and parameters
 print("🔗 Defining flows and parameters...")
-try:
-    mfa_system_configured, _ = system_setup.define_flows_and_parameters(
-        mfa_system_base, all_excel_data
-    )
-    print(f"✅ System configured: {len(mfa_system_configured.ProcessList)} processes, "
-          f"{len(mfa_system_configured.FlowDict)} flows, {len(mfa_system_configured.StockDict)} stocks")
-except Exception as e:
-    print(f"❌ Error defining flows and parameters: {e}")
-    raise
+mfa_system_configured, _ = system_setup.define_flows_and_parameters(mfa_system_base, all_excel_data)
 
-# 5.1 Process dynamic TCs
 print("🔄 Processing dynamic transfer coefficients...")
-try:
-    dynamic_tc_sheet = all_excel_data.get('2_5_dynamic_tcs')
-    if dynamic_tc_sheet is not None and not dynamic_tc_sheet.empty:
-        dynamic_tcs = system_setup.create_dynamic_tc_parameters(
-            dynamic_tc_sheet, mfa_system_configured.IndexTable.Classification['Time'].Items
-        )
-        # Add dynamic TCs to the system parameters
-        for name, values in dynamic_tcs.items():
-            mfa_system_configured.ParameterDict[name] = msc.Parameter(
-                Name=name,
-                ID=len(mfa_system_configured.ParameterDict) + 1,
-                Values=values,
-                Unit="1"
-            )
-        print(f"✅ Dynamic TCs processed: {len(dynamic_tcs)} parameters added")
-    else:
-        print("ℹ️ No dynamic TCs found in input data")
-except Exception as e:
-    print(f"⚠️ Warning: Could not process dynamic TCs: {e}")
-    print("   Continuing with static TCs only")
+dynamic_tc_sheet = all_excel_data.get('2_5_dynamic_tcs')
+if dynamic_tc_sheet is not None and not dynamic_tc_sheet.empty:
+    dynamic_tcs = system_setup.create_dynamic_tc_parameters(dynamic_tc_sheet, mfa_system_configured.IndexTable.Classification['Time'].Items)
+    for name, values in dynamic_tcs.items():
+        mfa_system_configured.ParameterDict[name] = msc.Parameter(Name=name, ID=len(mfa_system_configured.ParameterDict) + 1, Values=values, Unit="1")
+    print(f"✅ Dynamic TCs processed: {len(dynamic_tcs)} parameters added")
 
-# 6. Run calculation
-print("🧮 Running calculation...")
-try:
-    mfa_system_with_results, dsm_details = solver.run_mfa_calculation(
-        mfa_system_configured, dsm_params, fomp_params, config_obj
-    )
-    print("✅ Calculation completed successfully!")
-except Exception as e:
-    print(f"❌ Calculation error: {e}")
-    import traceback
-    traceback.print_exc()
-    raise
+print("🧮 Running baseline calculation...")
+mfa_results_baseline, dsm_details_baseline = solver.run_mfa_calculation(mfa_system_configured, dsm_params, fomp_params, config_obj)
+print("✅ Baseline calculation completed successfully!")
 
 # ## 2.3 Mass Balance Validation
 
 print("\n" + "="*60)
-print("⚖️ MASS BALANCE VERIFICATION")
+print("⚖️ MASS BALANCE VERIFICATION (BASELINE)")
 print("="*60)
+plotting.plot_total_mass_balance_error(mfa_results_baseline)
+plotting.plot_optimized_mass_balance_error(mfa_results_baseline)
 
-# Calculate mass balance errors
-mass_balance_errors = []
-for process in mfa_system_with_results.ProcessList:
-    if hasattr(process, 'MassBalance') and process.MassBalance is not None:
-        for year_idx, year in enumerate(range(start_year, end_year + 1)):
-            for element_idx, element in enumerate(elements):
-                error = process.MassBalance[year_idx, element_idx]
-                if abs(error) > 1e-6:  # Significant error threshold
-                    mass_balance_errors.append({
-                        'Process': process.Name,
-                        'Year': year,
-                        'Element': element,
-                        'Error': error
-                    })
-
-if mass_balance_errors:
-    print("⚠️ Mass balance errors detected:")
-    error_df = pd.DataFrame(mass_balance_errors)
-    display(error_df)
-else:
-    print("✅ All mass balances within acceptable limits")
-
-# Mass Balance Error Visualization
-print("\n⚖️ Creating mass balance error plots...")
-try:
-    # Display the general overview plot
-    print("\n--- General Overview: Total Absolute Errors ---")
-    
-    # --- DEBUG CELL ---
-    print("\n" + "="*30)
-    print("🔬 DEBUGGING FLOW F_00_02")
-    print("="*30)
-    try:
-        debug_flow = mfa_system_with_results.FlowDict.get('F_00_02')
-        if debug_flow:
-            print("Elements:", mfa_system_with_results.Elements)
-            print("Flow F_00_02 Values (first 5 years):")
-            print(pd.DataFrame(debug_flow.Values[:5, :], columns=mfa_system_with_results.Elements).to_string())
-        else:
-            print("Flow F_00_02 not found in the system.")
-    except Exception as e:
-        print(f"Error during debug: {e}")
-    print("="*30)
-    # --- END DEBUG CELL ---
-    
-    plotting.plot_total_mass_balance_error(mfa_system_with_results)
-    
-    # Display the time-specific interactive plot
-    print("\n--- Time-Specific View: Interactive Error Check ---")
-    plotting.plot_optimized_mass_balance_error(mfa_system_with_results)
-    
-    print("✅ Mass balance error plots created")
-except Exception as e:
-    print(f"⚠️ Could not create mass balance error plots: {e}")
-
-# === Sankey-Style Block Flow Diagram ===
-from src.plotting.graphviz_flow_charts import plot_graphviz_flow_chart_sankey_style
-from IPython.display import Image, display
-import tempfile
-from datetime import datetime
+# # 3. Baseline Visualization
 
 print("\n" + "="*60)
-print("🟦 SANKEY-STYLE BLOCK FLOW DIAGRAM")
+print("📊 VISUALIZATION (BASELINE)")
 print("="*60)
 
-# Generate Sankey-Style Block Flow Diagram
-try:
-    dot_sankey = plot_graphviz_flow_chart_sankey_style(
-        input_file,
-        title="BioDYM System - Sankey-Style Block Flow Diagram",
-        rankdir="LR",
-        ranksep=1.0,
-        nodesep=0.5
+plotting.plot_interactive_sankey(mfa_results_baseline, dsm_params, fomp_params)
+plotting.plot_process_dynamics(mfa_results_baseline, all_excel_data['2_1_Definition_Processes'])
+plotting.plot_stock_bar_chart(mfa_results_baseline, title="Stock Levels Over Time (Baseline)")
+if dsm_params and dsm_details_baseline:
+    plotting.plot_dsm_stock_details(mfa_results_baseline, dsm_params, dsm_details_baseline)
+if fomp_params:
+    plotting.plot_fomp_stock_details(mfa_results_baseline, fomp_params)
+
+# # 4. Scenario Analysis
+
+mfa_results_scenario = None  # Initialize scenario results to None
+
+if getattr(config_obj, 'Run_Scenario_Analysis', False):
+    SELECTED_SCENARIO_NAME = 'High_Recycling'  # WORKAROUND: Hardcoded scenario name
+    print("\n" + "="*60)
+    print(f"🎭 RUNNING SCENARIO: '{SELECTED_SCENARIO_NAME}'")
+    print("="*60)
+
+    print("📄 Loading scenario definitions...")
+scenario_definitions = data_loader.load_scenario_definitions(all_excel_data)
+if SELECTED_SCENARIO_NAME not in scenario_definitions:
+    raise ValueError(f"Scenario '{SELECTED_SCENARIO_NAME}' not found in '5_1_Scenario_Manager' sheet!")
+
+    print("🔧 Applying scenario...")
+mfa_system_scenario = copy.deepcopy(mfa_system_configured)
+mfa_system_scenario = system_setup.apply_scenario(mfa_system_scenario, scenario_definitions, SELECTED_SCENARIO_NAME)
+
+scenario_config_obj = copy.deepcopy(config_obj)
+scenario_config_obj.RUN_MONTE_CARLO = False
+print("   -> Monte Carlo explicitly DISABLED for scenario run.")
+
+print("🧮 Running scenario calculation...")
+mfa_results_scenario, dsm_details_scenario = solver.run_mfa_calculation(mfa_system_scenario, dsm_params, fomp_params, scenario_config_obj)
+print("✅ Scenario calculation completed successfully!")
+
+# # 5. Scenario vs. Baseline Comparison
+
+if mfa_results_scenario:
+    SELECTED_SCENARIO_NAME = 'High_Recycling'  # WORKAROUND: Hardcoded scenario name
+    print("\n" + "="*60)
+    print("📊 SCENARIO VS. BASELINE COMPARISON")
+    print("="*60)
+
+    print("📈 Generating comparison plots...")
+    plotting.scenario.plot_stock_comparison(
+        baseline_results=mfa_results_baseline, 
+        scenario_results=mfa_results_scenario,
+        baseline_name='Baseline', 
+        scenario_name=SELECTED_SCENARIO_NAME
     )
-    if dot_sankey is not None:
-        # Create temporary file with better handling
-        import os
-        tmp_dir = tempfile.gettempdir()
-        tmp_filename = f"biodym_sankey_style_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        tmp_path = os.path.join(tmp_dir, tmp_filename)
-        
-        # Render the diagram
-        dot_sankey.render(tmp_path, format='png', cleanup=True)
-        png_path = tmp_path + '.png'
-        
-        if os.path.exists(png_path):
-            print("✅ Sankey-style block flow diagram created")
-            display(Image(filename=png_path))
-            # Clean up the file after display
-            try:
-                os.remove(png_path)
-            except:
-                pass  # Ignore cleanup errors
-        else:
-            print("❌ Failed to create PNG file")
-    else:
-        print("❌ Failed to create Sankey-style block flow diagram")
-except Exception as e:
-    print(f"❌ Error creating Sankey-style block flow diagram: {e}")
+    plotting.scenario.plot_flow_comparison(
+        baseline_results=mfa_results_baseline, 
+        scenario_results=mfa_results_scenario,
+        baseline_name='Baseline', 
+        scenario_name=SELECTED_SCENARIO_NAME
+    )
 
-# ## 2.4 Results Overview
+# # 6. Export & Final Summary
 
 print("\n" + "="*60)
-print("📈 RESULTS OVERVIEW")
+print("💾 EXPORTING BASELINE RESULTS")
 print("="*60)
 
-# Display final stock values
-print("\n📊 Final Stock Values (Year {end_year}):")
-final_stocks = []
-for stock_name, stock in mfa_system_with_results.StockDict.items():
-    if stock_name.startswith('S_'):  # Absolute stocks only
-        final_value = stock.Values[-1, 0]  # Material dimension, final year
-        final_stocks.append({
-            'Stock': stock_name,
-            'Final Value (Mg)': final_value
-        })
+output_file = "data/02_output/results_scientific_baseline.xlsx"
+utils.export_results_to_excel(mfa_results_baseline, output_file)
+print(f"✅ Baseline results exported to: {output_file}")
 
-if final_stocks:
-    stocks_df = pd.DataFrame(final_stocks)
-    display(stocks_df)
-
-# Display flow summary
-print("\n🔄 Flow Summary:")
-flow_summary = []
-for flow_id, flow in mfa_system_with_results.FlowDict.items():
-    avg_flow = np.mean(flow.Values[:, 0])  # Average material flow
-    flow_summary.append({
-        'Flow ID': flow_id,
-        'From': flow.P_Start,
-        'To': flow.P_End,
-        'Avg Flow (Mg/year)': avg_flow
-    })
-
-if flow_summary:
-    flows_df = pd.DataFrame(flow_summary)
-    display(flows_df.head(10))  # Show first 10 flows
-
-# # 3. Visualization
-# 
-# This section provides comprehensive analysis and exploration through various visualization tools.
+# # 7. Monte Carlo Analysis (Baseline)
 
 print("\n" + "="*60)
-print("📊 VISUALIZATION")
+print("🎲 MONTE CARLO SIMULATION (BASELINE)")
 print("="*60)
 
-# ## 3.1 System Overview
-
-print("\n" + "-"*40)
-print("3.1 SYSTEM OVERVIEW")
-print("-"*40)
-
-# ### 3.1.1 Material Flow Sankey Diagram
-
-print("🔗 Creating interactive Sankey diagram...")
-try:
-    # Use the enhanced interactive Sankey function with DSM/FOMP parameters
-    plotting.plot_interactive_sankey(mfa_system_with_results, dsm_params, fomp_params)
-    print("✅ Interactive Sankey diagram created")
-    print("   📊 Features: Multi-process selection, color coding, export options")
-    print("   🎨 Process types: Regular (blue), DSM (orange), FOMP (green)")
-    print("   📁 Export: PNG with timestamped filenames in organized folders")
-except Exception as e:
-    print(f"⚠️ Could not create interactive Sankey diagram: {e}")
-    import traceback
-    traceback.print_exc()
-
-# ### 3.1.2 Process Dynamics Analysis
-
-print("\n📊 Creating process dynamics analysis...")
-try:
-    # Use the process dynamics function for general process analysis
-    if '2_1_Definition_Processes' in input_data:
-        process_definitions = input_data['2_1_Definition_Processes']
-        plotting.plot_process_dynamics(mfa_system_with_results, process_definitions)
-        print("✅ Process dynamics analysis created")
-        print("   📊 Features: Inflow, Stock, and Outflow for each process")
-        print("   📈 Interactive: Process and element selection")
-        print("   🎨 Smart titles based on process types")
-    else:
-        print("ℹ️ Process definitions not available for dynamics analysis")
-except Exception as e:
-    print(f"⚠️ Could not create process dynamics analysis: {e}")
-
-# ### 3.1.3 Stock Levels Bar Chart
-
-print("\n📊 Creating stock levels bar chart...")
-try:
-    # Use the new stock bar chart function
-    plotting.plot_stock_bar_chart(mfa_system_with_results, title="Stock Levels Over Time")
-    print("✅ Stock levels bar chart created")
-    print("   📊 Features: Interactive slider to view stocks per year")
-    print("   🎨 Styling: Clear, publication-ready design")
-except Exception as e:
-    print(f"⚠️ Could not create stock levels bar chart: {e}")
-
-
-# ## 3.2 Individual Process Analysis
-
-print("\n" + "-"*40)
-print("3.2 INDIVIDUAL PROCESS ANALYSIS")
-print("-"*40)
-
-# ### 3.2.1 DSM Process Analysis
-
-print("\n📈 3.2.1 DSM Process Analysis:")
-try:
-    if has_dsm and dsm_details:
-        plotting.plot_dsm_stock_details(mfa_system_with_results, dsm_params, dsm_details)
-        print("✅ DSM process analysis plots created")
-        print("   📊 Features: Individual/Cumulative views, lifetime display")
-        print("   🎨 Enhanced styling with export functionality")
-    else:
-        print("ℹ️ No DSM processes available")
-except Exception as e:
-    print(f"⚠️ Could not create DSM process analysis: {e}")
-
-# ### 3.2.2 DSM Stock Composition Analysis
-
-print("\n📊 3.2.2 DSM Stock Composition Analysis:")
-try:
-    if has_dsm and dsm_details:
-        plotting.plot_dynamic_stock_composition(dsm_details, mfa_system_with_results)
-        print("✅ DSM stock composition analysis created")
-        print("   📊 Features: Initial stock decay vs new stock accumulation")
-        print("   📈 Options: Line charts or stacked bar charts")
-        print("   🎨 Interactive: Process and element selection")
-    else:
-        print("ℹ️ No DSM processes available")
-except Exception as e:
-    print(f"⚠️ Could not create DSM stock composition analysis: {e}")
-
-# ### 3.2.3 FOMP Process Analysis
-
-print("\n🌱 3.2.3 FOMP Process Analysis:")
-try:
-    if has_fomp and fomp_params:
-        plotting.plot_fomp_stock_details(mfa_system_with_results, fomp_params)
-        print("✅ FOMP process analysis plots created")
-    else:
-        print("ℹ️ No FOMP processes available")
-except Exception as e:
-    print(f"⚠️ Could not create FOMP process analysis: {e}")
-
-
-# ## 3.3 Detailed Component Analysis
-
-print("\n" + "-"*40)
-print("3.3 DETAILED COMPONENT ANALYSIS")
-print("-"*40)
-
-# ### 3.3.1 Individual Flow Analysis
-
-print("\n🔄 Creating individual flow analysis...")
-try:
-    plotting.plot_flow_dynamics(mfa_system_with_results)
-    print("✅ Individual flow analysis created")
-    print("   📊 Features: Multi-flow selection, cumulative vs. individual values")
-    print("   📈 Options: Bar/line charts, element-specific analysis")
-except Exception as e:
-    print(f"⚠️ Could not create individual flow analysis: {e}")
-
-# Note: Additional flow chart visualizations removed - keeping only Sankey-style block flow diagram
-
-
-
-# # 4. Export
-# 
-# This section saves results and generates documentation for the analysis.
-
-print("\n" + "="*60)
-print("💾 EXPORTING RESULTS")
-print("="*60)
-
-# ## 4.1 Results Export
-
-# Export to Excel
-output_file = "data/02_output/results_scientific.xlsx"
-try:
-    utils.export_results_to_excel(mfa_system_with_results, output_file)
-    print(f"✅ Results exported to: {output_file}")
-except Exception as e:
-    print(f"⚠️ Export error: {e}")
-
-# ## 4.2 Configuration Export
-
-# Export configuration summary
-config_file = output_file.replace('.xlsx', '_config.xlsx')
-try:
-    config_summary = pd.DataFrame([{
-        'Input File': input_file,
-        'Start Year': start_year,
-        'End Year': end_year,
-        'Elements': ', '.join(elements),
-        'Monte Carlo': has_mc,
-        'DSM': has_dsm,
-        'FOMP': has_fomp
-    }])
-    config_summary.to_excel(config_file, index=False)
-    print(f"✅ Configuration exported to: {config_file}")
-except Exception as e:
-    print(f"⚠️ Config export error: {e}")
-
-# ## 4.3 Analysis Summary
+if config_obj.RUN_MONTE_CARLO and '4_1_Uncertainty_Parameters' in input_data:
+    try:
+        from engine.mc_simulation import run_mc_simulation
+        from plotting.mc_visuals import plot_interactive_mc_histogram, plot_interactive_tornado
+        mc_results = run_mc_simulation(mfa_system_configured, input_data, dsm_params, fomp_params, config_obj)
+        if mc_results is not None and not mc_results.empty:
+            print("✅ Monte Carlo simulation completed for baseline")
+            plot_interactive_mc_histogram(mc_results)
+            plot_interactive_tornado(mc_results)
+    except Exception as e:
+        print(f"⚠️ Monte Carlo simulation failed: {e}")
+        import traceback
+        traceback.print_exc()
+else:
+    print("ℹ️ Monte Carlo analysis is disabled or no uncertainty parameters are defined. Skipping.")
 
 print("\n" + "="*60)
 print("🎉 ANALYSIS COMPLETE")
 print("="*60)
-
-summary = f"""
-**Analysis Summary:**
-- ✅ Input file processed successfully
-- ✅ Configuration extracted automatically
-- ✅ MFA calculation completed
-- ✅ Mass balance verified
-- ✅ Visualizations generated
-- ✅ Results exported
-
-**Key Results:**
-- Time period: {start_year} - {end_year}
-- Processes analyzed: {len(mfa_system_with_results.ProcessList)}
-- Flows tracked: {len(mfa_system_with_results.FlowDict)}
-- Stocks modeled: {len(mfa_system_with_results.StockDict)}
-- Mass balance errors: {len(mass_balance_errors)}
-
-**Files Generated:**
-- Main results: {output_file}
-- Configuration: {config_file}
-"""
-
-display(Markdown(summary))
-
-print("\n📊 Analysis completed successfully!")
-
-# Monte Carlo Analysis with proper error handling
-try:
-    from engine.mc_simulation import run_mc_simulation
-    from plotting.mc_visuals import plot_interactive_mc_histogram, plot_interactive_tornado
-
-    print("\n" + "="*60)
-    print("🎲 MONTE CARLO SIMULATION")
-    print("="*60)
-
-    if has_mc:
-        mc_results = run_mc_simulation(
-            mfa_system_configured, input_data, dsm_params, fomp_params, config_obj
-        )
-
-        if mc_results is not None and not mc_results.empty:
-            print("✅ Monte Carlo simulation completed")
-            print("📊 Creating Monte Carlo stock histogram...")
-            plot_interactive_mc_histogram(mc_results)
-            stock_mc_cols = [col for col in mc_results.columns if col.endswith('_mc') and col.startswith('S_')]
-            if stock_mc_cols:
-                print("📈 Creating tornado plot for sensitivity analysis...")
-                plot_interactive_tornado(mc_results)
-            else:
-                print("ℹ️ No stock columns found for tornado plot.")
-        else:
-            print("ℹ️ Monte Carlo simulation ran, but no results were generated. Check uncertainty definitions.")
-    else:
-        print("ℹ️ Monte Carlo analysis is disabled in the configuration. Skipping.")
-except ImportError as e:
-    print(f"⚠️ Monte Carlo modules not available: {e}")
-except Exception as e:
-    print(f"⚠️ Monte Carlo simulation failed: {e}")
-    import traceback
-    traceback.print_exc()

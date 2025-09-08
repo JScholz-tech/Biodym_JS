@@ -268,54 +268,54 @@ def load_uncertainty_definitions(excel_data):
     return uncertainty_params
 
 
-def load_and_define_processes(mfa_system, excel_path, data_loader):
+def load_scenario_definitions(excel_data):
     """
-    Loads all data from the Excel file, validates its structure, and defines
-    the processes and empty stock objects in the MFA system.
-
-    Args:
-        mfa_system (odym.MFAsystem): The initialized MFA system object.
-        excel_path (str): The file path to the input Excel data.
-        data_loader (module): The imported data_loader module, containing
-                              the validation function.
-
-    Returns:
-        tuple: A tuple containing the modified mfa_system object and a
-               dictionary of all data read from the Excel file.
+    Reads the scenario definitions sheet and parses the definitions.
+    It checks for both '5_1_Scenario_Manager' and 'Scenario Manager' sheet names
+    and dynamically finds the header row.
     """
-    print("--> Defining process and stock structures...")
+    sheet_name = None
+    if "5_1_Scenario_Manager" in excel_data:
+        sheet_name = "5_1_Scenario_Manager"
+    elif "Scenario Manager" in excel_data:
+        sheet_name = "Scenario Manager"
 
-    # Load all sheets from the Excel file into a dictionary of DataFrames
-    input_data = pd.read_excel(
-        excel_path,
-        sheet_name=None,
-        header=0,
-        engine="openpyxl",
-        na_values=["N.A.", "NA", "n/a"],
-    )
+    print(f"--> Loading scenario definitions from sheet '{sheet_name}'...")
 
-    # Use the validation function from the data_loader module
-    data_loader.validate_input_data(input_data)
+    if not sheet_name or excel_data[sheet_name].empty:
+        print(f"--> INFO: Scenario sheet not found or is empty. No scenarios loaded.")
+        return {}
 
-    process_definitions = input_data["2_1_Definition_Processes"]
-    for index, row in process_definitions.iterrows():
-        if pd.notna(row["Name(EN)"]):
-            process_id = int(row["ID"])
-            has_tcs = "TC" if "TC?" in row and row["TC?"] == "Yes" else "None"
-            mfa_system.ProcessList.append(
-                msc.Process(Name=row["Name(EN)"], ID=process_id, Extensions=has_tcs)
-            )
+    df = excel_data[sheet_name]
 
-            # Create stock objects if the process is defined as having a stock
-            if "Stock?" in row and row["Stock?"] == "Yes":
-                # Stock for stock-changes (dS)
-                mfa_system.StockDict[f"dS_{process_id}"] = msc.Stock(
-                    Name=f"dS_{process_id}", P_Res=process_id, Type=1, Indices="t,e"
-                )
-                # Stock for absolute stock values (S)
-                mfa_system.StockDict[f"S_{process_id}"] = msc.Stock(
-                    Name=f"S_{process_id}", P_Res=process_id, Type=0, Indices="t,e"
-                )
+    # Find the header row by searching for 'Scenario_Name' in the first few rows
+    header_row = 0
+    found = False
+    for i in range(min(10, len(df))):
+        if 'Scenario_Name' in df.iloc[i].values:
+            header_row = i
+            found = True
+            break
+    
+    if found:
+        df.columns = df.iloc[header_row]
+        df = df.iloc[header_row + 1:].reset_index(drop=True)
+    
+    # Now we can safely access the columns
+    try:
+        df_scenarios = df.dropna(subset=["Scenario_Name", "Parameter_Name"])
+    except KeyError:
+        print(f"--> ERROR: Even after searching, could not find 'Scenario_Name' or 'Parameter_Name' columns in sheet '{sheet_name}'. Please check the Excel file.")
+        return {}
 
-    # The values for these objects will be set in a later function
-    return mfa_system, input_data
+    scenario_definitions = {}
+    for scenario_name, group in df_scenarios.groupby("Scenario_Name"):
+        # Convert float values from Excel that should be integers
+        for record in group.to_dict('records'):
+            if 'ID' in record and pd.notna(record['ID']):
+                record['ID'] = int(record['ID'])
+        scenario_definitions[scenario_name] = group.to_dict('records')
+
+    print(f"--> Successfully loaded {len(scenario_definitions)} scenario(s).")
+    return scenario_definitions
+
