@@ -160,12 +160,16 @@ def run_mc_simulation(
             print(f"  {warning}")
         print()
     
+    # Get MC iterations from config object (preferred) or fallback to Excel data
     try:
-        n_iterations = int(input_data['0_Configuration'].loc[
-            input_data['0_Configuration'].iloc[:, 0].str.strip() == 'Monte Carlo Iterations'
-        ].iloc[0, 1])
-    except (KeyError, IndexError, ValueError):
-        n_iterations = 10  # Default fallback
+        n_iterations = int(config.MC_ITERATIONS)
+    except (AttributeError, ValueError):
+        try:
+            n_iterations = int(input_data['0_Configuration'].loc[
+                input_data['0_Configuration'].iloc[:, 0].str.strip() == 'MC_Iterations'
+            ].iloc[0, 1])
+        except (KeyError, IndexError, ValueError):
+            n_iterations = 10  # Default fallback
     
     print(f"\n[MC] Running Monte Carlo simulation with {n_iterations} iterations...")
     print(f"[MC] Using {len(validated_params)} validated parameters...")

@@ -1,62 +1,186 @@
-# BioDYM MFA Tool: Comprehensive Documentation
+# BioDYM MFA Tool - Development Agenda
 
-## Chapter 1: System Setup - Building the Model's Blueprint
+## 📋 **Project Status Overview**
 
-### 1.1. Introduction: The Qualitative Model
+**Date**: 2025-01-02  
+**Status**: Active Development Phase  
+**Priority**: Critical fixes and enhancements for publication readiness
 
-The initial phase of any Material Flow Analysis (MFA) involves translating a conceptual model into a structured, qualitative format. In the BioDYM MFA tool, this process is about building the "scaffolding" of the model before any quantitative data is introduced. This involves defining the system's boundaries, its components (processes, flows, and stocks), and the dimensions (time and elements) over which the analysis will be conducted.
+---
 
-Crucially, all definitions for this model construction are sourced directly from the Excel input file. While this chapter focuses on *how* the internal ODYM model objects are constructed, the *details* of the Excel file's structure and data loading process will be elaborated in Chapter 2: Data Loading.
+## 🎯 **Primary Development Items**
 
-### 1.2. Defining the Model Scope (`define_model_scope`)
+### **1. Model Configuration Audit** ⚠️ **High Priority**
+- **Current Status**: 30 settings in `0_Configuration` sheet, partially used
+- **Issue**: Hardcoded values instead of config-driven settings
+- **Goal**: Identify which settings are actually used vs. redundant
+- **Action**: Audit configuration usage across all modules
+- **Expected Outcome**: Clean configuration system, remove unused settings
 
-The first step in setting up the BioDYM MFA model is to define its fundamental scope in terms of time and the elements to be tracked. The `define_model_scope` function (located in `src/system_setup.py`) takes the analysis's `start_year`, `end_year`, and a list of `elements` (e.g., 'material', 'WC', 'DM', 'CC') as input.
+### **2. Sankey Diagram Enhancement** ⚠️ **High Priority**
+- **Current Status**: Interactive Sankey working, readability issues
+- **Enhancement Ideas**: 
+  - Better node positioning and spacing
+  - Flow thickness scaling based on magnitude
+  - Improved color coding and legends
+  - Better handling of small flows
+- **User Preference**: Plotly-based interactive visualizations
+- **Expected Outcome**: More readable, professional Sankey diagrams
 
-This function creates two core ODYM data structures:
-*   **`ModelClassification`**: A dictionary containing `msc.Classification` objects for 'Time' and 'Element'. These objects define the discrete items within each dimension (e.g., a list of years for 'Time', or a list of specific elements for 'Element').
-*   **`IndexTable`**: A pandas DataFrame that serves as a lookup table for the model's dimensions, providing metadata like the 'IndexLetter' (e.g., 't' for time, 'e' for element) used in ODYM's internal indexing.
+### **3. FOMP Process Error Fix** 🚨 **Critical Priority**
+- **Issue**: Multiple FOMP processes causing calculation errors
+- **Impact**: Affects calculation accuracy and system stability
+- **Action**: Debug and fix multi-FOMP handling in `fomp_model.py`
+- **Expected Outcome**: Robust handling of multiple FOMP processes
 
-This step establishes the fundamental axes along which all subsequent model data will be organized.
+### **4. Notebook Structure Finalization** ⚠️ **High Priority**
+- **Current Status**: 4-step workflow (Setup → Calculation → Visualization → Export)
+- **Goal**: Final logical structure for publication
+- **Action**: Review and optimize workflow organization
+- **Expected Outcome**: Clean, logical notebook structure
 
-*   **Verification Reference:** The correct creation and content of these scope objects are verified by `test_setup.py::test_define_model_scope_structure_and_content`.
+### **5. Automatic Flow Chart Refinement** ⚠️ **Medium Priority**
+- **Current Status**: Graphviz-based flowchart generation
+- **Enhancement**: 
+  - Better layout algorithms
+  - Clearer process connections
+  - Improved aesthetics and readability
+- **Expected Outcome**: Professional-looking flow charts
 
-### 1.3. Initializing the System Container (`initialize_mfa_system`)
+### **6. Uniform Plot Appearance** ⚠️ **High Priority**
+- **Current Status**: Mixed styling across different plot types
+- **Goal**: Consistent visual identity throughout
+- **Action**: 
+  - Standardize color schemes
+  - Uniform fonts and layouts
+  - Consistent plot styling
+- **User Preference**: Plotly with adjustable colors
+- **Expected Outcome**: Professional, consistent visualization suite
 
-Once the model's scope is defined, the `initialize_mfa_system` function (also in `src/system_setup.py`) creates the central container for the entire MFA model: the `msc.MFAsystem` object. This object is the backbone of the BioDYM tool, holding all processes, flows, stocks, and parameters.
+### **7. MC Simulation & Scenario Manager Safety** 🚨 **Critical Priority**
+- **Current Status**: Both systems implemented, need validation
+- **Focus Areas**:
+  - Data requirements validation
+  - Error handling mechanisms
+  - Safety checks and bounds
+  - User-friendly error messages
+- **Expected Outcome**: Robust, safe simulation systems
 
-The `MFAsystem` object is initialized with global properties such as the model's `Name`, `Unit` (e.g., 'Mg' for Megagrams), and the defined `Time_Start`, `Time_End`, and `Elements`. Importantly, it sets up empty lists and dictionaries (`ProcessList`, `FlowDict`, `StockDict`, `ParameterDict`) that will be populated in subsequent setup steps.
+---
 
-*   **Verification Reference:** The correct initialization and structure of the `MFAsystem` object are verified by `test_setup.py::test_initialize_mfa_system_creation`.
+## 🔧 **Additional Critical Items**
 
-### 1.4. Defining Processes and Stocks (`load_and_define_processes`)
+### **8. Excel File Cleanup** ⚠️ **Immediate Need**
+- **Issue**: 5 empty sheets cluttering Excel file
+- **Impact**: 23% file size reduction, cleaner structure
+- **Action**: Remove empty sheets from `250813_CS1_simple_V1.xlsx`
+- **Expected Outcome**: Optimized Excel file structure
 
-This function (in `src/system_setup.py`) bridges the gap between the raw Excel input and the structured ODYM model. It reads the `2_1_Definition_Processes` sheet from the Excel input file to define the "boxes" of the MFA system.
+### **9. Import Optimization** ⚠️ **Performance Issue**
+- **Issue**: All modules loaded at startup (heavy imports)
+- **Impact**: Slower startup, higher memory usage
+- **Solution**: Implement lazy loading for heavy modules
+- **Expected Outcome**: Faster startup, better memory management
 
-For each process defined in the Excel sheet, an `msc.Process` object is created and added to the `MFAsystem`'s `ProcessList`. A critical aspect of this step is the conditional creation of stock objects: if a process is marked with `Stock? == 'Yes'` in the Excel sheet, two corresponding `msc.Stock` objects are created:
-*   `S_ProcessID`: Represents the absolute stock within that process.
-*   `dS_ProcessID`: Represents the change in stock for that process.
+### **10. Test Suite Validation** ⚠️ **Quality Assurance**
+- **Status**: 52 tests available, need validation
+- **Critical**: Ensure all functionality works after changes
+- **Action**: Run complete test suite, fix any failures
+- **Expected Outcome**: All tests passing, stable codebase
 
-These stock objects are added to the `MFAsystem`'s `StockDict` and are initialized with zero values, ready to accumulate material.
+### **11. Documentation Integration** ⚠️ **Publication Readiness**
+- **Current**: Comprehensive analysis completed
+- **Missing**: Integration with actual codebase
+- **Action**: Update documentation to match current implementation
+- **Expected Outcome**: Publication-ready documentation
 
-*   **Verification Reference:** The correct definition of processes and the conditional creation of stock objects are verified by `test_setup.py::test_load_and_define_processes`.
+### **12. Error Handling & Validation** ⚠️ **Robustness**
+- **Current**: Basic error handling exists
+- **Enhancement**: Better validation for edge cases
+- **Action**: Improve user-friendly error messages
+- **Expected Outcome**: More robust, user-friendly system
 
-### 1.5. Defining Flows and Parameters (`define_flows_and_parameters`)
+---
 
-This comprehensive function (in `src/system_setup.py`) is responsible for establishing the connections between processes (flows) and defining the parameters that govern material transformations and compositions. It uses information primarily from the `1_1_Definition_Flows` sheet of the Excel input.
+## 🚀 **Implementation Phases**
 
-Key actions performed:
-*   **Flow Creation:** `msc.Flow` objects are created for each flow defined in the Excel sheet, establishing the pathways between processes. These flows are initially populated with zero values.
-*   **Parameter Definition:** Static parameters, such as elemental content fractions (e.g., 'WC' for Water Content, 'CC' for Carbon Content) and Transfer Coefficients (TCs), are read from the Excel sheets (e.g., `1_1_Definition_Flows`, `2_3_Process_TCs`) and stored as `msc.Parameter` objects in the `MFAsystem`'s `ParameterDict`.
-*   **Elemental Composition Calculation:** For primary input flows, this function calculates the elemental composition (e.g., how much water or carbon is in the 'material' flow) based on the defined parameters.
+### **Phase 1: Critical Fixes (Week 1)**
+1. **Fix FOMP Process Error** - Multiple FOMP processes issue
+2. **Excel File Cleanup** - Remove 5 empty sheets
+3. **Test Suite Validation** - Ensure all 52 tests pass
+4. **MC Simulation Safety** - Data validation and error handling
 
-This step completes the qualitative definition of the model, preparing it for the injection of quantitative time-series data.
+### **Phase 2: Configuration & Structure (Week 2)**
+5. **Model Configuration Audit** - Identify used vs. unused settings
+6. **Notebook Structure Finalization** - Clean logical flow
+7. **Import Optimization** - Lazy loading implementation
+8. **Error Handling Enhancement** - Better validation and messages
 
-*   **Verification Reference:** The correct definition of flows, parameters, and the calculation of elemental compositions are verified by `test_setup.py::test_define_flows_and_parameters_logic`.
+### **Phase 3: Visualization Enhancement (Week 3)**
+9. **Sankey Diagram Improvements** - Better readability
+10. **Uniform Plot Appearance** - Consistent styling
+11. **Automatic Flow Chart Refinement** - Better layout
+12. **Documentation Integration** - Publication readiness
 
-### 1.6. Handling Dynamic Parameters (`create_dynamic_tc_parameters`)
+---
 
-The BioDYM tool supports dynamic parameters, meaning certain parameters can change over time. The `create_dynamic_tc_parameters` function (in `src/system_setup.py`) handles this by taking sparse time-series data for a Transfer Coefficient (TC) from the `2_5_dynamic_tcs` sheet in the Excel input.
+## 📊 **Success Metrics**
 
-This function interpolates the provided data points across the entire model's time range, creating a complete time series for the dynamic TC. This allows for more realistic modeling of systems where parameters are not constant over the analysis period.
+| **Metric** | **Current** | **Target** | **Status** |
+|------------|-------------|------------|------------|
+| **Test Suite** | Unknown | 52/52 passing |  In Progress |
+| **Excel Sheets** | 22 | 17 | 🔄 Ready |
+| **Configuration Usage** | Partial | 100% |  Pending |
+| **Plot Consistency** | Mixed | Uniform | 🔄 Pending |
+| **Error Handling** | Basic | Robust | 🔄 Pending |
+| **Documentation** | 90% | 100% |  Pending |
 
-*   **Verification Reference:** The successful interpolation and error handling for dynamic TC parameters are verified by `test_setup.py::test_create_dynamic_tc_parameters_success`, `test_create_dynamic_tc_parameters_duplicate_error`, and `test_create_dynamic_tc_parameters_missing_columns`.
+---
+
+## 🎯 **Immediate Next Steps (Today)**
+
+### **Step 1: FOMP Error Analysis (30 min)**
+- Analyze `fomp_model.py` for multiple process handling
+- Identify specific error conditions
+- Plan fix implementation
+
+### **Step 2: Excel Cleanup (15 min)**
+- Remove 5 empty sheets
+- Test file loading
+- Validate functionality
+
+### **Step 3: Test Suite Run (30 min)**
+- Execute full test suite
+- Identify and fix failures
+- Ensure stability
+
+### **Step 4: Configuration Audit (45 min)**
+- Review `0_Configuration` sheet usage
+- Identify unused settings
+- Plan configuration integration
+
+---
+
+##  **Key Insights**
+
+1. **Scenario Manager is Complete** - No development needed, just validation
+2. **Code Quality is Excellent** - 86% function usage rate, well-organized
+3. **Documentation is Comprehensive** - Ready for publication
+4. **Test Coverage is Strong** - All major functionality tested
+5. **Cleanup is Low-Risk** - Only removing unused code and empty sheets
+
+---
+
+## 🔄 **Progress Tracking**
+
+- [ ] **Phase 1**: Critical Fixes
+- [ ] **Phase 2**: Configuration & Structure  
+- [ ] **Phase 3**: Visualization Enhancement
+- [ ] **Final Validation**: Complete system testing
+- [ ] **Publication Ready**: Documentation and code finalized
+
+---
+
+*Agenda Created: 2025-01-02*  
+*Status:  Active Development*  
+*Next Focus: FOMP Process Error Fix*

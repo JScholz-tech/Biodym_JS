@@ -87,7 +87,7 @@ print("📊 Plotting environment ready")
 # ## 1.2 Data Input Configuration
 
 # This is the only manual path setting required.
-input_file = "data/01_input/250902_CS1_Wheat_Straw.xlsx"
+input_file = "data/01_input/250909_CS1_Wheat_Straw.xlsx"
 print(f"📁 Input file: {input_file}")
 if not os.path.exists(input_file):
     raise FileNotFoundError(f"Input file not found: {input_file}")
@@ -113,7 +113,7 @@ print("✅ Configuration object loaded.")
 try:
     start_year = int(config_obj.Start_Year)
     end_year = int(config_obj.End_Year)
-    elements = [elem.strip() for elem in config_obj.Elements_commaseparated.split(',')]
+    elements = [elem.strip() for elem in config_obj.Elements.split(',')]
 except Exception as e:
     print(f"⚠️ Could not get time/elements from config object: {e}. Falling back to data-driven values.")
     flow_data = input_data['1_2_Data_Flows']

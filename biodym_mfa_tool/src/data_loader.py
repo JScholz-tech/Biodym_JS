@@ -148,7 +148,7 @@ def load_fomp_parameters(excel_data):
         # Handle special case for outflow IDs
         if param_name == "output_carbon_id":
             fomp_params[process_id]["outflow_id"] = value  # Primary outflow (carbon)
-        elif param_name == "output_elemental_id":
+        elif param_name == "output_environmental_id":
             fomp_params[process_id]["outflow_id_2"] = value  # Secondary outflow (environmental)
         else:
             # Handle pool-specific parameters

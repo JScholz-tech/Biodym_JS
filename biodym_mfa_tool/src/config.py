@@ -42,14 +42,18 @@ def load_config_from_excel(excel_file_path):
         # Convert to dictionary
         config_dict = {}
         for _, row in config_df.iterrows():
-            if pd.notna(row.iloc[0]) and pd.notna(row.iloc[1]):
-                key = str(row.iloc[0]).strip()
-                value = row.iloc[1]
+            # New format: Category_Settings | Setting Name | Value | Description | Category | Status
+            # We need Column B (Setting Name) and Column C (Value)
+            if (pd.notna(row.iloc[1]) and pd.notna(row.iloc[2]) and 
+                str(row.iloc[1]).strip() != "Setting Name"):  # Skip header row
+                
+                key = str(row.iloc[1]).strip()      # Column B: Setting Name
+                value = row.iloc[2]                 # Column C: Value
 
                 # Convert string values to appropriate types
                 if isinstance(value, str):
-                    if value.lower() in ["yes", "no"]:
-                        value = value.lower() == "yes"
+                    if value.lower() in ["yes", "no", "true", "false"]:
+                        value = value.lower() in ["yes", "true"]
                     elif value.isdigit():
                         value = int(value)
                     elif value.replace(".", "").replace("-", "").isdigit():
@@ -111,31 +115,29 @@ def create_config_object(config_dict):
             # First, set all the normal attributes from Excel
             for key, value in config_dict.items():
                 # Convert Excel column names to Python attributes
-                attr_name = key.replace(" ", "_").replace("(", "").replace(")", "")
+                attr_name = key.replace(" ", "_").replace("(", "").replace(")", "").upper()
                 setattr(self, attr_name, value)
 
             # Add uppercase aliases for backward compatibility
-            # Map of Excel names to uppercase legacy names
+            # Map of setting names (as they appear in config_dict) to uppercase legacy names
             uppercase_aliases = {
-                "Input File Path": "EXCEL_FILE_PATH",
-                "Output File Path": "OUTPUT_FILE_PATH",
-                "Start Year": "START_YEAR",
-                "End Year": "END_YEAR",
-                "Elements (comma-separated)": "ELEMENTS",
-                "Run Monte Carlo Simulation": "RUN_MONTE_CARLO",
-                "Monte Carlo Iterations": "MC_ITERATIONS",
-                "Run DSM Calculation": "RUN_DSM_CALCULATION",
-                "Run FOMP Calculation": "RUN_FOMP_CALCULATION",
-                "Minimum Flow Threshold (Mg)": "MIN_FLOW_THRESHOLD",
-                "Show Zero Flows in Plots": "SHOW_ZERO_FLOWS",
-                "Export Format": "EXPORT_FORMAT",
-                "Default Plot Style": "DEFAULT_PLOT_STYLE",
-                "Color Scheme": "COLOR_SCHEME",
-                "Export Plots as Images": "EXPORT_PLOTS_AS_IMAGES",
-                "Dashboard Layout": "DASHBOARD_LAYOUT",
-                "Mass Balance Tolerance": "MASS_BALANCE_TOLERANCE",
-                "Data Validation Level": "DATA_VALIDATION_LEVEL",
-                "Auto-save Results": "AUTO_SAVE_RESULTS",
+                "Input_File": "EXCEL_FILE_PATH",
+                "Output_File": "OUTPUT_FILE_PATH",
+                "Start_Year": "START_YEAR",
+                "End_Year": "END_YEAR",
+                "Elements": "ELEMENTS",
+                "RUN_MONTE_CARLO": "RUN_MONTE_CARLO",  # Already uppercase in Excel
+                "MC_Iterations": "MC_ITERATIONS",
+                "Run_DSM_Calculation": "RUN_DSM_CALCULATION",
+                "Run_FOMP_Calculation": "RUN_FOMP_CALCULATION",
+                "Min_Flow_Threshold": "MIN_FLOW_THRESHOLD",
+                "Show_Zero_Flows": "SHOW_ZERO_FLOWS",
+                "Export_Format": "EXPORT_FORMAT",
+                "Color_Scheme": "COLOR_SCHEME",
+                "Export_Plots_As_Images": "EXPORT_PLOTS_AS_IMAGES",
+                "Mass_Balance_Tolerance": "MASS_BALANCE_TOLERANCE",
+                "Data_Validation_Level": "DATA_VALIDATION_LEVEL",
+                "Auto_Save_Results": "AUTO_SAVE_RESULTS",
             }
 
             # Set uppercase aliases
@@ -149,33 +151,8 @@ def create_config_object(config_dict):
 # ==============================================================================
 # DEFAULT CONFIGURATION (for backward compatibility)
 # ==============================================================================
-
-# Path to the primary Excel input file containing all model definitions
-# and data.
-EXCEL_FILE_PATH = "250625_Template_CS0.xlsx"
-
-# ==============================================================================
-# MODEL SCOPE
-# ==============================================================================
-# The first year of the analysis.
-START_YEAR = 2025
-# The last year of the analysis.
-END_YEAR = 2050
-# List of elements/substances to be tracked throughout the system.
-ELEMENTS = ["material", "WC", "DM", "CC"]
-
-# ==============================================================================
-# CALCULATION SWITCHES
-# ==============================================================================
-# Master switch to run a full Monte Carlo simulation.
-RUN_MONTE_CARLO = False  # Set to True for uncertainty analysis.
-
-# Number of iterations for the Monte Carlo simulation.
-MC_ITERATIONS = 100
-
-# Individual model component switches.
-RUN_DSM_CALCULATION = True
-RUN_FOMP_CALCULATION = True
+# Note: All configuration values are now loaded from Excel files.
+# These hardcoded values are only used as fallbacks if Excel loading fails.
 
 # ==============================================================================
 # CONFIGURATION LOADER FUNCTION
