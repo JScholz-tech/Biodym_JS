@@ -193,7 +193,28 @@ print("\n" + "="*60)
 print("📊 VISUALIZATION (BASELINE)")
 print("="*60)
 
+# ## 3.1 Traditional Sankey Diagram
+print("\n--- Traditional Sankey Diagram ---")
 plotting.plot_interactive_sankey(mfa_results_baseline, dsm_params, fomp_params)
+
+# ## 3.2 Enhanced Circular Sankey Diagram
+print("\n--- Enhanced Circular Sankey Diagram ---")
+try:
+    from plotting import plot_circular_sankey
+    print("🎯 Creating enhanced circular Sankey diagram...")
+    plot_circular_sankey(
+        mfa_system_results=mfa_results_baseline,
+        dsm_params=dsm_params,
+        fomp_params=fomp_params,
+        config_file=input_file  # Uses your Excel file with Part 6 visualization sheets
+    )
+    print("✅ Enhanced circular Sankey diagram created successfully!")
+except Exception as e:
+    print(f"⚠️ Enhanced Sankey diagram failed: {e}")
+    print("   Falling back to traditional Sankey diagram only")
+
+# ## 3.3 Additional Visualizations
+print("\n--- Additional Visualizations ---")
 plotting.plot_process_dynamics(mfa_results_baseline, all_excel_data['2_1_Definition_Processes'])
 plotting.plot_stock_bar_chart(mfa_results_baseline, title="Stock Levels Over Time (Baseline)")
 if dsm_params and dsm_details_baseline:
@@ -253,6 +274,38 @@ if getattr(config_obj, 'Run_Scenario_Analysis', False):
                 all_scenario_results=all_scenario_results,
                 scenario_definitions=scenario_definitions
             )
+            
+            # Enhanced Sankey comparison for scenarios
+            print("\n--- Enhanced Circular Sankey Comparison ---")
+            try:
+                from plotting import plot_circular_sankey
+                print("🎯 Creating enhanced circular Sankey diagrams for scenario comparison...")
+                
+                # Show baseline with enhanced Sankey
+                print("\n📊 Baseline - Enhanced Circular Sankey:")
+                plot_circular_sankey(
+                    mfa_system_results=mfa_results_baseline,
+                    dsm_params=dsm_params,
+                    fomp_params=fomp_params,
+                    config_file=input_file
+                )
+                
+                # Show first scenario with enhanced Sankey (if available)
+                if scenario_names_to_run:
+                    first_scenario = scenario_names_to_run[0]
+                    if first_scenario in all_scenario_results:
+                        print(f"\n📊 Scenario '{first_scenario}' - Enhanced Circular Sankey:")
+                        plot_circular_sankey(
+                            mfa_system_results=all_scenario_results[first_scenario],
+                            dsm_params=dsm_params,
+                            fomp_params=fomp_params,
+                            config_file=input_file
+                        )
+                
+                print("✅ Enhanced circular Sankey comparison completed!")
+            except Exception as e:
+                print(f"⚠️ Enhanced Sankey comparison failed: {e}")
+                print("   Traditional comparison plots are still available")
 
 
 # # 6. Export & Final Summary
@@ -290,3 +343,33 @@ else:
 print("\n" + "="*60)
 print("🎉 ANALYSIS COMPLETE")
 print("="*60)
+
+# ## 7.1 Visualization Summary
+print("\n📊 VISUALIZATION SUMMARY")
+print("="*30)
+print("✅ Traditional Sankey Diagram - Standard left-to-right flow visualization")
+print("✅ Enhanced Circular Sankey - Optimized for circular/recycling systems")
+print("✅ Process Dynamics - Inflow, stock, and outflow analysis")
+print("✅ Stock Bar Chart - Stock levels over time")
+if dsm_params and dsm_details_baseline:
+    print("✅ DSM Stock Details - Dynamic stock model analysis")
+if fomp_params:
+    print("✅ FOMP Stock Details - First-order material processing analysis")
+if config_obj.RUN_MONTE_CARLO:
+    print("✅ Monte Carlo Analysis - Uncertainty quantification")
+if getattr(config_obj, 'Run_Scenario_Analysis', False):
+    print("✅ Scenario Comparison - Multi-scenario analysis")
+
+print("\n🎯 Enhanced Sankey Features:")
+print("   - Circular layout for recycling systems")
+print("   - Custom colors and positioning from Excel configuration")
+print("   - Automatic detection of circular flows")
+print("   - Interactive controls for year, element, and process selection")
+print("   - Export functionality for high-quality visualizations")
+
+print("\n📝 Configuration:")
+print(f"   - Visualization settings: Part 6 sheets in {input_file}")
+print(f"   - Process colors: 6_1_Visualization_Processes")
+print(f"   - Flow colors: 6_2_Visualization_Flows")
+print(f"   - Layout settings: 6_3_Layout_Configuration")
+print(f"   - Element colors: 6_4_CL_Visualisation")

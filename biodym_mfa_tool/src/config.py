@@ -115,8 +115,10 @@ def create_config_object(config_dict):
             # First, set all the normal attributes from Excel
             for key, value in config_dict.items():
                 # Convert Excel column names to Python attributes
-                attr_name = key.replace(" ", "_").replace("(", "").replace(")", "").upper()
+                attr_name = key.replace(" ", "_").replace("(", "").replace(")", "")
                 setattr(self, attr_name, value)
+                # Also set uppercase version for backward compatibility
+                setattr(self, attr_name.upper(), value)
 
             # Add uppercase aliases for backward compatibility
             # Map of setting names (as they appear in config_dict) to uppercase legacy names
