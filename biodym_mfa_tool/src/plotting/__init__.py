@@ -29,6 +29,10 @@ from .scenario import plot_multi_scenario_comparison
 
 from .utils import plot_enhanced_export_options
 
+# Re-export UI primitives for tests to patch/mocks
+from ipywidgets import Button, HBox, interact  # noqa: F401
+from IPython.display import display  # noqa: F401
+
 # Flow chart plotting - using Graphviz functions instead
 # from .flow_charts import (
 #     plot_simple_flow_chart_from_excel,

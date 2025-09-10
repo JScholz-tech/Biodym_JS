@@ -172,6 +172,13 @@ def calculate_element_specific_positions(processes, flows, config, element, layo
     
     # First, try to get element-specific positions from Excel
     element_positions_found = 0
+    def _coerce_and_clamp(val, default=0.5):
+        try:
+            x = float(str(val).replace(',', '.'))
+        except (ValueError, TypeError):
+            x = default
+        # clamp to [0,1]
+        return max(0.0, min(1.0, x))
     for process in processes:
         viz_settings = get_process_visualization(process.ID, process.Name, config, element)
         custom_x = viz_settings.get('X_Position')
@@ -180,13 +187,10 @@ def calculate_element_specific_positions(processes, flows, config, element, layo
         if (custom_x is not None and custom_y is not None and 
             str(custom_x).strip() != '' and str(custom_y).strip() != '' and
             str(custom_x).strip() != '0,5' and str(custom_y).strip() != '0,5'):  # Check for meaningful values
-            try:
-                x = float(str(custom_x).replace(',', '.'))
-                y = float(str(custom_y).replace(',', '.'))
-                positions[process.ID] = (x, y)
-                element_positions_found += 1
-            except (ValueError, TypeError):
-                positions[process.ID] = (0.5, 0.5)
+            x = _coerce_and_clamp(custom_x)
+            y = _coerce_and_clamp(custom_y)
+            positions[process.ID] = (x, y)
+            element_positions_found += 1
         else:
             positions[process.ID] = (0.5, 0.5)
     
@@ -226,44 +230,70 @@ def get_process_visualization(process_id, process_name, config, element=None):
     """
     # Try to find in config first (handle both 'processes' and 'process_colors')
     processes_config = config.get('process_colors', config.get('processes', {}))
-    
-    # Try different ID formats to match Excel data
-    id_formats = [
-        str(process_id),           # "0", "1", "2"
-        f"{process_id:02d}",       # "00", "01", "02"
-        f"{process_id:03d}",       # "000", "001", "002"
-    ]
-    
-    for id_format in id_formats:
-        if id_format in processes_config:
-            print(f"  -> Found process config for ID format: {id_format}")
-            proc_config = processes_config[id_format].copy()
-            
-            # Handle element-specific positioning if element is specified
-            if element:
-                # Handle case sensitivity: material -> Material, but WC/DM/CC stay as-is
-                if element.lower() == 'material':
-                    element_name = 'Material'
-                else:
-                    element_name = element.upper()  # WC, DM, CC
-                
-                element_x_key = f'X_Position_{element_name}'
-                element_y_key = f'Y_Position_{element_name}'
-                
-                # Check if element-specific positions exist and are not empty
-                if (element_x_key in proc_config and element_y_key in proc_config and
-                    proc_config[element_x_key] is not None and proc_config[element_y_key] is not None and
-                    str(proc_config[element_x_key]).strip() != '' and str(proc_config[element_y_key]).strip() != '' and
-                    str(proc_config[element_x_key]).strip() != '0,5' and str(proc_config[element_y_key]).strip() != '0,5'):
-                    
-                    # Use element-specific positions
-                    proc_config['X_Position'] = proc_config[element_x_key]
-                    proc_config['Y_Position'] = proc_config[element_y_key]
-                    print(f"  -> Using element-specific positions for {element}: ({proc_config[element_x_key]}, {proc_config[element_y_key]})")
-                else:
-                    print(f"  -> No element-specific positions for {element}, using general positions")
-            
-            return proc_config
+
+    # Helper: generate candidate keys and pick first hit
+    def _candidate_keys(pid: int):
+        raw = str(pid)
+        return [
+            raw,
+            f"{pid:02d}",
+            f"{pid:03d}",
+            f"P_{raw}",
+            f"P_{int(raw):02d}",
+            f"P_{int(raw):03d}",
+            raw.upper(),
+            f"P_{raw.upper()}",
+        ]
+
+    # Normalize available keys for matching (upper + strip)
+    normalized_map = {}
+    for k, v in processes_config.items():
+        nk = str(k).strip().upper()
+        normalized_map[nk] = v
+
+    # Find by Process_ID variants first
+    hit = None
+    for key in _candidate_keys(process_id):
+        nk = str(key).strip().upper()
+        if nk in normalized_map:
+            hit = normalized_map[nk].copy()
+            print(f"  -> Found process config for ID key: {nk}")
+            break
+
+    # If not found, try by name using either 'Process_Name' or 'Name(EN)'
+    if hit is None and process_name:
+        name_norm = str(process_name).strip()
+        for _pid, row in processes_config.items():
+            proc_name = row.get('Process_Name') or row.get('Name(EN)')
+            if proc_name and str(proc_name).strip() == name_norm:
+                hit = row.copy()
+                print(f"  -> Found process config by name: {name_norm}")
+                break
+
+    if hit is not None:
+        proc_config = hit
+        # Handle element-specific positioning if element is specified
+        if element:
+            # Handle case sensitivity: material -> Material, but WC/DM/CC stay as-is
+            element_name = 'Material' if element.lower() == 'material' else element.upper()
+
+            element_x_key = f'X_Position_{element_name}'
+            element_y_key = f'Y_Position_{element_name}'
+
+            # Prefer element-specific positions when meaningful
+            if (
+                element_x_key in proc_config and element_y_key in proc_config and
+                proc_config[element_x_key] is not None and proc_config[element_y_key] is not None and
+                str(proc_config[element_x_key]).strip() != '' and str(proc_config[element_y_key]).strip() != '' and
+                str(proc_config[element_x_key]).strip() != '0,5' and str(proc_config[element_y_key]).strip() != '0,5'
+            ):
+                proc_config['X_Position'] = proc_config[element_x_key]
+                proc_config['Y_Position'] = proc_config[element_y_key]
+                print(f"  -> Using element-specific positions for {element}: ({proc_config[element_x_key]}, {proc_config[element_y_key]})")
+            else:
+                print(f"  -> No element-specific positions for {element}, using general positions if available")
+
+        return proc_config
     
     # Try to find by process name
     for proc_id, proc_config in processes_config.items():
@@ -551,6 +581,12 @@ def plot_enhanced_sankey(mfa_system_results, dsm_params=None, fomp_params=None,
             elif layout_type == 'Custom':
                 # Use custom positions from Excel configuration
                 positions = {}
+                def _coerce_and_clamp(val, default=0.5):
+                    try:
+                        x = float(str(val).replace(',', '.'))
+                    except (ValueError, TypeError):
+                        x = default
+                    return max(0.0, min(1.0, x))
                 for process in all_processes:
                     viz_settings = get_process_visualization(process.ID, process.Name, config)
                     custom_x = viz_settings.get('X_Position')
@@ -559,12 +595,9 @@ def plot_enhanced_sankey(mfa_system_results, dsm_params=None, fomp_params=None,
                     if (custom_x is not None and custom_y is not None and 
                         str(custom_x).strip() != '' and str(custom_y).strip() != '' and
                         custom_x != '0,5' and custom_y != '0,5'):  # Check for meaningful values
-                        try:
-                            x = float(str(custom_x).replace(',', '.'))
-                            y = float(str(custom_y).replace(',', '.'))
-                            positions[process.ID] = (x, y)
-                        except (ValueError, TypeError):
-                            positions[process.ID] = (0.5, 0.5)
+                        x = _coerce_and_clamp(custom_x)
+                        y = _coerce_and_clamp(custom_y)
+                        positions[process.ID] = (x, y)
                     else:
                         positions[process.ID] = (0.5, 0.5)
             else:  # Linear layout
