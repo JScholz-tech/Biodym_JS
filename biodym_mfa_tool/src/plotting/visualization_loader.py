@@ -98,14 +98,22 @@ def load_part6_visualization_sheets(excel_file_path: str) -> Dict[str, Any]:
                 )
                 
                 # Handle different column names and duplicate IDs
+                key_col = None
                 if 'Process_ID' in process_colors_df.columns:
-                    process_colors_df = process_colors_df.dropna(subset=['Process_ID'])
-                    process_colors_df = process_colors_df.drop_duplicates(subset=['Process_ID'], keep='first')
-                    config['process_colors'] = process_colors_df.set_index('Process_ID').to_dict('index')
+                    key_col = 'Process_ID'
+                    process_colors_df = process_colors_df.dropna(subset=[key_col])
+                    process_colors_df = process_colors_df.drop_duplicates(subset=[key_col], keep='first')
                 elif 'ID' in process_colors_df.columns:
-                    process_colors_df = process_colors_df.dropna(subset=['ID'])
-                    process_colors_df = process_colors_df.drop_duplicates(subset=['ID'], keep='first')
-                    config['process_colors'] = process_colors_df.set_index('ID').to_dict('index')
+                    key_col = 'ID'
+                    process_colors_df = process_colors_df.dropna(subset=[key_col])
+                    process_colors_df = process_colors_df.drop_duplicates(subset=[key_col], keep='first')
+
+                if key_col:
+                    # Normalize keys: strip and upper for robust matching
+                    norm_keys = process_colors_df[key_col].astype(str).str.strip().str.upper()
+                    process_colors_df = process_colors_df.assign(_NORM_KEY=norm_keys)
+                    raw_map = process_colors_df.set_index('_NORM_KEY').to_dict('index')
+                    config['process_colors'] = raw_map
                 
                 print(f"  ✅ Loaded and processed {sheet_name}")
                 break

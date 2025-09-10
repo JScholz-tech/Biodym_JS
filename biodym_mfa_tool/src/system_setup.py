@@ -102,9 +102,23 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
         tuple: A tuple containing the modified mfa_system object and the same input_data dict.
     """
     print("--> Defining process and stock structures...")
-    data_loader.validate_input_data(input_data)
 
-    process_definitions = input_data["2_1_Definition_Processes"]
+    # Accept either a pre-loaded dict of DataFrames or a path to an Excel file
+    if isinstance(input_data, dict):
+        all_excel_data = input_data
+    else:
+        # Load all sheets into a dict; tests may patch pd.read_excel to return a dict
+        all_excel_data = pd.read_excel(
+            input_data,
+            sheet_name=None,
+            header=0,
+            engine="openpyxl",
+            na_values=["N.A.", "NA", "n/a"],
+        )
+
+    data_loader.validate_input_data(all_excel_data)
+
+    process_definitions = all_excel_data["2_1_Definition_Processes"]
     for _, row in process_definitions.iterrows():
         if pd.notna(row["Name(EN)"]):
             process_id = int(row["ID"])
@@ -120,7 +134,7 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
                     Name=f"S_{process_id}", P_Res=process_id, Type=0, Indices="t,e"
                 )
                 
-                fomp_sheet = input_data.get("3_2_Definition_FOMP")
+                fomp_sheet = all_excel_data.get("3_2_Definition_FOMP")
                 is_fomp_process = False
                 if fomp_sheet is not None:
                     fomp_processes = fomp_sheet[fomp_sheet["Process_ID"] == process_id]
@@ -137,7 +151,7 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
     mfa_system.Initialize_StockValues()
     print("--> Stock values initialized.")
 
-    return mfa_system, input_data
+    return mfa_system, all_excel_data
 
 
 def create_dynamic_tc_parameters(dynamic_tc_data, time_vector):
