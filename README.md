@@ -20,8 +20,9 @@ BioDYM is a comprehensive Material Flow Analysis (MFA) tool designed for analyzi
 git clone https://github.com/yourusername/Biodym_JS.git
 cd Biodym_JS
 
-# Install dependencies
-pip install -r biodym_mfa_tool/requirements.txt
+# Create a virtual env and install deps with uv
+uv venv && source .venv/bin/activate
+uv sync
 ```
 
 ### 2. Prepare Your Data
@@ -39,11 +40,11 @@ cp biodym_mfa_tool/data/01_input/BioDYM_MFA_Input_Template.xlsx my_analysis.xlsx
 ### 3. Run Your Analysis
 
 ```bash
-# Using the command line (recommended for beginners)
-python biodym_mfa_tool/src/main_cli.py --input my_analysis.xlsx
+# Using the command line (recommended)
+uv run python biodym_mfa_tool/src/main_cli.py --input my_analysis.xlsx
 
 # Or use Jupyter for interactive analysis
-jupyter notebook
+uv run jupyter notebook
 # Then open biodym_mfa_tool/BioDYM_MFA_Analysis.py
 ```
 
