@@ -1,5 +1,7 @@
 # Configuration Sheet Analysis - 0_Configuration
 
+Note: Examples and filenames used here are illustrative. Actual filenames and sheet counts may vary between studies; use your local Excel input file as the source of truth.
+
 ## 📋 Overview
 
 **Sheet Name**: `0_Configuration`  

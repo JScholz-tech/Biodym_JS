@@ -21,26 +21,19 @@ Environment → Processing → Food
 
 This represents biomass being harvested, processed into food, with some waste that returns to the environment.
 
-## Step 1: Install BioDYM
+## Step 1: Set Up with uv
 
-### Option A: Using Anaconda (Recommended)
+Use uv to manage the environment and dependencies from `pyproject.toml` and `uv.lock`.
 
-1. Download and install [Anaconda](https://www.anaconda.com/download)
-2. Open Anaconda Prompt (Windows) or Terminal (Mac/Linux)
-3. Navigate to the BioDYM folder:
-   ```bash
-   cd path/to/Biodym_JS
-   ```
-4. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-### Option B: Using Python
-
-If you already have Python 3.8+ installed:
 ```bash
-pip install -r requirements.txt
+# Navigate to your project folder
+cd path/to/Biodym_JS
+
+# Install and lock dependencies into .venv (creates it if missing)
+uv sync
+
+# (Optional) ensure Python 3.13 is available
+# uv python install cpython-3.13
 ```
 
 ## Step 2: Prepare Your Data
@@ -90,7 +83,7 @@ This means:
 
 2. **Run BioDYM**:
    ```bash
-   python biodym_mfa_tool/src/main_cli.py --input my_first_analysis.xlsx
+   uv run python biodym_mfa_tool/src/main_cli.py --input my_first_analysis.xlsx
    ```
 
 3. **Wait for completion**. You'll see:
@@ -101,11 +94,12 @@ This means:
 ### Using Jupyter (More Interactive)
 
 1. **Start Jupyter**:
-   ```bash
-   jupyter notebook
-   ```
+    ```bash
+   uv run jupyter lab
+    ```
 
-2. **Navigate to**: `biodym_mfa_tool/BioDYM_MFA_Analysis.py`
+2. **Open**: `biodym_mfa_tool/BioDYM_Scientific_Notebook.ipynb`  
+   (paired source: `biodym_mfa_tool/BioDYM_Scientific_Notebook.py`)
 
 3. **Copy the code sections** into notebook cells
 
@@ -181,21 +175,20 @@ Change the TC values to model different scenarios:
 
 Add the `--monte-carlo` flag:
 ```bash
-python biodym_mfa_tool/src/main_cli.py --input my_first_analysis.xlsx --monte-carlo --iterations 100
+uv run python biodym_mfa_tool/src/main_cli.py --input my_first_analysis.xlsx --monte-carlo --iterations 100
 ```
 
 ## Next Steps
 
 1. **Try modifying** the example data to see how results change
-2. **Read** the [Excel Template Guide](EXCEL_TEMPLATE_GUIDE.md) for advanced features
+2. **Read** the [Essential Knowledge Summary](ESSENTIAL_KNOWLEDGE_SUMMARY.md) for architecture & workflow
 3. **Explore** other examples in the `basic_examples` folder
 4. **Create** your own system using the template generator
 
 ## Getting Help
 
-- **Mass balance errors?** See [Troubleshooting](TROUBLESHOOTING.md)
-- **Excel structure questions?** See [Excel Template Guide](EXCEL_TEMPLATE_GUIDE.md)
-- **Moving from old notebooks?** See [Migration Guide](MIGRATION_GUIDE.md)
+- **Mass balance checks & plots?** See [Essential Knowledge Summary](ESSENTIAL_KNOWLEDGE_SUMMARY.md)
+- **In-depth analysis docs?** See [Analysis Docs Index](toc_analysis/README.md)
 
 ## Tips for Success
 

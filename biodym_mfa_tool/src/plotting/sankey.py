@@ -253,7 +253,7 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
                 
         except Exception as e:
             print(f"❌ Export failed: {e}")
-            print("💡 Make sure kaleido is installed: pip install kaleido")
+            print("💡 Ensure 'kaleido' is available (uv sync)")
             import traceback
             traceback.print_exc()
 

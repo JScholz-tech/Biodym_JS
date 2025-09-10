@@ -188,5 +188,5 @@ fig.write_image("circular_sankey.svg", width=1200, height=800)
 ## 📚 Further Reading
 
 - [Plotly Sankey Documentation](https://plotly.com/python/sankey-diagram/)
-- [BioDYM MFA Tool Documentation](../manuscript_documentation.md)
-- [Configuration Guide](../ESSENTIAL_KNOWLEDGE_SUMMARY.md)
+- [BioDYM MFA Tool Documentation](manuscript_documentation.md)
+- [Configuration Guide](ESSENTIAL_KNOWLEDGE_SUMMARY.md)

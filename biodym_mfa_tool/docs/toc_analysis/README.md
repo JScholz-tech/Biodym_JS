@@ -82,17 +82,17 @@ docs/toc_analysis/
 6. **Configuration**: 91% configured (21/23 settings)
 7. **Function Usage Rate**: 86% (6/7 modules used)
 
-### 🎯 Cleanup Recommendations
+### 🎯 Cleanup Recommendations (Revised)
 
 #### **Immediate Actions (High Priority)**
-1. **Remove `config` module import** - Never used, safe to remove
-2. **Clean up Excel file** - Remove 5 empty sheets
-3. **Update configuration sheet** - Fix placeholder values
+1. **Keep `config` module** - It is actively used to load settings from Excel in `src/main.py`, `src/main_cli.py`, and `engine/mc_simulation.py`.
+2. **Clean up Excel file** - Remove confirmed-empty sheets in example files to reduce size and confusion.
+3. **Update configuration sheet** - Fix placeholder values; ensure examples match the loader expectations.
 
 #### **Optimization Actions (Medium Priority)**
-1. **Implement lazy imports** - Import modules only when needed
-2. **Consolidate plotting functions** - Reduce function duplication
-3. **Add configuration integration** - Use config sheet instead of hardcoded values
+1. **Implement lazy imports** - Import heavy modules only when needed.
+2. **Consolidate plotting functions** - Reduce function duplication.
+3. **Strengthen configuration integration** - Prefer Excel-driven settings over hardcoded values.
 
 ### 📋 Recent Additions
 
@@ -105,11 +105,10 @@ docs/toc_analysis/
 
 ### 🚀 Next Steps
 
-1. **Implement cleanup** - Remove unused `config` module
-2. **Clean up Excel file** - Remove 5 empty sheets
-3. **Optimize imports** - Consider lazy loading for better performance
-4. **Integrate configuration** - Use config sheet instead of hardcoded values
-5. **Prepare for publication** - Clean, optimized codebase
+1. **Ensure configuration integration** - Confirm `config`-based settings are used across entry points.
+2. **Clean up Excel file** - Remove 5 empty sheets in examples and validate loading.
+3. **Optimize imports** - Consider lazy loading for better performance.
+4. **Prepare for publication** - Clean, optimized codebase.
 
 ---
 

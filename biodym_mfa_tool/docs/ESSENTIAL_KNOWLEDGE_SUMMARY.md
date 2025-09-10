@@ -94,8 +94,8 @@
 ## 📁 **File Organization**
 
 ### **Main Files:**
-- `BioDYM_Scientific_Notebook.py` - Main workflow (675 lines)
-- `data/01_input/250813_CS1_simple_V1.xlsx` - Primary input file (22 sheets)
+- `BioDYM_Scientific_Notebook.ipynb` / `.py` - Main workflow
+- Your input Excel file in `data/01_input/` (structure per template)
 - `src/` - Core Python modules
 - `docs/toc_analysis/` - Complete analysis documentation
 
@@ -129,7 +129,7 @@
 - ✅ **Test Suite Fixes** - Import errors resolved, critical tests passing
 
 ### **Current Status:**
-- **Excel File**: 21 sheets (5 empty chapter sheets, no cleanup needed)
+- **Excel File**: Example files may include chapter/empty sheets used for guidance
 - **Test Suite**: 52 tests ready for validation
 - **Core Functions**: FOMP, data loading, configuration all working
 - **Code Quality**: Significantly improved with cleanup

@@ -8,11 +8,11 @@
 
 ## 🧹 **Cleanup Actions Completed**
 
-### **1. Removed Unused `config` Import**
-- **File**: `BioDYM_Scientific_Notebook.py`
-- **Action**: Removed `import config` from line 66
-- **Impact**: Eliminated unused module import
-- **Risk**: ✅ **LOW** - Module was never called
+### **1. Configuration Module Status (Revised)**
+- **Files**: `src/main.py`, `src/main_cli.py`, `engine/mc_simulation.py`
+- **Action**: Confirmed active usage of `config` to load Excel-based settings
+- **Impact**: Configuration is now the canonical source for run settings
+- **Risk**: ✅ **LOW** - Keep module; do not remove
 
 ### **2. Removed Legacy Functions from Plotting Module**
 - **File**: `src/plotting/__init__.py`

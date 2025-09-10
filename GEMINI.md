@@ -24,14 +24,10 @@
 ## B. Development Environment & Setup
 
 6.  **Python Version:** Python 3.13.x (or newer)
-7.  **Dependency Manager:** `uv` (recommended) or `pip`
-8.  **Install Dependencies:** This project has a two-step installation. Run both commands in your virtual environment:
+7.  **Dependency Manager:** `uv` (canonical)
+8.  **Install Dependencies:** Use uv to resolve and install from `pyproject.toml` + `uv.lock`:
     ```bash
-    # 1. Install main tool dependencies
-    uv pip install -r biodym_mfa_tool/requirements.txt
-
-    # 2. Install ODYM framework dependencies
-    uv pip install -r biodym_mfa_tool/framework/ODYM-master_20241127/Requirements.txt
+    uv sync
     ```
 9.  **Environment Variables:** None required.
 10. **External Services:** None required.
@@ -90,9 +86,9 @@
 *   **Last Activity:** Code cleanup and documentation consolidation (2025-08-11).
 *   **Next Steps:**
     1.  Perform a file audit to identify and remove unnecessary files from the repository.
-    2.  Future cleanup: Consolidate the two `requirements.txt` files into a single file.
+    2.  Ensure all dependencies are captured in `pyproject.toml`; manage changes with `uv add` and lock updates with `uv sync`.
 *   **Key Commands:**
-    *   **Run Application:** Open and execute the cells in `biodym_mfa_tool/BioDYM_Scientific_Notebook.ipynb` using a Jupyter environment (e.g., Jupyter Lab, VS Code).
-    *   **Run Tests:** `pytest`
+*   **Run Application:** Open and execute the cells in `biodym_mfa_tool/BioDYM_Scientific_Notebook.ipynb` (launch with `uv run jupyter lab` or `uv run jupyter notebook`).
+*   **Run Tests:** `uv run pytest`
     *   **Format Code:** `ruff format .`
     *   **Lint Code:** `ruff check .`

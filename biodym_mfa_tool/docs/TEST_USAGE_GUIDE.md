@@ -5,10 +5,10 @@ This guide explains how to effectively use the comprehensive test suite to valid
 
 ## 🧪 **Test Suite Overview**
 
-### **Total Tests**: 52 tests across 3 categories
-- **Unit Tests**: 35 tests (individual functions)
-- **Integration Tests**: 18 tests (end-to-end workflows)
-- **Workflow Tests**: 7 tests (user scenarios)
+### **Test Categories** (counts vary by branch)
+- **Unit Tests**: individual functions
+- **Integration Tests**: end-to-end workflows
+- **Workflow Tests**: user scenarios
 
 ### **Test Files Structure:**
 ```
@@ -35,56 +35,54 @@ test/
 
 ### **1. Comprehensive Testing (All Functions)**
 ```bash
-# Run all 52 tests with verbose output
-python -m pytest test/ -v --tb=short
+# Run all tests with verbose output (from the project root)
+uv run pytest -v --tb=short
 
 # Run with coverage report
-python -m pytest test/ --cov=src --cov-report=html
+uv run pytest --cov=src --cov-report=html
 
 # Run with detailed failure information
-python -m pytest test/ -v -s --tb=long
+uv run pytest -v -s --tb=long
 ```
 
 ### **2. Category-Based Testing (Targeted)**
 ```bash
 # Test only core calculation functions
-python -m pytest test/test_fomp_model.py test/test_data_loader.py test/test_solver.py -v
+uv run pytest test/test_fomp_model.py test/test_data_loader.py test/test_solver.py -v
 
 # Test only plotting functionality
-python -m pytest test/unit/test_plotting.py -v
+uv run pytest test/unit/test_plotting.py -v
 
 # Test only integration scenarios
-python -m pytest test/integration/ -v
+uv run pytest test/integration/ -v
 
 # Test only workflow processes
-python -m pytest test/workflow/ -v
+uv run pytest test/workflow/ -v
 ```
 
 ### **3. Specific Function Testing (Debugging)**
 ```bash
 # Test specific test function
-python -m pytest test/test_fomp_model.py::test_calculate_fomp_simple_decay -v
+uv run pytest test/test_fomp_model.py::test_calculate_fomp_simple_decay -v
 
 # Test with detailed output and no capture
-python -m pytest test/test_data_loader.py -v -s
+uv run pytest test/test_data_loader.py -v -s
 
 # Test with maximum verbosity
-python -m pytest test/test_system_setup.py -vvv
+uv run pytest test/test_system_setup.py -vvv
 ```
 
 ### **4. Performance & Debugging Testing**
 ```bash
 # Run tests with timing information
-python -m pytest test/ --durations=10
+uv run pytest test/ --durations=10
 
 # Run tests and stop on first failure
-python -m pytest test/ -x
+uv run pytest test/ -x
 
 # Run tests and show local variables on failure
-python -m pytest test/ -l
+uv run pytest test/ -l
 
-# Run tests with memory profiling
-python -m pytest test/ --memray
 ```
 
 ## 📊 **Test Categories & When to Use Them**
@@ -126,40 +124,40 @@ python -m pytest test/ --memray
 ### **Phase 1: Validate Critical Fixes (Immediate)**
 ```bash
 # Test FOMP fix (your recent error resolution)
-python -m pytest test/test_fomp_model.py -v
+uv run pytest test/test_fomp_model.py -v
 
 # Test data loading (Excel configuration integration)
-python -m pytest test/test_data_loader.py -v
+uv run pytest test/test_data_loader.py -v
 
 # Test system setup (core functionality)
-python -m pytest test/test_system_setup.py -v
+uv run pytest test/test_system_setup.py -v
 ```
 
 ### **Phase 2: Validate Core Functions (This Week)**
 ```bash
 # Test all core calculation functions
-python -m pytest test/test_fomp_model.py test/test_data_loader.py test/test_solver.py test/test_system_setup.py -v
+uv run pytest test/test_fomp_model.py test/test_data_loader.py test/test_solver.py test/test_system_setup.py -v
 
 # Test plotting functions
-python -m pytest test/unit/test_plotting.py -v
+uv run pytest test/unit/test_plotting.py -v
 ```
 
 ### **Phase 3: Validate Integration (Next Week)**
 ```bash
 # Test complete workflows
-python -m pytest test/integration/ -v
+uv run pytest test/integration/ -v
 
 # Test user scenarios
-python -m pytest test/workflow/ -v
+uv run pytest test/workflow/ -v
 ```
 
 ### **Phase 4: Full Validation (Before Publication)**
 ```bash
 # Run all tests with coverage
-python -m pytest test/ -v --cov=src --cov-report=html
+uv run pytest test/ -v --cov=src --cov-report=html
 
 # Generate test report
-python -m pytest test/ --html=test_report.html --self-contained-html
+uv run pytest test/ --html=test_report.html --self-contained-html
 ```
 
 ## 🚨 **Common Test Issues & Solutions**

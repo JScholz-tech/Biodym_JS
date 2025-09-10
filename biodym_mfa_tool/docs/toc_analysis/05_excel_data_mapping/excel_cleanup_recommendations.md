@@ -1,4 +1,6 @@
-# Excel File Cleanup Recommendations - 250813_CS1_simple_V1.xlsx
+# Excel File Cleanup Recommendations (example)
+
+Note: References to specific example files are illustrative; adapt to your current Excel input file.
 
 ## 📋 Overview
 

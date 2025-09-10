@@ -8,9 +8,8 @@
 
 ## 🧪 **Test Suite Current Status**
 
-### **Overall Health:**
-- **Total Tests**: 52 tests collected
-- **Test Types**: Unit, Integration, Workflow
+- **Overall Health:**
+- **Test Types**: Unit, Integration, Workflow (counts vary by branch)
 - **Critical Tests**: ✅ **PASSING** (FOMP, Data Loader)
 - **Import Issues**: ✅ **FIXED** (plotting module)
 
@@ -31,20 +30,20 @@
   - `test_load_fomp_parameters_parsing` ✅
 
 #### **2. System Tests (Important)**
-- **`test_solver.py`** - 2 tests (DSM calculations)
-- **`test_system_setup.py`** - 7 tests (system initialization)
+- **`test_solver.py`** - DSM calculations
+- **`test_system_setup.py`** - system initialization
 
 #### **3. Integration Tests (Comprehensive)**
-- **`test_comprehensive_features.py`** - 5 tests (full workflow)
-- **`test_enhanced_plotting.py`** - 12 tests (plotting integration)
-- **`test_golden_dataset.py`** - 1 test (golden dataset)
+- **`test_comprehensive_features.py`** - full workflow
+- **`test_enhanced_plotting.py`** - plotting integration
+- **`test_golden_dataset.py`** - golden dataset
 
 #### **4. Unit Tests (Specific)**
-- **`test_utils.py`** - 7 tests (utility functions)
-- **`test_plotting.py`** - 16 tests (plotting functions)
+- **`test_utils.py`** - utility functions
+- **`test_plotting.py`** - plotting functions
 
 #### **5. Workflow Tests (User Scenarios)**
-- **`test_setup.py`** - 7 tests (setup workflow)
+- **`test_setup.py`** - setup workflow
 
 ## 🎯 **Test Suite Assessment**
 
@@ -83,7 +82,7 @@
 
 ### **1. Run Full Test Suite**
 ```bash
-python -m pytest test/ -v --tb=short
+uv run pytest -v --tb=short
 ```
 
 ### **2. Focus on Critical Tests**
@@ -100,18 +99,18 @@ python -m pytest test/ -v --tb=short
 ## 📊 **Test Coverage Analysis**
 
 ### **High Coverage Areas:**
-- **FOMP Calculations** - 100% (5/5 tests passing)
-- **Data Loading** - 100% (4/4 tests passing)
-- **Plotting Functions** - Good coverage (16 tests)
+- **FOMP Calculations** - strong coverage
+- **Data Loading** - strong coverage
+- **Plotting Functions** - good coverage
 
 ### **Medium Coverage Areas:**
-- **System Setup** - 7 tests
-- **Solver Engine** - 2 tests
-- **Integration** - 18 tests
+- **System Setup**
+- **Solver Engine**
+- **Integration**
 
 ### **Lower Coverage Areas:**
-- **Utility Functions** - 7 tests
-- **Workflow Scenarios** - 7 tests
+- **Utility Functions**
+- **Workflow Scenarios**
 
 ## 🎉 **Current Success Status**
 
@@ -122,7 +121,7 @@ python -m pytest test/ -v --tb=short
 4. **Import Structure** - All critical imports working
 
 ### **🚀 Ready for Testing:**
-1. **Full Test Suite** - All 52 tests should now run
+1. **Full Test Suite** - All collected tests should now run
 2. **Core Functionality** - FOMP, data loading, configuration
 3. **Integration** - End-to-end workflow validation
 

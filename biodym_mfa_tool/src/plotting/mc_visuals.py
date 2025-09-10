@@ -116,7 +116,7 @@ def plot_interactive_mc_histogram(mc_results_df):
             print(f"✅ Plot exported successfully to: {filename}")
         except Exception as e:
             print(f"❌ Export failed: {e}")
-            print("   Please ensure you have 'kaleido' installed (`pip install kaleido`).")
+            print("   Ensure 'kaleido' is available (uv sync).")
 
     # --- Link Widgets and Display ---
     stock_dropdown.observe(update_plot, names='value')
@@ -199,7 +199,7 @@ def plot_interactive_tornado(mc_results_df):
             print(f"✅ Plot exported successfully to: {filename}")
         except Exception as e:
             print(f"❌ Export failed: {e}")
-            print("   Please ensure you have 'kaleido' installed (`pip install kaleido`).")
+            print("   Ensure 'kaleido' is available (uv sync).")
 
     # --- Link Widgets and Display ---
     output_dropdown.observe(update_plot, names='value')

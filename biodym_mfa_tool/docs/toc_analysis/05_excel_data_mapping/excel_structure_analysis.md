@@ -1,4 +1,6 @@
-# Excel File Structure Analysis - 250813_CS1_simple_V1.xlsx
+# Excel File Structure Analysis (example)
+
+Note: This analysis uses an example Excel file name; your active file may differ. The sheet structure and mappings remain applicable.
 
 ## 📊 File Overview
 

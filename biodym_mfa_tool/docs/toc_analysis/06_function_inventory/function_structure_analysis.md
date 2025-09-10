@@ -46,7 +46,8 @@ src/
 - `create_config_object(config_dict)` - Create config object from dict
 - `load_configuration(excel_file_path=None)` - Load config with fallback
 
-#### **Status**: ❌ **IMPORTED BUT NEVER USED** in Scientific Notebook
+#### **Status**: ✅ **USED** in entry points and MC simulation
+The configuration module is actively used by `src/main.py`, `src/main_cli.py`, and `engine/mc_simulation.py` to load settings from Excel and drive model behavior.
 
 ### **2. data_loader.py (9329 bytes)**
 **Purpose**: Load and process data from Excel files
@@ -130,7 +131,7 @@ src/
 6. **run_mc_simulation()** (1 function) - Step 4
 
 ### **Functions Imported but Never Used:**
-1. **config.*** (4 functions) - ❌ NEVER USED
+None critical. The `config` module is used to load Excel-based settings.
 
 ### **Functions Available but Not Imported:**
 1. **utils.sample_parameters()** - Parameter sampling for MC
@@ -140,11 +141,11 @@ src/
 
 ## 🚨 **Current Issues**
 
-### **1. Configuration Integration Gap**
+### **1. Configuration Integration Status (Revised)**
 - **Excel config sheet**: 30 settings available
-- **config module**: Functions to read Excel config
-- **Notebook**: Hardcoded values instead of using config
-- **Result**: Configuration sheet ignored, config module unused
+- **config module**: Used to read Excel config (active)
+- **Notebook/CLI**: Import and use config; continue to reduce any remaining hardcoded defaults
+- **Result**: Configuration sheet drives settings; minimize legacy hardcoding
 
 ### **2. Import Organization**
 - **All modules imported at start** - No lazy loading
@@ -207,9 +208,8 @@ def run_calculation():
 ## 🚀 **Next Steps for Cleanup**
 
 ### **Phase 1: Remove Unused Code**
-1. **Remove `config` import** from notebook
-2. **Remove legacy functions** from plotting/__init__.py
-3. **Clean up duplicate functions** in utils.py
+1. **Remove legacy plotting functions** already deprecated
+2. **Clean up duplicate functions** in utils.py
 
 ### **Phase 2: Optimize Imports**
 1. **Implement lazy imports** for heavy modules

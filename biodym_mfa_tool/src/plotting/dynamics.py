@@ -229,7 +229,7 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
             print(f"✅ Plot exported to: {filepath}")
         except Exception as e:
             print(f"⚠️ Export failed: {e}")
-            print("💡 Make sure Kaleido is installed: pip install kaleido")
+            print("💡 Ensure 'kaleido' is available (uv sync)")
 
     export_button.on_click(lambda b: export_plot())
 
@@ -446,7 +446,7 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
             
         except Exception as e:
             print(f"❌ Export failed: {e}")
-            print("💡 Make sure kaleido is installed: pip install kaleido")
+            print("💡 Ensure 'kaleido' is available (uv sync)")
 
     # Create enhanced widgets
     process_dropdown = Dropdown(
