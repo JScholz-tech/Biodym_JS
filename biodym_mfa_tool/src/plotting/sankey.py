@@ -151,81 +151,54 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
                 fig.data[0].node.label = []
             return
 
-        # Create process mapping
-        label_map = {
-            p.ID: i
-            for i, p in enumerate(mfa_system_results.ProcessList)
-            if p.Name in processes_to_show
-        }
-        filtered_labels = list(processes_to_show)
+        # --- STABLE LAYOUT CALCULATION ---
+        # First, determine the stable set of processes and flows for layout
+        filtered_processes = [p for p in mfa_system_results.ProcessList if p.Name in processes_to_show]
+        process_id_map = {p.ID: i for i, p in enumerate(filtered_processes)}
+        
+        # Layout should be based on all flows between selected processes, regardless of year
+        layout_flows = [f for f in all_flows if f.P_Start in process_id_map and f.P_End in process_id_map]
+        
+        # Calculate node positions ONCE based on the stable topology
+        node_positions = _calculate_node_positions(filtered_processes, layout_flows)
+        node_x_positions = [node_positions.get(p.ID, 0.5) for p in filtered_processes]
 
+        # --- DYNAMIC VALUE FILTERING ---
+        # Now, filter flows for the specific year and value threshold for display
         year_index = time_items.index(year)
         element_index = element_items.index(element)
-
-        # Get candidate flows
-        candidate_flows = [
-            f for f in all_flows if f.P_Start in label_map and f.P_End in label_map
-        ]
-
-        # Filter flows based on threshold
         final_flows = [
-            f
-            for f in candidate_flows
+            f for f in layout_flows
             if f.Values[year_index, element_index] >= min_flow_value
         ]
 
         with fig.batch_update():
+            # Set node properties (positions are now stable)
+            fig.data[0].node.label = [p.Name for p in filtered_processes]
+            fig.data[0].node.x = node_x_positions
+            node_colors = [process_colors.get(get_process_type(p.ID), '#888') for p in filtered_processes]
+            fig.data[0].node.color = node_colors
+
             if not final_flows:
-                fig.data[0].node.label = filtered_labels
-                fig.data[0].node.color = []
                 fig.data[0].link.source = []
                 fig.data[0].link.target = []
                 fig.data[0].link.value = []
-                fig.data[0].link.color = []
             else:
-                # Calculate flow values
+                # Set link properties for the visible flows
                 flow_values = [f.Values[year_index, element_index] for f in final_flows]
-                
-                # Set node colors based on process type
-                node_colors = []
-                for process_name in filtered_labels:
-                    process_id = next(p.ID for p in mfa_system_results.ProcessList if p.Name == process_name)
-                    process_type = get_process_type(process_id)
-                    node_colors.append(process_colors.get(process_type, process_colors['Regular']))
-                
-                # Set link colors based on element
                 link_colors = [element_colors.get(element, '#1f77b4')] * len(final_flows)
-                
-                # --- Automatic Layout Calculation ---
-                filtered_processes = [p for p in mfa_system_results.ProcessList if p.Name in filtered_labels]
-                node_positions = _calculate_node_positions(filtered_processes, final_flows)
-                
-                # Map positions to the order of labels
-                node_x_positions = [node_positions.get(p.ID, 0.5) for p in filtered_processes]
+                custom_data = [f.Name for f in final_flows]
 
-                fig.data[0].node.label = filtered_labels
-                fig.data[0].node.color = node_colors
-                fig.data[0].node.x = node_x_positions # Apply calculated x-positions
-                
-                fig.data[0].link.source = [label_map[f.P_Start] for f in final_flows]
-                fig.data[0].link.target = [label_map[f.P_End] for f in final_flows]
+                fig.data[0].link.source = [process_id_map[f.P_Start] for f in final_flows]
+                fig.data[0].link.target = [process_id_map[f.P_End] for f in final_flows]
                 fig.data[0].link.value = flow_values
                 fig.data[0].link.color = link_colors
+                fig.data[0].link.customdata = custom_data
+                fig.data[0].link.hovertemplate = 'Flow: %{customdata}<br />Source: %{source.label}<br />Target: %{target.label}<br />Value: %{value}<extra></extra>'
 
-            # Update layout with proper zoom and frame controls
+            # Update layout title
             title_text = f"Material Flow Sankey - {element.upper()} ({year})"
-            
-            fig.update_layout(
-                title_text=title_text,
-                font_size=12,
-                height=900,  # Reduced height
-                width=1400,  # Reduced width
-                margin=dict(l=100, r=100, b=100, t=120),  # Reduced margins
-                dragmode='pan',
-                hovermode='closest',
-                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)
-            )
+            fig.update_layout(title_text=title_text)
 
     def export_plot():
         """Export the current plot as PNG with organized folder structure"""
