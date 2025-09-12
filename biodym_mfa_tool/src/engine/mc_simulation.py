@@ -211,25 +211,35 @@ def run_mc_simulation(
                     if stock_name in mfa_system_iter.StockDict:
                         mfa_system_iter.StockDict[stock_name].Values[0, 0] = val
         
-        # Apply TC updates with mass balance normalization
+        # Apply sampled values and identify processes with TC updates
+        processes_with_tc_updates = set()
         for tc_name, tc_value in tc_updates.items():
             try:
-                # Extract process ID from TC name (e.g., TC_05_06 -> process 5)
                 process_id = int(tc_name.split('_')[1])
-                
-                # Normalize TCs for this process to ensure mass balance
-                normalized_tcs = normalize_tcs_for_process(mfa_system_iter, process_id, tc_name, tc_value)
-                
-                # Update iter_params with normalized values
-                for norm_tc_name, norm_tc_value in normalized_tcs.items():
-                    iter_params[norm_tc_name] = norm_tc_value
-                    
-            except (ValueError, IndexError):
-                # Fallback: direct assignment without normalization
+                processes_with_tc_updates.add(process_id)
+                # Find the correct flow and update its TC value directly for now
                 for flow in mfa_system_iter.FlowDict.values():
                     if flow.Name == tc_name:
                         flow.TC = np.array([tc_value])
                         break
+            except (ValueError, IndexError):
+                pass # Should not happen if validation is correct
+
+        # After all TCs for this iteration are updated, normalize them process by process
+        for process_id in processes_with_tc_updates:
+            process_flows = [f for f in mfa_system_iter.FlowDict.values() if f.P_Start == process_id]
+            if len(process_flows) > 1:
+                # Get the newly updated TC values for this process
+                current_tcs = {f.Name: f.TC[0] for f in process_flows if hasattr(f, 'TC') and len(f.TC) > 0}
+                total_tc = sum(current_tcs.values())
+
+                if total_tc > 0:
+                    # Normalize and update the flows and iter_params
+                    for flow in process_flows:
+                        if flow.Name in current_tcs:
+                            normalized_value = current_tcs[flow.Name] / total_tc
+                            flow.TC = np.array([normalized_value])
+                            iter_params[flow.Name] = normalized_value # Update for results logging
 
         mfa_results_iter, _ = solver.run_mfa_calculation(
             mfa_system_iter, dsm_params, fomp_params, config

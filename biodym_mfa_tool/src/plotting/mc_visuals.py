@@ -55,6 +55,9 @@ def plot_interactive_mc_histogram(mc_results_df):
 
         with fig_widget.batch_update():
             fig_widget.data = [] # Clear previous traces
+            fig_widget.layout.shapes = [] # Clear previous shapes (the mean line)
+            fig_widget.layout.annotations = [] # Clear previous annotations (the mean text)
+
             if col_name not in mc_results_df.columns:
                 fig_widget.update_layout(title_text=f"No data available for {col_name}")
                 return

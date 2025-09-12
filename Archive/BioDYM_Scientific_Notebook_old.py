@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*- 
-# ---
+# --- 
 # jupyter:
 #   jupytext:
 #     text_representation:
@@ -11,7 +11,7 @@
 #     display_name: Python 3
 #     language: python
 #     name: python3
-# ---
+# --- 
 
 # # BioDYM Material Flow Analysis - Scientific Notebook
 # 
@@ -24,10 +24,10 @@
 # 1. **Setup and Data Loading** - Prepare environment and load input data
 # 2. **Calculation & Validation** - Execute MFA analysis and verify results
 # 3. **Visualization** - Comprehensive analysis and exploration
-# 4. **Scenario & Uncertainty Manager** - (Optional) Compare scenarios and run Monte Carlo analysis
-# 5. **Data Export** - Save results and generate documentation
+# 4. **Scenario Analysis** - (Optional) Compare a scenario against the baseline
+# 5. **Export** - Save results and generate documentation
 # 
-# ---
+# --- 
 
 # # 1. Setup and Data Loading
 # 
@@ -136,12 +136,13 @@ print(f"🎭 Scenario Analysis: {'Enabled' if run_scenario else 'Disabled'}")
 if run_scenario:
     print(f"   -> Selected Scenario: '{selected_scenario}'")
 
-# # 2. Calculation and Validation
+# # 2. Baseline Calculation & Validation
 
-# ## 2.1 Model Initialization & Calculation
 print("\n" + "="*60)
 print("🚀 RUNNING BASELINE MFA CALCULATION")
 print("="*60)
+
+# ## 2.1 Model Initialization
 
 print("📋 Setting up model scope...")
 model_classification, index_table = system_setup.define_model_scope(start_year, end_year, elements)
@@ -149,6 +150,7 @@ model_classification, index_table = system_setup.define_model_scope(start_year, 
 print("🔧 Initializing MFA system...")
 mfa_system_base = system_setup.initialize_mfa_system(model_classification, index_table)
 
+# We pass the already loaded `input_data` to this function, no need to read the file again.
 print("📊 Loading processes and data...")
 mfa_system_base, all_excel_data = system_setup.load_and_define_processes(mfa_system_base, input_data, data_loader)
 
@@ -159,6 +161,8 @@ if config_obj.RUN_FOMP_CALCULATION:
 else:
     fomp_params = {}
 uncertainty_params = data_loader.load_uncertainty_definitions(all_excel_data)
+
+# ## 2.2 Baseline Calculation Execution
 
 print("🔗 Defining flows and parameters...")
 mfa_system_configured, _ = system_setup.define_flows_and_parameters(mfa_system_base, all_excel_data)
@@ -175,7 +179,7 @@ print("🧮 Running baseline calculation...")
 mfa_results_baseline, dsm_details_baseline = solver.run_mfa_calculation(mfa_system_configured, dsm_params, fomp_params, config_obj)
 print("✅ Baseline calculation completed successfully!")
 
-# ## 2.2 Mass Balance Validation
+# ## 2.3 Mass Balance Validation
 
 print("\n" + "="*60)
 print("⚖️ MASS BALANCE VERIFICATION (BASELINE)")
@@ -183,26 +187,7 @@ print("="*60)
 plotting.plot_total_mass_balance_error(mfa_results_baseline)
 plotting.plot_optimized_mass_balance_error(mfa_results_baseline)
 
-# ## 2.3 System Flow Diagram (Graphviz)
-print("\n--- System Flow Diagram (Graphviz) ---")
-try:
-    from plotting.graphviz_flow_charts import plot_graphviz_flow_chart_sankey_style
-    
-    # Get the required dataframes from the loaded data
-    processes_data = all_excel_data['2_1_Definition_Processes']
-    flows_data = all_excel_data['1_1_Definition_Flows']
-    
-    # Generate and display the chart
-    dot_chart = plot_graphviz_flow_chart_sankey_style(processes_data, flows_data)
-    if dot_chart:
-        display(dot_chart)
-        print("✅ Graphviz chart created successfully!")
-except ImportError:
-    print("⚠️ Graphviz library not found. Skipping this plot.")
-except Exception as e:
-    print(f"⚠️ Graphviz chart failed: {e}")
-
-# # 3. Visualization
+# # 3. Baseline Visualization
 
 print("\n" + "="*60)
 print("📊 VISUALIZATION (BASELINE)")
@@ -238,9 +223,27 @@ if dsm_params and dsm_details_baseline:
 if fomp_params:
     plotting.plot_fomp_stock_details(mfa_results_baseline, fomp_params)
 
-# # 4. Scenario & Uncertainty Manager
+# ## 3.4 System Flow Diagram (Graphviz)
+print("\n--- System Flow Diagram (Graphviz) ---")
+try:
+    from plotting.graphviz_flow_charts import plot_graphviz_flow_chart_sankey_style
+    
+    # Get the required dataframes from the loaded data
+    processes_data = all_excel_data['2_1_Definition_Processes']
+    flows_data = all_excel_data['1_1_Definition_Flows']
+    
+    # Generate and display the chart
+    dot_chart = plot_graphviz_flow_chart_sankey_style(processes_data, flows_data)
+    if dot_chart:
+        display(dot_chart)
+        print("✅ Graphviz chart created successfully!")
+except ImportError:
+    print("⚠️ Graphviz library not found. Skipping this plot.")
+except Exception as e:
+    print(f"⚠️ Graphviz chart failed: {e}")
 
-# ## 4.1 Scenario Analysis & Comparison
+# # 4. Scenario Analysis & Comparison
+
 if getattr(config_obj, 'Run_Scenario_Analysis', False):
     # Find all scenarios defined in the config object
     scenario_names_to_run = []
@@ -267,9 +270,11 @@ if getattr(config_obj, 'Run_Scenario_Analysis', False):
                 print(f"⚠️ WARNING: Scenario '{scenario_name}' not found in '5_1_Scenario_Manager' sheet! Skipping.")
                 continue
 
+            # Create a deep copy for each scenario run to ensure independence
             mfa_system_scenario = copy.deepcopy(mfa_system_configured)
             mfa_system_scenario = system_setup.apply_scenario(mfa_system_scenario, scenario_definitions, scenario_name)
 
+            # Run calculation with Monte Carlo disabled for the scenario
             scenario_config_obj = copy.deepcopy(config_obj)
             scenario_config_obj.RUN_MONTE_CARLO = False
             
@@ -277,6 +282,7 @@ if getattr(config_obj, 'Run_Scenario_Analysis', False):
             all_scenario_results[scenario_name] = mfa_results_scenario
             print(f"✅ Scenario '{scenario_name}' calculation completed successfully!")
 
+        # After running all scenarios, generate the comparison plot
         if all_scenario_results:
             import importlib
             importlib.reload(plotting)
@@ -289,11 +295,13 @@ if getattr(config_obj, 'Run_Scenario_Analysis', False):
                 scenario_definitions=scenario_definitions
             )
             
+            # Enhanced Sankey comparison for scenarios
             print("\n--- Enhanced Sankey Comparison ---")
             try:
                 from plotting.enhanced_sankey import plot_enhanced_sankey
                 print("🎯 Creating enhanced Sankey diagrams for scenario comparison...")
                 
+                # Show baseline with enhanced Sankey
                 print("\n📊 Baseline - Enhanced Sankey:")
                 plot_enhanced_sankey(
                     mfa_system_results=mfa_results_baseline,
@@ -302,6 +310,7 @@ if getattr(config_obj, 'Run_Scenario_Analysis', False):
                     visualization_config_path=input_file
                 )
                 
+                # Show first scenario with enhanced Sankey (if available)
                 if scenario_names_to_run:
                     first_scenario = scenario_names_to_run[0]
                     if first_scenario in all_scenario_results:
@@ -319,7 +328,19 @@ if getattr(config_obj, 'Run_Scenario_Analysis', False):
                 import traceback
                 traceback.print_exc()
 
-# ## 4.2 Monte Carlo Analysis
+
+# # 6. Export & Final Summary
+
+print("\n" + "="*60)
+print("💾 EXPORTING BASELINE RESULTS")
+print("="*60)
+
+output_file = "data/02_output/results_scientific_baseline.xlsx"
+utils.export_results_to_excel(mfa_results_baseline, output_file)
+print(f"✅ Baseline results exported to: {output_file}")
+
+# # 7. Monte Carlo Analysis (Baseline)
+
 print("\n" + "="*60)
 print("🎲 MONTE CARLO SIMULATION (BASELINE)")
 print("="*60)
@@ -340,16 +361,36 @@ if config_obj.RUN_MONTE_CARLO and '4_1_Uncertainty_Parameters' in input_data:
 else:
     print("ℹ️ Monte Carlo analysis is disabled or no uncertainty parameters are defined. Skipping.")
 
-# # 5. Data Export
-
-print("\n" + "="*60)
-print("💾 EXPORTING BASELINE RESULTS")
-print("="*60)
-
-output_file = "data/02_output/results_scientific_baseline.xlsx"
-utils.export_results_to_excel(mfa_results_baseline, output_file)
-print(f"✅ Baseline results exported to: {output_file}")
-
 print("\n" + "="*60)
 print("🎉 ANALYSIS COMPLETE")
 print("="*60)
+
+# ## 7.1 Visualization Summary
+print("\n📊 VISUALIZATION SUMMARY")
+print("="*30)
+print("✅ Traditional Sankey Diagram - Standard left-to-right flow visualization")
+print("✅ Enhanced Circular Sankey - Optimized for circular/recycling systems")
+print("✅ Process Dynamics - Inflow, stock, and outflow analysis")
+print("✅ Stock Bar Chart - Stock levels over time")
+if dsm_params and dsm_details_baseline:
+    print("✅ DSM Stock Details - Dynamic stock model analysis")
+if fomp_params:
+    print("✅ FOMP Stock Details - First-order material processing analysis")
+if config_obj.RUN_MONTE_CARLO:
+    print("✅ Monte Carlo Analysis - Uncertainty quantification")
+if getattr(config_obj, 'Run_Scenario_Analysis', False):
+    print("✅ Scenario Comparison - Multi-scenario analysis")
+
+print("\n🎯 Enhanced Sankey Features:")
+print("   - Circular layout for recycling systems")
+print("   - Custom colors and positioning from Excel configuration")
+print("   - Automatic detection of circular flows")
+print("   - Interactive controls for year, element, and process selection")
+print("   - Export functionality for high-quality visualizations")
+
+print("\n📝 Configuration:")
+print(f"   - Visualization settings: Part 6 sheets in {input_file}")
+print(f"   - Process colors: 6_1_Visualization_Processes")
+print(f"   - Flow colors: 6_2_Visualization_Flows")
+print(f"   - Layout settings: 6_3_Layout_Configuration")
+print(f"   - Element colors: 6_4_CL_Visualisation")
