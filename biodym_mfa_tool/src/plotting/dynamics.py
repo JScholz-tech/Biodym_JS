@@ -867,13 +867,7 @@ def plot_process_dynamics(mfa_system_results, process_definitions):
                 row=1,
                 col=3,
             )
-            fig.update_layout(
-                title=f"Dynamics for Process: '{process_name}' | Element: {element.upper()}",
-                height=400,
-                showlegend=False,
-            )
-            fig.update_xaxes(title_text="Year")
-            fig.update_yaxes(title_text="Mass [Mg]", row=1, col=1)
+            fig.update_yaxes(title_text="Mass [Mg]", rangemode="tozero")
 
     process_dropdown = Dropdown(
         options=list(process_options.keys()), description="Process:"

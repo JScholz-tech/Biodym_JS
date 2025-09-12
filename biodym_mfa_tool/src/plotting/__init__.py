@@ -8,7 +8,7 @@ from the `plotting` package.
 """
 
 from .sankey import plot_interactive_sankey
-from .circular_sankey import plot_circular_sankey, plot_sankey_circular
+
 from .dynamics import (
     plot_process_dynamics,
     

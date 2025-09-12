@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 """
 Enhanced Sankey Diagram Module for BioDYM MFA Tool.
@@ -5,7 +6,7 @@ Enhanced Sankey Diagram Module for BioDYM MFA Tool.
 This module provides advanced Sankey diagram functionality with support for:
 - Excel-based visualization configuration
 - Custom node positioning and styling
-- Toggling between fixed and interactive layouts
+- Toggling between fixed, auto-layout, and interactive modes
 """
 
 import collections
@@ -26,6 +27,44 @@ def _safe_float_convert(value, default=1.0):
         return float(str(value).replace(',', '.'))
     except (ValueError, TypeError):
         return default
+
+def _calculate_node_positions(processes, flows):
+    """Calculates node x-positions for a Sankey diagram using a topological sort."""
+    nodes = {p.ID for p in processes}
+    if not nodes:
+        return {}
+
+    adj = {node: [] for node in nodes}
+    in_degree = {node: 0 for node in nodes}
+
+    for flow in flows:
+        if flow.P_Start in nodes and flow.P_End in nodes:
+            adj[flow.P_Start].append(flow.P_End)
+            in_degree[flow.P_End] += 1
+
+    queue = collections.deque([node for node in nodes if in_degree[node] == 0])
+    layers = {node: 0 for node in nodes}
+    max_layer = 0
+
+    while queue:
+        u = queue.popleft()
+        for v in adj[u]:
+            in_degree[v] -= 1
+            layers[v] = max(layers.get(v, 0), layers[u] + 1)
+            max_layer = max(max_layer, layers[v])
+            if in_degree[v] == 0:
+                queue.append(v)
+    
+    remaining_nodes = [node for node in nodes if in_degree[node] > 0]
+    if remaining_nodes:
+        max_layer += 1
+        for node in remaining_nodes:
+            layers[node] = max_layer
+
+    if max_layer == 0:
+        return {node: 0.5 for node in nodes}
+    
+    return {node: 0.1 + (layers[node] / max_layer) * 0.8 for node in nodes}
 
 def load_visualization_config(excel_file_path):
     """Load visualization configuration from Excel file."""
@@ -97,8 +136,6 @@ def get_flow_visualization(flow_id, flow_name, config):
 
 def plot_enhanced_sankey(mfa_system_results, dsm_params=None, fomp_params=None, visualization_config_path=None):
     """Enhanced interactive Sankey diagram with selectable layout modes."""
-    from ipywidgets import interactive
-
     if visualization_config_path and os.path.exists(visualization_config_path):
         config = load_visualization_config(visualization_config_path)
     else:
@@ -112,29 +149,27 @@ def plot_enhanced_sankey(mfa_system_results, dsm_params=None, fomp_params=None, 
     max_flow_value = max(f.Values.max() for f in all_flows if f.Values is not None) if all_flows else 1
 
     fig = go.FigureWidget(go.Sankey(node={}, link={}))
-
     layout_settings = config.get('layout_settings', {})
+
     def _safe_int_convert(value, default=1200):
         return int(_safe_float_convert(value, default))
 
-    window_width = _safe_int_convert(layout_settings.get('Window_Width', 1200))
-    window_height = _safe_int_convert(layout_settings.get('Window_Height', 800))
-
-    fig.update_layout(
-        height=window_height, width=window_width,
-        margin=dict(l=50, r=50, t=80, b=50),
-        title=dict(text="Enhanced Sankey Diagram", font=dict(size=16), x=0.5, xanchor='center'),
-        autosize=True
-    )
-
+    # --- WIDGETS ---
     year_slider = IntSlider(min=time_items[0], max=time_items[-1], value=time_items[0], description="Year:", layout=Layout(width='300px'))
     element_dropdown = Dropdown(options=element_items, value=element_items[0], description='Element:', layout=Layout(width='200px'))
     process_selector = SelectMultiple(options=[p.Name for p in all_processes], value=[p.Name for p in all_processes], description='Processes:', layout=Layout(width='400px', height='100px'))
     min_flow_slider = FloatSlider(value=0, min=0, max=max_flow_value, step=max_flow_value / 100, description='Min Flow:', layout=Layout(width='300px'))
-    layout_dropdown = Dropdown(options=['Custom', 'Freeform'], value='Custom', description='Layout:', layout=Layout(width='150px'))
+    layout_dropdown = Dropdown(options=['Custom', 'Auto-Layout'], value='Custom', description='Layout:', layout=Layout(width='150px'))
 
+    # --- UI LAYOUT ---
+    controls = VBox([
+        HBox([year_slider, element_dropdown]),
+        HBox([process_selector, min_flow_slider]),
+        layout_dropdown
+    ])
+
+    # --- UPDATE FUNCTION ---
     def update_sankey(year, element, processes_to_show, min_flow_value, layout_type):
-        """Update the Sankey diagram based on widget values."""
         with fig.batch_update():
             if not processes_to_show:
                 fig.data[0].node.label = []
@@ -143,60 +178,49 @@ def plot_enhanced_sankey(mfa_system_results, dsm_params=None, fomp_params=None, 
 
             year_index = time_items.index(year)
             element_index = element_items.index(element)
-
             filtered_processes = [p for p in all_processes if p.Name in processes_to_show]
             process_id_to_index = {p.ID: i for i, p in enumerate(filtered_processes)}
-
             final_flows = [f for f in all_flows if f.P_Start in process_id_to_index and f.P_End in process_id_to_index and f.Values[year_index, element_index] >= min_flow_value]
 
-            node_x, node_y = None, None
-            arrangement = 'snap'
-
-            if layout_type == 'Custom':
+            if layout_type == 'Auto-Layout':
+                arrangement = 'snap'
+                layout_flows = [f for f in all_flows if f.P_Start in process_id_to_index and f.P_End in process_id_to_index]
+                node_positions = _calculate_node_positions(filtered_processes, layout_flows)
+                node_x = [node_positions.get(p.ID, 0.5) for p in filtered_processes]
+                node_y = None
+                current_pad, current_thickness = 20, 15
+                current_margin = dict(l=250, r=250, b=200, t=200)
+                current_font_size, current_hovermode, current_dragmode = 12, 'closest', 'pan'
+                show_axes = False
+            else:  # 'Custom' mode
                 arrangement = 'fixed'
                 all_positions = calculate_element_specific_positions(all_processes, config, element)
-                
-                # Auto-fit frame logic
                 padding_factor = _safe_float_convert(layout_settings.get('Padding_Factor', 0.1), 0.1)
                 zoom_factor = _safe_float_convert(layout_settings.get('Zoom_Factor', 1.0), 1.0)
                 padding = max(0.05, padding_factor / zoom_factor)
-                
                 x_values = [pos[0] for pos in all_positions.values()]
                 y_values = [pos[1] for pos in all_positions.values()]
-                min_x, max_x = min(x_values), max(x_values)
-                min_y, max_y = min(y_values), max(y_values)
-                span_x = max_x - min_x
-                span_y = max_y - min_y
-                target_span = 1.0 - 2 * padding
-                scale = min(target_span / max(span_x, 0.1), target_span / max(span_y, 0.1))
-                center_x, center_y = (min_x + max_x) / 2, (min_y + max_y) / 2
-
-                for pid, pos in all_positions.items():
-                    all_positions[pid] = (0.5 + (pos[0] - center_x) * scale, 0.5 + (pos[1] - center_y) * scale)
-
+                if x_values and y_values:
+                    min_x, max_x = min(x_values), max(x_values)
+                    min_y, max_y = min(y_values), max(y_values)
+                    span_x, span_y = max_x - min_x, max_y - min_y
+                    target_span = 1.0 - 2 * padding
+                    scale = min(target_span / max(span_x, 0.1), target_span / max(span_y, 0.1))
+                    center_x, center_y = (min_x + max_x) / 2, (min_y + max_y) / 2
+                    for pid, pos in all_positions.items():
+                        all_positions[pid] = (0.5 + (pos[0] - center_x) * scale, 0.5 + (pos[1] - center_y) * scale)
                 node_x = [all_positions.get(p.ID, (0.5, 0.5))[0] for p in filtered_processes]
                 node_y = [all_positions.get(p.ID, (0.5, 0.5))[1] for p in filtered_processes]
-
-            elif layout_type == 'Freeform':
-                arrangement = 'freeform'
+                node_scale_factor = _safe_float_convert(layout_settings.get('Node_Scale_Factor', 1.0))
+                current_pad = int(15 * zoom_factor * node_scale_factor)
+                current_thickness = int(20 * zoom_factor * node_scale_factor)
+                current_margin = dict(l=50, r=50, t=80, b=50)
+                current_font_size, current_hovermode, current_dragmode = 16, 'x', 'pan'
+                show_axes = True
 
             node_colors = [get_process_visualization(p.ID, p.Name, config).get('Node_Color_#', '#808080') for p in filtered_processes]
-            
-            zoom_factor = _safe_float_convert(layout_settings.get('Zoom_Factor', 1.0))
-            node_scale_factor = _safe_float_convert(layout_settings.get('Node_Scale_Factor', 1.0))
-            scaled_pad = int(15 * zoom_factor * node_scale_factor)
-            scaled_thickness = int(20 * zoom_factor * node_scale_factor)
-
             fig.data[0].arrangement = arrangement
-            fig.data[0].node = dict(
-                label=[p.Name for p in filtered_processes],
-                x=node_x,
-                y=node_y,
-                color=node_colors,
-                pad=scaled_pad,
-                thickness=scaled_thickness,
-                line=dict(color="black", width=0.5)
-            )
+            fig.data[0].node = dict(label=[p.Name for p in filtered_processes], x=node_x, y=node_y, color=node_colors, pad=current_pad, thickness=current_thickness, line=dict(color="black", width=0.5))
 
             if final_flows:
                 flow_values = [f.Values[year_index, element_index] for f in final_flows]
@@ -204,12 +228,27 @@ def plot_enhanced_sankey(mfa_system_results, dsm_params=None, fomp_params=None, 
                 flow_targets = [process_id_to_index[f.P_End] for f in final_flows]
                 default_flow_color = config.get('elements', {}).get(element, {}).get('Color', '#888')
                 flow_colors = [get_flow_visualization(f.Name, f.Name, config).get('Flow_Color_#', default_flow_color) for f in final_flows]
-                fig.data[0].link = dict(source=flow_sources, target=flow_targets, value=flow_values, color=flow_colors)
+                custom_data = [f.Name for f in final_flows]
+                fig.data[0].link = dict(source=flow_sources, target=flow_targets, value=flow_values, color=flow_colors, customdata=custom_data, hovertemplate='Flow: %{customdata}<br>Source: %{source.label}<br>Target: %{target.label}<br>Value: %{value}<extra></extra>')
             else:
                 fig.data[0].link = dict(source=[], target=[], value=[])
 
             total_flow = sum(flow_values) if final_flows else 0
-            fig.update_layout(title_text=f"Sankey Diagram - {element} ({year}) - Total Flow: {total_flow:.1f} t")
+            title_text = f"Sankey Diagram - {element} ({year}) - Total Flow: {total_flow:.1f} t"
+            window_width = _safe_int_convert(layout_settings.get('Window_Width', 1400))
+            window_height = _safe_int_convert(layout_settings.get('Window_Height', 900))
 
-    interactive_widget = interactive(update_sankey, year=year_slider, element=element_dropdown, processes_to_show=process_selector, min_flow_value=min_flow_slider, layout_type=layout_dropdown)
-    display(VBox(list(interactive_widget.children[:-1]) + [fig]))
+            fig.update_layout(title_text=title_text, font_size=current_font_size, height=window_height, width=window_width, margin=current_margin, hovermode=current_hovermode, dragmode=current_dragmode, xaxis=dict(showgrid=False, zeroline=False, showticklabels=show_axes), yaxis=dict(showgrid=False, zeroline=False, showticklabels=show_axes))
+
+    # --- WIDGET INTERACTION ---
+    def handle_change(change):
+        update_sankey(year_slider.value, element_dropdown.value, process_selector.value, min_flow_slider.value, layout_dropdown.value)
+
+    year_slider.observe(handle_change, names='value')
+    element_dropdown.observe(handle_change, names='value')
+    process_selector.observe(handle_change, names='value')
+    min_flow_slider.observe(handle_change, names='value')
+    layout_dropdown.observe(handle_change, names='value')
+
+    display(VBox([controls, fig]))
+    handle_change(None) # Initial plot draw

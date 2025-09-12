@@ -197,21 +197,22 @@ print("="*60)
 print("\n--- Traditional Sankey Diagram ---")
 plotting.plot_interactive_sankey(mfa_results_baseline, dsm_params, fomp_params)
 
-# ## 3.2 Enhanced Circular Sankey Diagram
-print("\n--- Enhanced Circular Sankey Diagram ---")
+# ## 3.2 Enhanced Sankey Diagram
+print("\n--- Enhanced Sankey Diagram ---")
 try:
-    from plotting import plot_circular_sankey
-    print("🎯 Creating enhanced circular Sankey diagram...")
-    plot_circular_sankey(
+    from plotting.enhanced_sankey import plot_enhanced_sankey
+    print("🎯 Creating enhanced Sankey diagram...")
+    plot_enhanced_sankey(
         mfa_system_results=mfa_results_baseline,
         dsm_params=dsm_params,
         fomp_params=fomp_params,
-        config_file=input_file  # Uses your Excel file with Part 6 visualization sheets
+        visualization_config_path=input_file
     )
-    print("✅ Enhanced circular Sankey diagram created successfully!")
+    print("✅ Enhanced Sankey diagram created successfully!")
 except Exception as e:
     print(f"⚠️ Enhanced Sankey diagram failed: {e}")
-    print("   Falling back to traditional Sankey diagram only")
+    import traceback
+    traceback.print_exc()
 
 # ## 3.3 Additional Visualizations
 print("\n--- Additional Visualizations ---")
@@ -221,6 +222,25 @@ if dsm_params and dsm_details_baseline:
     plotting.plot_dsm_stock_details(mfa_results_baseline, dsm_params, dsm_details_baseline)
 if fomp_params:
     plotting.plot_fomp_stock_details(mfa_results_baseline, fomp_params)
+
+# ## 3.4 System Flow Diagram (Graphviz)
+print("\n--- System Flow Diagram (Graphviz) ---")
+try:
+    from plotting.graphviz_flow_charts import plot_graphviz_flow_chart_sankey_style
+    
+    # Get the required dataframes from the loaded data
+    processes_data = all_excel_data['2_1_Definition_Processes']
+    flows_data = all_excel_data['1_1_Definition_Flows']
+    
+    # Generate and display the chart
+    dot_chart = plot_graphviz_flow_chart_sankey_style(processes_data, flows_data)
+    if dot_chart:
+        display(dot_chart)
+        print("✅ Graphviz chart created successfully!")
+except ImportError:
+    print("⚠️ Graphviz library not found. Skipping this plot.")
+except Exception as e:
+    print(f"⚠️ Graphviz chart failed: {e}")
 
 # # 4. Scenario Analysis & Comparison
 
@@ -276,36 +296,37 @@ if getattr(config_obj, 'Run_Scenario_Analysis', False):
             )
             
             # Enhanced Sankey comparison for scenarios
-            print("\n--- Enhanced Circular Sankey Comparison ---")
+            print("\n--- Enhanced Sankey Comparison ---")
             try:
-                from plotting import plot_circular_sankey
-                print("🎯 Creating enhanced circular Sankey diagrams for scenario comparison...")
+                from plotting.enhanced_sankey import plot_enhanced_sankey
+                print("🎯 Creating enhanced Sankey diagrams for scenario comparison...")
                 
                 # Show baseline with enhanced Sankey
-                print("\n📊 Baseline - Enhanced Circular Sankey:")
-                plot_circular_sankey(
+                print("\n📊 Baseline - Enhanced Sankey:")
+                plot_enhanced_sankey(
                     mfa_system_results=mfa_results_baseline,
                     dsm_params=dsm_params,
                     fomp_params=fomp_params,
-                    config_file=input_file
+                    visualization_config_path=input_file
                 )
                 
                 # Show first scenario with enhanced Sankey (if available)
                 if scenario_names_to_run:
                     first_scenario = scenario_names_to_run[0]
                     if first_scenario in all_scenario_results:
-                        print(f"\n📊 Scenario '{first_scenario}' - Enhanced Circular Sankey:")
-                        plot_circular_sankey(
+                        print(f"\n📊 Scenario '{first_scenario}' - Enhanced Sankey:")
+                        plot_enhanced_sankey(
                             mfa_system_results=all_scenario_results[first_scenario],
                             dsm_params=dsm_params,
                             fomp_params=fomp_params,
-                            config_file=input_file
+                            visualization_config_path=input_file
                         )
                 
-                print("✅ Enhanced circular Sankey comparison completed!")
+                print("✅ Enhanced Sankey comparison completed!")
             except Exception as e:
                 print(f"⚠️ Enhanced Sankey comparison failed: {e}")
-                print("   Traditional comparison plots are still available")
+                import traceback
+                traceback.print_exc()
 
 
 # # 6. Export & Final Summary
