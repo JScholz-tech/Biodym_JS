@@ -56,13 +56,20 @@ def sample_parameters(uncertainty_params):
     return sampled_values
 
 
-def export_results_to_excel(mfa_system_results, output_path):
+
+def export_results_to_excel(mfa_system_results, output_path, input_file_path="Not specified"):
     """
-    Exports MFA system results to an Excel file with multiple sheets.
+    Exports MFA system results to a professionally formatted Excel file.
+
+    Features:
+    - An 'Export_Info' sheet with metadata about the export.
+    - Both long-format and wide-format (crosstab) sheets for flows and stocks.
+    - Automatic column width adjustment and bold headers for readability.
 
     Args:
         mfa_system_results (odym.MFAsystem): The solved MFA system object.
         output_path (str): Path where the Excel file should be saved.
+        input_file_path (str): The path of the input file used for the analysis.
     """
     if mfa_system_results is None:
         print("Export skipped: No results to export.")
@@ -77,65 +84,78 @@ def export_results_to_excel(mfa_system_results, output_path):
         print(f"Export skipped: Error: {e}")
         return
 
-    with pd.ExcelWriter(output_path) as writer:
-        # --- Export Flows ---
+    with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
+        workbook = writer.book
+        header_format = workbook.add_format({'bold': True, 'bottom': 2, 'bg_color': '#F0F0F0'})
+
+        # --- 1. Export Info Sheet ---
+        meta_df = pd.DataFrame([
+            ["Input File", input_file_path],
+            ["Export Date", datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+            ["Time Range", f"{time_index[0]} - {time_index[-1]}"],
+            ["Elements", ", ".join(elements)],
+            ["Total Processes", len(mfa_system_results.ProcessList)],
+            ["Total Flows", len(mfa_system_results.FlowDict)],
+            ["Total Stocks", len([s for s in mfa_system_results.StockDict if s.startswith('S_')])]
+        ], columns=["Attribute", "Value"])
+        meta_df.to_excel(writer, sheet_name="Export_Info", index=False)
+        worksheet = writer.sheets["Export_Info"]
+        worksheet.set_column('A:A', 20) # Set width for Attribute column
+        worksheet.set_column('B:B', 80) # Set width for Value column
+
+        # --- 2. Long-Format Data (for programmatic use) ---
         flow_data_rows = []
         for name, flow_obj in mfa_system_results.FlowDict.items():
             for year_idx, year in enumerate(time_index):
                 row = {"Flow": name, "Year": year}
                 for elem_idx, element in enumerate(elements):
-                    row[f"{element}"] = flow_obj.Values[year_idx, elem_idx]
+                    row[element] = flow_obj.Values[year_idx, elem_idx]
                 flow_data_rows.append(row)
+        flow_df_long = pd.DataFrame(flow_data_rows)
+        flow_df_long.to_excel(writer, sheet_name="Flows_long", index=False)
+        worksheet = writer.sheets["Flows_long"]
+        for col_num, value in enumerate(flow_df_long.columns.values):
+            worksheet.write(0, col_num, value, header_format)
+            worksheet.set_column(col_num, col_num, len(value) + 2)
 
-        flow_df = pd.DataFrame(flow_data_rows)
-        flow_df.to_excel(writer, sheet_name="Flows", index=False)
-
-        # --- Export Stocks ---
         stock_data_rows = []
         for name, stock_obj in mfa_system_results.StockDict.items():
             for year_idx, year in enumerate(time_index):
                 row = {"Stock": name, "Year": year}
                 for elem_idx, element in enumerate(elements):
-                    row[f"{element}"] = stock_obj.Values[year_idx, elem_idx]
+                    row[element] = stock_obj.Values[year_idx, elem_idx]
                 stock_data_rows.append(row)
+        stock_df_long = pd.DataFrame(stock_data_rows)
+        stock_df_long.to_excel(writer, sheet_name="Stocks_long", index=False)
+        worksheet = writer.sheets["Stocks_long"]
+        for col_num, value in enumerate(stock_df_long.columns.values):
+            worksheet.write(0, col_num, value, header_format)
+            worksheet.set_column(col_num, col_num, len(value) + 2)
 
-        stock_df = pd.DataFrame(stock_data_rows)
-        stock_df.to_excel(writer, sheet_name="Stocks", index=False)
+        # --- 3. Wide-Format Data (for easy analysis in Excel) ---
+        for element in elements:
+            # Flows Wide
+            flow_df_wide = flow_df_long.pivot_table(index="Flow", columns="Year", values=element)
+            sheet_name = f"Flows_wide_{element}"
+            flow_df_wide.to_excel(writer, sheet_name=sheet_name)
+            worksheet = writer.sheets[sheet_name]
+            worksheet.write(0, 0, 'Flow', header_format)
+            for col_num, value in enumerate(flow_df_wide.columns.values):
+                worksheet.write(0, col_num + 1, value, header_format)
+            worksheet.set_column(0, 0, 30) # Width for flow names
 
-        # --- Export Parameters ---
-        param_data_rows = []
-        for name, param_obj in mfa_system_results.ParameterDict.items():
-            row = {"Parameter": name, "Value": param_obj.Values}
-            param_data_rows.append(row)
+            # Stocks Wide
+            stock_df_wide = stock_df_long.pivot_table(index="Stock", columns="Year", values=element)
+            sheet_name = f"Stocks_wide_{element}"
+            stock_df_wide.to_excel(writer, sheet_name=sheet_name)
+            worksheet = writer.sheets[sheet_name]
+            worksheet.write(0, 0, 'Stock', header_format)
+            for col_num, value in enumerate(stock_df_wide.columns.values):
+                worksheet.write(0, col_num + 1, value, header_format)
+            worksheet.set_column(0, 0, 30) # Width for stock names
 
-        param_df = pd.DataFrame(param_data_rows)
-        param_df.to_excel(writer, sheet_name="Parameters", index=False)
+    print(f"✅ Results successfully exported to {output_path}")
 
-        # --- Export Summary ---
-        summary_data = {
-            "Metric": [
-                "Total Processes",
-                "Total Flows",
-                "Total Stocks",
-                "Time Range",
-                "Elements",
-            ],
-            "Value": [
-                len(mfa_system_results.ProcessList),
-                len(mfa_system_results.FlowDict),
-                len(
-                    [
-                        s
-                        for s in mfa_system_results.StockDict.keys()
-                        if s.startswith("S_")
-                    ]
-                ),
-                f"{time_index[0]} - {time_index[-1]}",
-                ", ".join(elements),
-            ],
-        }
-        summary_df = pd.DataFrame(summary_data)
-        summary_df.to_excel(writer, sheet_name="Summary", index=False)
 
 
 class ScenarioManager:

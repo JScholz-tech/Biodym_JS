@@ -232,6 +232,7 @@ except Exception as e:
 # ## 3.3 Additional Visualizations
 print("\n--- Additional Visualizations ---")
 plotting.plot_process_dynamics(mfa_results_baseline, all_excel_data['2_1_Definition_Processes'])
+plotting.plot_flow_dynamics(mfa_results_baseline)
 plotting.plot_stock_bar_chart(mfa_results_baseline, title="Stock Levels Over Time (Baseline)")
 if dsm_params and dsm_details_baseline:
     plotting.plot_dsm_stock_details(mfa_results_baseline, dsm_params, dsm_details_baseline)
@@ -347,7 +348,7 @@ print("💾 EXPORTING BASELINE RESULTS")
 print("="*60)
 
 output_file = "data/02_output/results_scientific_baseline.xlsx"
-utils.export_results_to_excel(mfa_results_baseline, output_file)
+utils.export_results_to_excel(mfa_results_baseline, output_file, input_file_path=input_file)
 print(f"✅ Baseline results exported to: {output_file}")
 
 print("\n" + "="*60)
