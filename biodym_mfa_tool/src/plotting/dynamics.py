@@ -1135,6 +1135,15 @@ def plot_flow_dynamics(mfa_system_results):
     )
     chart_type_checkbox = Checkbox(value=False, description="Show as Bar Chart")
 
+    # Set up interaction and display the plot
+    interact(
+        update_plot,
+        flows_to_show=flow_selector,
+        element=element_dropdown,
+        show_as_bars=chart_type_checkbox,
+    )
+    display(fig)
+
 def plot_stock_bar_chart(mfa_system, title="Stock Levels Over Time"):
     """
     Generates an interactive bar chart of stock levels with a time slider

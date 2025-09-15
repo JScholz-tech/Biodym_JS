@@ -122,8 +122,13 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
             
             tc_id = row['TC_ID']
             # Find the process logic for this TC
-            process_id = static_tc_defs[static_tc_defs['TC_ID'] == tc_id]['Process_ID'].iloc[0]
-            process_logic = logic_map.get(int(process_id))
+            # Ensure Process_ID is an integer before lookup
+            process_id_static_tc_row = static_tc_defs[static_tc_defs['TC_ID'] == tc_id]
+            if process_id_static_tc_row.empty:
+                print(f"⚠️ Warning: Dynamic TC '{tc_id}' found without a corresponding static TC definition. Skipping.")
+                continue
+            process_id = int(process_id_static_tc_row['Process_ID'].iloc[0])
+            process_logic = logic_map.get(process_id)
 
             for element in elements:
                 param_name = f"{tc_id}_{element}"
@@ -144,14 +149,30 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
                         ts = pd.Series(index=time_vector, dtype=float)
                         tc_params[param_name] = msc.Parameter(Name=param_name, ID=param_id_counter, Values=ts, Unit="1")
                         param_id_counter += 1
-                    
+                    elif not isinstance(tc_params[param_name].Values, pd.Series):
+                        # It's a static TC that now has dynamic data, convert to Series
+                        static_value = tc_params[param_name].Values # Get the existing static value
+                        ts = pd.Series(index=time_vector, dtype=float)
+                        # Fill the Series with the static value for all years before adding dynamic points
+                        ts.loc[:] = static_value 
+                        tc_params[param_name].Values = ts # Replace the float with the Series
+
                     # Set the value for the specific year
-                    tc_params[param_name].Values[year] = value
+                    # Ensure year is in the time_vector index
+                    if year in tc_params[param_name].Values.index:
+                        tc_params[param_name].Values[year] = value
+                    else:
+                        print(f"⚠️ Warning: Year {year} for dynamic TC '{tc_id}' is outside the defined time range. Skipping.")
 
     # 3. Interpolate all dynamic TC time series
     for param in tc_params.values():
         if isinstance(param.Values, pd.Series):
-            param.Values = param.Values.interpolate(method='linear', limit_direction='both').to_numpy()
+            # Only interpolate if there are non-NaN values to interpolate from
+            if param.Values.first_valid_index() is not None:
+                param.Values = param.Values.interpolate(method='linear', limit_direction='both').to_numpy()
+            else:
+                # If all values are NaN (e.g., TC defined but no dynamic data points), set to 0
+                param.Values = np.zeros_like(param.Values.to_numpy())
 
     print(f"--> TC loading complete. {len(tc_params)} substance-specific TC parameters created.")
     return tc_params
