@@ -171,15 +171,29 @@ def run_mfa_calculation(
                     # Store old values to check for changes
                     old_values = flow.Values.copy()
 
+                    # --- New Substance-Level Calculation with Physical Dependency ---
                     total_inflow_vector = sum(f.Values for f in input_flows)
                     outflow_vector = np.zeros_like(total_inflow_vector)
 
-                    for i_elem, element in enumerate(mfa_system.Elements):
+                    try:
+                        mat_idx = mfa_system.Elements.index('material')
+                        wc_idx = mfa_system.Elements.index('WC')
+                        dm_idx = mfa_system.Elements.index('DM')
+                        cc_idx = mfa_system.Elements.index('CC')
+                    except ValueError as e:
+                        raise ValueError(f"The model's elements are not correctly defined. Missing one of ['material', 'WC', 'DM', 'CC']. Error: {e}")
+
+                    # Calculate independent components (WC, DM, CC) from their TCs
+                    for i_elem, element in [(wc_idx, 'WC'), (dm_idx, 'DM'), (cc_idx, 'CC')]:
                         param_name = f"{base_tc_name}_{element}"
                         if param_name in mfa_system.ParameterDict:
                             tc_value = mfa_system.ParameterDict[param_name].Values
                             outflow_vector[:, i_elem] = total_inflow_vector[:, i_elem] * tc_value
                     
+                    # Enforce physical dependency: material = WC + DM
+                    outflow_vector[:, mat_idx] = outflow_vector[:, wc_idx] + outflow_vector[:, dm_idx]
+                    
+                    # Update the flow's values with the calculated substance vector
                     flow.Values = outflow_vector
 
                     if not np.allclose(old_values, flow.Values):
