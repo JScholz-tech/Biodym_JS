@@ -121,9 +121,9 @@ def run_mfa_calculation(
     """
     This function is the iterative solver for the MFA system.
 
-    It repeatedly cycles through the system, calculating flows in a specific
-    order (TCs first, then special models like DSM/FOMP) until no more
-    changes occur, indicating that the system has converged to a stable state.
+    It repeatedly cycles through the system a fixed number of times to ensure
+    that systems with circular dependencies converge to a stable state.
+    It uses a substance-level calculation for all TC-based flows.
 
     Args:
         mfa_system_setup (odym.MFAsystem): A fully configured but unsolved MFA system.
@@ -147,113 +147,86 @@ def run_mfa_calculation(
     dsm_processes = set(dsm_params.keys())
     fomp_processes = set(fomp_params.keys())
     special_processes = dsm_processes.union(fomp_processes)
-    dsm_processes_run = {pid: False for pid in dsm_processes}
-    fomp_processes_run = {pid: False for pid in fomp_processes}
 
     for i in range(15):
         something_changed_in_main_loop = False
+        
+        # Re-introduce the inner iterative loop for TCs to stabilize
         while True:
             something_changed_in_tc_loop = False
+            
             for flow in mfa_system.FlowDict.values():
-                # Skip flows that are already calculated, are FOMP-protected, or are special processes
-                if np.any(flow.Values != 0) or flow.P_Start in special_processes or hasattr(flow, '_fomp_protected'):
+                if flow.P_Start in special_processes or hasattr(flow, '_fomp_protected'):
                     continue
-                param_name = f"TC_{'_'.join(flow.Name.split('_')[1:3])}"
-                if param_name in mfa_system.ParameterDict:
-                    input_flows = [
-                        f
-                        for f in mfa_system.FlowDict.values()
-                        if f.P_End == flow.P_Start
-                    ]
-                    if input_flows and all(
-                        np.any(f.Values != 0) or f.P_Start == 0 for f in input_flows
-                    ):
-                        total_inflow_values = sum(f.Values for f in input_flows)
-                        tc_value = mfa_system.ParameterDict[param_name].Values
-                        
-                        # 1. Calculate the total material of the outflow based on the TC
-                        flow.Values[:, 0] = total_inflow_values[:, 0] * tc_value
 
-                        # 2. Apply the explicitly defined flow-specific compositions
-                        for i_elem, element in enumerate(mfa_system.Elements[1:], start=1):
-                            param_name_element = f"{element}_{flow.Name}"
-                            if param_name_element in mfa_system.ParameterDict:
-                                # If WC_F_00_02 exists, use its value
-                                content_fraction = mfa_system.ParameterDict[param_name_element].Values
-                                flow.Values[:, i_elem] = flow.Values[:, 0] * content_fraction
-                            else:
-                                # If a specific composition is not defined, set it to 0.
-                                # This makes the Excel definitions the single source of truth.
-                                flow.Values[:, i_elem] = 0
-                        
+                base_tc_name = f"TC_{'_'.join(flow.Name.split('_')[1:3])}"
+                material_tc_param = f"{base_tc_name}_material"
+
+                if material_tc_param in mfa_system.ParameterDict:
+                    input_flows = [f for f in mfa_system.FlowDict.values() if f.P_End == flow.P_Start]
+                    
+                    if not input_flows or not all(np.any(f.Values != 0) or f.P_Start == 0 for f in input_flows):
+                        continue
+
+                    # Store old values to check for changes
+                    old_values = flow.Values.copy()
+
+                    total_inflow_vector = sum(f.Values for f in input_flows)
+                    outflow_vector = np.zeros_like(total_inflow_vector)
+
+                    for i_elem, element in enumerate(mfa_system.Elements):
+                        param_name = f"{base_tc_name}_{element}"
+                        if param_name in mfa_system.ParameterDict:
+                            tc_value = mfa_system.ParameterDict[param_name].Values
+                            outflow_vector[:, i_elem] = total_inflow_vector[:, i_elem] * tc_value
+                    
+                    flow.Values = outflow_vector
+
+                    if not np.allclose(old_values, flow.Values):
                         something_changed_in_tc_loop = True
                         something_changed_in_main_loop = True
+
             if not something_changed_in_tc_loop:
                 break
 
+        # --- Special Models (DSM and FOMP) ---
         if config.RUN_DSM_CALCULATION:
             for process_id in dsm_processes:
-                if not dsm_processes_run[process_id]:
-                    inflows_to_dsm = [
-                        f for f in mfa_system.FlowDict.values() if f.P_End == process_id
-                    ]
-                    if inflows_to_dsm and all(
-                        np.any(f.Values != 0) for f in inflows_to_dsm
-                    ):
-                        mfa_system, dsm_details_single_run = (
-                            dsm_model.calculate_dynamic_stock(
-                                mfa_system, {process_id: dsm_params[process_id]}
-                            )
-                        )
-                        dsm_details.update(dsm_details_single_run)
-                        dsm_processes_run[process_id] = True
-                        something_changed_in_main_loop = True
+                inflows_to_dsm = [f for f in mfa_system.FlowDict.values() if f.P_End == process_id]
+                if inflows_to_dsm and all(np.any(f.Values != 0) for f in inflows_to_dsm):
+                    mfa_system, dsm_details_single_run = dsm_model.calculate_dynamic_stock(
+                        mfa_system, {process_id: dsm_params[process_id]}
+                    )
+                    dsm_details.update(dsm_details_single_run)
+                    something_changed_in_main_loop = True
 
         if config.RUN_FOMP_CALCULATION:
             for process_id in fomp_processes:
-                if not fomp_processes_run[process_id]:
-                    inflows_to_fomp = [
-                        f for f in mfa_system.FlowDict.values() if f.P_End == process_id
-                    ]
-                    if inflows_to_fomp and all(
-                        np.any(f.Values != 0) for f in inflows_to_fomp
-                    ):
-                        # --- Dynamically get the input flow composition ---
-                        primary_input_flow = inflows_to_fomp[0]
-                        flow_name = primary_input_flow.Name
-                        
-                        try:
-                            composition = {
-                                'DM': mfa_system.ParameterDict[f'DM_{flow_name}'].Values,
-                                'CC': mfa_system.ParameterDict[f'CC_{flow_name}'].Values,
-                                'WC': mfa_system.ParameterDict[f'WC_{flow_name}'].Values,
-                            }
-                        except KeyError as e:
-                            print(f"❌ Error: Missing composition parameter for FOMP input flow {flow_name}: {e}")
-                            continue
+                inflows_to_fomp = [f for f in mfa_system.FlowDict.values() if f.P_End == process_id]
+                if inflows_to_fomp and all(np.any(f.Values != 0) for f in inflows_to_fomp):
+                    primary_input_flow = inflows_to_fomp[0]
+                    flow_name = primary_input_flow.Name
+                    try:
+                        composition = {
+                            'DM': mfa_system.ParameterDict[f'DM_{flow_name}'].Values,
+                            'CC': mfa_system.ParameterDict[f'CC_{flow_name}'].Values,
+                            'WC': mfa_system.ParameterDict[f'WC_{flow_name}'].Values,
+                        }
+                    except KeyError as e:
+                        print(f"❌ Error: Missing composition parameter for FOMP input flow {flow_name}: {e}")
+                        continue
 
-                        mfa_system = fomp_model.calculate_fomp(
-                            mfa_system, 
-                            {process_id: fomp_params[process_id]},
-                            input_flow_composition=composition
-                        )
-                        fomp_processes_run[process_id] = True
-                        something_changed_in_main_loop = True
-                        
-                        # Mark FOMP output flows as protected from composition override
-                        fomp_output_flows = [
-                            f for f in mfa_system.FlowDict.values() 
-                            if f.P_Start == process_id
-                        ]
-                        for flow in fomp_output_flows:
-                            flow._fomp_protected = True
-                            print(f"    Protected FOMP output flow: {flow.Name}")
+                    mfa_system = fomp_model.calculate_fomp(
+                        mfa_system, {process_id: fomp_params[process_id]}, input_flow_composition=composition
+                    )
+                    something_changed_in_main_loop = True
+                    for f_out in [f for f in mfa_system.FlowDict.values() if f.P_Start == process_id]:
+                        f_out._fomp_protected = True
 
         if not something_changed_in_main_loop and i > 0:
             break
 
-    # Process stock-outflow TCs before final balance calculation
+    # --- 3. Finalization ---
     mfa_system = process_stock_outflow_tcs(mfa_system)
-    
     mfa_system = calculate_final_balances(mfa_system)
     return mfa_system, dsm_details

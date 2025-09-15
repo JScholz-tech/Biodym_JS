@@ -152,7 +152,18 @@ mfa_system_base = system_setup.initialize_mfa_system(model_classification, index
 print("📊 Loading processes and data...")
 mfa_system_base, all_excel_data = system_setup.load_and_define_processes(mfa_system_base, input_data, data_loader)
 
-print("⚙️ Loading parameters...")
+print("🔗 Defining flows and base parameters (e.g., compositions from flowsheet)...")
+mfa_system_configured, _ = system_setup.define_flows_and_parameters(mfa_system_base, all_excel_data)
+
+print("⚙️ Loading all model parameters (TCs, DSM, FOMP)...")
+
+# Centralized call to the new, unified TC loader
+time_vector = mfa_system_configured.IndexTable.Classification['Time'].Items
+elements_list = mfa_system_configured.Elements
+tc_params = data_loader.load_tc_parameters(all_excel_data, elements_list, time_vector)
+mfa_system_configured.ParameterDict.update(tc_params) # Add the new TC params to the system
+
+# Load other special model parameters
 dsm_params = data_loader.load_dsm_parameters(all_excel_data)
 if config_obj.RUN_FOMP_CALCULATION:
     fomp_params = data_loader.load_fomp_parameters(all_excel_data)
@@ -160,16 +171,7 @@ else:
     fomp_params = {}
 uncertainty_params = data_loader.load_uncertainty_definitions(all_excel_data)
 
-print("🔗 Defining flows and parameters...")
-mfa_system_configured, _ = system_setup.define_flows_and_parameters(mfa_system_base, all_excel_data)
-
-print("🔄 Processing dynamic transfer coefficients...")
-dynamic_tc_sheet = all_excel_data.get('2_5_dynamic_tcs')
-if dynamic_tc_sheet is not None and not dynamic_tc_sheet.empty:
-    dynamic_tcs = system_setup.create_dynamic_tc_parameters(dynamic_tc_sheet, mfa_system_configured.IndexTable.Classification['Time'].Items)
-    for name, values in dynamic_tcs.items():
-        mfa_system_configured.ParameterDict[name] = msc.Parameter(Name=name, ID=len(mfa_system_configured.ParameterDict) + 1, Values=values, Unit="1")
-    print(f"✅ Dynamic TCs processed: {len(dynamic_tcs)} parameters added")
+print("✅ All parameters loaded and configured.")
 
 print("🧮 Running baseline calculation...")
 mfa_results_baseline, dsm_details_baseline = solver.run_mfa_calculation(mfa_system_configured, dsm_params, fomp_params, config_obj)

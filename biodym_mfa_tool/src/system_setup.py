@@ -234,12 +234,8 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
                                 'tc_id': tc_id, 'destination_process': destination_process,
                                 'consumption_rate': consumption_rate, 'initial_stock': stock_s.Values[0, :].copy()}
 
-    tc_definitions = all_excel_data.get("2_3_Process_TCs")
-    if tc_definitions is not None:
-        for _, row in tc_definitions.iterrows():
-            if "TC_ID" in row and pd.notna(row["TC_ID"]) and pd.notna(row["TC_Value"]):
-                mfa_system.ParameterDict[row["TC_ID"]] = msc.Parameter(Name=row["TC_ID"], ID=parameter_id_counter, Values=row["TC_Value"], Unit="1")
-                parameter_id_counter += 1
+    # The old TC loading logic has been removed from this function.
+    # It is now handled by the new data_loader.load_tc_parameters function.
 
     content_definitions = all_excel_data["1_1_Definition_Flows"]
     for _, row in content_definitions.iterrows():
