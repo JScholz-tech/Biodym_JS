@@ -131,18 +131,12 @@ def run_mc_simulation(
     
     IMPORTANT: This function ensures mass balance by normalizing TCs to sum to 1.0
     and prevents conflicts between dynamic TCs and MC simulation.
-
-    Args:
-        mfa_system_configured (odym.MFAsystem): The pre-configured MFA system.
-        input_data (dict): Dictionary of DataFrames from the input Excel file.
-        dsm_params (dict): DSM parameters.
-        fomp_params (dict): FOMP parameters.
-        config (module): The main configuration module.
-
-    Returns:
-        pd.DataFrame: A DataFrame containing the results of the Monte Carlo
-                      simulation, with columns for each stock and element.
-                      Returns None if no uncertainty parameters are defined.
+    
+    ## BioDYM Refactoring Note ##
+    This function has been modified to correctly handle uncertainty for 'Splitter'
+    processes. When a '..._material' TC is made uncertain, the sampled value is
+    propagated to the corresponding '_WC', '_DM', and '_CC' parameters to ensure
+    the solver uses the uncertain value.
     """
     if '4_1_Uncertainty_Parameters' not in input_data or input_data['4_1_Uncertainty_Parameters'].empty:
         print("INFO: No uncertainty parameters found or sheet is empty. Skipping Monte Carlo simulation.")
@@ -174,6 +168,20 @@ def run_mc_simulation(
     print(f"\n[MC] Running Monte Carlo simulation with {n_iterations} iterations...")
     print(f"[MC] Using {len(validated_params)} validated parameters...")
 
+    # --- FIX: Build mappings to check for Splitter TCs ---
+    process_defs = input_data.get('2_1_Definition_Processes')
+    static_tc_defs = input_data.get('2_3_Process_TCs')
+    
+    logic_map = {}
+    if process_defs is not None:
+        logic_map = process_defs.set_index('ID')['Process_Logic'].to_dict()
+
+    tc_to_process_map = {}
+    if static_tc_defs is not None:
+        clean_tc_defs = static_tc_defs.dropna(subset=['TC_ID', 'Process_ID'])
+        tc_to_process_map = clean_tc_defs.set_index('TC_ID')['Process_ID'].astype(int).to_dict()
+    # --- END FIX ---
+
     all_results = []
     
     for i in range(n_iterations):
@@ -182,9 +190,7 @@ def run_mc_simulation(
         
         iter_params = {'iteration': i}
 
-        # Sample parameters with mass balance normalization
-        tc_updates = {}  # Store TC updates for normalization
-        
+        # Sample parameters
         for _, row in validated_params.iterrows():
             param_name = row['Parameter_Name']
             dist = row['Distribution'].lower()
@@ -200,47 +206,35 @@ def run_mc_simulation(
             if val is not None:
                 iter_params[param_name] = val
                 
-                if param_name in mfa_system_iter.ParameterDict:
-                    mfa_system_iter.ParameterDict[param_name].Values = np.array([val])
-                elif param_name.startswith('TC_'):
-                    # Store TC update for later normalization
-                    tc_updates[param_name] = val
-                elif param_name.startswith('dS_'):
-                    stock_id = param_name.split('_')[1]
-                    stock_name = f"S_{stock_id}"
-                    if stock_name in mfa_system_iter.StockDict:
-                        mfa_system_iter.StockDict[stock_name].Values[0, 0] = val
+                # --- FIX: Check if this is a material TC for a Splitter process ---
+                is_splitter_material_tc = False
+                tc_id = None
+                if param_name.endswith('_material'):
+                    _tc_id = param_name.replace('_material', '')
+                    if _tc_id in tc_to_process_map:
+                        process_id = tc_to_process_map[_tc_id]
+                        if logic_map.get(process_id) == 'Splitter':
+                            is_splitter_material_tc = True
+                            tc_id = _tc_id
+                
+                # If it is, propagate the sampled value to all substance TCs
+                if is_splitter_material_tc:
+                    elements_to_update = ['material', 'WC', 'DM', 'CC']
+                    for element in elements_to_update:
+                        full_param_name = f"{tc_id}_{element}"
+                        if full_param_name in mfa_system_iter.ParameterDict:
+                            mfa_system_iter.ParameterDict[full_param_name].Values = np.array([val])
+                
+                # If not a special splitter case, use original logic
+                else:
+                    if param_name in mfa_system_iter.ParameterDict:
+                        mfa_system_iter.ParameterDict[param_name].Values = np.array([val])
+                    elif param_name.startswith('dS_'):
+                        stock_id = param_name.split('_')[1]
+                        stock_name = f"S_{stock_id}"
+                        if stock_name in mfa_system_iter.StockDict:
+                            mfa_system_iter.StockDict[stock_name].Values[0, 0] = val
         
-        # Apply sampled values and identify processes with TC updates
-        processes_with_tc_updates = set()
-        for tc_name, tc_value in tc_updates.items():
-            try:
-                process_id = int(tc_name.split('_')[1])
-                processes_with_tc_updates.add(process_id)
-                # Find the correct flow and update its TC value directly for now
-                for flow in mfa_system_iter.FlowDict.values():
-                    if flow.Name == tc_name:
-                        flow.TC = np.array([tc_value])
-                        break
-            except (ValueError, IndexError):
-                pass # Should not happen if validation is correct
-
-        # After all TCs for this iteration are updated, normalize them process by process
-        for process_id in processes_with_tc_updates:
-            process_flows = [f for f in mfa_system_iter.FlowDict.values() if f.P_Start == process_id]
-            if len(process_flows) > 1:
-                # Get the newly updated TC values for this process
-                current_tcs = {f.Name: f.TC[0] for f in process_flows if hasattr(f, 'TC') and len(f.TC) > 0}
-                total_tc = sum(current_tcs.values())
-
-                if total_tc > 0:
-                    # Normalize and update the flows and iter_params
-                    for flow in process_flows:
-                        if flow.Name in current_tcs:
-                            normalized_value = current_tcs[flow.Name] / total_tc
-                            flow.TC = np.array([normalized_value])
-                            iter_params[flow.Name] = normalized_value # Update for results logging
-
         mfa_results_iter, _ = solver.run_mfa_calculation(
             mfa_system_iter, dsm_params, fomp_params, config
         )
