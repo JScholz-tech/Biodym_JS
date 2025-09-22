@@ -181,7 +181,7 @@ def main():
         if mfa_system_with_results is not None:
             print("\nDisplaying results for single run...")
             print("\nDisplaying Mass Balance Check:")
-            plotting.plot_mass_balance_error(mfa_system_with_results)
+            plotting.plot_optimized_mass_balance_error(mfa_system_with_results)
 
             print("\nDisplaying interactive Sankey diagram:")
             plotting.plot_interactive_sankey(mfa_system_with_results)

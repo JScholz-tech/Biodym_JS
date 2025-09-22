@@ -94,7 +94,7 @@ The configuration module is actively used by `src/main.py`, `src/main_cli.py`, a
 - `plot_fomp_stock_details()` - FOMP process analysis
 - `plot_flow_dynamics()` - Flow dynamics analysis
 - `plot_stock_bar_chart()` - Stock bar charts
-- `plot_mass_balance_error()` - Mass balance error plots
+- `plot_optimized_mass_balance_error()` - Interactive mass balance error plots
 - `plot_interactive_mc_histogram()` - MC histogram plots
 - `plot_interactive_tornado()` - MC tornado plots
 

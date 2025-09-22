@@ -11,6 +11,15 @@ from ipywidgets import FloatSlider, IntSlider, Button, HBox, VBox, HTML, Layout,
 import os
 from datetime import datetime
 import collections
+from .publication_style import (
+    get_publication_layout,
+    get_element_color,
+    get_process_color,
+    BIOYM_COLORS,
+    ELEMENT_COLORS,
+    PROCESS_COLORS
+)
+from .publication_export import create_publication_export_widget
 
 def _calculate_node_positions(processes, flows):
     """

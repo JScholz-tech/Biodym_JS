@@ -9,10 +9,15 @@ mass balance errors.
 """
 
 import plotly.graph_objects as go
-from ipywidgets import interact, IntSlider, Dropdown
+from ipywidgets import interact, IntSlider, Dropdown, Button
 from IPython.display import display
+from datetime import datetime
 
-from .utils import plot_enhanced_export_options
+from .publication_style import (
+    get_publication_layout,
+    get_element_color,
+    BIOYM_COLORS
+)
 
 def plot_optimized_mass_balance_error(mfa_system_results):
     """
@@ -59,30 +64,52 @@ def plot_optimized_mass_balance_error(mfa_system_results):
             error = in_val - out_val - ds_sum
             errors.append(error)
 
-        # Color bars based on error direction
-        colors = [
-            "#d62728" if e > 1e-9 else "#2ca02c" if e < -1e-9 else "#7f7f7f"
-            for e in errors
-        ]
+        # Use element color for all bars (this is a single-element plot)
+        element_color = get_element_color(element)
+        colors = [element_color] * len(errors)
 
         with fig.batch_update():
             fig.data = []  # Clear previous data
-            fig.add_trace(go.Bar(x=process_names, y=errors, marker_color=colors))
-            fig.update_layout(
-                title=f"Mass Balance Error Check for {element.upper()} in {year}",
-                yaxis_title="Error in Mg (positive = mass created)",
-                shapes=[
+            fig.add_trace(go.Bar(
+                x=process_names, 
+                y=errors, 
+                marker_color=colors,
+                marker_line=dict(color=BIOYM_COLORS['dark'], width=1),
+                hovertemplate='<b>%{x}</b><br>Error: %{y:.2e} Mg<extra></extra>'
+            ))
+            
+            # Apply publication layout with proper formatting
+            layout = get_publication_layout(size='large', show_grid=True)
+            layout.update({
+                'title': {
+                    'text': f"Mass Balance Error Check for {element.upper()} in {year}",
+                    'font': {'size': 14}  # Slightly smaller for interactive plots
+                },
+                'yaxis': {
+                    **layout['yaxis'],
+                    'title': 'Error (Mg)',
+                    'tickformat': '.2e',  # Scientific notation for small numbers
+                    'zeroline': True,
+                    'zerolinecolor': BIOYM_COLORS['dark'],
+                    'zerolinewidth': 2
+                },
+                'xaxis': {
+                    **layout['xaxis'],
+                    'title': 'Process',
+                    'tickangle': -45  # Rotate labels for readability
+                },
+                'shapes': [
                     dict(
                         type="line",
                         y0=0,
                         y1=0,
                         x0=-0.5,
                         x1=len(process_names) - 0.5,
-                        line=dict(color="black", width=2),
+                        line=dict(color=BIOYM_COLORS['dark'], width=2),
                     )
-                ],  # Zero line
-                height=500,
-            )
+                ]
+            })
+            fig.update_layout(layout)
 
     # Create widgets
     year_slider = IntSlider(
@@ -99,8 +126,19 @@ def plot_optimized_mass_balance_error(mfa_system_results):
     interact(update_plot, year=year_slider, element=element_dropdown)
     display(fig)
     
-    # Add enhanced export options
-    plot_enhanced_export_options(fig, "mass_balance_error")
+    # Add simple PNG export
+    def export_png():
+        filename = f"mass_balance_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        try:
+            fig.write_image(f"exports/{filename}", scale=2, width=1200, height=900)
+            print(f"✅ Exported: exports/{filename}")
+        except Exception as e:
+            print(f"❌ Export failed: {e}")
+            print("💡 Ensure 'kaleido' is installed: pip install kaleido")
+    
+    export_button = Button(description="📥 Export PNG", button_style='success')
+    export_button.on_click(lambda b: export_png())
+    display(export_button)
 
 def plot_total_mass_balance_error(mfa_system_results):
     """
@@ -143,27 +181,60 @@ def plot_total_mass_balance_error(mfa_system_results):
             total_errors[element].append(total_error_for_element)
 
     fig = go.Figure()
+    
+    # Use our element colors for consistency
     for element, errors in total_errors.items():
-        fig.add_trace(go.Bar(name=element, x=process_names, y=errors))
+        fig.add_trace(go.Bar(
+            name=element.title(), 
+            x=process_names, 
+            y=errors,
+            marker_color=get_element_color(element),
+            marker_line=dict(color=BIOYM_COLORS['dark'], width=1),
+            hovertemplate=f'<b>%{{x}}</b><br>{element.title()}: %{{y:.2e}} Mg<extra></extra>'
+        ))
 
-    fig.update_layout(
-        barmode='stack',
-        title="General Overview: Total Absolute Mass Balance Error (All Years)",
-        yaxis_title="Sum of Absolute Errors (Mg)",
-        xaxis_title="Process",
-        legend_title="Element"
-    )
+    # Apply publication layout with proper formatting
+    layout = get_publication_layout(size='large', show_grid=True)
+    layout.update({
+        'title': {
+            'text': "Total Absolute Mass Balance Error (All Years)",
+            'font': {'size': 16}
+        },
+        'yaxis': {
+            **layout['yaxis'],
+            'title': 'Sum of Absolute Errors (Mg)',
+            'tickformat': '.2e',  # Scientific notation for small numbers
+            'zeroline': True,
+            'zerolinecolor': BIOYM_COLORS['dark'],
+            'zerolinewidth': 2
+        },
+        'xaxis': {
+            **layout['xaxis'],
+            'title': 'Process',
+            'tickangle': -45  # Rotate labels for readability
+        },
+        'barmode': 'stack',
+        'legend': {
+            **layout['legend'],
+            'title': 'Element'
+        }
+    })
+    
+    fig.update_layout(layout)
     fig.show()
+    
+    # Add simple PNG export
+    def export_png():
+        filename = f"total_mass_balance_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        try:
+            fig.write_image(f"exports/{filename}", scale=2, width=1200, height=900)
+            print(f"✅ Exported: exports/{filename}")
+        except Exception as e:
+            print(f"❌ Export failed: {e}")
+            print("💡 Ensure 'kaleido' is installed: pip install kaleido")
+    
+    export_button = Button(description="📥 Export PNG", button_style='success')
+    export_button.on_click(lambda b: export_png())
+    display(export_button)
 
 
-def plot_mass_balance_error(mfa_system_results):
-    """
-    Creates an interactive bar chart showing the mass balance error for each process.
-    Error = Inflows - Outflows - dS. An error of 0 means perfect balance.
-    This is the FIRST and most important visualization for validation.
-
-    Args:
-        mfa_system_results (odym.MFAsystem): The solved MFA system object.
-    """
-    # Use optimized version
-    plot_optimized_mass_balance_error(mfa_system_results)

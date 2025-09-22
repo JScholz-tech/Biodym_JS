@@ -22,12 +22,33 @@ from .dynamics import (
     plot_summary_dashboard,
     plot_stock_bar_chart,
 )
-from .validation import plot_mass_balance_error, plot_optimized_mass_balance_error, plot_total_mass_balance_error
+from .validation import plot_optimized_mass_balance_error, plot_total_mass_balance_error
 from .monte_carlo import plot_monte_carlo_integrated_dashboard, plot_mc_distribution
 from .mc_visuals import plot_interactive_mc_histogram, plot_interactive_tornado
 from .scenario import plot_multi_scenario_comparison
 
 from .utils import plot_enhanced_export_options
+
+# Publication-quality plotting modules
+from .publication_style import (
+    get_publication_layout,
+    get_element_color,
+    get_process_color,
+    detect_biodym_process_type,
+    create_color_sequence,
+    get_export_filename,
+    BIOYM_COLORS,
+    ELEMENT_COLORS,
+    PROCESS_COLORS,
+    STATUS_COLORS
+)
+from .publication_export import (
+    PublicationExporter,
+    create_publication_export_widget,
+    apply_publication_style,
+    create_figure_summary,
+    quick_export
+)
 
 # Re-export UI primitives for tests to patch/mocks
 from ipywidgets import Button, HBox, interact  # noqa: F401
