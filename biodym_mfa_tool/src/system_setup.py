@@ -262,8 +262,28 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
                     cc_fraction = mfa_system.ParameterDict[param_name].Values
                     flow.Values[:, cc_idx] = flow.Values[:, 0] * cc_fraction
 
+    process_definitions = all_excel_data.get("2_1_Definition_Processes")
+    process_logic_map = {}
+    if process_definitions is not None:
+        process_logic_map = process_definitions.set_index('ID')['Process_Logic'].to_dict()
+
+    # Create a lookup map from Flow_ID to a dictionary of its TC_IDs
+    print("--> Creating Flow-to-TC mapping...")
+    flow_tc_map = {}
+    tc_definitions = all_excel_data.get("2_3_Process_TCs")
+    if tc_definitions is not None:
+        tc_definitions_filtered = tc_definitions.dropna(subset=['Flow_ID'])
+        for _, row in tc_definitions_filtered.iterrows():
+            flow_id = row["Flow_ID"]
+            tc_ids = {}
+            for element in mfa_system.Elements:
+                tc_id_col = f"TC_{element}_ID"
+                if tc_id_col in row and pd.notna(row[tc_id_col]):
+                    tc_ids[element] = row[tc_id_col]
+            flow_tc_map[flow_id] = tc_ids
+
     mfa_system.Consistency_Check()
-    return mfa_system, all_excel_data
+    return mfa_system, all_excel_data, flow_tc_map, process_logic_map
 
 def apply_scenario(mfa_system, scenario_definitions, selected_scenario_name):
     """

@@ -9,7 +9,10 @@ parameters defined in an Excel file.
 import pandas as pd
 import numpy as np
 import copy
+
 from . import solver
+from src import data_loader
+from src.utils import sample_parameters
 
 def validate_mc_parameters(mc_params_df, mfa_system):
     """
@@ -117,145 +120,96 @@ def normalize_tcs_for_process(mfa_system, process_id, varied_tc_name, varied_tc_
         return normalized_tcs
 
 def run_mc_simulation(
-    mfa_system_configured, 
-    input_data, 
-    dsm_params, 
-    fomp_params, 
-    config
+    mfa_system_setup, input_data, dsm_params, fomp_params, config, process_logic_map, flow_tc_map
 ):
     """
-    Runs a full Monte Carlo simulation by iterating through scenarios.
+    Runs a Monte Carlo simulation by repeatedly sampling parameters and running
+    the MFA calculation.
 
-    For each iteration, it updates the parameters of a deep-copied MFA system,
-    runs the solver, and collects the final stock values for all elements.
-    
-    IMPORTANT: This function ensures mass balance by normalizing TCs to sum to 1.0
-    and prevents conflicts between dynamic TCs and MC simulation.
-    
-    ## BioDYM Refactoring Note ##
-    This function has been modified to correctly handle uncertainty for 'Splitter'
-    processes. When a '..._material' TC is made uncertain, the sampled value is
-    propagated to the corresponding '_WC', '_DM', and '_CC' parameters to ensure
-    the solver uses the uncertain value.
+    Args:
+        mfa_system_setup (odym.MFAsystem): A fully configured but unsolved MFA system.
+        input_data (dict): The complete dictionary of data from the Excel file.
+        dsm_params (dict): Configuration dictionary for DSM processes.
+        fomp_params (dict): Configuration dictionary for FOMP processes.
+        config (object): The configuration object with simulation settings.
+        process_logic_map (dict): A map from process ID to its logic ('Splitter'/'Transformer').
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the results of all Monte Carlo iterations.
     """
-    if '4_1_Uncertainty_Parameters' not in input_data or input_data['4_1_Uncertainty_Parameters'].empty:
-        print("INFO: No uncertainty parameters found or sheet is empty. Skipping Monte Carlo simulation.")
+    # --- 1. Configuration ---
+    n_iterations = getattr(config, 'Monte_Carlo_Iterations', 100)
+    uncertainty_params = data_loader.load_uncertainty_definitions(input_data)
+
+    if not uncertainty_params:
+        print("\n[MC] No uncertainty parameters defined. Skipping simulation.")
         return None
 
-    mc_params_df = input_data['4_1_Uncertainty_Parameters'].dropna(subset=['Parameter_Name'])
-    
-    # Validate MC parameters and check for conflicts
-    validated_params, warnings = validate_mc_parameters(mc_params_df, mfa_system_configured)
-    
-    # Print warnings if any
-    if warnings:
-        print("\n[MC] Parameter Validation Warnings:")
-        for warning in warnings:
-            print(f"  {warning}")
-        print()
-    
-    # Get MC iterations from config object (preferred) or fallback to Excel data
-    try:
-        n_iterations = int(config.MC_ITERATIONS)
-    except (AttributeError, ValueError):
-        try:
-            n_iterations = int(input_data['0_Configuration'].loc[
-                input_data['0_Configuration'].iloc[:, 0].str.strip() == 'MC_Iterations'
-            ].iloc[0, 1])
-        except (KeyError, IndexError, ValueError):
-            n_iterations = 10  # Default fallback
-    
     print(f"\n[MC] Running Monte Carlo simulation with {n_iterations} iterations...")
-    print(f"[MC] Using {len(validated_params)} validated parameters...")
 
-    # --- FIX: Build mappings to check for Splitter TCs ---
-    process_defs = input_data.get('2_1_Definition_Processes')
+    # --- 2. Build maps for efficient lookup ---
+    # Map TC names back to their process ID and get all TC names for a flow
+    tc_info_map = {}
     static_tc_defs = input_data.get('2_3_Process_TCs')
-    
-    logic_map = {}
-    if process_defs is not None:
-        logic_map = process_defs.set_index('ID')['Process_Logic'].to_dict()
-
-    tc_to_process_map = {}
     if static_tc_defs is not None:
-        clean_tc_defs = static_tc_defs.dropna(subset=['TC_ID', 'Process_ID'])
-        tc_to_process_map = clean_tc_defs.set_index('TC_ID')['Process_ID'].astype(int).to_dict()
-    # --- END FIX ---
+        for _, row in static_tc_defs.iterrows():
+            process_id = row.get('Process_ID')
+            material_tc = row.get('TC_material_ID')
+            if pd.notna(process_id) and pd.notna(material_tc):
+                all_tcs = [
+                    row.get(f'TC_{elem}_ID')
+                    for elem in mfa_system_setup.Elements
+                    if f'TC_{elem}_ID' in row and pd.notna(row.get(f'TC_{elem}_ID'))
+                ]
+                # For any TC name in this flow, we can find its process and sibling TCs
+                for tc_name in all_tcs:
+                    tc_info_map[tc_name] = {
+                        'process_id': int(process_id),
+                        'sibling_tcs': all_tcs,
+                    }
 
-    all_results = []
-    
+    # --- 3. Main Simulation Loop ---
+    results_list = []
+    print(f"[MC] Using {len(uncertainty_params)} validated parameters...")
+
     for i in range(n_iterations):
-        print(f"  Running iteration {i + 1}/{n_iterations}...")
-        mfa_system_iter = copy.deepcopy(mfa_system_configured)
-        
-        iter_params = {'iteration': i}
+        if (i + 1) % 10 == 0:
+            print(f"  ... iteration {i + 1}/{n_iterations}")
 
-        # Sample parameters
-        for _, row in validated_params.iterrows():
-            param_name = row['Parameter_Name']
-            dist = row['Distribution'].lower()
-            val = None
+        # --- 3a. Sample parameters ---
+        sampled_params = sample_parameters(uncertainty_params)
+        tc_updates = sampled_params.copy()
 
-            if dist == 'normal':
-                if 'Mean' in row and 'StdDev' in row and pd.notna(row['Mean']) and pd.notna(row['StdDev']):
-                    val = np.random.normal(row['Mean'], row['StdDev'])
-            elif dist == 'uniform':
-                if 'Min' in row and 'Max' in row and pd.notna(row['Min']) and pd.notna(row['Max']):
-                    val = np.random.uniform(row['Min'], row['Max'])
+        # --- 3b. Propagate Splitter Uncertainty ---
+        for param_name, sample_value in sampled_params.items():
+            if param_name in tc_info_map:
+                info = tc_info_map[param_name]
+                process_id = info['process_id']
+                logic = process_logic_map.get(process_id)
 
-            if val is not None:
-                iter_params[param_name] = val
-                
-                # --- FIX: Check if this is a material TC for a Splitter process ---
-                is_splitter_material_tc = False
-                tc_id = None
-                if param_name.endswith('_material'):
-                    _tc_id = param_name.replace('_material', '')
-                    if _tc_id in tc_to_process_map:
-                        process_id = tc_to_process_map[_tc_id]
-                        if logic_map.get(process_id) == 'Splitter':
-                            is_splitter_material_tc = True
-                            tc_id = _tc_id
-                
-                # If it is, propagate the sampled value to all substance TCs
-                if is_splitter_material_tc:
-                    elements_to_update = ['material', 'WC', 'DM', 'CC']
-                    for element in elements_to_update:
-                        full_param_name = f"{tc_id}_{element}"
-                        if full_param_name in mfa_system_iter.ParameterDict:
-                            mfa_system_iter.ParameterDict[full_param_name].Values = np.array([val])
-                
-                # If not a special splitter case, use original logic
-                else:
-                    if param_name in mfa_system_iter.ParameterDict:
-                        mfa_system_iter.ParameterDict[param_name].Values = np.array([val])
-                    elif param_name.startswith('dS_'):
-                        stock_id = param_name.split('_')[1]
-                        stock_name = f"S_{stock_id}"
-                        if stock_name in mfa_system_iter.StockDict:
-                            mfa_system_iter.StockDict[stock_name].Values[0, 0] = val
-        
-        mfa_results_iter, _ = solver.run_mfa_calculation(
-            mfa_system_iter, dsm_params, fomp_params, config
+                if logic == 'Splitter':
+                    # For a splitter, apply the sampled value to all sibling TCs
+                    for sibling_tc in info['sibling_tcs']:
+                        tc_updates[sibling_tc] = sample_value
+
+        # --- 3c. Run Solver ---
+        mfa_system_run, _ = solver.run_mfa_calculation(
+            mfa_system_setup,
+            dsm_params,
+            fomp_params,
+            config,
+            flow_tc_map=flow_tc_map, # Pass the map from the setup system
+            process_logic_map=process_logic_map,
+            tc_updates=tc_updates,
         )
 
-        iter_stock_results = {}
-        for stock_name, stock_obj in mfa_results_iter.StockDict.items():
-            if stock_name.startswith('S_'):
-                for el_idx, el_name in enumerate(mfa_results_iter.Elements):
-                    col_name = f"{stock_name}_{el_name}_mc"
-                    iter_stock_results[col_name] = stock_obj.Values[-1, el_idx]
-        
-        all_results.append({**iter_params, **iter_stock_results})
+        # --- 3d. Collect Results ---
+        iteration_results = {"iteration": i + 1}
+        for param, value in tc_updates.items():
+            iteration_results[f"{param}_sample"] = value
+        for stock in mfa_system_run.StockDict.values():
+            iteration_results[stock.Name] = stock.Values[-1, 0]  # Final year, material value
+        results_list.append(iteration_results)
 
-    print("[MC] Monte Carlo simulation completed.")
-    
-    results_df = pd.DataFrame(all_results)
-    
-    try:
-        results_df.to_excel("data/02_output/mc_results_detailed.xlsx", index=False)
-        print("[MC] Detailed Monte Carlo results exported to 'data/02_output/mc_results_detailed.xlsx'")
-    except Exception as e:
-        print(f"WARNING: Could not export MC results: {e}")
-        
-    return results_df
+    print("[MC] Simulation finished.")
+    return pd.DataFrame(results_list)

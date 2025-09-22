@@ -28,8 +28,8 @@ def validate_input_data(excel_data_dict):
         "1_1_Definition_Flows": ["Flow_ID", "Name(EN)", "Process_ID_O", "Process_ID_I"],
         "1_2_Data_Flows": ["Flow_ID", "Year_Flow", "Flow_Py"],
         "2_1_Definition_Processes": ["ID", "Name(EN)", "Process_Logic"],
-        "2_3_Process_TCs": ["TC_ID", "Process_ID", "TC_Value_material"],
-        "2_4_Initial_Stock": [
+        "2_3_Process_TCs": ["Flow_ID", "Process_ID", "TC_material_ID", "TC_Value_material"],
+        "2_5_Initial_Stock": [
             "Process_ID",
             "Initial_Stock_material",
             "Initial_Stock_WC[%]",
@@ -56,8 +56,10 @@ def validate_input_data(excel_data_dict):
 
 def load_tc_parameters(all_excel_data, elements, time_vector):
     """
-    Loads all static and dynamic transfer coefficients, handling the
-    'Splitter' vs. 'Transformer' logic.
+    Loads all static and dynamic transfer coefficients based on the new
+    Excel structure, creating parameters with explicit names like
+    'TC_02_03_material'. It respects the 'TC?' and 'Dyn_TC?' flags in the
+    '2_1_Definition_Processes' sheet.
 
     Args:
         all_excel_data (dict): Dictionary of DataFrames from Excel.
@@ -67,111 +69,87 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
     Returns:
         dict: A dictionary of ODYM Parameter objects for all TCs.
     """
-    print("--> Loading Transfer Coefficients (TCs)...")
+    print("--> Loading Transfer Coefficients (TCs) using new structure...")
     
     process_defs = all_excel_data.get('2_1_Definition_Processes')
     static_tc_defs = all_excel_data.get('2_3_Process_TCs')
-    dynamic_tc_defs = all_excel_data.get('2_5_dynamic_tcs')
+    dynamic_tc_defs = all_excel_data.get('2_4_dynamic_tcs')
 
     if static_tc_defs is None or process_defs is None:
-        print("-> No TC definitions found. Skipping.")
+        print("-> No TC or Process definitions found. Skipping TC loading.")
         return {}
 
-    # Create a mapping from Process_ID to Process_Logic for quick lookup
-    logic_map = process_defs.set_index('ID')['Process_Logic'].to_dict()
-    
-    # Dictionary to hold the final ODYM Parameter objects
+    # Create sets of process IDs where TCs and Dynamic TCs are enabled (case-insensitive)
+    tc_enabled_processes = set(process_defs[process_defs['TC?'].str.lower().str.strip() == 'yes']['ID'])
+    dyn_tc_enabled_processes = set(process_defs[process_defs['Dyn_TC?'].str.lower().str.strip() == 'yes']['ID'])
+
     tc_params = {}
-    param_id_counter = 1000  # Start from a high number to avoid collisions
+    param_id_counter = 1000
 
     # 1. Process Static TCs
+    print("  -> Processing static TCs...")
     for _, row in static_tc_defs.iterrows():
-        if pd.isna(row.get('TC_ID')) or pd.isna(row.get('Process_ID')):
+        process_id = row.get('Process_ID')
+        if pd.isna(process_id) or int(process_id) not in tc_enabled_processes:
             continue
 
-        tc_id = row['TC_ID']
-        process_id = int(row['Process_ID'])
-        process_logic = logic_map.get(process_id)
-
-        # --- DEBUG LOGGING ---
-        print(f"  -> Loading TC: {tc_id} (from Process {process_id})... Applying '{process_logic}' logic.")
-
         for element in elements:
-            param_name = f"{tc_id}_{element}"
-            value = np.nan
-
-            if process_logic == 'Splitter':
-                value = row['TC_Value_material']
-            elif process_logic == 'Transformer':
-                col_name = f"TC_Value_{element}"
-                if col_name in row:
-                    value = row[col_name]
+            param_name_col = f'TC_{element}_ID'
+            param_value_col = f'TC_Value_{element}'
             
-            if pd.notna(value):
-                tc_params[param_name] = msc.Parameter(Name=param_name, ID=param_id_counter, Values=value, Unit="1")
-                param_id_counter += 1
+            if param_name_col in row and pd.notna(row[param_name_col]) and param_value_col in row and pd.notna(row[param_value_col]):
+                param_name = row[param_name_col]
+                value = row[param_value_col]
+                
+                if param_name not in tc_params:
+                    tc_params[param_name] = msc.Parameter(Name=param_name, ID=param_id_counter, Values=value, Unit="1")
+                    param_id_counter += 1
+                else:
+                    print(f"⚠️ Warning: Duplicate static TC parameter name found: {param_name}. Using first value found.")
 
     # 2. Process Dynamic TCs
+    print("  -> Processing dynamic TCs...")
     if dynamic_tc_defs is not None and not dynamic_tc_defs.empty:
-        # Robustly find required columns, ignoring extras
-        required_dyn_cols = ['TC_ID', 'Year'] + [f'Value_{elem}' for elem in elements]
-        
         for _, row in dynamic_tc_defs.iterrows():
-            if pd.isna(row.get('TC_ID')) or pd.isna(row.get('Year')):
+            process_id = row.get('Process_ID')
+            if pd.isna(process_id) or int(process_id) not in dyn_tc_enabled_processes:
+                continue
+
+            if pd.isna(row.get('Year')):
                 continue
             
-            tc_id = row['TC_ID']
-            # Find the process logic for this TC
-            # Ensure Process_ID is an integer before lookup
-            process_id_static_tc_row = static_tc_defs[static_tc_defs['TC_ID'] == tc_id]
-            if process_id_static_tc_row.empty:
-                print(f"⚠️ Warning: Dynamic TC '{tc_id}' found without a corresponding static TC definition. Skipping.")
-                continue
-            process_id = int(process_id_static_tc_row['Process_ID'].iloc[0])
-            process_logic = logic_map.get(process_id)
+            year = int(row['Year'])
 
             for element in elements:
-                param_name = f"{tc_id}_{element}"
-                value_col = f"Value_{element}"
+                param_name_col = f'TC_{element}_ID'
+                param_value_col = f'TC_Value_{element}'
 
-                # For splitters, if substance-specific value is missing, use the material value
-                if process_logic == 'Splitter' and (value_col not in row or pd.isna(row[value_col])):
-                    value_col = 'Value_material'
+                if param_name_col in row and pd.notna(row[param_name_col]) and param_value_col in row and pd.notna(row[param_value_col]):
+                    param_name = row[param_name_col]
+                    value = row[param_value_col]
 
-                if value_col in row and pd.notna(row[value_col]):
-                    # This is one point in a time series
-                    year = row['Year']
-                    value = row[value_col]
-                    
-                    # Initialize the parameter if it's the first time we see it
                     if param_name not in tc_params:
-                        # Create a placeholder Series with NaNs that we can fill
                         ts = pd.Series(index=time_vector, dtype=float)
                         tc_params[param_name] = msc.Parameter(Name=param_name, ID=param_id_counter, Values=ts, Unit="1")
                         param_id_counter += 1
                     elif not isinstance(tc_params[param_name].Values, pd.Series):
-                        # It's a static TC that now has dynamic data, convert to Series
-                        static_value = tc_params[param_name].Values # Get the existing static value
+                        static_value = tc_params[param_name].Values
                         ts = pd.Series(index=time_vector, dtype=float)
-                        # Fill the Series with the static value for all years before adding dynamic points
-                        ts.loc[:] = static_value 
-                        tc_params[param_name].Values = ts # Replace the float with the Series
+                        ts.loc[:] = static_value
+                        tc_params[param_name].Values = ts
 
-                    # Set the value for the specific year
-                    # Ensure year is in the time_vector index
                     if year in tc_params[param_name].Values.index:
                         tc_params[param_name].Values[year] = value
                     else:
-                        print(f"⚠️ Warning: Year {year} for dynamic TC '{tc_id}' is outside the defined time range. Skipping.")
+                        print(f"⚠️ Warning: Year {year} for dynamic TC '{param_name}' is outside the defined time range. Skipping.")
 
     # 3. Interpolate all dynamic TC time series
+    print("  -> Interpolating dynamic TC time series...")
     for param in tc_params.values():
         if isinstance(param.Values, pd.Series):
-            # Only interpolate if there are non-NaN values to interpolate from
-            if param.Values.first_valid_index() is not None:
+            if param.Values.count() > 0:
                 param.Values = param.Values.interpolate(method='linear', limit_direction='both').to_numpy()
             else:
-                # If all values are NaN (e.g., TC defined but no dynamic data points), set to 0
                 param.Values = np.zeros_like(param.Values.to_numpy())
 
     print(f"--> TC loading complete. {len(tc_params)} substance-specific TC parameters created.")
@@ -265,12 +243,15 @@ def load_uncertainty_definitions(excel_data):
         print(f"--> INFO: Sheet '{sheet_name}' not found. No uncertainties will be loaded.")
         return {}
 
-    df_uncertainty = excel_data[sheet_name].dropna(subset=["Parameter_Name"])
+    df_uncertainty = excel_data[sheet_name]
+    print(f"  DEBUG: df_uncertainty before dropna:\n{df_uncertainty}")
+    df_uncertainty = df_uncertainty.dropna(subset=["Parameter_Name"])
+    print(f"  DEBUG: df_uncertainty after dropna (rows: {len(df_uncertainty)}):\n{df_uncertainty}")
     uncertainty_params = {}
 
     for _, row in df_uncertainty.iterrows():
         param_name = row["Parameter_Name"]
-        dist_type = row["Distribution"]
+        dist_type = row["Distribution"].lower()
         definition = {"distribution": dist_type}
 
         if dist_type == "uniform":

@@ -116,7 +116,7 @@ def process_stock_outflow_tcs(mfa_system):
 
 
 def run_mfa_calculation(
-    mfa_system_setup, dsm_params, fomp_params, config, tc_updates=None
+    mfa_system_setup, dsm_params, fomp_params, config, flow_tc_map, process_logic_map, tc_updates=None
 ):
     """
     This function is the iterative solver for the MFA system.
@@ -130,6 +130,8 @@ def run_mfa_calculation(
         dsm_params (dict): Configuration dictionary for DSM processes.
         fomp_params (dict): Configuration dictionary for FOMP processes.
         config (module): The imported config module with calculation switches.
+        flow_tc_map (dict): A dictionary mapping Flow_IDs to their TC_ID names.
+        process_logic_map (dict): A dictionary mapping Process_IDs to their logic ('Splitter' or 'Transformer').
         tc_updates (dict, optional): A dictionary of sampled TC values for an MC run.
 
     Returns:
@@ -151,7 +153,6 @@ def run_mfa_calculation(
     for i in range(15):
         something_changed_in_main_loop = False
         
-        # Re-introduce the inner iterative loop for TCs to stabilize
         while True:
             something_changed_in_tc_loop = False
             
@@ -159,46 +160,62 @@ def run_mfa_calculation(
                 if flow.P_Start in special_processes or hasattr(flow, '_fomp_protected'):
                     continue
 
-                base_tc_name = f"TC_{'_'.join(flow.Name.split('_')[1:3])}"
-                material_tc_param = f"{base_tc_name}_material"
+                process_logic = process_logic_map.get(flow.P_Start)
+                tc_ids = flow_tc_map.get(flow.Name)
 
-                if material_tc_param in mfa_system.ParameterDict:
-                    input_flows = [f for f in mfa_system.FlowDict.values() if f.P_End == flow.P_Start]
-                    
-                    if not input_flows or not all(np.any(f.Values != 0) or f.P_Start == 0 for f in input_flows):
-                        continue
+                if not process_logic or not tc_ids:
+                    continue # Not a TC-driven flow
 
-                    # Store old values to check for changes
-                    old_values = flow.Values.copy()
+                input_flows = [f for f in mfa_system.FlowDict.values() if f.P_End == flow.P_Start]
+                if not input_flows or not all(np.any(f.Values != 0) or f.P_Start == 0 for f in input_flows):
+                    continue
 
-                    # --- New Substance-Level Calculation with Physical Dependency ---
-                    total_inflow_vector = sum(f.Values for f in input_flows)
-                    outflow_vector = np.zeros_like(total_inflow_vector)
+                old_values = flow.Values.copy()
+                total_inflow_vector = sum(f.Values for f in input_flows)
+                outflow_vector = np.zeros_like(total_inflow_vector)
 
-                    try:
-                        mat_idx = mfa_system.Elements.index('material')
-                        wc_idx = mfa_system.Elements.index('WC')
-                        dm_idx = mfa_system.Elements.index('DM')
-                        cc_idx = mfa_system.Elements.index('CC')
-                    except ValueError as e:
-                        raise ValueError(f"The model's elements are not correctly defined. Missing one of ['material', 'WC', 'DM', 'CC']. Error: {e}")
+                try:
+                    mat_idx = mfa_system.Elements.index('material')
+                    wc_idx = mfa_system.Elements.index('WC')
+                    dm_idx = mfa_system.Elements.index('DM')
+                    cc_idx = mfa_system.Elements.index('CC')
+                except ValueError as e:
+                    raise ValueError(f"The model's elements are not correctly defined. Missing one of ['material', 'WC', 'DM', 'CC']. Error: {e}")
 
-                    # Calculate independent components (WC, DM, CC) from their TCs
+                if process_logic == 'Splitter':
+                    param_name = tc_ids.get('material')
+                    if param_name and param_name in mfa_system.ParameterDict:
+                        tc_value = mfa_system.ParameterDict[param_name].Values
+                        
+                        # Calculate material outflow
+                        outflow_vector[:, mat_idx] = total_inflow_vector[:, mat_idx] * tc_value
+                        
+                        # Calculate inflow composition (fraction of material)
+                        # Use np.divide to handle division by zero safely
+                        inflow_material = total_inflow_vector[:, mat_idx]
+                        wc_fraction = np.divide(total_inflow_vector[:, wc_idx], inflow_material, out=np.zeros_like(inflow_material), where=inflow_material!=0)
+                        dm_fraction = np.divide(total_inflow_vector[:, dm_idx], inflow_material, out=np.zeros_like(inflow_material), where=inflow_material!=0)
+                        cc_fraction = np.divide(total_inflow_vector[:, cc_idx], inflow_material, out=np.zeros_like(inflow_material), where=inflow_material!=0)
+
+                        # Apply composition to material outflow
+                        outflow_vector[:, wc_idx] = outflow_vector[:, mat_idx] * wc_fraction
+                        outflow_vector[:, dm_idx] = outflow_vector[:, mat_idx] * dm_fraction
+                        outflow_vector[:, cc_idx] = outflow_vector[:, mat_idx] * cc_fraction
+
+                elif process_logic == 'Transformer':
                     for i_elem, element in [(wc_idx, 'WC'), (dm_idx, 'DM'), (cc_idx, 'CC')]:
-                        param_name = f"{base_tc_name}_{element}"
-                        if param_name in mfa_system.ParameterDict:
+                        param_name = tc_ids.get(element, tc_ids.get('material'))
+                        if param_name and param_name in mfa_system.ParameterDict:
                             tc_value = mfa_system.ParameterDict[param_name].Values
                             outflow_vector[:, i_elem] = total_inflow_vector[:, i_elem] * tc_value
                     
                     # Enforce physical dependency: material = WC + DM
                     outflow_vector[:, mat_idx] = outflow_vector[:, wc_idx] + outflow_vector[:, dm_idx]
-                    
-                    # Update the flow's values with the calculated substance vector
-                    flow.Values = outflow_vector
 
-                    if not np.allclose(old_values, flow.Values):
-                        something_changed_in_tc_loop = True
-                        something_changed_in_main_loop = True
+                flow.Values = outflow_vector
+                if not np.allclose(old_values, flow.Values):
+                    something_changed_in_tc_loop = True
+                    something_changed_in_main_loop = True
 
             if not something_changed_in_tc_loop:
                 break

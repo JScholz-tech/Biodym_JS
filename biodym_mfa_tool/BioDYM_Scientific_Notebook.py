@@ -87,7 +87,7 @@ print("📊 Plotting environment ready")
 # ## 1.2 Data Input Configuration
 
 # This is the only manual path setting required.
-input_file = "data/01_input/250909_CS1_Wheat_Straw.xlsx"
+input_file = "data/01_input/250922_CS1_Wheat_Straw.xlsx"
 print(f"📁 Input file: {input_file}")
 if not os.path.exists(input_file):
     raise FileNotFoundError(f"Input file not found: {input_file}")
@@ -100,8 +100,7 @@ print("="*60)
 
 # Load the full dataset once. This will be passed to functions that need it.
 input_data = pd.read_excel(
-    input_file, sheet_name=None, header=0, engine='openpyxl', na_values=['N.A.', 'NA', 'n/a']
-)
+    input_file, sheet_name=None, header=0, engine='openpyxl', na_values=['N.A.', 'NA', 'n/a'], decimal=',')
 print(f"✅ Excel file loaded: {len(input_data)} sheets")
 
 # Use the robust loader from the config module. This function handles all errors
@@ -153,7 +152,7 @@ print("📊 Loading processes and data...")
 mfa_system_base, all_excel_data = system_setup.load_and_define_processes(mfa_system_base, input_data, data_loader)
 
 print("🔗 Defining flows and base parameters (e.g., compositions from flowsheet)...")
-mfa_system_configured, _ = system_setup.define_flows_and_parameters(mfa_system_base, all_excel_data)
+mfa_system_configured, _, flow_tc_map, process_logic_map = system_setup.define_flows_and_parameters(mfa_system_base, all_excel_data)
 
 print("⚙️ Loading all model parameters (TCs, DSM, FOMP)...")
 
@@ -174,7 +173,7 @@ uncertainty_params = data_loader.load_uncertainty_definitions(all_excel_data)
 print("✅ All parameters loaded and configured.")
 
 print("🧮 Running baseline calculation...")
-mfa_results_baseline, dsm_details_baseline = solver.run_mfa_calculation(mfa_system_configured, dsm_params, fomp_params, config_obj)
+mfa_results_baseline, dsm_details_baseline = solver.run_mfa_calculation(mfa_system_configured, dsm_params, fomp_params, config_obj, flow_tc_map=flow_tc_map, process_logic_map=process_logic_map)
 print("✅ Baseline calculation completed successfully!")
 
 # ## 2.2 Mass Balance Validation
@@ -276,7 +275,7 @@ if getattr(config_obj, 'Run_Scenario_Analysis', False):
             scenario_config_obj = copy.deepcopy(config_obj)
             scenario_config_obj.RUN_MONTE_CARLO = False
             
-            mfa_results_scenario, _ = solver.run_mfa_calculation(mfa_system_scenario, dsm_params, fomp_params, scenario_config_obj)
+            mfa_results_scenario, _ = solver.run_mfa_calculation(mfa_system_scenario, dsm_params, fomp_params, scenario_config_obj, flow_tc_map=flow_tc_map, process_logic_map=process_logic_map)
             all_scenario_results[scenario_name] = mfa_results_scenario
             print(f"✅ Scenario '{scenario_name}' calculation completed successfully!")
 
@@ -331,7 +330,7 @@ if config_obj.RUN_MONTE_CARLO and '4_1_Uncertainty_Parameters' in input_data:
     try:
         from engine.mc_simulation import run_mc_simulation
         from plotting.mc_visuals import plot_interactive_mc_histogram, plot_interactive_tornado
-        mc_results = run_mc_simulation(mfa_system_configured, input_data, dsm_params, fomp_params, config_obj)
+        mc_results = run_mc_simulation(mfa_system_configured, input_data, dsm_params, fomp_params, config_obj, process_logic_map=process_logic_map, flow_tc_map=flow_tc_map)
         if mc_results is not None and not mc_results.empty:
             print("✅ Monte Carlo simulation completed for baseline")
             plot_interactive_mc_histogram(mc_results)

@@ -25,12 +25,12 @@ def test_validate_input_data_success():
         ),
         "1_2_Data_Flows": pd.DataFrame(columns=["Flow_ID", "Year_Flow", "Flow_Py"]),
         "2_1_Definition_Processes": pd.DataFrame(
-            columns=["ID", "Name(EN)", "Stock?", "Initial_Stock?"]
+            columns=["ID", "Name(EN)", "Process_Logic"]
         ),
-        "2_4_Process_Stock_": pd.DataFrame(
-            columns=["Process_ID", "Initial_Stock_material"]
+        "2_3_Process_TCs": pd.DataFrame(
+            columns=["Flow_ID", "Process_ID", "TC_material_ID", "TC_Value_material"]
         ),
-        "2_4_Initial_Stock": pd.DataFrame(
+        "2_5_Initial_Stock": pd.DataFrame(
             columns=[
                 "Process_ID",
                 "Initial_Stock_material",
@@ -39,9 +39,7 @@ def test_validate_input_data_success():
                 "Initial_Stock_CC[%]",
             ]
         ),
-        "2_5_dynamic_tcs": pd.DataFrame(columns=["TC_ID", "Year", "Value"]),
     }
-
     # 2. ACT & 3. ASSERT: Run the function and assert that it does NOT raise an error.
     # If it raises an error, the test will fail automatically.
     validate_input_data(correct_data)
