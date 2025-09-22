@@ -208,7 +208,8 @@ def run_mc_simulation(
         for param, value in tc_updates.items():
             iteration_results[f"{param}_sample"] = value
         for stock in mfa_system_run.StockDict.values():
-            iteration_results[stock.Name] = stock.Values[-1, 0]  # Final year, material value
+            for i_elem, element_name in enumerate(mfa_system_run.Elements):
+                iteration_results[f"{stock.Name}_{element_name}"] = stock.Values[-1, i_elem]  # Final year, all element values
         results_list.append(iteration_results)
 
     print("[MC] Simulation finished.")

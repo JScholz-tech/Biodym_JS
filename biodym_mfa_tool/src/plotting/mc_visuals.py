@@ -29,22 +29,25 @@ def plot_interactive_mc_histogram(mc_results_df):
 
     # Extract unique stock and element names from column headers
     stock_names = sorted(list(set(
-        col for col in mc_results_df.columns if col.startswith('S_')
+        col.split('_')[0] + '_' + col.split('_')[1] 
+        for col in mc_results_df.columns if col.startswith('S_') and len(col.split('_')) > 2
     )))
-    
-    if not stock_names:
-        print("Could not parse stock names from MC results columns.")
-        return
+    elements = sorted(list(set(
+        col.split('_')[2] 
+        for col in mc_results_df.columns if col.startswith('S_') and len(col.split('_')) > 2
+    )))
 
     # --- Create Widgets ---
     stock_dropdown = Dropdown(options=stock_names, description='Stock:')
+    element_dropdown = Dropdown(options=elements, description='Element:')
     export_button = Button(description="Export PNG", button_style='success', icon='download')
     fig_widget = go.FigureWidget()
 
     def update_plot(change):
         """Callback to update the plot when a dropdown value changes."""
         stock = stock_dropdown.value
-        col_name = f"{stock}"
+        element = element_dropdown.value
+        col_name = f"{stock}_{element}"
 
         with fig_widget.batch_update():
             fig_widget.data = [] # Clear previous traces
@@ -82,7 +85,7 @@ def plot_interactive_mc_histogram(mc_results_df):
             # Update Layout
             fig_widget.update_layout(
                 title=dict(
-                    text=f"Monte Carlo Distribution for {stock}",
+                    text=f"Monte Carlo Distribution for {stock} ({element})",
                     x=0.5,
                     font=dict(size=20, family="Arial, sans-serif")
                 ),
@@ -98,13 +101,14 @@ def plot_interactive_mc_histogram(mc_results_df):
     def on_export_button_clicked(b):
         """Callback to handle the export button click."""
         stock = stock_dropdown.value
+        element = element_dropdown.value
         
         # Create a dedicated export directory
         export_dir = "exports/mc_analysis"
         os.makedirs(export_dir, exist_ok=True)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{export_dir}/mc_histogram_{stock}_{timestamp}.png"
+        filename = f"{export_dir}/mc_histogram_{stock}_{element}_{timestamp}.png"
         
         try:
             fig_widget.write_image(filename, width=1000, height=600, scale=2)
@@ -115,13 +119,14 @@ def plot_interactive_mc_histogram(mc_results_df):
 
     # --- Link Widgets and Display ---
     stock_dropdown.observe(update_plot, names='value')
+    element_dropdown.observe(update_plot, names='value')
     export_button.on_click(on_export_button_clicked)
 
     # Initial plot call
     update_plot(None)
 
     # Display layout
-    controls = HBox([stock_dropdown, export_button])
+    controls = HBox([stock_dropdown, element_dropdown, export_button])
     display(VBox([controls, fig_widget]))
 
 def plot_interactive_tornado(mc_results_df):
