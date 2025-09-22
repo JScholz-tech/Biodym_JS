@@ -1,5 +1,7 @@
 # BioDYM - Material Flow Analysis for Bio-based Systems
 
+> **🚀 Beta Publication Version** - This branch contains the clean, publication-ready version of BioDYM
+
 BioDYM is a comprehensive Material Flow Analysis (MFA) tool designed for analyzing bio-based material systems. Built on the [ODYM framework](https://github.com/IndEcol/ODYM), it tracks material flows, stocks, and transformations through time with special features for organic waste management and biomass cascading.
 
 ## 🎯 Key Features
@@ -16,8 +18,8 @@ BioDYM is a comprehensive Material Flow Analysis (MFA) tool designed for analyzi
 ### 1. Install BioDYM
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/Biodym_JS.git
+# Clone the beta-publication branch
+git clone -b beta-publication https://github.com/JScholz-tech/Biodym_JS.git
 cd Biodym_JS
 
 # Create a virtual env and install deps with uv
