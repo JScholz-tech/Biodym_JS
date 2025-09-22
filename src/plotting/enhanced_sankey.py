@@ -78,6 +78,11 @@ def calculate_element_specific_positions(processes, config, element):
         viz_settings = get_process_visualization(process.ID, process.Name, config, element)
         x = _safe_float_convert(viz_settings.get('X_Position'), 0.5)
         y = _safe_float_convert(viz_settings.get('Y_Position'), 0.5)
+        
+        # Clamp positions to valid range [0.0, 1.0]
+        x = max(0.0, min(1.0, x))
+        y = max(0.0, min(1.0, y))
+        
         positions[process.ID] = (x, y)
     return positions
 

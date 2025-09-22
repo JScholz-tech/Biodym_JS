@@ -210,11 +210,11 @@ class TestExportResultsToExcel:
             # Read the exported Excel file and verify its contents
             with pd.ExcelFile(output_path) as xls:
                 # Check that both sheets exist
-                assert "Flows" in xls.sheet_names
-                assert "Stocks" in xls.sheet_names
+                assert "Flows_long" in xls.sheet_names
+                assert "Stocks_long" in xls.sheet_names
 
                 # Read flows sheet
-                flows_df = pd.read_excel(xls, "Flows")
+                flows_df = pd.read_excel(xls, "Flows_long")
                 assert len(flows_df) == 2  # 2 years × 1 flow
                 assert "Flow" in flows_df.columns
                 assert "Year" in flows_df.columns
@@ -230,7 +230,7 @@ class TestExportResultsToExcel:
                 assert flow_2020["WC"].iloc[0] == 50.0
 
                 # Read stocks sheet
-                stocks_df = pd.read_excel(xls, "Stocks")
+                stocks_df = pd.read_excel(xls, "Stocks_long")
                 assert len(stocks_df) == 2  # 2 years × 1 stock
                 assert "Stock" in stocks_df.columns
                 assert "Year" in stocks_df.columns
@@ -288,12 +288,12 @@ class TestExportResultsToExcel:
 
             # Read the exported Excel file
             with pd.ExcelFile(output_path) as xls:
-                assert "Flows" in xls.sheet_names
-                assert "Stocks" in xls.sheet_names
+                assert "Flows_long" in xls.sheet_names
+                assert "Stocks_long" in xls.sheet_names
 
                 # Check that sheets are empty (except headers)
-                flows_df = pd.read_excel(xls, "Flows")
-                stocks_df = pd.read_excel(xls, "Stocks")
+                flows_df = pd.read_excel(xls, "Flows_long")
+                stocks_df = pd.read_excel(xls, "Stocks_long")
 
                 assert len(flows_df) == 0  # No flows to export
                 assert len(stocks_df) == 0  # No stocks to export

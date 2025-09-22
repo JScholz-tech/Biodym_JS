@@ -18,24 +18,24 @@ import pandas as pd
 # --- Add project structure to system path ---
 # This allows us to import our custom modules and the ODYM framework.
 # It assumes the ODYM and bioDYM frameworks are in a 'framework' folder
-# at the same level as the 'biodym_mfa_tool' project folder.
+# at the project root level.
 
 # Path to the 'src' directory of our project
 src_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, src_path)
 
-# Path to the parent directory of the project root to find the 'framework' folder
-project_root_parent = os.path.dirname(os.path.dirname(src_path))
+# Path to the project root to find the 'framework' folder
+project_root = os.path.dirname(src_path)
 
 # Add ODYM framework to path
 odym_path = os.path.join(
-    project_root_parent, "framework", "ODYM-master_20241127", "odym", "modules"
+    project_root, "framework", "ODYM-master_20241127", "odym", "modules"
 )
 sys.path.insert(0, odym_path)
 
 # Add bioDYM add-on to path
 biodym_addon_path = os.path.join(
-    project_root_parent, "framework", "bioDYM_add-on", "modules"
+    project_root, "framework", "bioDYM_add-on", "modules"
 )
 sys.path.insert(0, biodym_addon_path)
 

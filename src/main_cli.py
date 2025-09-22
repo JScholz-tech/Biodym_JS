@@ -20,16 +20,16 @@ import pandas as pd
 src_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, src_path)
 
-# Add ODYM framework to path (now inside biodym_mfa_tool)
-biodym_mfa_tool_dir = os.path.dirname(src_path)
+# Add ODYM framework to path
+project_root = os.path.dirname(src_path)
 odym_path = os.path.join(
-    biodym_mfa_tool_dir, "framework", "ODYM-master_20241127", "odym", "modules"
+    project_root, "framework", "ODYM-master_20241127", "odym", "modules"
 )
 sys.path.insert(0, odym_path)
 
-# Add bioDYM add-on to path (now inside biodym_mfa_tool)
+# Add bioDYM add-on to path
 biodym_addon_path = os.path.join(
-    biodym_mfa_tool_dir, "framework", "bioDYM_add-on", "modules"
+    project_root, "framework", "bioDYM_add-on", "modules"
 )
 sys.path.insert(0, biodym_addon_path)
 

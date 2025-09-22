@@ -135,24 +135,26 @@ def export_results_to_excel(mfa_system_results, output_path, input_file_path="No
         # --- 3. Wide-Format Data (for easy analysis in Excel) ---
         for element in elements:
             # Flows Wide
-            flow_df_wide = flow_df_long.pivot_table(index="Flow", columns="Year", values=element)
-            sheet_name = f"Flows_wide_{element}"
-            flow_df_wide.to_excel(writer, sheet_name=sheet_name)
-            worksheet = writer.sheets[sheet_name]
-            worksheet.write(0, 0, 'Flow', header_format)
-            for col_num, value in enumerate(flow_df_wide.columns.values):
-                worksheet.write(0, col_num + 1, value, header_format)
-            worksheet.set_column(0, 0, 30) # Width for flow names
+            if not flow_df_long.empty and element in flow_df_long.columns:
+                flow_df_wide = flow_df_long.pivot_table(index="Flow", columns="Year", values=element)
+                sheet_name = f"Flows_wide_{element}"
+                flow_df_wide.to_excel(writer, sheet_name=sheet_name)
+                worksheet = writer.sheets[sheet_name]
+                worksheet.write(0, 0, 'Flow', header_format)
+                for col_num, value in enumerate(flow_df_wide.columns.values):
+                    worksheet.write(0, col_num + 1, value, header_format)
+                worksheet.set_column(0, 0, 30) # Width for flow names
 
             # Stocks Wide
-            stock_df_wide = stock_df_long.pivot_table(index="Stock", columns="Year", values=element)
-            sheet_name = f"Stocks_wide_{element}"
-            stock_df_wide.to_excel(writer, sheet_name=sheet_name)
-            worksheet = writer.sheets[sheet_name]
-            worksheet.write(0, 0, 'Stock', header_format)
-            for col_num, value in enumerate(stock_df_wide.columns.values):
-                worksheet.write(0, col_num + 1, value, header_format)
-            worksheet.set_column(0, 0, 30) # Width for stock names
+            if not stock_df_long.empty and element in stock_df_long.columns:
+                stock_df_wide = stock_df_long.pivot_table(index="Stock", columns="Year", values=element)
+                sheet_name = f"Stocks_wide_{element}"
+                stock_df_wide.to_excel(writer, sheet_name=sheet_name)
+                worksheet = writer.sheets[sheet_name]
+                worksheet.write(0, 0, 'Stock', header_format)
+                for col_num, value in enumerate(stock_df_wide.columns.values):
+                    worksheet.write(0, col_num + 1, value, header_format)
+                worksheet.set_column(0, 0, 30) # Width for stock names
 
     print(f"✅ Results successfully exported to {output_path}")
 

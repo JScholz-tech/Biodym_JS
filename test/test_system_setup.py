@@ -123,14 +123,14 @@ def test_define_flows_and_parameters_logic():
         "1_1_Definition_Flows": mock_flow_def,
         "1_2_Data_Flows": mock_flow_data,
         # Add the process definitions sheet, which the function needs to check for initial stocks.
-        "2_1_Definition_Processes": pd.DataFrame(columns=["ID", "Initial_Stock?"]),
+        "2_1_Definition_Processes": pd.DataFrame(columns=["ID", "Initial_Stock?", "Process_Logic"]),
         "2_5_dynamic_tcs": pd.DataFrame(
             columns=["TC_ID", "Year", "Value"]
         ),  # Empty but present
     }
 
     # 2. ACT
-    mfa_system_result, _ = define_flows_and_parameters(mfa_system, mock_excel_data)
+    mfa_system_result, _, _, _ = define_flows_and_parameters(mfa_system, mock_excel_data)
 
     # 3. ASSERT
     # Check the elemental composition calculation for the primary input flow

@@ -12,24 +12,24 @@ import sys
 # Get the test directory path
 test_dir = os.path.dirname(os.path.abspath(__file__))
 
-# Navigate to the biodym_mfa_tool directory
-biodym_mfa_tool_dir = os.path.dirname(test_dir)
+# Navigate to the project root directory
+project_root = os.path.dirname(test_dir)
 
 # Add src directory to path
-src_path = os.path.join(biodym_mfa_tool_dir, "src")
+src_path = os.path.join(project_root, "src")
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
-# Add ODYM framework to path (now inside biodym_mfa_tool)
+# Add ODYM framework to path
 odym_path = os.path.join(
-    biodym_mfa_tool_dir, "framework", "ODYM-master_20241127", "odym", "modules"
+    project_root, "framework", "ODYM-master_20241127", "odym", "modules"
 )
 if odym_path not in sys.path:
     sys.path.insert(0, odym_path)
 
-# Add bioDYM add-on to path (now inside biodym_mfa_tool)
+# Add bioDYM add-on to path
 biodym_addon_path = os.path.join(
-    biodym_mfa_tool_dir, "framework", "bioDYM_add-on", "modules"
+    project_root, "framework", "bioDYM_add-on", "modules"
 )
 if biodym_addon_path not in sys.path:
     sys.path.insert(0, biodym_addon_path)

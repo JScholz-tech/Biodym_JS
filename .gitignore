@@ -24,3 +24,22 @@ venv/
 ~$*.xlsx
 ~$*.docx
 ~$*.pptx
+
+# Archive and duplicate directories
+Archive/
+biodym_mfa_tool/
+studies/
+Writing project/
+
+# Generated output files
+exports/
+
+# Large Excel files (keep only examples)
+data/01_input/*.xlsx
+data/02_output/*.xlsx
+scenarios/*.xlsx
+
+# Keep only essential input files
+!data/01_input/250625_Template_CS0.xlsx
+!data/01_input/250922_CS1_Wheat_Straw.xlsx
+!data/02_output/results_scientific_baseline.xlsx

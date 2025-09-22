@@ -73,7 +73,7 @@ def test_calculate_element_specific_positions_clamps():
         }
     }
 
-    positions = calculate_element_specific_positions(processes, [], cfg, element='material', layout_type='Custom')
+    positions = calculate_element_specific_positions(processes, cfg, 'material')
 
     # Process 1 gets clamped to [1.0, 0.0]
     assert positions[1][0] == 1.0

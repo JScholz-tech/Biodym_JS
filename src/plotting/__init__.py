@@ -33,12 +33,4 @@ from .utils import plot_enhanced_export_options
 from ipywidgets import Button, HBox, interact  # noqa: F401
 from IPython.display import display  # noqa: F401
 
-# Flow chart plotting - using Graphviz functions instead
-# from .flow_charts import (
-#     plot_simple_flow_chart_from_excel,
-#     plot_interactive_flow_chart_from_excel,
-#     plot_system_architecture_from_excel,
-#     create_flow_chart_export_controls
-# )
-
-# Legacy functions removed for cleanup - use plot_graphviz_flow_chart_sankey_style instead
+# Flow chart plotting is handled by graphviz_flow_charts module
