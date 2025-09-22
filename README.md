@@ -6,12 +6,28 @@ BioDYM is a comprehensive Material Flow Analysis (MFA) tool designed for analyzi
 
 ## 🎯 Key Features
 
+### Core Analysis Capabilities
 - **Material Flow Analysis (MFA)** - Track materials through complex systems
+- **Multi-Element Analysis** - Simultaneously track material, carbon, nitrogen, and other elements
+- **Time-Series Analysis** - Dynamic modeling over multiple years with temporal resolution
 - **Dynamic Stock Modeling (DSM)** - Model material aging and product lifetimes
 - **First-Order Mineralization (FOMP)** - Simulate organic matter decomposition (e.g., carbon in soil)
-- **Monte Carlo Simulation** - Quantify uncertainty in results
+
+### Process Logic & Configuration
+- **Excel-based Configuration** - Pure data input via Excel files, no programming required
+- **Interactive Jupyter Notebook** - Step-by-step analysis workflow with guided execution
+- **Process Logic Types** - Splitter and Transformer processes for different material transformations
+- **Stock-Outflow Transfer Coefficients** - Custom ODYM extension for stock-driven flows
+
+### Analysis & Visualization
 - **Interactive Visualizations** - Sankey diagrams, stock plots, and dashboards
-- **Excel-based Configuration** - No programming required for basic use
+- **Scenario Manager** - Compare multiple scenarios and analyze sensitivity
+- **Monte Carlo Simulation** - Quantify uncertainty in results
+- **Mass Balance Validation** - Automatic system consistency checks
+
+### Quality Assurance
+- **Comprehensive Test Suite** - Validated calculations with extensive testing
+- **Structured Workflow** - Organized analysis pipeline from data loading to export
 
 ## 🚀 Quick Start
 
@@ -28,66 +44,107 @@ uv sync
 
 ### 2. Prepare Your Data
 
-Generate an Excel template or use an existing example:
+Copy an example Excel file to use as your input data. The Excel file contains all your system configuration, processes, flows, and parameters:
 
 ```bash
-# Or use an example
-cp biodym_mfa_tool/data/01_input/BioDYM_MFA_Input_Template.xlsx my_analysis.xlsx
+# Copy the wheat straw example (recommended for first-time users)
+cp data/01_input/250922_CS1_Wheat_Straw.xlsx my_analysis.xlsx
+
+# Or use the clean template
+cp data/01_input/250625_Template_CS0.xlsx my_analysis.xlsx
 ```
+
+> **Note**: `my_analysis.xlsx` is just a placeholder name - you can use any filename you prefer for your analysis.
 
 ### 3. Run Your Analysis
 
-```bash
-# Using the command line (recommended)
-uv run python biodym_mfa_tool/src/main_cli.py --input my_analysis.xlsx
+**🎯 Recommended: Use the Interactive Jupyter Notebook**
 
-# Or use Jupyter for interactive analysis
+```bash
+# Start Jupyter Lab
 uv run jupyter lab
-# Then open biodym_mfa_tool/BioDYM_Scientific_Notebook.ipynb
+
+# Then open BioDYM_Scientific_Notebook.ipynb
+# Update the input_file path in the notebook to point to your Excel file
 ```
 
-## 📚 Documentation
+**Alternative: Command Line Interface**
 
-- **[Quick Start Tutorial](biodym_mfa_tool/docs/QUICKSTART.md)** - Step-by-step guide using a simple example
-- **[Essential Knowledge Summary](biodym_mfa_tool/docs/ESSENTIAL_KNOWLEDGE_SUMMARY.md)** - Architecture, workflow, and key concepts
-- **[Circular Sankey Guide](biodym_mfa_tool/docs/CIRCULAR_SANKEY_GUIDE.md)** - Visualizing circular systems
-- **[Test Usage Guide](biodym_mfa_tool/docs/TEST_USAGE_GUIDE.md)** - Running tests with uv
-- **[Color Palette Guide](biodym_mfa_tool/docs/COLOR_PALETTE_GUIDE.md)** - Recommended colors and usage
-- **[Analysis Docs Index](biodym_mfa_tool/docs/toc_analysis/README.md)** - In-depth analysis and mapping
+```bash
+# For batch processing or automation
+uv run python src/main_cli.py --input my_analysis.xlsx
+```
+
+## 📖 Getting Started
+
+### Understanding the Excel Input File
+
+Your Excel file contains several sheets that define your material flow system:
+
+- **`0_Configuration`** - Main settings (time range, elements, analysis options)
+- **`1_1_Definition_Flows`** - Define all material flows in your system
+- **`1_2_Data_Flows`** - Flow data over time
+- **`2_1_Definition_Processes`** - Define processes and their logic types
+- **`2_3_Process_TCs`** - Process transfer coefficients
+- **`2_4_dynamic_tcs`** - Dynamic transfer coefficients over time
+- **`2_5_Initial_Stock`** - Initial stock levels and stock-outflow TCs
+- **`3_1_Definition_DSM`** - Dynamic Stock Model parameters
+- **`3_2_Definition_FOMP`** - First-Order Mineralization Process parameters
+- **`4_1_Uncertainty_Parameters`** - Monte Carlo uncertainty definitions
+- **`5_1_Scenario_Manager`** - Scenario definitions for comparison
+- **`6_1_Visualization_Processes`** - Process visualization settings
+- **`6_2_Visualization_Flows`** - Flow visualization settings
+- **`6_3_Layout_Configuration`** - Sankey diagram layout configuration
+
+### Running Your First Analysis
+
+1. **Open the Notebook**: Start Jupyter Lab and open `BioDYM_Scientific_Notebook.ipynb`
+2. **Set Your Input File**: Update the `input_file` variable to point to your Excel file
+3. **Run All Cells**: Execute the notebook cells in order
+4. **Explore Results**: Interactive visualizations will appear automatically
+5. **Export Data**: Results are saved to Excel files in `data/02_output/`
 
 ## 🔧 Project Structure
 
-The BioDYM project is organized as follows:
+The BioDYM project follows a clean, flattened structure:
 
-### Main Application (`biodym_mfa_tool/`)
-
+### Core Application
 - **`src/`** - Core application source code
-- **`framework/`** - ODYM framework and bioDYM add-ons
-- **`data/`** - Input/output data templates
-- **`test_data/`** - Test datasets and golden dataset
-- **`scenarios/`** - Scenario configuration files
-- **`docs/`** - Complete documentation
+  - `engine/` - MFA calculation engine, DSM, FOMP, Monte Carlo
+  - `plotting/` - Visualization modules and interactive charts
+- **`framework/`** - ODYM framework and bioDYM extensions
+- **`test/`** - Comprehensive test suite with unit and integration tests
+
+### Data & Configuration
+- **`data/`** - Input/output data and examples
+  - `01_input/` - Example Excel files and templates
+  - `02_output/` - Sample output files
+- **`scenarios/`** - Scenario configuration files (JSON format) and comparison results (Excel)
 - **`examples/`** - Basic examples and tutorials
-- **`studies/`** - Case studies and research examples
-- **`tests/`** - Comprehensive test suite
-- **`installation/`** - Installation guides and Docker setup
 
-### Legacy Content
-
-- **`Archive/`** - Old notebooks and deprecated code
-- **`BioDYM Databasestructure/`** - Database-related files
+### Documentation & Scripts
+- **`docs/`** - Complete documentation and guides
+- **`scripts/`** - Utility scripts for configuration generation
+- **`BioDYM_Scientific_Notebook.ipynb`** - Main interactive analysis notebook
 
 ## 📊 Example Studies
 
-### Basic Examples
+### Included Examples
 
-1. **basic_example_1** - Simple biomass tracking with transfer coefficients
-2. **basic_example_2** - Wheat harvesting with carbon content parameters
+1. **Wheat Straw Analysis** (`250922_CS1_Wheat_Straw.xlsx`) - Complete wheat straw processing system with Monte Carlo analysis
+2. **Template System** (`250625_Template_CS0.xlsx`) - Clean template for creating new analyses
 
-### Advanced Studies
+### Example Outputs
 
-1. **Rye Straw Cascading** - Biogas → Mycelium composites → Biochar → Soil
-2. **Bachelor Thesis Case Study** - Agricultural residue management with Monte Carlo
+- **Baseline Results** (`results_scientific_baseline.xlsx`) - Sample output showing comprehensive analysis results
+- **Monte Carlo Results** (`mc_results_detailed.xlsx`) - Detailed uncertainty analysis outputs
+- **Scientific Results** (`results_scientific.xlsx`) - Standard scientific analysis results
+- **Configuration Results** (`results_scientific_config.xlsx`) - Configuration-driven analysis results
+
+### Tutorial Examples
+
+- **Circular Sankey Example** (`examples/circular_sankey_example.py`) - Interactive visualization tutorial
+- **Monte Carlo User Interaction** (`examples/mc_user_interaction_example.py`) - Uncertainty analysis tutorial
 
 ## 💡 Common Use Cases
 
@@ -98,7 +155,7 @@ The BioDYM project is organized as follows:
 
 ## 🛠️ System Requirements
 
-- Python 3.13 or higher
+- Python 3.12 or higher
 - 4GB RAM minimum (8GB recommended for Monte Carlo)
 - Windows, macOS, or Linux
 
@@ -127,7 +184,7 @@ The BioDYM project is organized as follows:
   ```bash
   uv run pytest
   uv run jupyter lab
-  uv run python biodym_mfa_tool/src/main_cli.py --help
+  uv run python src/main_cli.py --help
   ```
 
 ## 📈 Workflow Overview
@@ -149,7 +206,7 @@ graph LR
 
 ## 🤝 Contributing
 
-We welcome contributions! See our developer workflow in [AGENTS.md](AGENTS.md).
+We welcome contributions! Please see our [GitHub Issues](https://github.com/JScholz-tech/Biodym_JS/issues) for bug reports and feature requests.
 
 ## 📄 License
 
@@ -163,9 +220,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📬 Getting Help
 
-- **Documentation**: Start with the [Quick Start Tutorial](biodym_mfa_tool/docs/QUICKSTART.md)
-- **Issues**: Report bugs or request features on [GitHub Issues](https://github.com/yourusername/Biodym_JS/issues)
-- **Discussions**: Join our [GitHub Discussions](https://github.com/yourusername/Biodym_JS/discussions)
+- **Issues**: Report bugs or request features on [GitHub Issues](https://github.com/JScholz-tech/Biodym_JS/issues)
+- **Discussions**: Join our [GitHub Discussions](https://github.com/JScholz-tech/Biodym_JS/discussions)
+- **Examples**: Start with the included `250922_CS1_Wheat_Straw.xlsx` example file
 
 ---
 
