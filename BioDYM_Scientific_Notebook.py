@@ -187,7 +187,7 @@ plotting.plot_optimized_mass_balance_error(mfa_results_baseline)
 # ## 2.3 System Flow Diagram (Graphviz)
 print("\n--- System Flow Diagram (Graphviz) ---")
 try:
-    from plotting.graphviz_flow_charts import plot_graphviz_flow_chart_sankey_style
+    from src.plotting.graphviz_flow_charts import plot_graphviz_flow_chart_sankey_style
     
     # Get the required dataframes from the loaded data
     processes_data = all_excel_data['2_1_Definition_Processes']
@@ -216,7 +216,7 @@ plotting.plot_interactive_sankey(mfa_results_baseline, dsm_params, fomp_params)
 # ## 3.2 Enhanced Sankey Diagram
 print("\n--- Enhanced Sankey Diagram ---")
 try:
-    from plotting.enhanced_sankey import plot_enhanced_sankey
+    from src.plotting.enhanced_sankey import plot_enhanced_sankey
     print("🎯 Creating enhanced Sankey diagram...")
     plot_enhanced_sankey(
         mfa_system_results=mfa_results_baseline,
@@ -232,13 +232,66 @@ except Exception as e:
 
 # ## 3.3 Additional Visualizations
 print("\n--- Additional Visualizations ---")
+
+# ### 3.3.1 Core System Dynamics
+print("\n📊 Core System Dynamics:")
+print("   • Process Dynamics: Interactive 3-panel view (Inflow/Stock/Outflow)")
+print("   • Flow Dynamics: Multi-flow time series analysis")
+print("   • Stock Analysis: Interactive bar charts with time slider")
+
+# Process Dynamics - 3-panel view showing inflow, stock, and outflow for selected processes
+print("\n🔄 Process Dynamics Analysis:")
 plotting.plot_process_dynamics(mfa_results_baseline, all_excel_data['2_1_Definition_Processes'])
+
+
+# Flow Dynamics - Multi-flow time series with element selection
+print("\n🌊 Flow Dynamics Analysis:")
 plotting.plot_flow_dynamics(mfa_results_baseline)
+
+# Stock Bar Chart - Interactive stock levels with time slider
+print("\n📈 Stock Levels Analysis:")
 plotting.plot_stock_bar_chart(mfa_results_baseline, title="Stock Levels Over Time (Baseline)")
+
+# System Stock Composition - Individual process stocks over time
+print("\n🏗️ Individual Process Stocks Analysis:")
+print("   • Individual process stocks over time")
+print("   • Shows each process stock separately")
+print("   • Element selection and bar/line chart options")
+plotting.plot_system_stock_composition(mfa_results_baseline)
+
+# ### 3.3.2 Specialized Process Analysis (if applicable)
+print("\n📊 Specialized Process Analysis:")
+
+# DSM Stock Details - Detailed DSM stock evolution (if DSM processes exist)
 if dsm_params and dsm_details_baseline:
+    print("\n🏗️ DSM Stock Evolution Analysis:")
+    print("   • Individual and cumulative stock views")
+    print("   • Lifetime analysis and category breakdown")
     plotting.plot_dsm_stock_details(mfa_results_baseline, dsm_params, dsm_details_baseline)
+    
+    print("\n🔄 DSM Process Dynamics Analysis:")
+    print("   • Three-panel view: Input, Stock, Output")
+    print("   • Stacked flows by element (Material, WC, DM, CC)")
+    print("   • Dynamic material composition for DSM processes")
+    plotting.plot_dsm_process_dynamics(mfa_results_baseline, dsm_params, dsm_details_baseline)
+else:
+    print("   ℹ️ No DSM processes found - skipping DSM analysis")
+
+# FOMP Analysis - FOMP mineralization analysis (if FOMP processes exist)
 if fomp_params:
+    print("\n🌱 FOMP Mineralization Analysis:")
+    print("   • Organic matter accumulation and mineralization")
+    print("   • Annual vs cumulative flow analysis")
     plotting.plot_fomp_stock_details(mfa_results_baseline, fomp_params)
+    
+    # FOMP Process Dynamics - Three-panel view of FOMP processes
+    print("\n🔄 FOMP Process Dynamics:")
+    print("   • Three panels: Input Flows (DM), Stock Evolution (DM), Mineralization Output (DM)")
+    print("   • Decay rates displayed as percentages")
+    print("   • Water Content (WC) excluded from mineralization")
+    plotting.plot_fomp_dynamics(mfa_results_baseline, fomp_params)
+else:
+    print("   ℹ️ No FOMP processes found - skipping FOMP analysis")
 
 # # 4. Scenario & Uncertainty Manager
 
@@ -293,7 +346,7 @@ if getattr(config_obj, 'Run_Scenario_Analysis', False):
             
             print("\n--- Enhanced Sankey Comparison ---")
             try:
-                from plotting.enhanced_sankey import plot_enhanced_sankey
+                from src.plotting.enhanced_sankey import plot_enhanced_sankey
                 print("🎯 Creating enhanced Sankey diagrams for scenario comparison...")
                 
                 print("\n📊 Baseline - Enhanced Sankey:")
@@ -329,12 +382,17 @@ print("="*60)
 if config_obj.RUN_MONTE_CARLO and '4_1_Uncertainty_Parameters' in input_data:
     try:
         from engine.mc_simulation import run_mc_simulation
-        from plotting.mc_visuals import plot_interactive_mc_histogram, plot_interactive_tornado
+        from src.plotting.monte_carlo import plot_interactive_mc_histogram, plot_interactive_tornado, plot_interactive_mc_paths
         mc_results = run_mc_simulation(mfa_system_configured, input_data, dsm_params, fomp_params, config_obj, process_logic_map=process_logic_map, flow_tc_map=flow_tc_map)
         if mc_results is not None and not mc_results.empty:
             print("✅ Monte Carlo simulation completed for baseline")
+            print("\n🎲 Monte Carlo Analysis:")
+            print("   • Distribution analysis with interactive histograms")
+            print("   • Sensitivity analysis with tornado plots")
+            print("   • Monte Carlo paths showing simulation trajectories")
             plot_interactive_mc_histogram(mc_results)
             plot_interactive_tornado(mc_results)
+            plot_interactive_mc_paths(mc_results)
     except Exception as e:
         print(f"⚠️ Monte Carlo simulation failed: {e}")
         import traceback

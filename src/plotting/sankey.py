@@ -8,6 +8,7 @@ This file contains the functions for generating interactive Sankey diagrams.
 
 import plotly.graph_objects as go
 from ipywidgets import FloatSlider, IntSlider, Button, HBox, VBox, HTML, Layout, Dropdown, SelectMultiple
+from IPython.display import display
 import os
 from datetime import datetime
 import collections
@@ -15,11 +16,11 @@ from .publication_style import (
     get_publication_layout,
     get_element_color,
     get_process_color,
+    detect_biodym_process_type,
     BIOYM_COLORS,
     ELEMENT_COLORS,
     PROCESS_COLORS
 )
-from .publication_export import create_publication_export_widget
 
 def _calculate_node_positions(processes, flows):
     """
@@ -109,21 +110,9 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
         else 1
     )
 
-    # Define color schemes
-    process_colors = {
-        'Regular': '#1f77b4',  # Blue
-        'DSM': '#ff7f0e',      # Orange
-        'FOMP': '#2ca02c',     # Green
-        'Input': '#d62728',     # Red
-        'Output': '#9467bd'     # Purple
-    }
-    
-    element_colors = {
-        'material': '#1f77b4',
-        'WC': '#ff7f0e', 
-        'DM': '#2ca02c',
-        'CC': '#d62728'
-    }
+    # Use shiny color schemes from publication standards
+    # Process colors are now handled by get_process_color() function
+    # Element colors are now handled by get_element_color() function
 
     # Create the FigureWidget with proper zoom controls
     fig = go.FigureWidget(
@@ -146,13 +135,8 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
     )
 
     def get_process_type(process_id):
-        """Determine process type for color coding"""
-        if dsm_params and process_id in dsm_params:
-            return 'DSM'
-        elif fomp_params and process_id in fomp_params:
-            return 'FOMP'
-        else:
-            return 'Regular'
+        """Determine process type for color coding using publication standards"""
+        return detect_biodym_process_type(process_id, dsm_params=dsm_params, fomp_params=fomp_params)
 
     def update_sankey(year, element, processes_to_show, min_flow_value):
         if not processes_to_show:
@@ -185,7 +169,8 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
             # Set node properties (positions are now stable)
             fig.data[0].node.label = [p.Name for p in filtered_processes]
             fig.data[0].node.x = node_x_positions
-            node_colors = [process_colors.get(get_process_type(p.ID), '#888') for p in filtered_processes]
+            # Use shiny process colors from publication standards
+            node_colors = [get_process_color(get_process_type(p.ID)) for p in filtered_processes]
             fig.data[0].node.color = node_colors
 
             if not final_flows:
@@ -195,7 +180,8 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
             else:
                 # Set link properties for the visible flows
                 flow_values = [f.Values[year_index, element_index] for f in final_flows]
-                link_colors = [element_colors.get(element, '#1f77b4')] * len(final_flows)
+                # Use shiny element colors from publication standards
+                link_colors = [get_element_color(element)] * len(final_flows)
                 custom_data = [f.Name for f in final_flows]
 
                 fig.data[0].link.source = [process_id_map[f.P_Start] for f in final_flows]
@@ -205,12 +191,17 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
                 fig.data[0].link.customdata = custom_data
                 fig.data[0].link.hovertemplate = 'Flow: %{customdata}<br />Source: %{source.label}<br />Target: %{target.label}<br />Value: %{value}<extra></extra>'
 
-            # Update layout title
+            # Update layout with publication standards
             title_text = f"Material Flow Sankey - {element.upper()} ({year})"
-            fig.update_layout(title_text=title_text)
+            layout_config = get_publication_layout(
+                title=title_text,
+                size='large',
+                show_legend=False  # We have a custom legend widget
+            )
+            fig.update_layout(**layout_config)
 
     def export_plot():
-        """Export the current plot as PNG with organized folder structure"""
+        """Export the current plot as PNG with publication standards"""
         try:
             # Create export folder with timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -226,10 +217,11 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
             
             # Ensure the figure has data before exporting
             if len(fig.data[0].node.label) > 0:
-                # Export the plot with current dimensions
+                # Export with publication standards (high resolution)
                 fig.write_image(filepath, width=1400, height=900, scale=2)
                 print(f"✅ Sankey diagram exported to: {filepath}")
                 print(f"📁 Export folder: {export_folder}")
+                print(f"🎨 Using shiny color scheme from publication standards")
             else:
                 print("⚠️ No data to export. Please select processes and ensure flows are visible.")
                 
@@ -287,21 +279,21 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
     )
     export_button.on_click(lambda b: export_plot())
 
-    # Create legend
+    # Create legend with shiny colors from publication standards
     legend_html = f"""
     <div style="margin: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9;">
         <h4 style="margin: 0 0 10px 0;">Legend</h4>
         <div style="display: flex; flex-wrap: wrap; gap: 15px;">
             <div style="display: flex; align-items: center;">
-                <div style="width: 20px; height: 20px; background-color: {process_colors['Regular']}; margin-right: 5px;"></div>
+                <div style="width: 20px; height: 20px; background-color: {get_process_color('regular')}; margin-right: 5px;"></div>
                 <span>Regular Process</span>
             </div>
             <div style="display: flex; align-items: center;">
-                <div style="width: 20px; height: 20px; background-color: {process_colors['DSM']}; margin-right: 5px;"></div>
+                <div style="width: 20px; height: 20px; background-color: {get_process_color('dsm')}; margin-right: 5px;"></div>
                 <span>DSM Process</span>
             </div>
             <div style="display: flex; align-items: center;">
-                <div style="width: 20px; height: 20px; background-color: {process_colors['FOMP']}; margin-right: 5px;"></div>
+                <div style="width: 20px; height: 20px; background-color: {get_process_color('fomp')}; margin-right: 5px;"></div>
                 <span>FOMP Process</span>
             </div>
         </div>
@@ -309,19 +301,19 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
             <strong>Element Colors:</strong>
             <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
                 <div style="display: flex; align-items: center;">
-                    <div style="width: 20px; height: 20px; background-color: {element_colors['material']}; margin-right: 5px;"></div>
+                    <div style="width: 20px; height: 20px; background-color: {get_element_color('material')}; margin-right: 5px;"></div>
                     <span>Material</span>
                 </div>
                 <div style="display: flex; align-items: center;">
-                    <div style="width: 20px; height: 20px; background-color: {element_colors['WC']}; margin-right: 5px;"></div>
+                    <div style="width: 20px; height: 20px; background-color: {get_element_color('wc')}; margin-right: 5px;"></div>
                     <span>WC</span>
                 </div>
                 <div style="display: flex; align-items: center;">
-                    <div style="width: 20px; height: 20px; background-color: {element_colors['DM']}; margin-right: 5px;"></div>
+                    <div style="width: 20px; height: 20px; background-color: {get_element_color('dm')}; margin-right: 5px;"></div>
                     <span>DM</span>
                 </div>
                 <div style="display: flex; align-items: center;">
-                    <div style="width: 20px; height: 20px; background-color: {element_colors['CC']}; margin-right: 5px;"></div>
+                    <div style="width: 20px; height: 20px; background-color: {get_element_color('cc')}; margin-right: 5px;"></div>
                     <span>CC</span>
                 </div>
             </div>

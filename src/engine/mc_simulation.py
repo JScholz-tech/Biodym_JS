@@ -207,9 +207,18 @@ def run_mc_simulation(
         iteration_results = {"iteration": i + 1}
         for param, value in tc_updates.items():
             iteration_results[f"{param}_sample"] = value
+        
+        # Collect final year values (for histograms and tornado plots)
         for stock in mfa_system_run.StockDict.values():
             for i_elem, element_name in enumerate(mfa_system_run.Elements):
                 iteration_results[f"{stock.Name}_{element_name}"] = stock.Values[-1, i_elem]  # Final year, all element values
+        
+        # Collect full time series data (for paths visualization)
+        for stock in mfa_system_run.StockDict.values():
+            for i_elem, element_name in enumerate(mfa_system_run.Elements):
+                # Store time series as a list for this iteration
+                iteration_results[f"{stock.Name}_{element_name}_timeseries"] = stock.Values[:, i_elem].tolist()
+        
         results_list.append(iteration_results)
 
     print("[MC] Simulation finished.")

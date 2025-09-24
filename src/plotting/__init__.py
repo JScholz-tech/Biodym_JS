@@ -11,20 +11,20 @@ from .sankey import plot_interactive_sankey
 
 from .dynamics import (
     plot_process_dynamics,
-    
-    plot_dynamic_stock_composition,
+    plot_system_stock_composition,
+    plot_dsm_process_dynamics,
     plot_fomp_dynamics,
     plot_flow_dynamics,
     plot_dsm_stock_details,
     plot_fomp_stock_details,
-    plot_system_efficiency_metrics,
-    plot_stock_overview,
-    plot_summary_dashboard,
     plot_stock_bar_chart,
 )
 from .validation import plot_optimized_mass_balance_error, plot_total_mass_balance_error
-from .monte_carlo import plot_monte_carlo_integrated_dashboard, plot_mc_distribution
-from .mc_visuals import plot_interactive_mc_histogram, plot_interactive_tornado
+from .monte_carlo import (
+    plot_interactive_mc_histogram, 
+    plot_interactive_tornado,
+    plot_interactive_mc_paths
+)
 from .scenario import plot_multi_scenario_comparison
 
 from .utils import plot_enhanced_export_options
