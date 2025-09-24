@@ -296,83 +296,39 @@ else:
 # # 4. Scenario & Uncertainty Manager
 
 # ## 4.1 Scenario Analysis & Comparison
-if getattr(config_obj, 'Run_Scenario_Analysis', False):
-    # Find all scenarios defined in the config object
-    scenario_names_to_run = []
-    for i in range(1, 10): # Check for up to 9 scenarios
-        attr_name = f'Selected_Scenario_Name_{i}'
-        if hasattr(config_obj, attr_name):
-            scenario_name = getattr(config_obj, attr_name)
-            if scenario_name and not pd.isna(scenario_name):
-                scenario_names_to_run.append(scenario_name)
+print("\n" + "="*60)
+print("🎭 SCENARIO ANALYSIS")
+print("="*60)
 
-    if not scenario_names_to_run:
-        print("⚠️ Scenario Analysis is enabled, but no scenarios are selected in the configuration.")
-    else:
-        print(f"Found {len(scenario_names_to_run)} scenarios to run: {scenario_names_to_run}")
-        all_scenario_results = {}
-        scenario_definitions = data_loader.load_scenario_definitions(all_excel_data)
+# Import the new scenario engine
+from engine import scenario_engine
 
-        for scenario_name in scenario_names_to_run:
-            print("\n" + "="*60)
-            print(f"🎭 RUNNING SCENARIO: '{scenario_name}'")
-            print("="*60)
+# Run scenario analysis using the new engine
+all_scenario_results, scenario_definitions = scenario_engine.run_scenario_analysis(
+    config_obj=config_obj,
+    mfa_system_configured=mfa_system_configured,
+    all_excel_data=all_excel_data,
+    dsm_params=dsm_params,
+    fomp_params=fomp_params,
+    flow_tc_map=flow_tc_map,
+    process_logic_map=process_logic_map
+)
 
-            if scenario_name not in scenario_definitions:
-                print(f"⚠️ WARNING: Scenario '{scenario_name}' not found in '5_1_Scenario_Manager' sheet! Skipping.")
-                continue
-
-            mfa_system_scenario = copy.deepcopy(mfa_system_configured)
-            mfa_system_scenario = system_setup.apply_scenario(mfa_system_scenario, scenario_definitions, scenario_name)
-
-            scenario_config_obj = copy.deepcopy(config_obj)
-            scenario_config_obj.RUN_MONTE_CARLO = False
-            
-            mfa_results_scenario, _ = solver.run_mfa_calculation(mfa_system_scenario, dsm_params, fomp_params, scenario_config_obj, flow_tc_map=flow_tc_map, process_logic_map=process_logic_map)
-            all_scenario_results[scenario_name] = mfa_results_scenario
-            print(f"✅ Scenario '{scenario_name}' calculation completed successfully!")
-
-        if all_scenario_results:
-            import importlib
-            importlib.reload(plotting)
-            print("\n" + "="*60)
-            print("📊 MULTI-SCENARIO VS. BASELINE COMPARISON")
-            print("="*60)
-            plotting.plot_multi_scenario_comparison(
-                baseline_results=mfa_results_baseline, 
-                all_scenario_results=all_scenario_results,
-                scenario_definitions=scenario_definitions
-            )
-            
-            print("\n--- Enhanced Sankey Comparison ---")
-            try:
-                from src.plotting.enhanced_sankey import plot_enhanced_sankey
-                print("🎯 Creating enhanced Sankey diagrams for scenario comparison...")
-                
-                print("\n📊 Baseline - Enhanced Sankey:")
-                plot_enhanced_sankey(
-                    mfa_system_results=mfa_results_baseline,
-                    dsm_params=dsm_params,
-                    fomp_params=fomp_params,
-                    visualization_config_path=input_file
-                )
-                
-                if scenario_names_to_run:
-                    first_scenario = scenario_names_to_run[0]
-                    if first_scenario in all_scenario_results:
-                        print(f"\n📊 Scenario '{first_scenario}' - Enhanced Sankey:")
-                        plot_enhanced_sankey(
-                            mfa_system_results=all_scenario_results[first_scenario],
-                            dsm_params=dsm_params,
-                            fomp_params=fomp_params,
-                            visualization_config_path=input_file
-                        )
-                
-                print("✅ Enhanced Sankey comparison completed!")
-            except Exception as e:
-                print(f"⚠️ Enhanced Sankey comparison failed: {e}")
-                import traceback
-                traceback.print_exc()
+# Generate visualizations if scenarios were run
+if all_scenario_results:
+    scenario_engine.generate_scenario_comparison_visualizations(
+        baseline_results=mfa_results_baseline,
+        all_scenario_results=all_scenario_results,
+        scenario_definitions=scenario_definitions
+    )
+    
+    # Export scenario results
+    scenario_engine.export_scenario_results(
+        all_scenario_results=all_scenario_results,
+        scenario_definitions=scenario_definitions
+    )
+else:
+    print("ℹ️ No scenarios were processed.")
 
 # ## 4.2 Monte Carlo Analysis
 print("\n" + "="*60)

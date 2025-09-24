@@ -138,7 +138,12 @@ def run_mc_simulation(
         pd.DataFrame: A DataFrame containing the results of all Monte Carlo iterations.
     """
     # --- 1. Configuration ---
-    n_iterations = getattr(config, 'Monte_Carlo_Iterations', 100)
+    n_iterations = getattr(config, 'MC_ITERATIONS', None)
+    if n_iterations is None:
+        print("⚠️ WARNING: MC_ITERATIONS not found in configuration!")
+        print("   Please set 'Monte Carlo Iterations' in the Excel configuration sheet.")
+        print("   Using default value of 100 iterations.")
+        n_iterations = 100
     uncertainty_params = data_loader.load_uncertainty_definitions(input_data)
 
     if not uncertainty_params:

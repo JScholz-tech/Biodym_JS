@@ -114,6 +114,7 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
             header=0,
             engine="openpyxl",
             na_values=["N.A.", "NA", "n/a"],
+            decimal=',',
         )
 
     data_loader.validate_input_data(all_excel_data)
