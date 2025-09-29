@@ -24,6 +24,7 @@ from .publication_style import (
 class PublicationExporter:
     """
     Enhanced export functionality for publication-quality figures.
+    Provides unified, consistent export management across all BioDYM plots.
     """
     
     def __init__(self, export_dir="exports"):
@@ -40,6 +41,108 @@ class PublicationExporter:
         """Create export directory if it doesn't exist."""
         if not os.path.exists(self.export_dir):
             os.makedirs(self.export_dir)
+    
+    def get_standardized_filename(self, plot_type, parameters=None, timestamp=None):
+        """
+        Generate standardized filename for all plot types.
+        
+        Args:
+            plot_type (str): Type of plot (e.g., 'scenario_comparison', 'dsm_analysis')
+            parameters (dict): Plot parameters (element, process, etc.)
+            timestamp (str): Custom timestamp (optional)
+            
+        Returns:
+            str: Standardized filename
+        """
+        if timestamp is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Base filename with plot type and timestamp
+        filename_parts = [plot_type, timestamp]
+        
+        # Add parameters in consistent order
+        if parameters:
+            # Standard parameter order: element, process, metric, chart_type
+            for param_key in ['element', 'process', 'metric', 'chart_type']:
+                if param_key in parameters and parameters[param_key]:
+                    param_value = str(parameters[param_key]).replace(" ", "_").replace("(", "").replace(")", "").replace(":", "")
+                    filename_parts.append(param_value)
+        
+        return "_".join(filename_parts) + ".png"
+    
+    def get_export_path(self, plot_type, parameters=None, timestamp=None, use_subdir=True):
+        """
+        Get standardized export path for any plot type.
+        
+        Args:
+            plot_type (str): Type of plot
+            parameters (dict): Plot parameters
+            timestamp (str): Custom timestamp (optional)
+            use_subdir (bool): Whether to use timestamp subdirectory
+            
+        Returns:
+            str: Full export path
+        """
+        filename = self.get_standardized_filename(plot_type, parameters, timestamp)
+        
+        if use_subdir:
+            # Create timestamp subdirectory for better organization
+            if timestamp is None:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            export_path = os.path.join(self.export_dir, plot_type, timestamp, filename)
+        else:
+            # Direct to category folder
+            export_path = os.path.join(self.export_dir, plot_type, filename)
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(export_path), exist_ok=True)
+        
+        return export_path
+    
+    def export_plot(self, fig, plot_type, parameters=None, format='png', 
+                   quality='publication', use_subdir=True):
+        """
+        Unified export function for all BioDYM plots.
+        
+        Args:
+            fig: Plotly figure object
+            plot_type (str): Type of plot (e.g., 'scenario_comparison', 'dsm_analysis')
+            parameters (dict): Plot parameters for filename
+            format (str): Export format ('png', 'pdf', 'svg')
+            quality (str): Export quality ('publication', 'high', 'medium')
+            use_subdir (bool): Whether to use timestamp subdirectory
+            
+        Returns:
+            str: Export path if successful, None if failed
+        """
+        try:
+            # Get standardized export path
+            export_path = self.get_export_path(plot_type, parameters, use_subdir=use_subdir)
+            
+            # Set export settings based on quality
+            if quality == 'publication':
+                width, height = 1400, 600
+                scale = 2
+            elif quality == 'high':
+                width, height = 1200, 500
+                scale = 1.5
+            else:  # medium
+                width, height = 1000, 400
+                scale = 1
+            
+            # Export the figure
+            fig.write_image(export_path, width=width, height=height, scale=scale)
+            
+            print(f"✅ Plot exported successfully!")
+            print(f"📁 Path: {export_path}")
+            print(f"📊 Quality: {quality} ({width}x{height}, scale={scale})")
+            
+            return export_path
+            
+        except Exception as e:
+            print(f"❌ Export failed: {e}")
+            print("💡 Ensure 'kaleido' is available (uv sync)")
+            return None
     
     def export_figure(self, fig, plot_type, filename=None, format='png', 
                      quality='publication', element=None, process=None):

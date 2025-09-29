@@ -56,6 +56,22 @@ PROCESS_COLORS = {
     'source': '#17A2B8',        # Cyan - source processes
 }
 
+# Process Differentiation Colors (avoids element colors: green, red, orange, blue)
+PROCESS_DIFFERENTIATION_COLORS = [
+    '#8B5A96',  # Purple - distinct from all elements
+    '#A23B72',  # Deep Pink - distinct from all elements  
+    '#6C757D',  # Gray - neutral, distinct from all elements
+    '#2E86AB',  # Deep Blue - different from bright blue element
+    '#C73E1D',  # Dark Red - different from bright red element
+    '#F18F01',  # Dark Orange - different from bright orange element
+    '#28A745',  # Dark Green - different from bright green element
+    '#17A2B8',  # Cyan - distinct from all elements
+    '#6F42C1',  # Indigo - distinct from all elements
+    '#E83E8C',  # Magenta - distinct from all elements
+    '#20C997',  # Teal - distinct from all elements
+    '#FD7E14',  # Dark Orange - distinct from bright orange
+]
+
 # Status Colors (for validation, errors, etc.)
 STATUS_COLORS = {
     'success': '#28A745',      # Green
@@ -334,6 +350,54 @@ def create_color_sequence(n_colors, palette='primary'):
         base_colors.extend(additional_colors)
     
     return base_colors[:n_colors]
+
+def create_element_color_variations(base_color, n_variations):
+    """
+    Create color variations based on a single element color.
+    Generates different shades/tints of the same color family.
+    
+    Args:
+        base_color (str): Base hex color (e.g., '#00C851')
+        n_variations (int): Number of color variations needed
+        
+    Returns:
+        list: List of hex color codes in the same color family
+    """
+    import colorsys
+    
+    # Convert hex to RGB
+    hex_color = base_color.lstrip('#')
+    rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    
+    # Convert RGB to HSV for easier manipulation
+    hsv = colorsys.rgb_to_hsv(rgb[0]/255.0, rgb[1]/255.0, rgb[2]/255.0)
+    h, s, v = hsv
+    
+    variations = []
+    
+    if n_variations == 1:
+        return [base_color]
+    
+    # Generate variations by adjusting saturation and value
+    for i in range(n_variations):
+        # Create variation by adjusting saturation and brightness
+        # Keep hue constant to maintain color family
+        variation_s = max(0.3, min(1.0, s * (0.7 + 0.3 * i / (n_variations - 1))))
+        variation_v = max(0.4, min(1.0, v * (0.8 + 0.2 * i / (n_variations - 1))))
+        
+        # Convert back to RGB
+        rgb_variation = colorsys.hsv_to_rgb(h, variation_s, variation_v)
+        
+        # Convert to hex
+        hex_variation = '#{:02x}{:02x}{:02x}'.format(
+            int(rgb_variation[0] * 255),
+            int(rgb_variation[1] * 255),
+            int(rgb_variation[2] * 255)
+        )
+        
+        variations.append(hex_variation)
+    
+    return variations
 
 def get_export_filename(plot_type, element=None, process=None, timestamp=None):
     """

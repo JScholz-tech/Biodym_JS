@@ -216,6 +216,14 @@ def generate_scenario_comparison_visualizations(
             scenario_definitions=scenario_definitions
         )
         
+        # Generate scenario flow dynamics plot
+        print("📈 Generating scenario flow dynamics plot...")
+        plotting.plot_scenario_flow_dynamics(
+            baseline_results=baseline_results,
+            all_scenario_results=all_scenario_results,
+            scenario_definitions=scenario_definitions
+        )
+        
         print("✅ Scenario comparison visualizations completed!")
         
     except ImportError as e:
