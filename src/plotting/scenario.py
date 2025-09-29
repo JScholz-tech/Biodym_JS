@@ -134,33 +134,16 @@ def plot_multi_scenario_comparison(baseline_results, all_scenario_results, scena
                 ))
             
             # Apply publication layout
-            layout_config = get_publication_layout(size='large', show_grid=True)
+            layout_config = get_publication_layout(
+                size='large',
+                show_grid=True,
+                scientific_y=True,
+                custom_title=f'{metric} Comparison: {item_display_name} ({element.upper()})',
+                y_title=f'Value ({element.upper()}) [Mg]'
+            )
+            layout_config['height'] = 500
+            layout_config['showlegend'] = False
             fig.update_layout(**layout_config)
-            fig.update_layout(
-                title=f'{metric} Comparison: {item_display_name} ({element.upper()})',
-                yaxis_title=f'Value ({element.upper()}) [Mg]',
-                height=500,
-                showlegend=False
-            )
-            
-            # Update axes with scientific notation and grid
-            fig.update_xaxes(
-                zeroline=True,
-                zerolinecolor=BIOYM_COLORS['dark'],
-                zerolinewidth=2,
-                showgrid=True,
-                gridcolor='#e1e5e9',
-                gridwidth=1
-            )
-            fig.update_yaxes(
-                tickformat=".2e",
-                zeroline=True,
-                zerolinecolor=BIOYM_COLORS['dark'],
-                zerolinewidth=2,
-                showgrid=True,
-                gridcolor='#e1e5e9',
-                gridwidth=1
-            )
         
         # Update parameter display
         param_html = "<b>Scenario Definitions:</b><br>"
@@ -287,34 +270,17 @@ def plot_scenario_flow_dynamics(baseline_results, all_scenario_results, scenario
                         ))
             
             # Apply publication layout
-            layout_config = get_publication_layout(size='large', show_grid=True)
+            layout_config = get_publication_layout(
+                size='large',
+                show_grid=True,
+                scientific_y=True,
+                custom_title=f'Scenario Flow Dynamics: {element.upper()} Over Time',
+                x_title='Time (Years)',
+                y_title=f'Value ({element.upper()}) [Mg]'
+            )
+            layout_config['height'] = 600
+            layout_config['showlegend'] = True
             fig.update_layout(**layout_config)
-            fig.update_layout(
-                title=f'Scenario Flow Dynamics: {element.upper()} Over Time',
-                xaxis_title='Time (Years)',
-                yaxis_title=f'Value ({element.upper()}) [Mg]',
-                height=600,
-                showlegend=True
-            )
-            
-            # Update axes
-            fig.update_xaxes(
-                zeroline=True,
-                zerolinecolor=BIOYM_COLORS['dark'],
-                zerolinewidth=2,
-                showgrid=True,
-                gridcolor='#e1e5e9',
-                gridwidth=1
-            )
-            fig.update_yaxes(
-                tickformat=".2e",
-                zeroline=True,
-                zerolinecolor=BIOYM_COLORS['dark'],
-                zerolinewidth=2,
-                showgrid=True,
-                gridcolor='#e1e5e9',
-                gridwidth=1
-            )
 
     # Link widgets
     def update_plot():

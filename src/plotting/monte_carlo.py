@@ -89,33 +89,16 @@ def plot_interactive_tornado(mc_results_df):
             ))
             
             # Apply publication layout
-            layout_config = get_publication_layout(size='large', show_grid=True)
+            layout_config = get_publication_layout(
+                size='large',
+                show_grid=True,
+                custom_title=f"Sensitivity Analysis: {output_var}",
+                x_title="Absolute Correlation",
+                y_title="Input Parameter"
+            )
+            layout_config['height'] = 200 + len(param_vars) * 25
+            layout_config['margin']['l'] = 150 # Adjust left margin for long labels
             fig_widget.update_layout(**layout_config)
-            fig_widget.update_layout(
-                title=f"Sensitivity Analysis: {output_var}",
-                xaxis_title="Absolute Correlation",
-                yaxis_title="Input Parameter",
-                height=200 + len(param_vars) * 25,
-                margin=dict(l=150) # Adjust left margin for long labels
-            )
-            
-            # Apply grid
-            fig_widget.update_xaxes(
-                zeroline=True,
-                zerolinecolor=BIOYM_COLORS['dark'],
-                zerolinewidth=2,
-                showgrid=True,
-                gridcolor='#e1e5e9',
-                gridwidth=1
-            )
-            fig_widget.update_yaxes(
-                zeroline=True,
-                zerolinecolor=BIOYM_COLORS['dark'],
-                zerolinewidth=2,
-                showgrid=True,
-                gridcolor='#e1e5e9',
-                gridwidth=1
-            )
 
     # --- Link Widgets and Display ---
     output_dropdown.observe(update_plot, names='value')
@@ -280,34 +263,17 @@ def plot_interactive_mc_paths(mc_results_df):
             ))
 
             # Apply publication layout
-            layout_config = get_publication_layout(size='large', show_grid=True)
+            layout_config = get_publication_layout(
+                size='large',
+                show_grid=True,
+                scientific_y=True,
+                custom_title=f"Monte Carlo Paths: {stock} ({element.upper()}) - {len(paths_data)} Actual Simulations",
+                x_title="Time (Years)",
+                y_title=f"Value ({element.upper()}) [Mg]"
+            )
+            layout_config['height'] = 500
+            layout_config['showlegend'] = True
             fig_widget.update_layout(**layout_config)
-            fig_widget.update_layout(
-                title=f"Monte Carlo Paths: {stock} ({element.upper()}) - {len(paths_data)} Actual Simulations",
-                xaxis_title="Time (Years)",
-                yaxis_title=f"Value ({element.upper()}) [Mg]",
-                height=500,
-                showlegend=True
-            )
-            
-            # Update axes
-            fig_widget.update_xaxes(
-                zeroline=True,
-                zerolinecolor=BIOYM_COLORS['dark'],
-                zerolinewidth=2,
-                showgrid=True,
-                gridcolor='#e1e5e9',
-                gridwidth=1
-            )
-            fig_widget.update_yaxes(
-                tickformat=".2e",
-                zeroline=True,
-                zerolinecolor=BIOYM_COLORS['dark'],
-                zerolinewidth=2,
-                showgrid=True,
-                gridcolor='#e1e5e9',
-                gridwidth=1
-            )
 
     # --- Link Widgets and Display ---
     stock_dropdown.observe(update_plot, names='value')

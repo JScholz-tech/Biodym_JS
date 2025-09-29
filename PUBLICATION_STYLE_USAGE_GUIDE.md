@@ -5,23 +5,33 @@ The BioDYM plotting system includes a comprehensive publication style framework 
 
 ## Core Components
 
-### 1. Publication Layout (`get_publication_layout()`)
-**Purpose**: Provides standardized layout settings for all plots
-**Usage**: Apply to any Plotly figure for consistent appearance
+### 1. The All-in-One Publication Layout (`get_publication_layout()`)
+**Purpose**: Provides a single function to apply a complete, standardized layout to any Plotly figure.
+
+**Usage**: Instead of manually setting titles, axes, grids, and other properties, you can now do it all in one call.
 
 ```python
 from src.plotting.publication_style import get_publication_layout
 
-# Apply to any figure
-fig.update_layout(**get_publication_layout())
+# Example of the new, more powerful function
+layout_config = get_publication_layout(
+    custom_title="My Plot Title",
+    x_title="Year",
+    y_title="Mass (Mg)",
+    show_grid=True,
+    scientific_y=True
+)
+fig.update_layout(**layout_config)
 ```
 
-**What it includes**:
-- Standardized margins and padding
-- Professional font settings
-- Consistent background colors
-- Grid and axis styling
-- Legend positioning
+**Key Parameters**:
+- `custom_title`: Sets the main title of the plot.
+- `x_title`, `y_title`: Set the titles for the x and y axes.
+- `show_grid`: A boolean (`True`/`False`) to toggle the background grid.
+- `scientific_y`, `scientific_x`: Booleans to toggle scientific notation on the axes.
+- `size`: Controls the overall figure size (e.g., `'large'`, `'medium'`).
+
+This single function now handles what previously required multiple calls to `update_layout`, `update_xaxes`, and `update_yaxes`, ensuring greater consistency.
 
 ### 2. Color Palettes
 
@@ -71,6 +81,28 @@ colors = create_color_sequence(
     palette='primary',  # or 'element', 'process', 'differentiation'
     base_color=None      # optional base color
 )
+```
+
+### 4. Element Color Variations (`create_element_color_variations()`)
+**Purpose**: Generate a sequence of shades based on a single element's color. This is useful for creating visualizations where you want to show variations of the same element (e.g., different forms of Carbon) while maintaining a consistent color theme.
+
+**Usage**:
+```python
+from src.plotting.publication_style import get_element_color, create_element_color_variations
+
+# Get the base color for Carbon
+base_color = get_element_color('C')
+
+# Create 5 shades of green
+carbon_shades = create_element_color_variations(base_color, 5)
+
+for i, carbon_form in enumerate(carbon_forms):
+    fig.add_trace(go.Bar(
+        x=data['categories'],
+        y=data[carbon_form],
+        name=carbon_form,
+        marker_color=carbon_shades[i]
+    ))
 ```
 
 ## Implementation Examples
@@ -178,32 +210,13 @@ hovertemplate="<b>%{fullData.name}</b><br>Year: %{x}<br>Value: %{y:.2e} Mg<extra
 
 ## Color Palette Reference
 
-### Element Colors
-- **Carbon (C)**: Green (`#2E8B57`)
-- **Nitrogen (N)**: Blue (`#4169E1`)
-- **Phosphorus (P)**: Orange (`#FF8C00`)
-- **Potassium (K)**: Purple (`#9370DB`)
-- **Sulfur (S)**: Yellow (`#FFD700`)
+The color palettes are defined in `src/plotting/publication_style.py`. Please refer to this file as the single source of truth for all color definitions. This ensures that the documentation never becomes outdated.
 
-### Process Differentiation Colors
-- **Process 1**: Teal (`#20B2AA`)
-- **Process 2**: Coral (`#FF7F50`)
-- **Process 3**: Gold (`#DAA520`)
-- **Process 4**: Medium Purple (`#9370DB`)
-- **Process 5**: Light Sea Green (`#20B2AA`)
-- **Process 6**: Tomato (`#FF6347`)
-- **Process 7**: Dark Khaki (`#BDB76B`)
-- **Process 8**: Plum (`#DDA0DD`)
-- **Process 9**: Cadet Blue (`#5F9EA0`)
-- **Process 10**: Light Coral (`#F08080`)
-- **Process 11**: Dark Goldenrod (`#B8860B`)
-- **Process 12**: Medium Orchid (`#BA55D3`)
-
-### BioDYM Brand Colors
-- **Primary**: Dark Blue (`#1E3A8A`)
-- **Secondary**: Light Blue (`#3B82F6`)
-- **Dark**: Very Dark Blue (`#0F172A`)
-- **Light**: Light Gray (`#F8FAFC`)
+The main color dictionaries are:
+- `BIOYM_COLORS`: For brand-consistent colors.
+- `ELEMENT_COLORS`: For element-specific colors.
+- `PROCESS_COLORS`: For process-type-specific colors.
+- `PROCESS_DIFFERENTIATION_COLORS`: For visually distinct process colors.
 
 ## Best Practices
 

@@ -180,8 +180,18 @@ EXPORT_SETTINGS = {
 # HELPER FUNCTIONS
 # =============================================================================
 
-def get_publication_layout(size='publication', margin='publication', 
-                          show_grid=True, background='white'):
+def get_publication_layout(
+    size='publication', 
+    margin='publication', 
+    show_grid=True, 
+    background='white',
+    scientific_y=False,
+    scientific_x=False,
+    zeroline=True,
+    y_title=None,
+    x_title=None,
+    custom_title=None
+):
     """
     Get a standardized layout configuration for publication-quality plots.
     
@@ -190,6 +200,12 @@ def get_publication_layout(size='publication', margin='publication',
         margin (str): Margin key from MARGINS
         show_grid (bool): Whether to show grid
         background (str): Background color key from BACKGROUND_COLORS
+        scientific_y (bool): Whether to use scientific notation for y-axis
+        scientific_x (bool): Whether to use scientific notation for x-axis
+        zeroline (bool): Whether to show the zeroline
+        y_title (str): Title for the y-axis
+        x_title (str): Title for the x-axis
+        custom_title (str): Title for the plot
         
     Returns:
         dict: Layout configuration for plotly figures
@@ -214,6 +230,7 @@ def get_publication_layout(size='publication', margin='publication',
         },
         'xaxis': {
             'title': {
+                'text': x_title,
                 'font': {
                     'family': FONT_FAMILY,
                     'size': FONT_SIZE['axis_title'],
@@ -229,10 +246,14 @@ def get_publication_layout(size='publication', margin='publication',
             'gridwidth': GRID_STYLE['width'],
             'griddash': GRID_STYLE['dash'],
             'linecolor': BIOYM_COLORS['neutral'],
-            'linewidth': 1
+            'linewidth': 1,
+            'zeroline': zeroline,
+            'zerolinecolor': BIOYM_COLORS['neutral'] if zeroline else 'rgba(0,0,0,0)',
+            'tickformat': ".2e" if scientific_x else None
         },
         'yaxis': {
             'title': {
+                'text': y_title,
                 'font': {
                     'family': FONT_FAMILY,
                     'size': FONT_SIZE['axis_title'],
@@ -248,7 +269,11 @@ def get_publication_layout(size='publication', margin='publication',
             'gridwidth': GRID_STYLE['width'],
             'griddash': GRID_STYLE['dash'],
             'linecolor': BIOYM_COLORS['neutral'],
-            'linewidth': 1
+            'linewidth': 1,
+            'zeroline': zeroline,
+            'zerolinecolor': BIOYM_COLORS['neutral'] if zeroline else 'rgba(0,0,0,0)',
+            'tickformat': ".2e" if scientific_y else None,
+            'rangemode': 'tozero' # Added this line
         },
         'plot_bgcolor': BACKGROUND_COLORS[background],
         'paper_bgcolor': BACKGROUND_COLORS[background],
@@ -263,6 +288,8 @@ def get_publication_layout(size='publication', margin='publication',
             'borderwidth': 1
         }
     }
+    if custom_title:
+        layout['title']['text'] = custom_title
     
     return layout
 

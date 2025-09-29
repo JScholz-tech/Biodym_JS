@@ -80,26 +80,16 @@ def plot_optimized_mass_balance_error(mfa_system_results):
             ))
             
             # Apply publication layout with proper formatting
-            layout = get_publication_layout(size='large', show_grid=True)
-            layout.update({
-                'title': {
-                    'text': f"Mass Balance Error Check for {element.upper()} in {year}",
-                    'font': {'size': 14}  # Slightly smaller for interactive plots
-                },
-                'yaxis': {
-                    **layout['yaxis'],
-                    'title': 'Error (Mg)',
-                    'tickformat': '.2e',  # Scientific notation for small numbers
-                    'zeroline': True,
-                    'zerolinecolor': BIOYM_COLORS['dark'],
-                    'zerolinewidth': 2
-                },
-                'xaxis': {
-                    **layout['xaxis'],
-                    'title': 'Process',
-                    'tickangle': -45  # Rotate labels for readability
-                },
-                'shapes': [
+            layout_config = get_publication_layout(
+                size='large',
+                show_grid=True,
+                scientific_y=True,
+                custom_title=f"Mass Balance Error Check for {element.upper()} in {year}",
+                x_title="Process",
+                y_title="Error (Mg)"
+            )
+            layout_config['xaxis']['tickangle'] = -45
+            layout_config['shapes'] = [
                     dict(
                         type="line",
                         y0=0,
@@ -109,8 +99,7 @@ def plot_optimized_mass_balance_error(mfa_system_results):
                         line=dict(color=BIOYM_COLORS['dark'], width=2),
                     )
                 ]
-            })
-            fig.update_layout(layout)
+            fig.update_layout(layout_config)
 
     # Create widgets
     year_slider = IntSlider(
@@ -183,33 +172,18 @@ def plot_total_mass_balance_error(mfa_system_results):
         ))
 
     # Apply publication layout with proper formatting
-    layout = get_publication_layout(size='large', show_grid=True)
-    layout.update({
-        'title': {
-            'text': "Total Absolute Mass Balance Error (All Years)",
-            'font': {'size': 16}
-        },
-        'yaxis': {
-            **layout['yaxis'],
-            'title': 'Sum of Absolute Errors (Mg)',
-            'tickformat': '.2e',  # Scientific notation for small numbers
-            'zeroline': True,
-            'zerolinecolor': BIOYM_COLORS['dark'],
-            'zerolinewidth': 2
-        },
-        'xaxis': {
-            **layout['xaxis'],
-            'title': 'Process',
-            'tickangle': -45  # Rotate labels for readability
-        },
-        'barmode': 'stack',
-        'legend': {
-            **layout['legend'],
-            'title': 'Element'
-        }
-    })
-    
-    fig.update_layout(layout)
+    layout_config = get_publication_layout(
+        size='large',
+        show_grid=True,
+        scientific_y=True,
+        custom_title="Total Absolute Mass Balance Error (All Years)",
+        x_title="Process",
+        y_title="Sum of Absolute Errors (Mg)"
+    )
+    layout_config['barmode'] = 'stack'
+    layout_config['legend']['title'] = 'Element'
+    layout_config['xaxis']['tickangle'] = -45
+    fig.update_layout(layout_config)
     fig.show()
     
 

@@ -9,6 +9,7 @@ stock and process dynamics.
 import numpy as np
 import plotly.graph_objects as go
 from ipywidgets import interact, IntSlider, Dropdown, SelectMultiple, Checkbox, HBox, VBox, Layout
+from .publication_style import get_publication_layout
 from IPython.display import display
 from plotly.subplots import make_subplots
 import pandas as pd
@@ -157,33 +158,14 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
             )
             
             view_title = "Individual Categories" if view_mode == "Individual" else "Cumulative Stock"
-            fig.update_layout(
-                title=f"DSM Stock Evolution: {process_name} ({element.upper()}) - {view_title}",
-                xaxis_title="Year",
-                yaxis_title="Stock in Mg",
-                hovermode="x unified",
-                plot_bgcolor=colors['background'],
-                paper_bgcolor='white',
-                font=dict(size=12),
-                showlegend=True,
-                legend=dict(
-                    bgcolor='rgba(255,255,255,0.8)',
-                    bordercolor='rgba(0,0,0,0.2)',
-                    borderwidth=1
-                ),
-                xaxis=dict(
-                    gridcolor=colors['grid'],
-                    showgrid=True,
-                    zeroline=True,
-                    zerolinecolor='rgba(0,0,0,0.3)'
-                ),
-                yaxis=dict(
-                    gridcolor=colors['grid'],
-                    showgrid=True,
-                    zeroline=True,
-                    zerolinecolor='rgba(0,0,0,0.3)'
-                )
+            layout_config = get_publication_layout(
+                custom_title=f"DSM Stock Evolution: {process_name} ({element.upper()}) - {view_title}",
+                x_title="Year",
+                y_title="Stock in Mg",
+                show_grid=True,
+                scientific_y=True
             )
+            fig.update_layout(**layout_config)
 
     # Create enhanced widgets
     process_dropdown = Dropdown(
@@ -385,46 +367,15 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
             )
             
             # Enhanced layout
-            fig.update_layout(
-                title=dict(
-                    text=f"FOMP Analysis: {process_name} ({element.upper()})",
-                    x=0.5,
-                    font=dict(size=16, color='#2c3e50')
-                ),
-                xaxis_title="Year",
-                yaxis_title=f"Mass ({element.upper()}) in Mg",
-                hovermode="x unified",
-                height=500,
-                plot_bgcolor='white',
-                paper_bgcolor='white',
-                font=dict(size=12),
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="right",
-                    x=1
-                ),
-                margin=dict(l=80, r=80, t=100, b=80)
+            layout_config = get_publication_layout(
+                custom_title=f"FOMP Analysis: {process_name} ({element.upper()})",
+                x_title="Year",
+                y_title=f"Mass ({element.upper()}) in Mg",
+                show_grid=True,
+                scientific_y=True,
+                size='medium'
             )
-            
-            # Enhanced axes
-            fig.update_xaxes(
-                showgrid=True,
-                gridwidth=1,
-                gridcolor='#e1e5e9',
-                zeroline=True,
-                zerolinecolor='#2c3e50',
-                zerolinewidth=1
-            )
-            fig.update_yaxes(
-                showgrid=True,
-                gridwidth=1,
-                gridcolor='#e1e5e9',
-                zeroline=True,
-                zerolinecolor='#2c3e50',
-                zerolinewidth=1
-            )
+            fig.update_layout(**layout_config)
 
     def export_plot():
         """Export the current plot with enhanced options"""
@@ -584,12 +535,14 @@ def plot_system_efficiency_metrics(mfa_system_results):
                     )
                 )
 
-                fig.update_layout(
-                    title=f"System Recycling Rate ({element.upper()})",
-                    xaxis_title="Year",
-                    yaxis_title="Recycling Rate (%)",
-                    yaxis=dict(range=[0, 100]),
+                layout_config = get_publication_layout(
+                    custom_title=f"System Recycling Rate ({element.upper()})",
+                    x_title="Year",
+                    y_title="Recycling Rate (%)",
+                    show_grid=True
                 )
+                fig.update_layout(**layout_config)
+                fig.update_yaxes(range=[0, 100])
 
             elif metric_type == "Recovery Rate":
                 # Calculate recovery rate (outputs / inputs)
@@ -631,12 +584,14 @@ def plot_system_efficiency_metrics(mfa_system_results):
                     )
                 )
 
-                fig.update_layout(
-                    title=f"System Recovery Rate ({element.upper()})",
-                    xaxis_title="Year",
-                    yaxis_title="Recovery Rate (%)",
-                    yaxis=dict(range=[0, 100]),
+                layout_config = get_publication_layout(
+                    custom_title=f"System Recovery Rate ({element.upper()})",
+                    x_title="Year",
+                    y_title="Recovery Rate (%)",
+                    show_grid=True
                 )
+                fig.update_layout(**layout_config)
+                fig.update_yaxes(range=[0, 100])
 
             elif metric_type == "Material Efficiency":
                 # Calculate material efficiency (useful output / total input)
@@ -680,12 +635,14 @@ def plot_system_efficiency_metrics(mfa_system_results):
                     )
                 )
 
-                fig.update_layout(
-                    title=f"Material Efficiency ({element.upper()})",
-                    xaxis_title="Year",
-                    yaxis_title="Efficiency (%)",
-                    yaxis=dict(range=[0, 100]),
+                layout_config = get_publication_layout(
+                    custom_title=f"Material Efficiency ({element.upper()})",
+                    x_title="Year",
+                    y_title="Efficiency (%)",
+                    show_grid=True
                 )
+                fig.update_layout(**layout_config)
+                fig.update_yaxes(range=[0, 100])
 
     # Create widgets
     element_dropdown = Dropdown(
@@ -746,14 +703,14 @@ def plot_stock_overview(mfa_system_results, dsm_params=None, fomp_params=None):
         )
 
     # Update layout
-    fig.update_layout(
-        title="Stock Overview - Total System Stocks by Element",
-        xaxis_title="Year",
-        yaxis_title="Total Stock in Mg",
-        height=500,
-        showlegend=True,
-        hovermode="x unified"
+    layout_config = get_publication_layout(
+        custom_title="Stock Overview - Total System Stocks by Element",
+        x_title="Year",
+        y_title="Total Stock in Mg",
+        show_grid=True,
+        size='medium'
     )
+    fig.update_layout(**layout_config)
 
     fig.show()
 
@@ -869,7 +826,16 @@ def plot_process_dynamics(mfa_system_results, process_definitions):
                 row=1,
                 col=3,
             )
-            fig.update_yaxes(title_text="Mass [Mg]", rangemode="tozero")
+            layout_config = get_publication_layout(
+                custom_title=f"Process Dynamics: {process_name} ({element.upper()})",
+                show_grid=True,
+                scientific_y=True
+            )
+            xaxis_style = layout_config.pop('xaxis')
+            yaxis_style = layout_config.pop('yaxis')
+            fig.update_layout(**layout_config)
+            fig.update_xaxes(**xaxis_style)
+            fig.update_yaxes(**yaxis_style)
 
     process_dropdown = Dropdown(
         options=list(process_options.keys()), description="Process:"
@@ -967,12 +933,16 @@ def plot_dynamic_stock_composition(dsm_details, mfa_system_results):
                 (p.Name for p in mfa_system_results.ProcessList if p.ID == process_id),
                 "",
             )
-            fig.update_layout(
-                barmode="stack" if show_as_bars else None,
-                title=f"Dynamic Stock Composition for Process: '{process_name}' ({element.upper()})",
-                xaxis_title="Year",
-                yaxis_title="Stock in Mg",
+            layout_config = get_publication_layout(
+                custom_title=f"Dynamic Stock Composition for Process: '{process_name}' ({element.upper()})",
+                x_title="Year",
+                y_title="Stock in Mg",
+                show_grid=True,
+                scientific_y=True
             )
+            if show_as_bars:
+                layout_config['barmode'] = 'stack'
+            fig.update_layout(**layout_config)
 
     process_dropdown = Dropdown(options=process_options, description="Process:")
     element_dropdown = Dropdown(
@@ -1059,10 +1029,17 @@ def plot_fomp_dynamics(mfa_system_results, fomp_params_config):
                 col=3,
             )
 
-            title_text = f"FOMP Dynamics for Process: '{process_name}' | Element: {element.upper()}"
-            fig.update_layout(title_text=title_text, height=400, showlegend=False)
-            fig.update_xaxes(title_text="Year")
-            fig.update_yaxes(title_text="Mass [Mg]", row=1, col=1)
+            layout_config = get_publication_layout(
+                custom_title=f"FOMP Dynamics for Process: '{process_name}' | Element: {element.upper()}",
+                show_grid=True,
+                scientific_y=True,
+                size='small'
+            )
+            xaxis_style = layout_config.pop('xaxis')
+            yaxis_style = layout_config.pop('yaxis')
+            fig.update_layout(**layout_config)
+            fig.update_xaxes(title_text="Year", **xaxis_style)
+            fig.update_yaxes(title_text="Mass [Mg]", **yaxis_style)
 
     # Create widgets for interaction
     process_dropdown = Dropdown(
@@ -1118,13 +1095,18 @@ def plot_flow_dynamics(mfa_system_results):
                     fig.add_trace(chart_type(**trace_props))
 
             # Update layout and title
-            fig.update_layout(
-                barmode="stack" if show_as_bars else "overlay",
-                title=f"Time Series for Selected Flows ({element.upper()})",
-                xaxis_title="Year",
-                yaxis_title="Mass in Mg",
-                hovermode="x unified",
+            layout_config = get_publication_layout(
+                custom_title=f"Time Series for Selected Flows ({element.upper()})",
+                x_title="Year",
+                y_title="Mass in Mg",
+                show_grid=True,
+                scientific_y=True
             )
+            if show_as_bars:
+                layout_config['barmode'] = 'stack'
+            else:
+                layout_config['barmode'] = 'overlay'
+            fig.update_layout(**layout_config)
 
     # Create widgets
     flow_selector = SelectMultiple(
@@ -1211,32 +1193,16 @@ def plot_stock_bar_chart(mfa_system, title="Stock Levels Over Time"):
                 )
             )
 
-            fig.update_layout(
-                title=dict(
-                    text=f"{title} - {element.upper()} ({year})",
-                    x=0.5,
-                    font=dict(size=20, family="Arial, sans-serif")
-                ),
-                xaxis_title="Process Name",
-                yaxis_title="Stock Value (Mass Units)",
-                template="plotly_white",
-                font=dict(family="Arial, sans-serif", size=12),
-                xaxis=dict(
-                    tickangle=-45,
-                    showgrid=False,
-                    linecolor='black',
-                    linewidth=1
-                ),
-                yaxis=dict(
-                    gridcolor='lightgrey',
-                    linecolor='black',
-                    linewidth=1,
-                    zeroline=True,
-                    zerolinecolor='rgba(0,0,0,0.5)',
-                    zerolinewidth=1
-                ),
-                showlegend=False
+            layout_config = get_publication_layout(
+                custom_title=f"{title} - {element.upper()} ({year})",
+                x_title="Process Name",
+                y_title="Stock Value (Mass Units)",
+                show_grid=True,
+                scientific_y=True
             )
+            layout_config['showlegend'] = False
+            layout_config['xaxis']['tickangle'] = -45
+            fig.update_layout(**layout_config)
 
     # Create widgets
     year_slider = IntSlider(min=min(years), max=max(years), step=1, value=min(years), description='Year')
