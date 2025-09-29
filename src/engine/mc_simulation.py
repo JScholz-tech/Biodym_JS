@@ -62,6 +62,42 @@ def validate_mc_parameters(mc_params_df, mfa_system):
     
     return validated_params, warnings
 
+def apply_fomp_parameter_updates(fomp_params, sampled_params):
+    """
+    Apply Monte Carlo sampled parameters to FOMP processes.
+    
+    Args:
+        fomp_params (dict): Original FOMP parameters by process ID
+        sampled_params (dict): Sampled parameters from Monte Carlo
+        
+    Returns:
+        dict: Updated FOMP parameters with sampled values
+    """
+    updated_fomp_params = copy.deepcopy(fomp_params)
+    
+    for param_name, sampled_value in sampled_params.items():
+        # Check if this is a FOMP parameter (starts with P and contains process info)
+        if param_name.startswith("P") and "_decay_" in param_name:
+            try:
+                # Extract process ID from parameter name (e.g., "P08_decay_k1 (Labile pool)" -> 8)
+                process_id = int(param_name[1:].split("_")[0])
+                
+                # Extract the base parameter name (e.g., "decay_k1 (Labile pool)")
+                base_param_name = param_name.split("_", 1)[1]  # Remove "P08_" prefix
+                
+                # Apply the sampled value to the correct process and parameter
+                if process_id in updated_fomp_params:
+                    updated_fomp_params[process_id][base_param_name] = sampled_value
+                    print(f"   Applied MC sample: {param_name} = {sampled_value:.4f} to Process {process_id}")
+                else:
+                    print(f"⚠️ WARNING: Process {process_id} not found in FOMP parameters for {param_name}")
+                    
+            except (ValueError, IndexError) as e:
+                print(f"⚠️ WARNING: Could not parse FOMP parameter name: {param_name} - {e}")
+                continue
+    
+    return updated_fomp_params
+
 def normalize_tcs_for_process(mfa_system, process_id, varied_tc_name, varied_tc_value):
     """
     Ensures all TCs for a process sum to 1.0 by normalizing them.
@@ -185,7 +221,10 @@ def run_mc_simulation(
         sampled_params = sample_parameters(uncertainty_params)
         tc_updates = sampled_params.copy()
 
-        # --- 3b. Propagate Splitter Uncertainty ---
+        # --- 3b. Apply FOMP parameter updates ---
+        updated_fomp_params = apply_fomp_parameter_updates(fomp_params, sampled_params)
+
+        # --- 3c. Propagate Splitter Uncertainty ---
         for param_name, sample_value in sampled_params.items():
             if param_name in tc_info_map:
                 info = tc_info_map[param_name]
@@ -197,18 +236,18 @@ def run_mc_simulation(
                     for sibling_tc in info['sibling_tcs']:
                         tc_updates[sibling_tc] = sample_value
 
-        # --- 3c. Run Solver ---
+        # --- 3d. Run Solver ---
         mfa_system_run, _ = solver.run_mfa_calculation(
             mfa_system_setup,
             dsm_params,
-            fomp_params,
+            updated_fomp_params,  # Use updated FOMP parameters
             config,
             flow_tc_map=flow_tc_map, # Pass the map from the setup system
             process_logic_map=process_logic_map,
             tc_updates=tc_updates,
         )
 
-        # --- 3d. Collect Results ---
+        # --- 3e. Collect Results ---
         iteration_results = {"iteration": i + 1}
         for param, value in tc_updates.items():
             iteration_results[f"{param}_sample"] = value

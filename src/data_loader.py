@@ -195,6 +195,7 @@ def load_dsm_parameters(excel_data):
 def load_fomp_parameters(excel_data):
     """
     Reads the '3_2_Definition_FOMP' sheet and constructs the FOMP_PARAMS dictionary.
+    Supports both Process_ID and Pool_ID systems.
     """
     sheet_name = "3_2_Definition_FOMP"
     print(f"--> Loading FOMP parameters from sheet '{sheet_name}'...")
@@ -207,27 +208,57 @@ def load_fomp_parameters(excel_data):
     fomp_params = {}
 
     for _, row in df_fomp.iterrows():
-        if pd.isna(row["Process_ID"]):
+        # Handle both Process_ID and Pool_ID systems
+        process_id = None
+        param_name = None
+        value = None
+        
+        # Check if using Pool_ID system (new approach)
+        if "Pool_ID" in df_fomp.columns and pd.notna(row.get("Pool_ID")):
+            pool_id = str(row["Pool_ID"])
+            param_name = row["Parameter_Name"]
+            value = row["Value"]
+            
+            # Extract process ID from Pool_ID format (e.g., "P08_Inflow_fraction_f (Labile pool)" -> "08")
+            try:
+                if pool_id.startswith("P") and "_" in pool_id:
+                    process_id = int(pool_id[1:].split("_")[0])
+                else:
+                    print(f"⚠️ WARNING: Could not extract process ID from Pool_ID: {pool_id}")
+                    continue
+            except (ValueError, IndexError):
+                print(f"⚠️ WARNING: Could not parse Pool_ID format: {pool_id}")
+                continue
+                
+        # Check if using Process_ID system (legacy approach)
+        elif "Process_ID" in df_fomp.columns and pd.notna(row.get("Process_ID")):
+            process_id = int(row["Process_ID"])
+            param_name = row["Parameter_Name"]
+            value = row["Value"]
+            
+        else:
             continue
 
-        process_id = int(row["Process_ID"])
-        param_name = row["Parameter_Name"]
-        value = row["Value"]
-
+        # Initialize process dictionary if not exists
         if process_id not in fomp_params:
             fomp_params[process_id] = {}
 
+        # Map parameter names to expected format
         if param_name == "output_carbon_id":
             fomp_params[process_id]["outflow_id"] = value
         elif param_name == "output_environmental_id":
             fomp_params[process_id]["outflow_id_2"] = value
         else:
+            # Keep original parameter names for calculation
             try:
                 fomp_params[process_id][param_name] = float(value)
             except (ValueError, TypeError):
                 fomp_params[process_id][param_name] = value
     
     print(f"--> Successfully loaded configurations for {len(fomp_params)} FOMP process(es).")
+    for process_id, params in fomp_params.items():
+        print(f"   Process {process_id}: {len(params)} parameters")
+    
     return fomp_params
 
 
@@ -273,6 +304,46 @@ def load_uncertainty_definitions(excel_data):
 
     print(f"--> Successfully loaded {len(uncertainty_params)} uncertainty parameter definition(s).")
     return uncertainty_params
+
+
+def apply_fomp_uncertainty_updates(fomp_params, uncertainty_updates):
+    """
+    Applies uncertainty parameter updates to FOMP parameters.
+    Handles process-specific parameter names like 'P7_decay_k1 (Labile pool)'.
+    
+    Args:
+        fomp_params (dict): Original FOMP parameters dictionary
+        uncertainty_updates (dict): Sampled parameter values from Monte Carlo
+        
+    Returns:
+        dict: Updated FOMP parameters with uncertainty applied
+    """
+    updated_fomp_params = copy.deepcopy(fomp_params)
+    
+    for param_name, sampled_value in uncertainty_updates.items():
+        # Check if this is a process-specific FOMP parameter (starts with 'P' and contains '_decay_')
+        if param_name.startswith('P') and '_decay_' in param_name:
+            try:
+                # Extract process ID and original parameter name
+                # Format: P7_decay_k1 (Labile pool) -> process_id=7, original_name=decay_k1 (Labile pool)
+                parts = param_name.split('_', 1)  # Split on first underscore only
+                if len(parts) == 2:
+                    process_id_str = parts[0][1:]  # Remove 'P' prefix
+                    original_param_name = parts[1]  # Everything after P7_
+                    
+                    process_id = int(process_id_str)
+                    
+                    # Apply the update if this process exists in FOMP params
+                    if process_id in updated_fomp_params:
+                        updated_fomp_params[process_id][original_param_name] = sampled_value
+                        print(f"  Applied uncertainty: {param_name} = {sampled_value:.4f} to Process {process_id}")
+                    else:
+                        print(f"  WARNING: Process {process_id} not found in FOMP parameters for {param_name}")
+                        
+            except (ValueError, IndexError) as e:
+                print(f"  WARNING: Could not parse process-specific parameter {param_name}: {e}")
+    
+    return updated_fomp_params
 
 
 def load_scenario_definitions(excel_data):
