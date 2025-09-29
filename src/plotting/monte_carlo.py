@@ -21,6 +21,7 @@ from .publication_style import (
     BIOYM_COLORS
 )
 
+
 def plot_interactive_mc_histogram(mc_results_df):
     """
     Creates an interactive histogram of stock distributions from MC results.
@@ -45,110 +46,7 @@ def plot_interactive_mc_histogram(mc_results_df):
 
     # --- Create Widgets ---
     stock_dropdown = Dropdown(options=stock_names, description='Stock:')
-    element_dropdown = Dropdown(options=elements, description='Element:')
-    export_button = Button(description="Export PNG", button_style='success', icon='download')
-    fig_widget = go.FigureWidget()
-
-    def update_plot(change):
-        """Callback to update the plot when a dropdown value changes."""
-        stock = stock_dropdown.value
-        element = element_dropdown.value
-        col_name = f"{stock}_{element}"
-
-        with fig_widget.batch_update():
-            fig_widget.data = []
-            fig_widget.layout.shapes = []
-            fig_widget.layout.annotations = []
-
-            if col_name not in mc_results_df.columns:
-                fig_widget.update_layout(title_text=f"No data available for {col_name}")
-                return
-
-            data_series = mc_results_df[col_name]
-            mean_val = data_series.mean()
-            element_color = get_element_color(element)
-
-            # Add Histogram Trace with shiny element color
-            fig_widget.add_trace(go.Histogram(
-                x=data_series, 
-                nbinsx=30, 
-                name='Distribution',
-                marker_color=element_color,
-                opacity=0.8
-            ))
-
-            # Add Mean Line
-            fig_widget.add_shape(
-                type="line", x0=mean_val, x1=mean_val, y0=0, y1=1, yref="paper",
-                line=dict(color=BIOYM_COLORS['dark'], width=2, dash="dash")
-            )
-            
-            # Add Mean Annotation
-            fig_widget.add_annotation(
-                x=mean_val, y=1.05, yref="paper", text=f"Mean: {mean_val:.2e}",
-                showarrow=False, font=dict(color=BIOYM_COLORS['dark'], size=12),
-                bgcolor="rgba(255, 255, 255, 0.8)"
-            )
-
-            # Apply publication layout
-            layout_config = get_publication_layout(size='large', show_grid=True)
-            fig_widget.update_layout(**layout_config)
-            fig_widget.update_layout(
-                title=f"Monte Carlo Distribution: {stock} ({element.upper()})",
-                xaxis_title=f"Value ({element.upper()}) [Mg]",
-                yaxis_title="Frequency",
-                height=500,
-                            showlegend=False
-            )
-            
-            # Apply scientific notation and grid
-            fig_widget.update_xaxes(
-                tickformat=".2e",
-                zeroline=True,
-                zerolinecolor=BIOYM_COLORS['dark'],
-                zerolinewidth=2,
-                showgrid=True,
-                gridcolor='#e1e5e9',
-                gridwidth=1
-            )
-            fig_widget.update_yaxes(
-                zeroline=True,
-                zerolinecolor=BIOYM_COLORS['dark'],
-                zerolinewidth=2,
-                showgrid=True,
-                gridcolor='#e1e5e9',
-                gridwidth=1
-            )
-
-    def on_export_button_clicked(b):
-        """Callback to handle the export button click."""
-        stock = stock_dropdown.value
-        element = element_dropdown.value
-        
-        # Create organized export directory
-        export_dir = "exports/mc_analysis"
-        os.makedirs(export_dir, exist_ok=True)
-        
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{export_dir}/mc_histogram_{stock}_{element}_{timestamp}.png"
-        
-        try:
-            fig_widget.write_image(filename, width=1400, height=600, scale=2)
-            print(f"✅ Plot exported successfully to: {filename}")
-        except Exception as e:
-            print(f"❌ Export failed: {e}")
-            print("   Ensure 'kaleido' is available (uv sync).")
-
-    # --- Link Widgets and Display ---
-    stock_dropdown.observe(update_plot, names='value')
-    element_dropdown.observe(update_plot, names='value')
-    export_button.on_click(on_export_button_clicked)
-
-    # Initial plot call
-    update_plot(None)
-
-    # Display layout
-    controls = HBox([stock_dropdown, element_dropdown, export_button])
+    controls = HBox([stock_dropdown, element_dropdown])
     display(VBox([controls, fig_widget]))
 
 def plot_interactive_tornado(mc_results_df):
@@ -172,7 +70,6 @@ def plot_interactive_tornado(mc_results_df):
 
     # --- Create Widgets ---
     output_dropdown = Dropdown(options=output_vars, description='Output Variable:')
-    export_button = Button(description="Export PNG", button_style='success', icon='download')
     fig_widget = go.FigureWidget()
 
     def update_plot(change):
@@ -220,30 +117,13 @@ def plot_interactive_tornado(mc_results_df):
                 gridwidth=1
             )
 
-    def on_export_button_clicked(b):
-        """Callback to handle the export button click."""
-        output_var = output_dropdown.value
-        
-        export_dir = "exports/mc_analysis"
-        os.makedirs(export_dir, exist_ok=True)
-        
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{export_dir}/tornado_plot_{output_var}_{timestamp}.png"
-        
-        try:
-            fig_widget.write_image(filename, width=1400, height=200 + len(param_vars) * 25, scale=2)
-            print(f"✅ Plot exported successfully to: {filename}")
-        except Exception as e:
-            print(f"❌ Export failed: {e}")
-            print("   Ensure 'kaleido' is available (uv sync).")
-
     # --- Link Widgets and Display ---
     output_dropdown.observe(update_plot, names='value')
-    export_button.on_click(on_export_button_clicked)
+    # Export button click handler is automatically set by create_export_button
 
     update_plot(None) # Initial plot
 
-    controls = HBox([output_dropdown, export_button])
+    controls = HBox([output_dropdown])
     display(VBox([controls, fig_widget]))
 
 def plot_interactive_mc_paths(mc_results_df):
@@ -272,7 +152,8 @@ def plot_interactive_mc_paths(mc_results_df):
     # --- Create Widgets ---
     stock_dropdown = Dropdown(options=stock_names, description='Stock:')
     element_dropdown = Dropdown(options=elements, description='Element:')
-    export_button = Button(description="Export PNG", button_style='success', icon='download')
+    fig_widget = go.FigureWidget()
+    
     fig_widget = go.FigureWidget()
 
     def update_plot(change):
@@ -428,32 +309,14 @@ def plot_interactive_mc_paths(mc_results_df):
                 gridwidth=1
             )
 
-    def on_export_button_clicked(b):
-        """Callback to handle the export button click."""
-        stock = stock_dropdown.value
-        element = element_dropdown.value
-        
-        export_dir = "exports/mc_analysis"
-        os.makedirs(export_dir, exist_ok=True)
-        
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{export_dir}/mc_actual_paths_{stock}_{element}_{timestamp}.png"
-        
-        try:
-            fig_widget.write_image(filename, width=1400, height=600, scale=2)
-            print(f"✅ Plot exported successfully to: {filename}")
-        except Exception as e:
-            print(f"❌ Export failed: {e}")
-            print("   Ensure 'kaleido' is available (uv sync).")
-
     # --- Link Widgets and Display ---
     stock_dropdown.observe(update_plot, names='value')
     element_dropdown.observe(update_plot, names='value')
-    export_button.on_click(on_export_button_clicked)
+    # Export button click handler is automatically set by create_export_button
 
     # Initial plot call
     update_plot(None)
 
     # Display layout
-    controls = HBox([stock_dropdown, element_dropdown, export_button])
+    controls = HBox([stock_dropdown, element_dropdown])
     display(VBox([controls, fig_widget]))

@@ -22,6 +22,7 @@ from .publication_style import (
     PROCESS_COLORS
 )
 
+
 def _calculate_node_positions(processes, flows):
     """
     Calculates node x-positions for a Sankey diagram using a topological sort.
@@ -200,36 +201,6 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
             )
             fig.update_layout(**layout_config)
 
-    def export_plot():
-        """Export the current plot as PNG with publication standards"""
-        try:
-            # Create export folder with timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            export_folder = f"exports/sankey_diagrams/{timestamp}"
-            os.makedirs(export_folder, exist_ok=True)
-            
-            # Generate filename with current parameters
-            current_year = year_slider.value
-            current_element = element_dropdown.value
-            
-            filename = f"sankey_{current_element}_{current_year}.png"
-            filepath = os.path.join(export_folder, filename)
-            
-            # Ensure the figure has data before exporting
-            if len(fig.data[0].node.label) > 0:
-                # Export with publication standards (high resolution)
-                fig.write_image(filepath, width=1400, height=900, scale=2)
-                print(f"✅ Sankey diagram exported to: {filepath}")
-                print(f"📁 Export folder: {export_folder}")
-                print(f"🎨 Using shiny color scheme from publication standards")
-            else:
-                print("⚠️ No data to export. Please select processes and ensure flows are visible.")
-                
-        except Exception as e:
-            print(f"❌ Export failed: {e}")
-            print("💡 Ensure 'kaleido' is available (uv sync)")
-            import traceback
-            traceback.print_exc()
 
     # Create widgets with better organization and longer sliders
     year_slider = IntSlider(
@@ -271,13 +242,7 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
         layout=Layout(width='400px')
     )
     
-    export_button = Button(
-        description="Export PNG",
-        button_style='success',
-        icon='download',
-        layout=Layout(width='120px')
-    )
-    export_button.on_click(lambda b: export_plot())
+
 
     # Create legend with shiny colors from publication standards
     legend_html = f"""
@@ -328,7 +293,6 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
     ui = VBox([
         HBox([year_slider, element_dropdown]),
         HBox([process_selector, threshold_slider]),
-        HBox([export_button]),
         legend_widget
     ])
     out = interactive(

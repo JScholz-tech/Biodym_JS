@@ -19,6 +19,7 @@ from .publication_style import (
     BIOYM_COLORS
 )
 
+
 def plot_optimized_mass_balance_error(mfa_system_results):
     """
     Optimized version of mass balance error plot with enhanced performance.
@@ -126,19 +127,7 @@ def plot_optimized_mass_balance_error(mfa_system_results):
     interact(update_plot, year=year_slider, element=element_dropdown)
     display(fig)
     
-    # Add simple PNG export
-    def export_png():
-        filename = f"mass_balance_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-        try:
-            fig.write_image(f"exports/{filename}", scale=2, width=1200, height=900)
-            print(f"✅ Exported: exports/{filename}")
-        except Exception as e:
-            print(f"❌ Export failed: {e}")
-            print("💡 Ensure 'kaleido' is installed: pip install kaleido")
-    
-    export_button = Button(description="📥 Export PNG", button_style='success')
-    export_button.on_click(lambda b: export_png())
-    display(export_button)
+
 
 def plot_total_mass_balance_error(mfa_system_results):
     """
@@ -223,18 +212,4 @@ def plot_total_mass_balance_error(mfa_system_results):
     fig.update_layout(layout)
     fig.show()
     
-    # Add simple PNG export
-    def export_png():
-        filename = f"total_mass_balance_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-        try:
-            fig.write_image(f"exports/{filename}", scale=2, width=1200, height=900)
-            print(f"✅ Exported: exports/{filename}")
-        except Exception as e:
-            print(f"❌ Export failed: {e}")
-            print("💡 Ensure 'kaleido' is installed: pip install kaleido")
-    
-    export_button = Button(description="📥 Export PNG", button_style='success')
-    export_button.on_click(lambda b: export_png())
-    display(export_button)
-
 
