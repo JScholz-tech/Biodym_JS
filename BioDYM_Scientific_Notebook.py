@@ -338,17 +338,38 @@ print("="*60)
 if config_obj.RUN_MONTE_CARLO and '4_1_Uncertainty_Parameters' in input_data:
     try:
         from engine.mc_simulation import run_mc_simulation
-        from src.plotting.monte_carlo import plot_interactive_mc_histogram, plot_interactive_tornado, plot_interactive_mc_paths
-        mc_results = run_mc_simulation(mfa_system_configured, input_data, dsm_params, fomp_params, config_obj, process_logic_map=process_logic_map, flow_tc_map=flow_tc_map)
+        from src.plotting.monte_carlo import (
+            plot_interactive_mc_multiple_histograms,
+            plot_interactive_tornado, 
+            plot_interactive_mc_paths, 
+            plot_interactive_mc_stock_comparison
+        )
+        
+        mc_results = run_mc_simulation(
+            mfa_system_configured, 
+            input_data, 
+            dsm_params, 
+            fomp_params, 
+            config_obj, 
+            process_logic_map=process_logic_map, 
+            flow_tc_map=flow_tc_map
+        )
+        
         if mc_results is not None and not mc_results.empty:
-            print("✅ Monte Carlo simulation completed for baseline")
-            print("\n🎲 Monte Carlo Analysis:")
-            print("   • Distribution analysis with interactive histograms")
-            print("   • Sensitivity analysis with tornado plots")
-            print("   • Monte Carlo paths showing simulation trajectories")
-            plot_interactive_mc_histogram(mc_results)
+            print("✅ Monte Carlo simulation completed for baseline.")
+            print("\n📊 Monte Carlo Analysis Visualizations:")
+            print("   • Multiple Distribution Histograms: Interactively select and view histograms for multiple stocks.")
+            print("   • Sensitivity Tornado Plot: Identify which parameters most influence outcomes.")
+            print("   • Simulation Paths: Visualize the trajectories of all Monte Carlo runs.")
+            print("   • Stock Comparison: Compare distributions of several stocks in one plot.")
+
+            # This new function allows selecting multiple histograms, making the old single one redundant.
+            plot_interactive_mc_multiple_histograms(mc_results, mfa_results_baseline)
+            
             plot_interactive_tornado(mc_results)
-            plot_interactive_mc_paths(mc_results)
+            plot_interactive_mc_paths(mc_results, mfa_results_baseline)
+            plot_interactive_mc_stock_comparison(mc_results, mfa_results_baseline)
+            
     except Exception as e:
         print(f"⚠️ Monte Carlo simulation failed: {e}")
         import traceback

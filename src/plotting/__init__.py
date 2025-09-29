@@ -7,6 +7,7 @@ Plotting Subpackage for BioDYM.
 from .sankey import plot_interactive_sankey
 from .dynamics import (
     plot_dsm_stock_details,
+    plot_dsm_process_dynamics,
     plot_fomp_stock_details,
     plot_system_efficiency_metrics,
     plot_stock_overview,
@@ -23,6 +24,8 @@ from .monte_carlo import (
     plot_interactive_mc_histogram,
     plot_interactive_tornado,
     plot_interactive_mc_paths,
+    plot_interactive_mc_stock_comparison,
+    plot_interactive_mc_multiple_histograms
 )
 from .scenario import plot_multi_scenario_comparison, plot_scenario_flow_dynamics
 from .graphviz_flow_charts import plot_graphviz_flow_chart_sankey_style
@@ -30,6 +33,7 @@ from .graphviz_flow_charts import plot_graphviz_flow_chart_sankey_style
 __all__ = [
     'plot_interactive_sankey',
     'plot_dsm_stock_details',
+    'plot_dsm_process_dynamics',
     'plot_fomp_stock_details',
     'plot_system_efficiency_metrics',
     'plot_stock_overview',
@@ -45,6 +49,9 @@ __all__ = [
     'plot_interactive_mc_histogram',
     'plot_interactive_tornado',
     'plot_interactive_mc_paths',
+    'plot_interactive_mc_stock_comparison',
+    'plot_interactive_mc_multiple_histograms',
+    'plot_interactive_mc_multiple_histograms_simple',
     'plot_multi_scenario_comparison',
     'plot_scenario_flow_dynamics',
     'plot_graphviz_flow_chart_sankey_style',
