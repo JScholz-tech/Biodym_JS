@@ -122,27 +122,28 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
     process_definitions = all_excel_data["2_1_Definition_Processes"]
     for _, row in process_definitions.iterrows():
         if pd.notna(row["Process_Name"]):
-            process_id = int(row["ID"])
+            excel_process_id = int(row["ID"])
+            odym_process_id = excel_process_id - 1  # Convert 1-based Excel ID to 0-based ODYM ID
             has_tcs = "TC" if "TC?" in row and row["TC?"] == "Yes" else "None"
             mfa_system.ProcessList.append(
-                msc.Process(Name=row["Process_Name"], ID=process_id, Extensions=has_tcs)
+                msc.Process(Name=row["Process_Name"], ID=odym_process_id, Extensions=has_tcs)
             )
             if "Stock?" in row and row["Stock?"] == "Yes":
-                mfa_system.StockDict[f"dS_{process_id}"] = msc.Stock(
-                    Name=f"dS_{process_id}", P_Res=process_id, Type=1, Indices="t,e"
+                mfa_system.StockDict[f"dS_{odym_process_id}"] = msc.Stock(
+                    Name=f"dS_{odym_process_id}", P_Res=odym_process_id, Type=1, Indices="t,e"
                 )
-                mfa_system.StockDict[f"S_{process_id}"] = msc.Stock(
-                    Name=f"S_{process_id}", P_Res=process_id, Type=0, Indices="t,e"
+                mfa_system.StockDict[f"S_{odym_process_id}"] = msc.Stock(
+                    Name=f"S_{odym_process_id}", P_Res=odym_process_id, Type=0, Indices="t,e"
                 )
                 
                 fomp_sheet = all_excel_data.get("3_2_Definition_FOMP")
                 is_fomp_process = False
                 if fomp_sheet is not None:
-                    fomp_processes = fomp_sheet[fomp_sheet["Process_ID"] == process_id]
+                    fomp_processes = fomp_sheet[fomp_sheet["Process_ID"] == excel_process_id]
                     is_fomp_process = (row.get("FOMP?", "No") == "Yes") and (not fomp_processes.empty)
                 
                 if is_fomp_process:
-                    mfa_system.StockDict[f"S_{process_id}"]._fomp_process = True
+                    mfa_system.StockDict[f"S_{odym_process_id}"]._fomp_process = True
 
     for stock_name, stock_obj in mfa_system.StockDict.items():
         if hasattr(stock_obj, '_fomp_process') and stock_obj._fomp_process:
@@ -193,7 +194,8 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
     flow_definitions = all_excel_data["1_1_Definition_Flows"]
     for _, row in flow_definitions.iterrows():
         if pd.notna(row["Flow_Name"]):
-            start_id, end_id = int(row["Flow_Output_Process_ID"]), int(row["Input_Process_ID"])
+            excel_start_id, excel_end_id = int(row["Flow_Output_Process_ID"]), int(row["Input_Process_ID"])
+            start_id, end_id = excel_start_id - 1, excel_end_id - 1  # Convert 1-based Excel IDs to 0-based ODYM IDs
             flow_obj = msc.Flow(Name=row["Flow_ID"], P_Start=start_id, P_End=end_id, Indices="t,e")
             # Store descriptive name for visualizations
             flow_obj.DescriptiveName = row["Flow_Name"]
