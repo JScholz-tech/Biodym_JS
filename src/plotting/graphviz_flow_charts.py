@@ -41,20 +41,20 @@ def plot_graphviz_flow_chart_sankey_style(processes_df, flows_df, title="BioDYM 
         print(f"   Data Quality Check:")
         
         # Filter processes with complete data
-        complete_processes = processes_df.dropna(subset=['ID', 'Name(EN)'])
-        complete_processes = complete_processes[complete_processes['Name(EN)'].str.strip() != '']
+        complete_processes = processes_df.dropna(subset=['ID', 'Process_Name'])
+        complete_processes = complete_processes[complete_processes['Process_Name'].str.strip() != '']
         print(f"   - Complete processes: {len(complete_processes)}/{len(processes_df)}")
         
         # Filter flows with complete data
-        complete_flows = flows_df.dropna(subset=['Flow_ID', 'Name(EN)', 'Process_ID_O', 'Process_ID_I'])
-        complete_flows = complete_flows[complete_flows['Name(EN)'].str.strip() != '']
+        complete_flows = flows_df.dropna(subset=['Flow_ID', 'Flow_Name', 'Flow_Output_Process_ID', 'Input_Process_ID'])
+        complete_flows = complete_flows[complete_flows['Flow_Name'].str.strip() != '']
         print(f"   - Complete flows: {len(complete_flows)}/{len(flows_df)}")
         
         # Step 2: Identify Connected Processes
         connected_process_ids = set()
         for _, flow in complete_flows.iterrows():
-            connected_process_ids.add(flow['Process_ID_O'])
-            connected_process_ids.add(flow['Process_ID_I'])
+            connected_process_ids.add(flow['Flow_Output_Process_ID'])
+            connected_process_ids.add(flow['Input_Process_ID'])
         
         # Filter to only connected processes
         connected_processes = complete_processes[complete_processes['ID'].isin(connected_process_ids)]
@@ -68,8 +68,8 @@ def plot_graphviz_flow_chart_sankey_style(processes_df, flows_df, title="BioDYM 
             # Count connections per process
             process_connections = {}
             for _, flow in complete_flows.iterrows():
-                process_o = flow['Process_ID_O']
-                process_i = flow['Process_ID_I']
+                process_o = flow['Flow_Output_Process_ID']
+                process_i = flow['Input_Process_ID']
                 process_connections[process_o] = process_connections.get(process_o, 0) + 1
                 process_connections[process_i] = process_connections.get(process_i, 0) + 1
             
@@ -82,8 +82,8 @@ def plot_graphviz_flow_chart_sankey_style(processes_df, flows_df, title="BioDYM 
         # Step 4: Filter flows to only include selected processes
         selected_process_ids = set(connected_processes['ID'])
         filtered_flows = complete_flows[
-            (complete_flows['Process_ID_O'].isin(selected_process_ids)) & 
-            (complete_flows['Process_ID_I'].isin(selected_process_ids))
+            (complete_flows['Flow_Output_Process_ID'].isin(selected_process_ids)) & 
+            (complete_flows['Input_Process_ID'].isin(selected_process_ids))
         ]
         
         if len(filtered_flows) > max_flows:
@@ -126,7 +126,7 @@ def plot_graphviz_flow_chart_sankey_style(processes_df, flows_df, title="BioDYM 
         # Add processes as nodes with improved labels
         for _, process in connected_processes.iterrows():
             process_id = int(process['ID'])
-            process_name = str(process['Name(EN)']).strip()
+            process_name = str(process['Process_Name']).strip()
             
             # Truncate long names for better readability
             if len(process_name) > 20:
@@ -138,9 +138,9 @@ def plot_graphviz_flow_chart_sankey_style(processes_df, flows_df, title="BioDYM 
         # Add flows as edges with improved labels
         for _, flow in filtered_flows.iterrows():
             flow_id = str(flow['Flow_ID']).strip()
-            flow_name = str(flow['Name(EN)']).strip()
-            process_o = int(flow['Process_ID_O'])
-            process_i = int(flow['Process_ID_I'])
+            flow_name = str(flow['Flow_Name']).strip()
+            process_o = int(flow['Flow_Output_Process_ID'])
+            process_i = int(flow['Input_Process_ID'])
             
             # Truncate long flow names
             if len(flow_name) > 15:
