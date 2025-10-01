@@ -192,11 +192,11 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
 
     flow_definitions = all_excel_data["1_1_Definition_Flows"]
     for _, row in flow_definitions.iterrows():
-        if pd.notna(row["Name(EN)"]):
-            start_id, end_id = int(row["Process_ID_O"]), int(row["Process_ID_I"])
+        if pd.notna(row["Flow_Name"]):
+            start_id, end_id = int(row["Flow_Output_Process_ID"]), int(row["Input_Process_ID"])
             flow_obj = msc.Flow(Name=row["Flow_ID"], P_Start=start_id, P_End=end_id, Indices="t,e")
             # Store descriptive name for visualizations
-            flow_obj.DescriptiveName = row["Name(EN)"]
+            flow_obj.DescriptiveName = row["Flow_Name"]
             mfa_system.FlowDict[row["Flow_ID"]] = flow_obj
 
     mfa_system.Initialize_FlowValues()
@@ -207,7 +207,7 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
         if flow_id in flow_data["Flow_ID"].values:
             flow_time_series = flow_data[flow_data["Flow_ID"] == flow_id]
             if len(flow_time_series) == len(mfa_system.IndexTable.Classification["Time"].Items):
-                flow_obj.Values[:, 0] = np.array(flow_time_series["Flow_Py"]).ravel()
+                flow_obj.Values[:, 0] = np.array(flow_time_series["Flow_Material"]).ravel()
     print("--> Populated data for primary input flows.")
 
     initial_stock_data = all_excel_data.get("2_4_Initial_Stock")
@@ -245,10 +245,18 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
     for _, row in content_definitions.iterrows():
         flow_id = row.get("Flow_ID")
         if pd.notna(flow_id) and flow_id in mfa_system.FlowDict:
+            # Map old element names to new column names
+            element_column_map = {
+                "WC": "Flow_WC",
+                "DM": "Flow_DM", 
+                "CC": "Flow_CC_DM[%]"  # CC is stored as percentage of DM
+            }
+            
             for element in mfa_system.Elements[1:]:
-                if element in row and pd.notna(row[element]):
+                column_name = element_column_map.get(element)
+                if column_name and column_name in row and pd.notna(row[column_name]):
                     param_name = f"{element}_{flow_id}"
-                    mfa_system.ParameterDict[param_name] = msc.Parameter(Name=param_name, ID=parameter_id_counter, Values=row[element], Unit="1")
+                    mfa_system.ParameterDict[param_name] = msc.Parameter(Name=param_name, ID=parameter_id_counter, Values=row[column_name], Unit="1")
                     parameter_id_counter += 1
 
     for flow in mfa_system.FlowDict.values():
