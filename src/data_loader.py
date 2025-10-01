@@ -27,7 +27,7 @@ def validate_input_data(excel_data_dict):
     REQUIRED_STRUCTURE = {
         "1_1_Definition_Flows": ["Flow_ID", "Flow_Name", "Flow_Output_Process_ID", "Input_Process_ID"],
         "1_2_Data_Flows": ["Flow_ID", "Flow_Data_Year", "Flow_Material"],
-        "2_1_Definition_Processes": ["ID", "Name(EN)", "Process_Logic"],
+        "2_1_Definition_Processes": ["ID", "Process_Name", "Process_Logic"],
         "2_3_Process_TCs": ["Flow_ID", "Process_ID", "TC_material_ID", "TC_Value_material"],
         "2_5_Initial_Stock": [
             "Process_ID",

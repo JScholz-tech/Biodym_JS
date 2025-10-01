@@ -121,11 +121,11 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
 
     process_definitions = all_excel_data["2_1_Definition_Processes"]
     for _, row in process_definitions.iterrows():
-        if pd.notna(row["Name(EN)"]):
+        if pd.notna(row["Process_Name"]):
             process_id = int(row["ID"])
             has_tcs = "TC" if "TC?" in row and row["TC?"] == "Yes" else "None"
             mfa_system.ProcessList.append(
-                msc.Process(Name=row["Name(EN)"], ID=process_id, Extensions=has_tcs)
+                msc.Process(Name=row["Process_Name"], ID=process_id, Extensions=has_tcs)
             )
             if "Stock?" in row and row["Stock?"] == "Yes":
                 mfa_system.StockDict[f"dS_{process_id}"] = msc.Stock(
