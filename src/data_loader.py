@@ -143,12 +143,23 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
                     else:
                         print(f"⚠️ Warning: Year {year} for dynamic TC '{param_name}' is outside the defined time range. Skipping.")
 
-    # 3. Interpolate all dynamic TC time series
+    # 3. Interpolate all dynamic TC time series with improved linear interpolation
     print("  -> Interpolating dynamic TC time series...")
     for param in tc_params.values():
         if isinstance(param.Values, pd.Series):
             if param.Values.count() > 0:
-                param.Values = param.Values.interpolate(method='linear', limit_direction='both').to_numpy()
+                # Improved linear interpolation with forward/backward fill for edge cases
+                param.Values = param.Values.interpolate(
+                    method='linear', 
+                    limit_direction='both',
+                    limit_area='inside'  # Only interpolate between known values
+                )
+                
+                # Forward fill for leading NaNs and backward fill for trailing NaNs
+                param.Values = param.Values.fillna(method='ffill').fillna(method='bfill')
+                
+                # Convert to numpy array for final storage
+                param.Values = param.Values.to_numpy()
             else:
                 param.Values = np.zeros_like(param.Values.to_numpy())
 
