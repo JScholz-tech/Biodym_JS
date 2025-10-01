@@ -799,7 +799,7 @@ def plot_system_efficiency_metrics(mfa_system_results):
                         if f.P_Start != 0
                         and f.P_End == 0
                         and any(
-                            keyword in f.Name.lower()
+                            keyword in getattr(f, 'DescriptiveName', f.Name).lower()
                             for keyword in ["food", "product", "use"]
                         )
                     ]
@@ -1253,8 +1253,16 @@ def plot_flow_dynamics(mfa_system_results):
         mfa_system_results (odym.MFAsystem): The solved MFA system object.
     """
 
-    # Create options for the widgets
-    flow_options = sorted(list(mfa_system_results.FlowDict.keys()))
+    # Create options for the widgets with descriptive names
+    flow_options = []
+    flow_id_to_descriptive = {}
+    
+    for flow_id in sorted(mfa_system_results.FlowDict.keys()):
+        flow_obj = mfa_system_results.FlowDict[flow_id]
+        descriptive_name = getattr(flow_obj, 'DescriptiveName', flow_id)
+        flow_options.append(descriptive_name)
+        flow_id_to_descriptive[flow_id] = descriptive_name
+    
     if not flow_options:
         print("No flows found in the system to plot.")
         return
@@ -1279,15 +1287,23 @@ def plot_flow_dynamics(mfa_system_results):
             chart_type = go.Bar if show_as_bars else go.Scatter
 
             # Add a trace for each selected flow
-            for flow_id in flows_to_show:
-                flow_obj = mfa_system_results.FlowDict.get(flow_id)
-                if flow_obj:
-                    trace_props = dict(
-                        x=time_axis, y=flow_obj.Values[:, element_index], name=flow_id
-                    )
-                    if not show_as_bars:
-                        trace_props.update(mode="lines")
-                    fig.add_trace(chart_type(**trace_props))
+            for descriptive_name in flows_to_show:
+                # Find the flow ID that corresponds to this descriptive name
+                flow_id = None
+                for fid, desc_name in flow_id_to_descriptive.items():
+                    if desc_name == descriptive_name:
+                        flow_id = fid
+                        break
+                
+                if flow_id:
+                    flow_obj = mfa_system_results.FlowDict.get(flow_id)
+                    if flow_obj:
+                        trace_props = dict(
+                            x=time_axis, y=flow_obj.Values[:, element_index], name=descriptive_name
+                        )
+                        if not show_as_bars:
+                            trace_props.update(mode="lines")
+                        fig.add_trace(chart_type(**trace_props))
 
             # Update layout and title
             layout_config = get_publication_layout(

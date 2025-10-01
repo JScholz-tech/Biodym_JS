@@ -194,7 +194,10 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
     for _, row in flow_definitions.iterrows():
         if pd.notna(row["Name(EN)"]):
             start_id, end_id = int(row["Process_ID_O"]), int(row["Process_ID_I"])
-            mfa_system.FlowDict[row["Flow_ID"]] = msc.Flow(Name=row["Flow_ID"], P_Start=start_id, P_End=end_id, Indices="t,e")
+            flow_obj = msc.Flow(Name=row["Flow_ID"], P_Start=start_id, P_End=end_id, Indices="t,e")
+            # Store descriptive name for visualizations
+            flow_obj.DescriptiveName = row["Name(EN)"]
+            mfa_system.FlowDict[row["Flow_ID"]] = flow_obj
 
     mfa_system.Initialize_FlowValues()
     print("--> All flows initialized to zero.")

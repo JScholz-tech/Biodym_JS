@@ -233,7 +233,8 @@ def plot_enhanced_sankey(mfa_system_results, dsm_params=None, fomp_params=None, 
                 flow_targets = [process_id_to_index[f.P_End] for f in final_flows]
                 default_flow_color = config.get('elements', {}).get(element, {}).get('Color', '#888')
                 flow_colors = [get_flow_visualization(f.Name, f.Name, config).get('Flow_Color_#', default_flow_color) for f in final_flows]
-                custom_data = [f.Name for f in final_flows]
+                # Use descriptive names if available, fallback to flow ID
+                custom_data = [getattr(f, 'DescriptiveName', f.Name) for f in final_flows]
                 fig.data[0].link = dict(source=flow_sources, target=flow_targets, value=flow_values, color=flow_colors, customdata=custom_data, hovertemplate='Flow: %{customdata}<br>Source: %{source.label}<br>Target: %{target.label}<br>Value: %{value}<extra></extra>')
             else:
                 fig.data[0].link = dict(source=[], target=[], value=[])

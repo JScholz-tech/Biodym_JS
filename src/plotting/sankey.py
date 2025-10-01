@@ -183,7 +183,8 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
                 flow_values = [f.Values[year_index, element_index] for f in final_flows]
                 # Use shiny element colors from publication standards
                 link_colors = [get_element_color(element)] * len(final_flows)
-                custom_data = [f.Name for f in final_flows]
+                # Use descriptive names if available, fallback to flow ID
+                custom_data = [getattr(f, 'DescriptiveName', f.Name) for f in final_flows]
 
                 fig.data[0].link.source = [process_id_map[f.P_Start] for f in final_flows]
                 fig.data[0].link.target = [process_id_map[f.P_End] for f in final_flows]
