@@ -112,11 +112,21 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
     dm_fraction = input_flow_composition.get('DM', 1.0)
     cc_fraction = input_flow_composition.get('CC', 0.0)
     
+    # Handle both scalar and time-series composition fractions
+    if isinstance(dm_fraction, np.ndarray) and dm_fraction.ndim > 0:
+        # Time-series composition - use mean values for parameter calculation
+        dm_fraction_mean = np.mean(dm_fraction[dm_fraction > 0]) if np.any(dm_fraction > 0) else 1.0
+        cc_fraction_mean = np.mean(cc_fraction[cc_fraction > 0]) if np.any(cc_fraction > 0) else 0.0
+    else:
+        # Scalar composition
+        dm_fraction_mean = float(dm_fraction)
+        cc_fraction_mean = float(cc_fraction)
+    
     params_for_calc = {
         'f_labile': fomp_excel_params.get("Inflow_fraction_f (Labile pool)", 0.7),
         'k_labile': fomp_excel_params.get("decay_k1 (Labile pool)", 0.5),
         'k_recalcitrant': fomp_excel_params.get("decay_k2 (Recalcitrant pool)", 0.025),
-        'cc_dm': np.divide(cc_fraction, dm_fraction, out=np.zeros_like(cc_fraction), where=dm_fraction!=0)
+        'cc_dm': cc_fraction_mean / dm_fraction_mean if dm_fraction_mean != 0 else 0.0
     }
     
     # Initial stocks for FOMP are always zero by definition in this model

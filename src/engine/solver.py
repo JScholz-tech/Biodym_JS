@@ -268,19 +268,42 @@ def run_mfa_calculation(
                 fomp_outflows = [f for f in mfa_system.FlowDict.values() if f.P_Start == process_id and hasattr(f, '_fomp_protected')]
                 old_fomp_out_values = {f.Name: f.Values.copy() for f in fomp_outflows}
 
-                primary_input_flow = inflows_to_fomp[0]
-                flow_name = primary_input_flow.Name
-                try:
-                    composition = {
-                        'DM': mfa_system.ParameterDict[f'DM_{flow_name}'].Values,
-                        'CC': mfa_system.ParameterDict[f'CC_{flow_name}'].Values,
-                        'WC': mfa_system.ParameterDict[f'WC_{flow_name}'].Values,
-                    }
-                except KeyError as e:
-                    print(f"❌ Error: Missing composition parameter for FOMP input flow {flow_name}. Skipping calculation. Details: {e}")
-                    continue
+                # Calculate composition dynamically from actual input flow values
+                total_inflow_values = sum(f.Values for f in inflows_to_fomp)
+                
+                # Calculate composition fractions from actual flow values
+                material_idx = mfa_system.Elements.index('material')
+                dm_idx = mfa_system.Elements.index('DM')
+                cc_idx = mfa_system.Elements.index('CC')
+                wc_idx = mfa_system.Elements.index('WC')
+                
+                # Calculate composition fractions (avoid division by zero)
+                dm_fraction = np.divide(
+                    total_inflow_values[:, dm_idx], 
+                    total_inflow_values[:, material_idx],
+                    out=np.zeros_like(total_inflow_values[:, dm_idx]),
+                    where=total_inflow_values[:, material_idx] != 0
+                )
+                cc_fraction = np.divide(
+                    total_inflow_values[:, cc_idx], 
+                    total_inflow_values[:, material_idx],
+                    out=np.zeros_like(total_inflow_values[:, cc_idx]),
+                    where=total_inflow_values[:, material_idx] != 0
+                )
+                wc_fraction = np.divide(
+                    total_inflow_values[:, wc_idx], 
+                    total_inflow_values[:, material_idx],
+                    out=np.zeros_like(total_inflow_values[:, wc_idx]),
+                    where=total_inflow_values[:, material_idx] != 0
+                )
+                
+                composition = {
+                    'DM': dm_fraction,
+                    'CC': cc_fraction,
+                    'WC': wc_fraction,
+                }
 
-                mfa_system, _ = fomp_model.calculate_fomp_model(
+                mfa_system = fomp_model.calculate_fomp(
                     mfa_system, {process_id: fomp_params[process_id]}, composition
                 )
 
