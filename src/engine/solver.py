@@ -297,6 +297,12 @@ def run_mfa_calculation(
                     where=total_inflow_values[:, material_idx] != 0
                 )
                 
+                # Print flow composition information
+                print(f"   FOMP Process {process_id} - Input Flow Composition:")
+                print(f"     DM fraction: {np.mean(dm_fraction[dm_fraction > 0]):.3f} (range: {np.min(dm_fraction):.3f} - {np.max(dm_fraction):.3f})")
+                print(f"     CC fraction: {np.mean(cc_fraction[cc_fraction > 0]):.3f} (range: {np.min(cc_fraction):.3f} - {np.max(cc_fraction):.3f})")
+                print(f"     WC fraction: {np.mean(wc_fraction[wc_fraction > 0]):.3f} (range: {np.min(wc_fraction):.3f} - {np.max(wc_fraction):.3f})")
+                
                 composition = {
                     'DM': dm_fraction,
                     'CC': cc_fraction,
