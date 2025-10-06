@@ -37,7 +37,11 @@
                     <![CDATA[]]>
                </ITEMLABEL>
                <PRESENTATION>
-                    <![CDATA[r>>>>>1 (Very difficult)|2 (Difficult)|3 (Neutral)|4 (Easy)|5 (Very easy)]]>
+                    <![CDATA[r>>>>>1 (Very difficult)
+2 (Difficult)
+3 (Neutral)
+4 (Easy)
+5 (Very easy)]]>
                </PRESENTATION>
                <OPTIONS>
                     <![CDATA[]]>
@@ -60,7 +64,10 @@
                     <![CDATA[]]>
                </ITEMLABEL>
                <PRESENTATION>
-                    <![CDATA[r>>>>>No issues|Minor issues (resolved quickly)|Major issues (took significant time to resolve)|Could not complete installation]]>
+                    <![CDATA[r>>>>>No issues
+Minor issues (resolved quickly)
+Major issues (took significant time to resolve)
+Could not complete installation]]>
                </PRESENTATION>
                <OPTIONS>
                     <![CDATA[]]>
@@ -108,7 +115,11 @@
                     <![CDATA[]]>
                </ITEMLABEL>
                <PRESENTATION>
-                    <![CDATA[r>>>>>1 (Very unclear)|2 (Unclear)|3 (Neutral)|4 (Clear)|5 (Very clear)]]>
+                    <![CDATA[r>>>>>1 (Very unclear)
+2 (Unclear)
+3 (Neutral)
+4 (Clear)
+5 (Very clear)]]>
                </PRESENTATION>
                <OPTIONS>
                     <![CDATA[]]>
@@ -179,7 +190,11 @@
                     <![CDATA[]]>
                </ITEMLABEL>
                <PRESENTATION>
-                    <![CDATA[r>>>>>1 (Very inaccurate)|2 (Inaccurate)|3 (Neutral)|4 (Accurate)|5 (Very accurate)]]>
+                    <![CDATA[r>>>>>1 (Very inaccurate)
+2 (Inaccurate)
+3 (Neutral)
+4 (Accurate)
+5 (Very accurate)]]>
                </PRESENTATION>
                <OPTIONS>
                     <![CDATA[]]>
@@ -202,7 +217,11 @@
                     <![CDATA[]]>
                </ITEMLABEL>
                <PRESENTATION>
-                    <![CDATA[r>>>>>Always correct|Mostly correct|Sometimes incorrect|Often incorrect|Never worked]]>
+                    <![CDATA[r>>>>>Always correct
+Mostly correct
+Sometimes incorrect
+Often incorrect
+Never worked]]>
                </PRESENTATION>
                <OPTIONS>
                     <![CDATA[]]>

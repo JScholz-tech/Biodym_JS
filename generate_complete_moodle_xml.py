@@ -38,15 +38,10 @@ def parse_markdown_questionnaire():
             options = []
             if question_type == 'multichoice':
                 j = i + 1
-                while j < len(lines) and (lines[j].strip().startswith('- □') or 
-                                        lines[j].strip().startswith('- ☐') or
-                                        lines[j].strip().startswith('□') or
-                                        lines[j].strip().startswith('☐')):
+                while j < len(lines) and lines[j].strip().startswith('- '):
                     option_text = lines[j].strip()
                     if option_text.startswith('- '):
-                        option_text = option_text[2:]
-                    if option_text.startswith('□') or option_text.startswith('☐'):
-                        option_text = option_text[1:].strip()
+                        option_text = option_text[2:].strip()
                     if option_text:
                         options.append(option_text)
                     j += 1
@@ -128,11 +123,11 @@ def generate_complete_moodle_xml():
                 # Determine presentation based on question type
                 if q['type'] == 'multichoice':
                     if q['options']:
-                        options_str = 'r>>>>>' + '|'.join(q['options'])
+                        options_str = 'r>>>>>' + '\n'.join(q['options'])
                         presentation = options_str
                     else:
                         # Default rating scale
-                        presentation = 'r>>>>>1 (Very poor)|2 (Poor)|3 (Neutral)|4 (Good)|5 (Excellent)'
+                        presentation = 'r>>>>>1 (Very poor)\n2 (Poor)\n3 (Neutral)\n4 (Good)\n5 (Excellent)'
                 elif q['type'] == 'textfield':
                     presentation = '30|255'
                 elif q['type'] == 'textarea':

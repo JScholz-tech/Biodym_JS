@@ -87,7 +87,7 @@ def generate_moodle_xml():
         
         # Add question
         if q['type'] == 'multichoice':
-            options_str = 'r>>>>>' + '|'.join(q['options'])
+            options_str = 'r>>>>>' + '\n'.join(q['options'])
             presentation = options_str
         elif q['type'] == 'textfield':
             presentation = '30|255'
