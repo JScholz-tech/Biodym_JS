@@ -12,11 +12,12 @@ from IPython.display import display
 import os
 from datetime import datetime
 import collections
-from .publication_style import (
+from .publication_style_simplified import (
     get_publication_layout,
     get_element_color,
     get_process_color,
     detect_biodym_process_type,
+    get_stock_color,
     BIOYM_COLORS,
     ELEMENT_COLORS,
     PROCESS_COLORS
@@ -168,10 +169,28 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
 
         with fig.batch_update():
             # Set node properties (positions are now stable)
-            fig.data[0].node.label = [p.Name for p in filtered_processes]
+            node_labels = []
+            node_colors = []
+            
+            for p in filtered_processes:
+                node_labels.append(p.Name)
+                
+                # Determine if this process has stocks
+                has_stocks = f"S_{p.ID}" in mfa_system_results.StockDict
+                is_dsm = dsm_params and p.ID in dsm_params
+                is_fomp = fomp_params and p.ID in fomp_params
+                
+                # Prioritize DSM/FOMP colors, then stock color
+                if is_dsm or is_fomp:
+                    node_colors.append(get_process_color(get_process_type(p.ID)))
+                elif has_stocks:
+                    node_colors.append(get_stock_color())
+                else:
+                    # Regular processes without stocks
+                    node_colors.append(get_process_color(get_process_type(p.ID)))
+            
+            fig.data[0].node.label = node_labels
             fig.data[0].node.x = node_x_positions
-            # Use shiny process colors from publication standards
-            node_colors = [get_process_color(get_process_type(p.ID)) for p in filtered_processes]
             fig.data[0].node.color = node_colors
 
             if not final_flows:
@@ -194,9 +213,9 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
                 fig.data[0].link.hovertemplate = 'Flow: %{customdata}<br />Source: %{source.label}<br />Target: %{target.label}<br />Value: %{value}<extra></extra>'
 
             # Update layout with publication standards
-            title_text = f"Material Flow Sankey - {element.upper()} ({year})"
+            title_text = f"BioDYM Material Flow Analysis - {element.title()} ({year})"
             layout_config = get_publication_layout(
-                title=title_text,
+                custom_title=title_text,
                 size='large',
                 show_legend=False  # We have a custom legend widget
             )
@@ -245,26 +264,35 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
     
 
 
-    # Create legend with shiny colors from publication standards
+    # Create legend with colors from publication style guide
     legend_html = f"""
     <div style="margin: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9;">
         <h4 style="margin: 0 0 10px 0;">Legend</h4>
-        <div style="display: flex; flex-wrap: wrap; gap: 15px;">
-            <div style="display: flex; align-items: center;">
-                <div style="width: 20px; height: 20px; background-color: {get_process_color('regular')}; margin-right: 5px;"></div>
-                <span>Regular Process</span>
-            </div>
-            <div style="display: flex; align-items: center;">
-                <div style="width: 20px; height: 20px; background-color: {get_process_color('dsm')}; margin-right: 5px;"></div>
-                <span>DSM Process</span>
-            </div>
-            <div style="display: flex; align-items: center;">
-                <div style="width: 20px; height: 20px; background-color: {get_process_color('fomp')}; margin-right: 5px;"></div>
-                <span>FOMP Process</span>
+        
+        <div style="margin-bottom: 10px;">
+            <strong>Processes / Stocks:</strong><br>
+            <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 20px; height: 20px; background-color: {get_process_color('regular')}; margin-right: 5px;"></div>
+                    <span>Regular processes</span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 20px; height: 20px; background-color: {get_stock_color()}; margin-right: 5px;"></div>
+                    <span>Stocks</span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 20px; height: 20px; background-color: {get_process_color('dsm')}; margin-right: 5px;"></div>
+                    <span>DSM Process</span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 20px; height: 20px; background-color: {get_process_color('fomp')}; margin-right: 5px;"></div>
+                    <span>FOMP Process</span>
+                </div>
             </div>
         </div>
-        <div style="margin-top: 10px;">
-            <strong>Element Colors:</strong>
+        
+        <div>
+            <strong>Flows:</strong><br>
             <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
                 <div style="display: flex; align-items: center;">
                     <div style="width: 20px; height: 20px; background-color: {get_element_color('material')}; margin-right: 5px;"></div>
