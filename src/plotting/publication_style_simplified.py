@@ -21,6 +21,7 @@ BIOYM_COLORS = {
     'neutral': '#6C757D',      # Gray - neutral elements
     'light': '#F8F9FA',        # Light gray - backgrounds
     'dark': '#212529',         # Dark gray - text
+    'stock': '#6F42C1',        # Purple - stock elements
 }
 
 # Element-Specific Colors (for BioDYM multi-element analysis)
@@ -38,6 +39,15 @@ PROCESS_COLORS = {
     'transformer': '#F18F01',   # Orange - transformer processes
     'dsm': '#28A745',           # Green - Dynamic Stock Model processes
     'fomp': '#C73E1D',          # Red - First-Order Mineralization Process
+}
+
+# Stock Colors (for BioDYM stock visualization)
+STOCK_COLORS = {
+    'default': '#6F42C1',       # Purple - default stock color
+    'material': '#00C851',      # Green - material stocks
+    'wc': '#007BFF',            # Blue - water content stocks
+    'dm': '#FF8C00',            # Orange - dry matter stocks
+    'cc': '#FF4444',            # Red - carbon content stocks
 }
 
 # =============================================================================
@@ -221,6 +231,20 @@ def get_process_color(process_type):
         str: Hex color code
     """
     return PROCESS_COLORS.get(process_type.lower(), BIOYM_COLORS['primary'])
+
+def get_stock_color(element_name=None):
+    """
+    Get the standardized color for stock visualization.
+    
+    Args:
+        element_name (str, optional): Name of the element for element-specific stock colors
+        
+    Returns:
+        str: Hex color code
+    """
+    if element_name:
+        return STOCK_COLORS.get(element_name.lower(), STOCK_COLORS['default'])
+    return STOCK_COLORS['default']
 
 def detect_biodym_process_type(process_id, process_logic_map=None, dsm_params=None, fomp_params=None):
     """
