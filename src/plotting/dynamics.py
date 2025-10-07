@@ -1317,6 +1317,10 @@ def plot_flow_dynamics(mfa_system_results):
                 layout_config['barmode'] = 'stack'
             else:
                 layout_config['barmode'] = 'overlay'
+            
+            # Always show legend, even with single flow
+            layout_config['showlegend'] = True
+            
             fig.update_layout(**layout_config)
 
     # Create widgets
