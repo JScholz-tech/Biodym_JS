@@ -13,11 +13,12 @@ from ipywidgets import interact, IntSlider, Dropdown, Button
 from IPython.display import display
 from datetime import datetime
 
-from .publication_style import (
+from .publication_style_simplified import (
     get_publication_layout,
     get_element_color,
     BIOYM_COLORS
 )
+from .simple_export import simple_export
 
 
 def plot_optimized_mass_balance_error(mfa_system_results):
@@ -116,6 +117,20 @@ def plot_optimized_mass_balance_error(mfa_system_results):
     interact(update_plot, year=year_slider, element=element_dropdown)
     display(fig)
     
+    # Add export button for interactive plot
+    export_button = Button(
+        description="📊 Export Interactive Mass Balance Plot",
+        button_style='success',
+        icon='download'
+    )
+    
+    def on_export_click(b):
+        simple_export(fig, "mass_balance_interactive", 
+                     element=element_dropdown.value)
+    
+    export_button.on_click(on_export_click)
+    display(export_button)
+    
 
 
 def plot_total_mass_balance_error(mfa_system_results):
@@ -176,7 +191,7 @@ def plot_total_mass_balance_error(mfa_system_results):
         size='large',
         show_grid=True,
         scientific_y=True,
-        custom_title="Total Absolute Mass Balance Error (All Years)",
+        custom_title="Total Absolute Mass Balance Error (All Years) - Positive + Negative Errors",
         x_title="Process",
         y_title="Sum of Absolute Errors (Mg)"
     )
@@ -185,5 +200,18 @@ def plot_total_mass_balance_error(mfa_system_results):
     layout_config['xaxis']['tickangle'] = -45
     fig.update_layout(layout_config)
     fig.show()
+    
+    # Add export button
+    export_button = Button(
+        description="📊 Export Mass Balance Plot",
+        button_style='success',
+        icon='download'
+    )
+    
+    def on_export_click(b):
+        simple_export(fig, "mass_balance_error")
+    
+    export_button.on_click(on_export_click)
+    display(export_button)
     
 
