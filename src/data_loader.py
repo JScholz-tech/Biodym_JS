@@ -27,8 +27,9 @@ def validate_input_data(excel_data_dict):
     REQUIRED_STRUCTURE = {
         "1_1_Definition_Flows": ["Flow_ID", "Flow_Name", "Flow_Output_Process_ID", "Input_Process_ID"],
         "1_2_Data_Flows": ["Flow_ID", "Flow_Data_Year", "Flow_Material"],
-        "2_1_Definition_Processes": ["ID", "Process_Name", "Process_Logic"],
-        "2_3_Process_TCs": ["Flow_ID", "Process_ID", "TC_material_ID", "TC_Value_material"],
+        "2_1_Definition_Processes": ["ID", "Process_Name", "Process_Logic", "TC?", "TC_Type"],
+        "2_3_static_TCs": ["Flow_ID", "Process_ID", "TC_material_ID", "TC_Value_material"],
+        "2_4_dynamic_TCs": ["TC_material_ID", "TC_Value_material", "Year"],
         "2_5_Initial_Stock": [
             "Process_ID",
             "Initial_Stock_material",
@@ -40,9 +41,14 @@ def validate_input_data(excel_data_dict):
 
     for sheet_name, required_columns in REQUIRED_STRUCTURE.items():
         if sheet_name not in excel_data_dict:
-            raise ValueError(
-                f"ERROR: The required sheet '{sheet_name}' was not found in the Excel file!"
-            )
+            # TC sheets are optional - only required if processes use TCs
+            if sheet_name in ["2_3_static_TCs", "2_4_dynamic_TCs"]:
+                print(f"  -> Optional sheet '{sheet_name}' not found (TCs may not be used)")
+                continue
+            else:
+                raise ValueError(
+                    f"ERROR: The required sheet '{sheet_name}' was not found in the Excel file!"
+                )
 
         existing_columns = excel_data_dict[sheet_name].columns
         for col in required_columns:
@@ -56,10 +62,13 @@ def validate_input_data(excel_data_dict):
 
 def load_tc_parameters(all_excel_data, elements, time_vector):
     """
-    Loads all static and dynamic transfer coefficients based on the new
-    Excel structure, creating parameters with explicit names like
-    'TC_02_03_material'. It respects the 'TC?' and 'Dyn_TC?' flags in the
-    '2_1_Definition_Processes' sheet.
+    Loads transfer coefficients based on the new unified structure.
+    Uses TC_Type column to determine whether to load static or dynamic TCs.
+    
+    Process Definition Sheet Logic:
+    - TC? = "Yes" and TC_Type = "Static" -> Load from 2_3_static_TCs
+    - TC? = "Yes" and TC_Type = "Dynamic" -> Load from 2_4_dynamic_TCs
+    - TC? = "No" -> Skip TCs for this process
 
     Args:
         all_excel_data (dict): Dictionary of DataFrames from Excel.
@@ -69,101 +78,80 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
     Returns:
         dict: A dictionary of ODYM Parameter objects for all TCs.
     """
-    print("--> Loading Transfer Coefficients (TCs) using new structure...")
+    print("--> Loading Transfer Coefficients using unified TC_Type logic...")
     
     process_defs = all_excel_data.get('2_1_Definition_Processes')
-    static_tc_defs = all_excel_data.get('2_3_Process_TCs')
-    dynamic_tc_defs = all_excel_data.get('2_4_dynamic_tcs')
+    static_tc_defs = all_excel_data.get('2_3_static_TCs')
+    dynamic_tc_defs = all_excel_data.get('2_4_dynamic_TCs')
 
-    if static_tc_defs is None or process_defs is None:
-        print("-> No TC or Process definitions found. Skipping TC loading.")
+    if process_defs is None:
+        print("-> No Process definitions found. Skipping TC loading.")
         return {}
 
-    # Create sets of process IDs where TCs and Dynamic TCs are enabled (case-insensitive)
-    tc_enabled_processes = set(process_defs[process_defs['TC?'].str.lower().str.strip() == 'yes']['ID'])
-    dyn_tc_enabled_processes = set(process_defs[process_defs['Dyn_TC?'].str.lower().str.strip() == 'yes']['ID'])
+    # Create process type mapping based on TC_Type column
+    process_tc_types = {}
+    for _, row in process_defs.iterrows():
+        process_id = row.get('Process_ID')
+        tc_enabled = str(row.get('TC?', '')).lower().strip() == 'yes'
+        tc_type = str(row.get('TC_Type', '')).strip()
+        
+        if pd.notna(process_id) and tc_enabled:
+            process_tc_types[int(process_id)] = tc_type
 
     tc_params = {}
     param_id_counter = 1000
 
-    # 1. Process Static TCs
-    print("  -> Processing static TCs...")
-    for _, row in static_tc_defs.iterrows():
-        process_id = row.get('Process_ID')
-        if pd.isna(process_id) or int(process_id) not in tc_enabled_processes:
-            continue
-
-        for element in elements:
-            param_name_col = f'TC_{element}_ID'
-            param_value_col = f'TC_Value_{element}'
-            
-            if param_name_col in row and pd.notna(row[param_name_col]) and param_value_col in row and pd.notna(row[param_value_col]):
-                param_name = row[param_name_col]
-                value = row[param_value_col]
-                
-                if param_name not in tc_params:
-                    tc_params[param_name] = msc.Parameter(Name=param_name, ID=param_id_counter, Values=value, Unit="1")
-                    param_id_counter += 1
-                else:
-                    print(f"⚠️ Warning: Duplicate static TC parameter name found: {param_name}. Using first value found.")
-
-    # 2. Process Dynamic TCs
-    print("  -> Processing dynamic TCs...")
-    if dynamic_tc_defs is not None and not dynamic_tc_defs.empty:
-        for _, row in dynamic_tc_defs.iterrows():
+    # Process Static TCs
+    static_processes = [pid for pid, tc_type in process_tc_types.items() if tc_type == 'Static']
+    if static_processes and static_tc_defs is not None:
+        print(f"  -> Processing static TCs for {len(static_processes)} processes...")
+        for _, row in static_tc_defs.iterrows():
             process_id = row.get('Process_ID')
-            if pd.isna(process_id) or int(process_id) not in dyn_tc_enabled_processes:
+            if pd.isna(process_id) or int(process_id) not in static_processes:
                 continue
-
-            if pd.isna(row.get('Year')):
-                continue
-            
-            year = int(row['Year'])
 
             for element in elements:
                 param_name_col = f'TC_{element}_ID'
                 param_value_col = f'TC_Value_{element}'
-
+                
                 if param_name_col in row and pd.notna(row[param_name_col]) and param_value_col in row and pd.notna(row[param_value_col]):
                     param_name = row[param_name_col]
                     value = row[param_value_col]
-
+                    
                     if param_name not in tc_params:
-                        ts = pd.Series(index=time_vector, dtype=float)
-                        tc_params[param_name] = msc.Parameter(Name=param_name, ID=param_id_counter, Values=ts, Unit="1")
+                        tc_params[param_name] = msc.Parameter(Name=param_name, ID=param_id_counter, Values=value, Unit="1")
                         param_id_counter += 1
-                    elif not isinstance(tc_params[param_name].Values, pd.Series):
-                        static_value = tc_params[param_name].Values
-                        ts = pd.Series(index=time_vector, dtype=float)
-                        ts.loc[:] = static_value
-                        tc_params[param_name].Values = ts
-
-                    if year in tc_params[param_name].Values.index:
-                        tc_params[param_name].Values[year] = value
+                        print(f"    -> Loaded static TC: {param_name} = {value}")
                     else:
-                        print(f"⚠️ Warning: Year {year} for dynamic TC '{param_name}' is outside the defined time range. Skipping.")
+                        print(f"⚠️ Warning: Duplicate static TC parameter name found: {param_name}. Using first value found.")
 
-    # 3. Interpolate all dynamic TC time series with improved linear interpolation
-    print("  -> Interpolating dynamic TC time series...")
-    for param in tc_params.values():
-        if isinstance(param.Values, pd.Series):
-            if param.Values.count() > 0:
-                # Improved linear interpolation with forward/backward fill for edge cases
-                param.Values = param.Values.interpolate(
-                    method='linear', 
-                    limit_direction='both',
-                    limit_area='inside'  # Only interpolate between known values
-                )
-                
-                # Forward fill for leading NaNs and backward fill for trailing NaNs
-                param.Values = param.Values.fillna(method='ffill').fillna(method='bfill')
-                
-                # Convert to numpy array for final storage
-                param.Values = param.Values.to_numpy()
-            else:
-                param.Values = np.zeros_like(param.Values.to_numpy())
+    # Process Dynamic TCs
+    dynamic_processes = [pid for pid, tc_type in process_tc_types.items() if tc_type == 'Dynamic']
+    if dynamic_processes and dynamic_tc_defs is not None:
+        print(f"  -> Processing dynamic TCs for {len(dynamic_processes)} processes...")
+        
+        # Group dynamic TC data by parameter name
+        dynamic_tc_data = dynamic_tc_defs[['TC_material_ID', 'TC_Value_material', 'Year']].dropna()
+        
+        for param_name in dynamic_tc_data['TC_material_ID'].unique():
+            tc_points = dynamic_tc_data[dynamic_tc_data['TC_material_ID'] == param_name]
+            
+            # Create time series
+            ts = pd.Series(tc_points['TC_Value_material'].values, index=tc_points['Year'])
+            
+            # Reindex to full time vector and interpolate
+            ts_full = ts.reindex(time_vector)
+            ts_interpolated = ts_full.interpolate(method="linear", limit_direction="both")
+            
+            # Handle edge cases where interpolation might fail
+            if ts_interpolated.isna().any():
+                ts_interpolated = ts_interpolated.ffill().bfill()
+            
+            tc_params[param_name] = msc.Parameter(Name=param_name, ID=param_id_counter, Values=ts_interpolated.to_numpy(), Unit="1")
+            param_id_counter += 1
+            print(f"    -> Loaded dynamic TC: {param_name} ({len(tc_points)} data points -> {len(ts_interpolated)} time steps)")
 
-    print(f"--> TC loading complete. {len(tc_params)} substance-specific TC parameters created.")
+    print(f"--> TC loading completed: {len(tc_params)} parameters loaded")
     return tc_params
 
 
@@ -398,6 +386,18 @@ def load_scenario_definitions(excel_data):
         for record in group.to_dict('records'):
             if 'ID' in record and pd.notna(record['ID']):
                 record['ID'] = int(record['ID'])
+            
+            # Handle year range columns
+            if 'start_year' in record and pd.notna(record['start_year']):
+                record['start_year'] = int(record['start_year'])
+            else:
+                record['start_year'] = None
+                
+            if 'end_year' in record and pd.notna(record['end_year']):
+                record['end_year'] = int(record['end_year'])
+            else:
+                record['end_year'] = None
+                
         scenario_definitions[scenario_name] = group.to_dict('records')
 
     print(f"--> Successfully loaded {len(scenario_definitions)} scenario(s).")

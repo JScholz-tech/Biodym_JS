@@ -155,6 +155,47 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
     return mfa_system, all_excel_data
 
 
+def create_dynamic_tc_parameters_from_2_4_format(dynamic_tc_data, time_vector):
+    """
+    Generates time series for TCs from the 2_4_dynamic_tcs format.
+    Expects columns: TC_material_ID, Year, TC_Value_material
+    """
+    print("--> Generating dynamic TC time series from 2_4 format...")
+    
+    # Extract the relevant columns
+    tc_data = dynamic_tc_data[['TC_material_ID', 'TC_Value_material', 'Year']].dropna()
+    
+    if tc_data.empty:
+        print("  -> No valid TC data found in 2_4_dynamic_tcs format")
+        return {}
+    
+    # Group by TC_ID and create time series
+    dynamic_tc_dict = {}
+    unique_tc_ids = tc_data['TC_material_ID'].unique()
+    
+    for tc_id in unique_tc_ids:
+        tc_points = tc_data[tc_data['TC_material_ID'] == tc_id]
+        
+        # Create time series
+        ts = pd.Series(tc_points['TC_Value_material'].values, index=tc_points['Year'])
+        
+        # Reindex to full time vector and interpolate
+        ts_full = ts.reindex(time_vector)
+        ts_interpolated = ts_full.interpolate(method="linear", limit_direction="both")
+        
+        # Handle edge cases where interpolation might fail
+        if ts_interpolated.isna().any():
+            # Fill remaining NaN values with the nearest available value
+            ts_interpolated = ts_interpolated.ffill().bfill()
+        
+        dynamic_tc_dict[tc_id] = ts_interpolated.to_numpy()
+        
+        print(f"  -> Created time series for {tc_id}: {len(tc_points)} data points -> {len(ts_interpolated)} time steps")
+
+    print(f"--> Generated {len(dynamic_tc_dict)} dynamic TC parameter(s) from 2_4 format.")
+    return dynamic_tc_dict
+
+
 def create_dynamic_tc_parameters(dynamic_tc_data, time_vector):
     """
     Generates time series for TCs, with data cleaning and validation.
@@ -282,12 +323,29 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
     # Create a lookup map from Flow_ID to a dictionary of its TC_IDs
     print("--> Creating Flow-to-TC mapping...")
     flow_tc_map = {}
-    tc_definitions = all_excel_data.get("2_3_Process_TCs")
-    if tc_definitions is not None:
-        tc_definitions_filtered = tc_definitions.dropna(subset=['Flow_ID'])
-        for _, row in tc_definitions_filtered.iterrows():
+    
+    # Include static TCs
+    static_tc_definitions = all_excel_data.get("2_3_static_TCs")
+    if static_tc_definitions is not None:
+        static_tc_definitions_filtered = static_tc_definitions.dropna(subset=['Flow_ID'])
+        for _, row in static_tc_definitions_filtered.iterrows():
             flow_id = row["Flow_ID"]
             tc_ids = {}
+            for element in mfa_system.Elements:
+                tc_id_col = f"TC_{element}_ID"
+                if tc_id_col in row and pd.notna(row[tc_id_col]):
+                    tc_ids[element] = row[tc_id_col]
+            flow_tc_map[flow_id] = tc_ids
+    
+    # Include dynamic TCs
+    dynamic_tc_definitions = all_excel_data.get("2_4_dynamic_TCs")
+    if dynamic_tc_definitions is not None:
+        dynamic_tc_definitions_filtered = dynamic_tc_definitions.dropna(subset=['Flow_ID'])
+        for _, row in dynamic_tc_definitions_filtered.iterrows():
+            flow_id = row["Flow_ID"]
+            if flow_id not in flow_tc_map:
+                flow_tc_map[flow_id] = {}
+            tc_ids = flow_tc_map[flow_id]
             for element in mfa_system.Elements:
                 tc_id_col = f"TC_{element}_ID"
                 if tc_id_col in row and pd.notna(row[tc_id_col]):
@@ -300,6 +358,7 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
 def apply_scenario(mfa_system, scenario_definitions, selected_scenario_name):
     """
     Applies the modifications for a selected scenario to the MFA system object.
+    Now supports year-specific modifications using start_year and end_year.
 
     Args:
         mfa_system (odym.MFAsystem): The configured MFA system object.
@@ -313,19 +372,53 @@ def apply_scenario(mfa_system, scenario_definitions, selected_scenario_name):
 
     for mod in modifications:
         param_name = mod['Parameter_Name']
-        operation = mod['Operation'].lower()
-        value = mod['New_Value']
+        
+        # Validate and clean operation field
+        operation_raw = mod['Operation']
+        if pd.isna(operation_raw) or operation_raw == '':
+            print(f"       WARNING: Empty operation for parameter '{param_name}'. Skipping.")
+            continue
+        operation = str(operation_raw).lower().strip()
+        
+        # Validate and clean value field
+        value_raw = mod['New_Value']
+        if pd.isna(value_raw):
+            print(f"       WARNING: Empty value for parameter '{param_name}'. Skipping.")
+            continue
+        value = float(value_raw)
+        
+        # Get year range (if specified)
+        start_year = mod.get('start_year', None)
+        end_year = mod.get('end_year', None)
+        
+        # Determine year range for modification
+        if start_year is not None and end_year is not None:
+            year_range_str = f" (years {start_year}-{end_year})"
+        elif start_year is not None:
+            year_range_str = f" (from year {start_year})"
+        elif end_year is not None:
+            year_range_str = f" (until year {end_year})"
+        else:
+            year_range_str = " (all years)"
 
-        print(f"    -> Applying: {param_name} | Operation: {operation} | Value: {value}")
+        print(f"    -> Applying: {param_name} | Operation: {operation} | Value: {value}{year_range_str}")
 
         if param_name.startswith('F_') and param_name in mfa_system.FlowDict:
             flow_obj = mfa_system.FlowDict[param_name]
+            
+            # Get time indices for year range
+            time_indices = _get_time_indices_for_year_range(mfa_system, start_year, end_year)
+            
+            # Skip if no valid time indices
+            if len(time_indices) == 0:
+                continue
+            
             if operation == 'replace':
-                flow_obj.Values[:, 0] = float(value)
+                flow_obj.Values[time_indices, 0] = float(value)
             elif operation == 'multiply':
-                flow_obj.Values[:, 0] *= float(value)
+                flow_obj.Values[time_indices, 0] *= float(value)
             elif operation == 'add':
-                flow_obj.Values[:, 0] += float(value)
+                flow_obj.Values[time_indices, 0] += float(value)
             else:
                 print(f"       WARNING: Unknown operation '{operation}' for Flow {param_name}")
 
@@ -333,14 +426,36 @@ def apply_scenario(mfa_system, scenario_definitions, selected_scenario_name):
             param_obj = mfa_system.ParameterDict[param_name]
             is_dynamic = isinstance(param_obj.Values, np.ndarray)
 
-            if operation == 'replace':
-                param_obj.Values = float(value) if not is_dynamic else np.full_like(param_obj.Values, float(value))
-            elif operation == 'multiply':
-                param_obj.Values *= float(value)
-            elif operation == 'add':
-                param_obj.Values += float(value)
+            if is_dynamic:
+                # For dynamic parameters, apply year-specific modifications
+                time_indices = _get_time_indices_for_year_range(mfa_system, start_year, end_year)
+                
+                # Skip if no valid time indices
+                if len(time_indices) == 0:
+                    continue
+                
+                if operation == 'replace':
+                    param_obj.Values[time_indices] = float(value)
+                elif operation == 'multiply':
+                    param_obj.Values[time_indices] *= float(value)
+                elif operation == 'add':
+                    param_obj.Values[time_indices] += float(value)
+                else:
+                    print(f"       WARNING: Unknown operation '{operation}' for Parameter {param_name}")
             else:
-                print(f"       WARNING: Unknown operation '{operation}' for Parameter {param_name}")
+                # For static parameters, check if year range is specified
+                if start_year is not None or end_year is not None:
+                    print(f"       WARNING: Parameter '{param_name}' is static but year range specified ({start_year}-{end_year}). Static parameters apply to all years.")
+                
+                # For static parameters, apply to all values (backward compatibility)
+                if operation == 'replace':
+                    param_obj.Values = float(value)
+                elif operation == 'multiply':
+                    param_obj.Values *= float(value)
+                elif operation == 'add':
+                    param_obj.Values += float(value)
+                else:
+                    print(f"       WARNING: Unknown operation '{operation}' for Parameter {param_name}")
         
         else:
             print(f"       WARNING: Parameter or Flow '{param_name}' not found in the system.")
@@ -355,3 +470,60 @@ def apply_scenario(mfa_system, scenario_definitions, selected_scenario_name):
 
     print("\n✅ Scenario modifications applied successfully.")
     return mfa_system
+
+
+def _get_time_indices_for_year_range(mfa_system, start_year, end_year):
+    """
+    Get time indices for a specific year range.
+    
+    Args:
+        mfa_system: MFA system object
+        start_year: Start year (None means from beginning)
+        end_year: End year (None means to end)
+        
+    Returns:
+        numpy array of time indices
+    """
+    time_items = mfa_system.IndexTable.Classification["Time"].Items
+    
+    # Validate year range
+    if start_year is not None and end_year is not None and start_year > end_year:
+        print(f"       WARNING: start_year ({start_year}) > end_year ({end_year}). Skipping modification.")
+        return np.array([])
+    
+    if start_year is None and end_year is None:
+        # Apply to all years
+        return np.arange(len(time_items))
+    
+    # Find start index
+    if start_year is None:
+        start_idx = 0
+    else:
+        start_idx = None
+        for i, year in enumerate(time_items):
+            if year >= start_year:
+                start_idx = i
+                break
+        if start_idx is None:
+            print(f"       WARNING: start_year ({start_year}) is beyond the model time range ({time_items[0]}-{time_items[-1]}). Skipping modification.")
+            return np.array([])
+    
+    # Find end index
+    if end_year is None:
+        end_idx = len(time_items)
+    else:
+        end_idx = None
+        for i, year in enumerate(time_items):
+            if year > end_year:
+                end_idx = i
+                break
+        if end_idx is None:
+            end_idx = len(time_items)  # Beyond range
+    
+    # Validate that we have a valid range
+    if start_idx >= end_idx:
+        print(f"       WARNING: No valid time indices found for year range {start_year}-{end_year}. Skipping modification.")
+        return np.array([])
+    
+    # Return indices for the year range
+    return np.arange(start_idx, end_idx)
