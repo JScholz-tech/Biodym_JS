@@ -67,15 +67,74 @@ def validate_input_data(excel_data_dict):
     print("--> Input data validation successful.")
 
 
+def validate_process_logic(excel_data):
+    """
+    Validates that processes with Input/Output logic are configured correctly.
+    
+    Args:
+        excel_data (dict): Dictionary of DataFrames from Excel.
+    """
+    print("--> Validating Process_Logic configuration...")
+    
+    process_defs = excel_data.get('2_1_Definition_Processes')
+    flows_defs = excel_data.get('1_1_Definition_Flows')
+    
+    if process_defs is None or flows_defs is None:
+        print("--> WARNING: Cannot validate Process_Logic - missing required sheets.")
+        return
+    
+    # Get all process IDs and their logic
+    process_logic_map = {}
+    for _, row in process_defs.iterrows():
+        if pd.notna(row.get('Process_ID')):
+            process_logic_map[int(row['Process_ID'])] = str(row.get('Process_Logic', '')).strip()
+    
+    # Get inflow/outflow connections
+    inflows_by_process = {}
+    outflows_by_process = {}
+    
+    for _, row in flows_defs.iterrows():
+        if pd.notna(row.get('Flow_Output_Process_ID')) and pd.notna(row.get('Input_Process_ID')):
+            start_id = int(row['Flow_Output_Process_ID'])
+            end_id = int(row['Input_Process_ID'])
+            
+            if start_id not in outflows_by_process:
+                outflows_by_process[start_id] = []
+            outflows_by_process[start_id].append(row['Flow_ID'])
+            
+            if end_id not in inflows_by_process:
+                inflows_by_process[end_id] = []
+            inflows_by_process[end_id].append(row['Flow_ID'])
+    
+    # Validate Input processes (should have no inflows)
+    input_processes = [pid for pid, logic in process_logic_map.items() if logic == 'Input']
+    for pid in input_processes:
+        if pid in inflows_by_process:
+            print(f"--> WARNING: Input process {pid} has inflows: {inflows_by_process[pid]}")
+        else:
+            print(f"--> OK: Input process {pid} correctly has no inflows")
+    
+    # Validate Output processes (should have no outflows)
+    output_processes = [pid for pid, logic in process_logic_map.items() if logic == 'Output']
+    for pid in output_processes:
+        if pid in outflows_by_process:
+            print(f"--> WARNING: Output process {pid} has outflows: {outflows_by_process[pid]}")
+        else:
+            print(f"--> OK: Output process {pid} correctly has no outflows")
+    
+    print("--> Process_Logic validation completed.")
+
+
 def load_tc_parameters(all_excel_data, elements, time_vector):
     """
-    Loads transfer coefficients based on the new unified structure.
-    Uses TC_Type column to determine whether to load static or dynamic TCs.
+    Loads transfer coefficients based on the unified Process_Logic structure.
+    Uses Process_Logic column to identify processes that need TCs.
     
-    Process Definition Sheet Logic:
-    - TC? = "Yes" and TC_Type = "Static" -> Load from 2_3_static_TCs
-    - TC? = "Yes" and TC_Type = "Dynamic" -> Load from 2_4_dynamic_TCs
-    - TC? = "No" -> Skip TCs for this process
+    Process Logic:
+    - Process_Logic = "Splitter" or "Transformer" -> Load TCs based on TC_Type
+    - Process_Logic = "Static" -> Load from 2_3_static_TCs
+    - Process_Logic = "Dynamic" -> Load from 2_4_dynamic_TCs
+    - Process_Logic = "Input", "Output", "Pass-through", "DSM", "FOMP" -> Skip TCs
 
     Args:
         all_excel_data (dict): Dictionary of DataFrames from Excel.
@@ -89,7 +148,7 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
         print("--> WARNING: ODYM_Classes not available. TC parameters cannot be loaded.")
         return {}
     
-    print("--> Loading Transfer Coefficients using unified TC_Type logic...")
+    print("--> Loading Transfer Coefficients using unified Process_Logic...")
     
     process_defs = all_excel_data.get('2_1_Definition_Processes')
     static_tc_defs = all_excel_data.get('2_3_static_TCs')
@@ -99,15 +158,19 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
         print("-> No Process definitions found. Skipping TC loading.")
         return {}
 
-    # Create process type mapping based on TC_Type column
+    # Create process type mapping based on Process_Logic and TC_Type columns
     process_tc_types = {}
     for _, row in process_defs.iterrows():
         process_id = row.get('Process_ID')
-        tc_enabled = str(row.get('TC?', '')).lower().strip() == 'yes'
+        process_logic = str(row.get('Process_Logic', '')).strip()
         tc_type = str(row.get('TC_Type', '')).strip()
         
-        if pd.notna(process_id) and tc_enabled:
-            process_tc_types[int(process_id)] = tc_type
+        # Only processes with Splitter or Transformer logic need TCs
+        if pd.notna(process_id) and process_logic in ['Splitter', 'Transformer']:
+            if tc_type in ['Static', 'Dynamic']:
+                process_tc_types[int(process_id)] = tc_type
+            else:
+                print(f"--> WARNING: Process {process_id} ({process_logic}) has no TC_Type specified. Skipping.")
 
     tc_params = {}
     param_id_counter = 1000
@@ -169,9 +232,11 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
 def load_dsm_parameters(excel_data):
     """
     Reads the '3_1_Definition_DSM' sheet and creates the DSM_PARAMS dictionary.
+    Uses Process_Logic column from the main process sheet to identify DSM processes.
     Supports both the old category-based format and the new parameter-based format.
     """
     sheet_name = "3_1_Definition_DSM"
+    main_sheet_name = "2_1_Definition_Processes"
     print(f"--> Loading DSM parameters from sheet '{sheet_name}'...")
 
     if sheet_name not in excel_data:
@@ -183,10 +248,27 @@ def load_dsm_parameters(excel_data):
         print(f"--> FATAL ERROR: Column 'Process_ID' not found in sheet '{sheet_name}'.")
         return {}
 
-    # Filter for DSM processes only
-    dsm_df = df_dsm[df_dsm['DSM?'] == 'Yes'].copy()
+    # Get DSM process IDs from the main process sheet
+    dsm_process_ids = []
+    if main_sheet_name in excel_data:
+        main_df = excel_data[main_sheet_name]
+        if 'Process_Logic' in main_df.columns:
+            dsm_processes = main_df[main_df['Process_Logic'] == 'DSM']
+            dsm_process_ids = dsm_processes['Process_ID'].dropna().astype(int).tolist()
+            print(f"--> Using Process_Logic column from main sheet to identify DSM processes: {dsm_process_ids}")
+        elif 'DSM?' in main_df.columns:
+            dsm_processes = main_df[main_df['DSM?'] == 'Yes']
+            dsm_process_ids = dsm_processes['Process_ID'].dropna().astype(int).tolist()
+            print(f"--> Using legacy DSM? column from main sheet to identify DSM processes: {dsm_process_ids}")
+    
+    if not dsm_process_ids:
+        print(f"--> INFO: No DSM processes found in main sheet.")
+        return {}
+
+    # Filter DSM sheet data for identified DSM processes
+    dsm_df = df_dsm[df_dsm['Process_ID'].isin(dsm_process_ids)].copy()
     if dsm_df.empty:
-        print(f"--> INFO: No DSM processes found in sheet '{sheet_name}'.")
+        print(f"--> INFO: No DSM parameter data found for identified DSM processes.")
         return {}
 
     dsm_df = dsm_df.dropna(subset=["Process_ID"])
@@ -206,6 +288,74 @@ def load_dsm_parameters(excel_data):
 
     print(f"--> Successfully loaded configurations for {len(dsm_params)} DSM process(es).")
     return dsm_params
+
+
+def load_fomp_parameters(excel_data):
+    """
+    Reads the '3_2_Definition_FOMP' sheet and creates the FOMP_PARAMS dictionary.
+    Uses Process_Logic column from the main process sheet to identify FOMP processes.
+    """
+    sheet_name = "3_2_Definition_FOMP"
+    main_sheet_name = "2_1_Definition_Processes"
+    print(f"--> Loading FOMP parameters from sheet '{sheet_name}'...")
+
+    if sheet_name not in excel_data:
+        print(f"--> INFO: Sheet '{sheet_name}' not found. Using empty FOMP configuration.")
+        return {}
+
+    df_fomp = excel_data[sheet_name]
+    if "Process_ID" not in df_fomp.columns:
+        print(f"--> FATAL ERROR: Column 'Process_ID' not found in sheet '{sheet_name}'.")
+        return {}
+
+    # Get FOMP process IDs from the main process sheet
+    fomp_process_ids = []
+    if main_sheet_name in excel_data:
+        main_df = excel_data[main_sheet_name]
+        if 'Process_Logic' in main_df.columns:
+            fomp_processes = main_df[main_df['Process_Logic'] == 'FOMP']
+            fomp_process_ids = fomp_processes['Process_ID'].dropna().astype(int).tolist()
+            print(f"--> Using Process_Logic column from main sheet to identify FOMP processes: {fomp_process_ids}")
+        elif 'FOMP?' in main_df.columns:
+            fomp_processes = main_df[main_df['FOMP?'] == 'Yes']
+            fomp_process_ids = fomp_processes['Process_ID'].dropna().astype(int).tolist()
+            print(f"--> Using legacy FOMP? column from main sheet to identify FOMP processes: {fomp_process_ids}")
+    
+    if not fomp_process_ids:
+        print(f"--> INFO: No FOMP processes found in main sheet.")
+        return {}
+
+    # Filter FOMP sheet data for identified FOMP processes
+    fomp_df = df_fomp[df_fomp['Process_ID'].isin(fomp_process_ids)].copy()
+    if fomp_df.empty:
+        print(f"--> INFO: No FOMP parameter data found for identified FOMP processes.")
+        return {}
+
+    fomp_df = fomp_df.dropna(subset=["Process_ID"])
+    fomp_df["Process_ID"] = fomp_df["Process_ID"].astype(int)
+
+    fomp_params = {}
+    
+    for process_id in fomp_df['Process_ID'].unique():
+        process_data = fomp_df[fomp_df['Process_ID'] == process_id]
+        
+        # Parse FOMP parameters (similar structure to DSM)
+        fomp_params[process_id] = _parse_fomp_parameters(process_data)
+
+    print(f"--> Successfully loaded configurations for {len(fomp_params)} FOMP process(es).")
+    return fomp_params
+
+
+def _parse_fomp_parameters(process_data):
+    """
+    Parse FOMP parameters from the process data.
+    This is a placeholder implementation - FOMP parsing logic needs to be defined.
+    """
+    # TODO: Implement FOMP parameter parsing based on your FOMP requirements
+    return {
+        "process_type": "FOMP",
+        "parameters": process_data.to_dict('records')
+    }
 
 
 def _parse_parameter_based_dsm(process_data):
