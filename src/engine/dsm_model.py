@@ -55,10 +55,9 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config):
     total_inflow_values = (
         sum(inflows) if inflows else np.zeros((num_years, num_elements))
     )
-    outflow_flow_name = next(
-        (f.Name for f in mfa_system.FlowDict.values() if f.P_Start == process_id), None
-    )
-    if not outflow_flow_name:
+    # Find all output flows for this process
+    outflow_flows = [f for f in mfa_system.FlowDict.values() if f.P_Start == process_id]
+    if not outflow_flows:
         print(
             f"WARNING: No outflow defined for DSM process {process_id}. Cannot calculate."
         )
@@ -122,17 +121,78 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config):
     total_outflow_material = (
         outflow_from_inflows_material + outflow_from_initial_stock_ts[:, 0]
     )
-    mfa_system.FlowDict[outflow_flow_name].Values[:, 0] = total_outflow_material
-    for elem_idx in range(1, total_inflow_values.shape[1]):
-        factor = np.divide(
-            total_inflow_values[:, elem_idx],
-            total_inflow_values[:, 0],
-            out=np.zeros_like(total_inflow_values[:, 0]),
-            where=total_inflow_values[:, 0] != 0,
-        )
-        mfa_system.FlowDict[outflow_flow_name].Values[:, elem_idx] = (
-            total_outflow_material * factor
-        )
+    
+    # Handle multiple output flows
+    if len(outflow_flows) == 1:
+        # Single output (existing behavior)
+        outflow_flow = outflow_flows[0]
+        mfa_system.FlowDict[outflow_flow.Name].Values[:, 0] = total_outflow_material
+        
+        # Apply element composition
+        for elem_idx in range(1, total_inflow_values.shape[1]):
+            factor = np.divide(
+                total_inflow_values[:, elem_idx],
+                total_inflow_values[:, 0],
+                out=np.zeros_like(total_inflow_values[:, 0]),
+                where=total_inflow_values[:, 0] != 0,
+            )
+            mfa_system.FlowDict[outflow_flow.Name].Values[:, elem_idx] = (
+                total_outflow_material * factor
+            )
+    else:
+        # Multiple outputs - split according to output_splits
+        output_splits = params.get("output_splits", [])
+        output_flow_ids = params.get("output_flow_ids", [])
+        
+        if not output_splits or not output_flow_ids:
+            print(f"WARNING: Multiple outputs found but no output_splits configured for process {process_id}")
+            print("Using equal distribution as fallback")
+            # Fallback: equal distribution
+            split_factor = 1.0 / len(outflow_flows)
+            for outflow_flow in outflow_flows:
+                split_outflow = total_outflow_material * split_factor
+                mfa_system.FlowDict[outflow_flow.Name].Values[:, 0] = split_outflow
+                
+                # Apply element composition
+                for elem_idx in range(1, total_inflow_values.shape[1]):
+                    factor = np.divide(
+                        total_inflow_values[:, elem_idx],
+                        total_inflow_values[:, 0],
+                        out=np.zeros_like(total_inflow_values[:, 0]),
+                        where=total_inflow_values[:, 0] != 0,
+                    )
+                    mfa_system.FlowDict[outflow_flow.Name].Values[:, elem_idx] = (
+                        split_outflow * factor
+                    )
+        else:
+            # Use configured output splits
+            for i, outflow_flow in enumerate(outflow_flows):
+                if i < len(output_flow_ids):
+                    flow_id = output_flow_ids[i]
+                    
+                    # Calculate total split for this flow across all categories
+                    total_split = 0
+                    for cat_splits in output_splits:
+                        if i < len(cat_splits):
+                            total_split += cat_splits[i]
+                    
+                    # Normalize by number of categories
+                    avg_split = total_split / len(output_splits) if output_splits else 0
+                    split_outflow = total_outflow_material * avg_split
+                    
+                    mfa_system.FlowDict[outflow_flow.Name].Values[:, 0] = split_outflow
+                    
+                    # Apply element composition
+                    for elem_idx in range(1, total_inflow_values.shape[1]):
+                        factor = np.divide(
+                            total_inflow_values[:, elem_idx],
+                            total_inflow_values[:, 0],
+                            out=np.zeros_like(total_inflow_values[:, 0]),
+                            where=total_inflow_values[:, 0] != 0,
+                        )
+                        mfa_system.FlowDict[outflow_flow.Name].Values[:, elem_idx] = (
+                            split_outflow * factor
+                        )
 
     dsm_details_results[process_id] = {
         "initial_stock_ts": decaying_stock_ts,
@@ -140,7 +200,7 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config):
         "category_names": params.get("category_names", []),
         "mean_lifetimes": mean_lifetimes,
     }
-    print("DSM outflow flow name:", outflow_flow_name)
+    print("DSM outflow flows:", [f.Name for f in outflow_flows])
     print("DSM inflow shape:", total_inflow_values.shape)
     print("DSM inflow values:", total_inflow_values)
     print("DSM params:", params)

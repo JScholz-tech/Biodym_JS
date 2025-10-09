@@ -9,7 +9,14 @@ interface between the raw data and the core model logic.
 
 import pandas as pd
 import numpy as np
-import ODYM_Classes as msc
+
+# Import ODYM classes only when needed
+try:
+    import ODYM_Classes as msc
+    ODYM_AVAILABLE = True
+except ImportError:
+    ODYM_AVAILABLE = False
+    msc = None
 
 
 def validate_input_data(excel_data_dict):
@@ -78,6 +85,10 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
     Returns:
         dict: A dictionary of ODYM Parameter objects for all TCs.
     """
+    if not ODYM_AVAILABLE:
+        print("--> WARNING: ODYM_Classes not available. TC parameters cannot be loaded.")
+        return {}
+    
     print("--> Loading Transfer Coefficients using unified TC_Type logic...")
     
     process_defs = all_excel_data.get('2_1_Definition_Processes')
@@ -158,6 +169,7 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
 def load_dsm_parameters(excel_data):
     """
     Reads the '3_1_Definition_DSM' sheet and creates the DSM_PARAMS dictionary.
+    Supports both the old category-based format and the new parameter-based format.
     """
     sheet_name = "3_1_Definition_DSM"
     print(f"--> Loading DSM parameters from sheet '{sheet_name}'...")
@@ -171,24 +183,139 @@ def load_dsm_parameters(excel_data):
         print(f"--> FATAL ERROR: Column 'Process_ID' not found in sheet '{sheet_name}'.")
         return {}
 
-    df_dsm = df_dsm.dropna(subset=["Process_ID"])
-    df_dsm["Process_ID"] = df_dsm["Process_ID"].astype(int)
+    # Filter for DSM processes only
+    dsm_df = df_dsm[df_dsm['DSM?'] == 'Yes'].copy()
+    if dsm_df.empty:
+        print(f"--> INFO: No DSM processes found in sheet '{sheet_name}'.")
+        return {}
+
+    dsm_df = dsm_df.dropna(subset=["Process_ID"])
+    dsm_df["Process_ID"] = dsm_df["Process_ID"].astype(int)
 
     dsm_params = {}
-    for process_id, group in df_dsm.groupby("Process_ID"):
-        group = group.sort_values(by="Category_ID")
-        dsm_params[process_id] = {
-            "inflow_split": list(group["Inflow_Split_[%]"]),
-            "lifetimes": {
-                "Type": list(group["Lifetime_Type"])[0],
-                "Mean": list(group["Lifetime_Mean"]),
-                "StdDev": list(group["Lifetime_StdDev"]),
-            },
-            "category_names": list(group["Category_Name"]),
-        }
+    
+    for process_id in dsm_df['Process_ID'].unique():
+        process_data = dsm_df[dsm_df['Process_ID'] == process_id]
+        
+        # Check if this is the new parameter-based format
+        if 'DSM_Parameter' in process_data.columns and 'DSM_Value' in process_data.columns:
+            dsm_params[process_id] = _parse_parameter_based_dsm(process_data)
+        else:
+            # Fall back to old category-based format
+            dsm_params[process_id] = _parse_category_based_dsm(process_data)
 
     print(f"--> Successfully loaded configurations for {len(dsm_params)} DSM process(es).")
     return dsm_params
+
+
+def _parse_parameter_based_dsm(process_data):
+    """
+    Parse DSM parameters from the new parameter-based format.
+    Each row represents a single parameter for a specific category.
+    """
+    categories = {}
+    
+    for _, row in process_data.iterrows():
+        if pd.isna(row['DSM_Parameter']) or pd.isna(row['DSM_Value']):
+            continue
+            
+        param_name = str(row['DSM_Parameter'])
+        
+        # Extract category number from parameter name
+        if '_Cat_' in param_name:
+            try:
+                cat_num = int(param_name.split('_Cat_')[1])
+                param_base = param_name.split('_Cat_')[0]
+                
+                if cat_num not in categories:
+                    categories[cat_num] = {}
+                
+                # Map parameter to value
+                categories[cat_num][param_base] = row['DSM_Value']
+                
+            except (ValueError, IndexError):
+                print(f"--> WARNING: Could not parse parameter name: {param_name}")
+                continue
+    
+    if not categories:
+        print(f"--> WARNING: No valid DSM parameters found for process {process_data['Process_ID'].iloc[0]}")
+        return {}
+    
+    # Convert to expected format
+    sorted_categories = sorted(categories.items())
+    
+    # Extract basic parameters
+    inflow_splits = []
+    lifetime_types = []
+    lifetime_means = []
+    lifetime_stddevs = []
+    category_names = []
+    output_splits = []
+    output_flow_ids = set()
+    
+    for cat_num, cat_params in sorted_categories:
+        # Basic parameters - ensure numeric conversion
+        inflow_split = cat_params.get('DSM_Inflow_Split_[%]', 0)
+        inflow_splits.append(float(inflow_split) if inflow_split is not None else 0.0)
+        
+        lifetime_types.append(cat_params.get('DSM_Lifetime_Type', 'normal'))
+        
+        lifetime_mean = cat_params.get('DSM_Lifetime_Mean', 0)
+        lifetime_means.append(float(lifetime_mean) if lifetime_mean is not None else 0.0)
+        
+        lifetime_stddev = cat_params.get('DSM_Lifetime_StdDev', 0)
+        lifetime_stddevs.append(float(lifetime_stddev) if lifetime_stddev is not None else 0.0)
+        
+        category_names.append(cat_params.get('DSM_Category_Name', f'Category_{cat_num}'))
+        
+        # Output parameters - collect all output flows and ensure numeric conversion
+        cat_output_splits = []
+        for key, value in cat_params.items():
+            if key.startswith('DSM_Output_') and key.endswith('_Split_[%]'):
+                # Ensure numeric conversion for output splits
+                numeric_value = float(value) if value is not None else 0.0
+                cat_output_splits.append(numeric_value)
+            elif key.startswith('DSM_Output_') and key.endswith('_Flow_ID'):
+                output_flow_ids.add(value)
+        
+        output_splits.append(cat_output_splits)
+    
+    # Convert output_flow_ids to sorted list
+    output_flow_ids = sorted(list(output_flow_ids))
+    
+    return {
+        "inflow_split": inflow_splits,
+        "lifetimes": {
+            "Type": lifetime_types,
+            "Mean": lifetime_means,
+            "StdDev": lifetime_stddevs,
+        },
+        "category_names": category_names,
+        "output_splits": output_splits,
+        "output_flow_ids": output_flow_ids,
+        "parameter_based": True  # Flag to indicate this is parameter-based format
+    }
+
+
+def _parse_category_based_dsm(process_data):
+    """
+    Parse DSM parameters from the old category-based format.
+    Each row represents a complete category.
+    """
+    # Sort by Category_ID if available
+    if 'Category_ID' in process_data.columns:
+        process_data = process_data.sort_values(by="Category_ID")
+    
+    return {
+        "inflow_split": list(process_data["Inflow_Split_[%]"]),
+        "lifetimes": {
+            "Type": list(process_data["Lifetime_Type"]),
+            "Mean": list(process_data["Lifetime_Mean"]),
+            "StdDev": list(process_data["Lifetime_StdDev"]),
+        },
+        "category_names": list(process_data["Category_Name"]),
+        "parameter_based": False  # Flag to indicate this is category-based format
+    }
 
 
 def load_fomp_parameters(excel_data):
