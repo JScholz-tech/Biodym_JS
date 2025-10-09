@@ -20,7 +20,9 @@ from .publication_style_simplified import (
     get_stock_color,
     BIOYM_COLORS,
     ELEMENT_COLORS,
-    PROCESS_COLORS
+    PROCESS_COLORS,
+    FONT_FAMILY,
+    FONT_SIZE
 )
 
 
@@ -215,10 +217,25 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
             # Update layout with publication standards
             title_text = f"BioDYM Material Flow Analysis - {element.title()} ({year})"
             layout_config = get_publication_layout(
-                custom_title=title_text,
                 size='large',
                 show_legend=False  # We have a custom legend widget
             )
+
+            # Explicitly define title properties to ensure visibility
+            title_layout = {
+                'text': title_text,
+                'x': 0.5,
+                'xanchor': 'center',
+                'font': {
+                    'family': FONT_FAMILY,
+                    'size': FONT_SIZE['title'],
+                    'color': BIOYM_COLORS['dark']
+                }
+            }
+            
+            # Update the layout config with the explicit title
+            layout_config['title'] = title_layout
+            
             fig.update_layout(**layout_config)
 
 

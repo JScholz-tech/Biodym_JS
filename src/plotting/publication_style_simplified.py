@@ -205,6 +205,9 @@ def get_publication_layout(
     }
     if custom_title:
         layout['title']['text'] = custom_title
+    else:
+        # If no title is provided, remove the title key to avoid conflicts
+        del layout['title']
     
     return layout
 

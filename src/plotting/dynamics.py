@@ -25,8 +25,9 @@ from datetime import datetime
 
 def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
     """
-    Creates DSM Process Dynamics Analysis with three-panel view: Input, Stock, Output.
-    Shows stacked flows by element (Material, WC, DM, CC) and dynamic material composition.
+    Creates DSM Process Dynamics Analysis with a three-panel view: Input, Stock, and Output.
+    Shows stacked area charts for flows by element and a line chart for stock evolution,
+    styled according to the publication guide.
 
     Args:
         mfa_system_results (odym.MFAsystem): The solved MFA system object.
@@ -37,7 +38,7 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
         print("No DSM processes found to plot.")
         return
 
-    from ipywidgets import Dropdown, HBox, VBox, Layout, Button
+    from ipywidgets import Dropdown, HBox, VBox, Layout, Button, interactive
     from IPython.display import display
     import os
     from datetime import datetime
@@ -45,178 +46,109 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
     time_items = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = mfa_system_results.Elements
 
-    # Create process options for DSM processes only
-    process_options = {
-        p.Name: p.ID
-        for p in mfa_system_results.ProcessList
-        if p.ID in dsm_params
-    }
-    
+    process_options = {p.Name: p.ID for p in mfa_system_results.ProcessList if p.ID in dsm_params}
     if not process_options:
         print("No DSM processes found in the system.")
         return
 
-    # Create three-panel subplot
-    fig = go.FigureWidget(
-        make_subplots(
-            rows=1,
-            cols=3,
-            subplot_titles=("Input Flows", "Stock Evolution", "Output Flows"),
-            specs=[[{"secondary_y": False}, {"secondary_y": False}, {"secondary_y": False}]]
-        )
-    )
+    fig = go.FigureWidget(make_subplots(rows=1, cols=3, subplot_titles=("Input Flows", "Stock Evolution", "Output Flows")))
 
     def update_plot(process_name, element):
         process_id = process_options[process_name]
-        
-        # Clear previous traces
         fig.data = []
-        
-        # Get element index
         element_index = element_items.index(element)
-        
-        # 1. INPUT FLOWS (Left Panel)
+
+        # 1. INPUT FLOWS (Left Panel) - Stacked Area Chart
         input_flows = [f for f in mfa_system_results.FlowDict.values() if f.P_End == process_id]
         if input_flows:
-            # Stack input flows by element
-            total_input = np.zeros(len(time_items))
             for i, flow in enumerate(input_flows):
-                flow_values = flow.Values[:, element_index]
                 fig.add_trace(
                     go.Scatter(
-                        x=time_items,
-                        y=flow_values,
-                        name=f"Input: {flow.Name}",
-                        stackgroup='input',
-                        fill='tonexty' if i > 0 else 'tozeroy',
-                        mode='lines',
-                        line=dict(width=0),
-                        fillcolor=get_element_color(element),
+                        x=time_items, y=flow.Values[:, element_index], name=flow.Name,
+                        stackgroup='input', fill='tonexty' if i > 0 else 'tozeroy',
+                        mode='lines', line=dict(width=0.5),
                         hovertemplate=f"<b>{flow.Name}</b><br>Year: %{{x}}<br>{element}: %{{y:.2e}} Mg<extra></extra>"
-                    ),
-                    row=1, col=1
+                    ), row=1, col=1
                 )
-                total_input += flow_values
 
-        # 2. STOCK EVOLUTION (Middle Panel)
+        # 2. STOCK EVOLUTION (Middle Panel) - Line Chart
         stock_name = f"S_{process_id}"
         if stock_name in mfa_system_results.StockDict:
             stock = mfa_system_results.StockDict[stock_name]
-            stock_values = stock.Values[:, element_index]
-            
             fig.add_trace(
                 go.Scatter(
-                    x=time_items,
-                    y=stock_values,
-                    name=f"Stock: {stock_name}",
-                    mode='lines+markers',
-                    line=dict(width=3, color=get_stock_color(element)),
-                    marker=dict(size=4, color=get_stock_color(element)),
+                    x=time_items, y=stock.Values[:, element_index], name=f"Stock: {stock_name}",
+                    mode='lines+markers', line=dict(width=3, color='#2E8B57'), marker=dict(size=4),
                     hovertemplate=f"<b>{stock_name}</b><br>Year: %{{x}}<br>{element}: %{{y:.2e}} Mg<extra></extra>"
-                ),
-                row=1, col=2
+                ), row=1, col=2
             )
 
-        # 3. OUTPUT FLOWS (Right Panel)
+        # 3. OUTPUT FLOWS (Right Panel) - Stacked Area Chart
         output_flows = [f for f in mfa_system_results.FlowDict.values() if f.P_Start == process_id]
         if output_flows:
-            # Stack output flows by element
-            total_output = np.zeros(len(time_items))
             for i, flow in enumerate(output_flows):
-                flow_values = flow.Values[:, element_index]
                 fig.add_trace(
                     go.Scatter(
-                        x=time_items,
-                        y=flow_values,
-                        name=f"Output: {flow.Name}",
-                        stackgroup='output',
-                        fill='tonexty' if i > 0 else 'tozeroy',
-                        mode='lines',
-                        line=dict(width=0),
-                        fillcolor=get_element_color(element),
+                        x=time_items, y=flow.Values[:, element_index], name=flow.Name,
+                        stackgroup='output', fill='tonexty' if i > 0 else 'tozeroy',
+                        mode='lines', line=dict(width=0.5),
                         hovertemplate=f"<b>{flow.Name}</b><br>Year: %{{x}}<br>{element}: %{{y:.2e}} Mg<extra></extra>"
-                    ),
-                    row=1, col=3
+                    ), row=1, col=3
                 )
-                total_output += flow_values
 
-        # Update layout
+        # Update layout using publication style guide for subplots
         layout_config = get_publication_layout(
             custom_title=f"DSM Process Dynamics: {process_name} ({element.upper()})",
-            x_title="Year",
-            y_title=f"{element} in Mg",
-            show_grid=True,
-            scientific_y=True,
-            size='large'
+            show_grid=True, scientific_y=True
         )
-        fig.update_layout(**layout_config)
         
-        # Update subplot titles with publication style
+        # Pop axis styles and apply them globally to all subplots
+        xaxis_style = layout_config.pop('xaxis')
+        yaxis_style = layout_config.pop('yaxis')
+        fig.update_layout(**layout_config)
+        fig.update_xaxes(title_text="Year", **xaxis_style)
+        fig.update_yaxes(title_text=f"{element} in Mg", **yaxis_style)
+
+        # Restore subplot titles which can be overwritten by update_layout
         fig.update_layout(
             annotations=[
-                dict(
-                    text="Input Flows", 
-                    x=0.17, y=1.05, 
-                    xref="paper", yref="paper", 
-                    showarrow=False, 
-                    font=dict(size=14, color=BIOYM_COLORS['dark'])
-                ),
-                dict(
-                    text="Stock Evolution", 
-                    x=0.5, y=1.05, 
-                    xref="paper", yref="paper", 
-                    showarrow=False, 
-                    font=dict(size=14, color=BIOYM_COLORS['dark'])
-                ),
-                dict(
-                    text="Output Flows", 
-                    x=0.83, y=1.05, 
-                    xref="paper", yref="paper", 
-                    showarrow=False, 
-                    font=dict(size=14, color=BIOYM_COLORS['dark'])
-                )
+                dict(text="Input Flows", x=0.17, y=1.05, xref="paper", yref="paper", showarrow=False, font=dict(size=14)),
+                dict(text="Stock Evolution", x=0.5, y=1.05, xref="paper", yref="paper", showarrow=False, font=dict(size=14)),
+                dict(text="Output Flows", x=0.83, y=1.05, xref="paper", yref="paper", showarrow=False, font=dict(size=14))
             ]
         )
 
-    # Create widgets
-    process_dropdown = Dropdown(
-        options=list(process_options.keys()),
-        description="DSM Process:",
-        style={'description_width': '120px'},
-        layout=Layout(width='300px')
-    )
-    element_dropdown = Dropdown(
-        options=element_items,
-        value=element_items[0],
-        description="Element:",
-        style={'description_width': '80px'},
-        layout=Layout(width='200px')
-    )
+    process_dropdown = Dropdown(options=list(process_options.keys()), description="DSM Process:", style={'description_width': '120px'}, layout=Layout(width='300px'))
+    element_dropdown = Dropdown(options=element_items, value=element_items[0], description="Element:", style={'description_width': '80px'}, layout=Layout(width='200px'))
+    export_button = Button(description="Export Plot", button_style='info', tooltip='Export current plot as PNG')
 
-    # Create widget layout
-    controls = HBox([
-        process_dropdown, 
-        element_dropdown
-    ], layout=Layout(justify_content='space-between'))
+    def export_plot():
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"dsm_process_dynamics_{timestamp}.png"
+        export_dir = "exports/dsm_analysis"
+        os.makedirs(export_dir, exist_ok=True)
+        filepath = os.path.join(export_dir, filename)
+        try:
+            fig.write_image(filepath, width=1400, height=600, scale=2)
+            print(f"✅ Plot exported to: {filepath}")
+        except Exception as e:
+            print(f"⚠️ Export failed: {e}")
+            print("💡 Ensure 'kaleido' is available (uv sync)")
 
-    # Set up interaction
-    def on_change(change):
-        update_plot(process_dropdown.value, element_dropdown.value)
+    export_button.on_click(lambda b: export_plot())
 
-    process_dropdown.observe(on_change, 'value')
-    element_dropdown.observe(on_change, 'value')
-
-    # Display controls and plot
+    controls = HBox([VBox([process_dropdown, element_dropdown], layout=Layout(width='300px')), VBox([export_button], layout=Layout(width='200px'))], layout=Layout(justify_content='space-between'))
+    
+    out = interactive(update_plot, process_name=process_dropdown, element=element_dropdown)
+    
     display(controls)
     display(fig)
-
-    # Initial plot
-    update_plot(process_dropdown.value, element_dropdown.value)
+    out.update()
 
 def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
     """
-    Creates enhanced DSM stock evolution plots with both individual and cumulative views.
-    Shows initial stock decay, new stock accumulation by category, and lifetime analysis.
+    Creates an enhanced, stacked line diagram of DSM stock evolution.
+    Shows initial stock decay and new stock accumulation by individual application categories.
 
     Args:
         mfa_system_results (odym.MFAsystem): The solved MFA system object.
@@ -227,7 +159,7 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
         print("No DSM processes found to plot.")
         return
 
-    from ipywidgets import Dropdown, HBox, VBox, HTML, Layout, Button, Checkbox
+    from ipywidgets import Dropdown, HBox, VBox, interactive, Layout, Button
     from IPython.display import display
     import os
     from datetime import datetime
@@ -235,17 +167,11 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
     time_items = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = mfa_system_results.Elements
 
-    # Define enhanced color scheme
-    colors = {
-        'initial_stock': '#ff7f0e',      # Orange for decaying initial stock
-        'total_stock': '#d62728',        # Red for total stock
-        'background': '#f9f9f9',         # Light background
-        'grid': '#e1e1e1'               # Light grid
-    }
+    colors = {'initial_stock': '#ff7f0e'}
 
     fig = go.FigureWidget()
 
-    def update_plot(process_id, element, view_mode, show_lifetimes):
+    def update_plot(process_id, element):
         if process_id not in dsm_details:
             print(f"No detailed results for process {process_id}")
             return
@@ -256,15 +182,10 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
         with fig.batch_update():
             fig.data = []
 
-            # Get stock components
-            initial_stock_ts = details.get(
-                "initial_stock_ts", np.zeros((len(time_items), len(element_items)))
-            )
+            initial_stock_ts = details.get("initial_stock_ts", np.zeros((len(time_items), len(element_items))))
             inflow_stocks_material = details.get("inflow_stock_ts_by_cat", [])
             category_names = details.get("category_names", [])
-            lifetimes = details.get("lifetimes", [])
 
-            # Plot initial stock decay
             initial_stock_element = initial_stock_ts[:, element_index]
             fig.add_trace(
                 go.Scatter(
@@ -272,90 +193,41 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
                     y=initial_stock_element,
                     mode="lines",
                     name="Initial Stock (Decaying)",
-                    line=dict(color=colors['initial_stock'], width=2, dash="dash"),
+                    line=dict(color=colors['initial_stock'], width=0.5, dash='dash'),
+                    stackgroup='one',
+                    fill='tozeroy',
                     hovertemplate="<b>Initial Stock</b><br>Year: %{x}<br>Mass: %{y:.2f} Mg<extra></extra>"
                 )
             )
 
-            # Plot new stock accumulation by category
-            total_inflow_stock = np.zeros(len(time_items))
             for i, stock_ts_material in enumerate(inflow_stocks_material):
-                # Convert material stock to element stock using composition
-                inflows = [
-                    f.Values
-                    for f in mfa_system_results.FlowDict.values()
-                    if f.P_End == process_id
-                ]
-                total_inflow_values = (
-                    sum(inflows)
-                    if inflows
-                    else np.zeros((len(time_items), len(element_items)))
-                )
+                inflows = [f.Values for f in mfa_system_results.FlowDict.values() if f.P_End == process_id]
+                total_inflow_values = sum(inflows) if inflows else np.zeros((len(time_items), len(element_items)))
                 inflow_comp_factor = np.divide(
                     total_inflow_values[:, element_index],
                     total_inflow_values[:, 0],
                     out=np.zeros(len(time_items)),
                     where=total_inflow_values[:, 0] != 0,
                 )
-
                 stock_ts_element = stock_ts_material * inflow_comp_factor
-                total_inflow_stock += stock_ts_element
+                category_display = category_names[i]
 
-                # Create category name with lifetime info if requested
-                if show_lifetimes and i < len(lifetimes):
-                    category_display = f"{category_names[i]} ({lifetimes[i]} yrs)"
-                else:
-                    category_display = category_names[i]
-
-                if view_mode == "Individual":
-                    # Show individual category lines
-                    fig.add_trace(
-                        go.Scatter(
-                            x=time_items,
-                            y=stock_ts_element,
-                            mode="lines",
-                            name=f"New Stock: {category_display}",
-                            line=dict(width=2),
-                            hovertemplate=f"<b>{category_display}</b><br>Year: %{{x}}<br>Mass: %{{y:.2f}} Mg<extra></extra>"
-                        )
+                fig.add_trace(
+                    go.Scatter(
+                        x=time_items,
+                        y=stock_ts_element,
+                        mode="lines",
+                        name=category_display,
+                        line=dict(width=0.5),
+                        stackgroup='one',
+                        fill='tonexty',
+                        hovertemplate=f"<b>{category_display}</b><br>Year: %{{x}}<br>Mass: %{{y:.2f}} Mg<extra></extra>"
                     )
-                else:  # Cumulative
-                    # Show cumulative stock
-                    cumulative_stock = np.cumsum(stock_ts_element)
-                    fig.add_trace(
-                        go.Scatter(
-                            x=time_items,
-                            y=cumulative_stock,
-                            mode="lines",
-                            name=f"Cumulative: {category_display}",
-                            line=dict(width=2),
-                            hovertemplate=f"<b>Cumulative {category_display}</b><br>Year: %{{x}}<br>Mass: %{{y:.2f}} Mg<extra></extra>"
-                        )
-                    )
-
-            # Plot total stock
-            total_stock = initial_stock_element + total_inflow_stock
-            fig.add_trace(
-                go.Scatter(
-                    x=time_items,
-                    y=total_stock,
-                    mode="lines+markers",
-                    name="Total Stock",
-                    line=dict(color=colors['total_stock'], width=4),
-                    marker=dict(size=6),
-                    hovertemplate="<b>Total Stock</b><br>Year: %{x}<br>Mass: %{y:.2f} Mg<extra></extra>"
                 )
-            )
 
-            # Update layout with enhanced styling
-            process_name = next(
-                (p.Name for p in mfa_system_results.ProcessList if p.ID == process_id),
-                f"Process {process_id}",
-            )
-            
-            view_title = "Individual Categories" if view_mode == "Individual" else "Cumulative Stock"
+            process_name = next((p.Name for p in mfa_system_results.ProcessList if p.ID == process_id), f"Process {process_id}")
             layout_config = get_publication_layout(
-                custom_title=f"DSM Stock Evolution: {process_name} ({element.upper()}) - {view_title}",
+                custom_title=f"DSM Stock Evolution: {process_name} ({element.upper()}) - Stacked by Application",
                 x_title="Year",
                 y_title="Stock in Mg",
                 show_grid=True,
@@ -363,47 +235,16 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
             )
             fig.update_layout(**layout_config)
 
-    # Create enhanced widgets
-    process_dropdown = Dropdown(
-        options=list(dsm_params.keys()), 
-        description="DSM Process:",
-        style={'description_width': '120px'}
-    )
-    element_dropdown = Dropdown(
-        options=element_items, 
-        value=element_items[0], 
-        description="Element:",
-        style={'description_width': '80px'}
-    )
-    view_dropdown = Dropdown(
-        options=["Individual", "Cumulative"],
-        value="Individual",
-        description="View Mode:",
-        style={'description_width': '100px'}
-    )
-    lifetime_checkbox = Checkbox(
-        value=True,
-        description="Show Lifetimes",
-        style={'description_width': '120px'}
-    )
-
-    # Create export button
-    export_button = Button(
-        description="Export Plot",
-        button_style='info',
-        tooltip='Export current plot as PNG'
-    )
+    process_dropdown = Dropdown(options=list(dsm_params.keys()), description="DSM Process:", style={'description_width': '120px'})
+    element_dropdown = Dropdown(options=element_items, value=element_items[0], description="Element:", style={'description_width': '80px'})
+    export_button = Button(description="Export Plot", button_style='info', tooltip='Export current plot as PNG')
 
     def export_plot():
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"dsm_stock_analysis_{timestamp}.png"
-        
-        # Create export directory if it doesn't exist
-        export_dir = "exports/dsm_analysis"
+        export_dir = "exports/dsm_stock_details"
         os.makedirs(export_dir, exist_ok=True)
-        
         filepath = os.path.join(export_dir, filename)
-        
         try:
             fig.write_image(filepath, width=1200, height=800)
             print(f"✅ Plot exported to: {filepath}")
@@ -413,25 +254,20 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
 
     export_button.on_click(lambda b: export_plot())
 
-    # Create widget layout
     controls = HBox([
         VBox([process_dropdown, element_dropdown], layout=Layout(width='300px')),
-        VBox([view_dropdown, lifetime_checkbox], layout=Layout(width='200px')),
         VBox([export_button], layout=Layout(width='150px'))
     ], layout=Layout(justify_content='space-between'))
 
-    # Display controls and plot
-    display(controls)
-    display(fig)
-
-    # Set up interactions
-    interact(
+    out = interactive(
         update_plot, 
         process_id=process_dropdown, 
         element=element_dropdown,
-        view_mode=view_dropdown,
-        show_lifetimes=lifetime_checkbox
     )
+    
+    display(controls)
+    display(fig)
+    out.update()
 
 def plot_fomp_stock_details(mfa_system_results, fomp_params):
     """
