@@ -148,6 +148,7 @@ def validate_process_logic(excel_data):
             print(f"--> OK: Output process {pid} correctly has no outflows")
     
     print("--> Process_Logic validation completed.")
+    return process_logic_map
 
 
 def validate_unified_configuration(excel_data):
