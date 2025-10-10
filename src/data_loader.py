@@ -31,10 +31,11 @@ def validate_input_data(excel_data_dict):
     print("--> Validating input data structure...")
 
     # Define the minimum required structure for the model to run.
+    # Support both new unified columns and legacy columns for backward compatibility
     REQUIRED_STRUCTURE = {
         "1_1_Definition_Flows": ["Flow_ID", "Flow_Name", "Flow_Output_Process_ID", "Input_Process_ID"],
         "1_2_Data_Flows": ["Flow_ID", "Flow_Data_Year", "Flow_Material"],
-        "2_1_Definition_Processes": ["ID", "Process_Name", "Process_Logic", "TC?", "TC_Type"],
+        "2_1_Definition_Processes": ["ID", "Process_Name", "Process_Logic"],
         "2_3_static_TCs": ["Flow_ID", "Process_ID", "TC_material_ID", "TC_Value_material"],
         "2_4_dynamic_TCs": ["TC_material_ID", "TC_Value_material", "Year"],
         "2_5_Initial_Stock": [
@@ -58,11 +59,35 @@ def validate_input_data(excel_data_dict):
                 )
 
         existing_columns = excel_data_dict[sheet_name].columns
-        for col in required_columns:
-            if col not in existing_columns:
+        
+        # Special handling for process definition sheet to support both unified and legacy columns
+        if sheet_name == "2_1_Definition_Processes":
+            # Check for unified columns first
+            unified_columns = ["TC_Configuration", "Stock_Configuration"]
+            legacy_columns = ["TC?", "TC_Type", "Stock?", "Initial_Stock?"]
+            
+            has_unified = all(col in existing_columns for col in unified_columns)
+            has_legacy = all(col in existing_columns for col in legacy_columns)
+            
+            if not has_unified and not has_legacy:
+                missing_unified = [col for col in unified_columns if col not in existing_columns]
+                missing_legacy = [col for col in legacy_columns if col not in existing_columns]
                 raise ValueError(
-                    f"ERROR: The required column '{col}' is missing from sheet '{sheet_name}'!"
+                    f"ERROR: Sheet '{sheet_name}' must have either unified columns {unified_columns} "
+                    f"OR legacy columns {legacy_columns}. "
+                    f"Missing unified: {missing_unified}, Missing legacy: {missing_legacy}"
                 )
+            elif has_unified:
+                print(f"  -> Using unified configuration columns in '{sheet_name}'")
+            elif has_legacy:
+                print(f"  -> Using legacy configuration columns in '{sheet_name}'")
+        else:
+            # Standard validation for other sheets
+            for col in required_columns:
+                if col not in existing_columns:
+                    raise ValueError(
+                        f"ERROR: The required column '{col}' is missing from sheet '{sheet_name}'!"
+                    )
 
     print("--> Input data validation successful.")
 
@@ -125,16 +150,81 @@ def validate_process_logic(excel_data):
     print("--> Process_Logic validation completed.")
 
 
+def validate_unified_configuration(excel_data):
+    """
+    Validates the unified configuration columns (TC_Configuration, Stock_Configuration).
+    
+    Args:
+        excel_data (dict): Dictionary of DataFrames from Excel.
+    """
+    print("--> Validating unified configuration columns...")
+    
+    process_defs = excel_data.get('2_1_Definition_Processes')
+    if process_defs is None:
+        print("--> WARNING: Cannot validate unified configuration - missing process definitions.")
+        return
+    
+    # Check TC_Configuration consistency
+    print("--> Checking TC_Configuration consistency...")
+    tc_issues = []
+    for _, row in process_defs.iterrows():
+        if pd.notna(row.get('Process_ID')):
+            process_id = int(row['Process_ID'])
+            process_logic = str(row.get('Process_Logic', '')).strip()
+            tc_config = str(row.get('TC_Configuration', '')).strip()
+            
+            # DSM processes should have Static TC_Configuration
+            if process_logic == 'DSM' and tc_config != 'Static':
+                tc_issues.append(f'Process {process_id}: DSM with {tc_config} TC_Configuration (should be Static)')
+            
+            # Input/Output processes should have Static TC_Configuration
+            if process_logic in ['Input', 'Output'] and tc_config != 'Static':
+                tc_issues.append(f'Process {process_id}: {process_logic} with {tc_config} TC_Configuration (should be Static)')
+    
+    if tc_issues:
+        print("--> TC_Configuration issues found:")
+        for issue in tc_issues:
+            print(f"    - {issue}")
+    else:
+        print("--> TC_Configuration is consistent! ✅")
+    
+    # Check Stock_Configuration consistency
+    print("--> Checking Stock_Configuration consistency...")
+    stock_issues = []
+    for _, row in process_defs.iterrows():
+        if pd.notna(row.get('Process_ID')):
+            process_id = int(row['Process_ID'])
+            process_logic = str(row.get('Process_Logic', '')).strip()
+            stock_config = str(row.get('Stock_Configuration', '')).strip()
+            
+            # DSM processes should have Stock
+            if process_logic == 'DSM' and stock_config != 'Stock':
+                stock_issues.append(f'Process {process_id}: DSM with {stock_config} Stock_Configuration (should be Stock)')
+            
+            # Output processes should have Stock
+            if process_logic == 'Output' and stock_config != 'Stock':
+                stock_issues.append(f'Process {process_id}: Output with {stock_config} Stock_Configuration (should be Stock)')
+    
+    if stock_issues:
+        print("--> Stock_Configuration issues found:")
+        for issue in stock_issues:
+            print(f"    - {issue}")
+    else:
+        print("--> Stock_Configuration is consistent! ✅")
+    
+    print("--> Unified configuration validation completed.")
+
+
 def load_tc_parameters(all_excel_data, elements, time_vector):
     """
-    Loads transfer coefficients based on the unified Process_Logic structure.
-    Uses Process_Logic column to identify processes that need TCs.
+    Loads transfer coefficients based on the unified TC_Configuration structure.
+    Uses TC_Configuration column to determine TC loading strategy.
     
-    Process Logic:
-    - Process_Logic = "Splitter" or "Transformer" -> Load TCs based on TC_Type
-    - Process_Logic = "Static" -> Load from 2_3_static_TCs
-    - Process_Logic = "Dynamic" -> Load from 2_4_dynamic_TCs
-    - Process_Logic = "Input", "Output", "Pass-through", "DSM", "FOMP" -> Skip TCs
+    TC Configuration:
+    - TC_Configuration = "Static" -> Load from 2_3_static_TCs
+    - TC_Configuration = "Dynamic" -> Load from 2_4_dynamic_TCs
+    - TC_Configuration = "None" or missing -> Skip TCs
+    - Process_Logic = "Input", "Output", "Pass-through" -> Skip TCs (regardless of TC_Configuration)
 
     Args:
         all_excel_data (dict): Dictionary of DataFrames from Excel.
@@ -148,7 +238,7 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
         print("--> WARNING: ODYM_Classes not available. TC parameters cannot be loaded.")
         return {}
     
-    print("--> Loading Transfer Coefficients using unified Process_Logic...")
+    print("--> Loading Transfer Coefficients using unified TC_Configuration...")
     
     process_defs = all_excel_data.get('2_1_Definition_Processes')
     static_tc_defs = all_excel_data.get('2_3_static_TCs')
@@ -158,19 +248,24 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
         print("-> No Process definitions found. Skipping TC loading.")
         return {}
 
-    # Create process type mapping based on Process_Logic and TC_Type columns
+    # Create process type mapping based on TC_Configuration column
     process_tc_types = {}
     for _, row in process_defs.iterrows():
         process_id = row.get('Process_ID')
         process_logic = str(row.get('Process_Logic', '')).strip()
-        tc_type = str(row.get('TC_Type', '')).strip()
+        tc_config = str(row.get('TC_Configuration', '')).strip()
         
-        # Only processes with Splitter or Transformer logic need TCs
-        if pd.notna(process_id) and process_logic in ['Splitter', 'Transformer']:
-            if tc_type in ['Static', 'Dynamic']:
-                process_tc_types[int(process_id)] = tc_type
+        # Skip TCs for Input, Output, and Pass-through processes regardless of TC_Configuration
+        if pd.notna(process_id) and process_logic in ['Input', 'Output', 'Pass-through']:
+            print(f"--> INFO: Process {process_id} ({process_logic}) - skipping TCs (process type)")
+            continue
+            
+        # Only processes with Splitter, Transformer, or DSM logic can have TCs
+        if pd.notna(process_id) and process_logic in ['Splitter', 'Transformer', 'DSM']:
+            if tc_config in ['Static', 'Dynamic']:
+                process_tc_types[int(process_id)] = tc_config
             else:
-                print(f"--> WARNING: Process {process_id} ({process_logic}) has no TC_Type specified. Skipping.")
+                print(f"--> WARNING: Process {process_id} ({process_logic}) has TC_Configuration='{tc_config}' - skipping TCs")
 
     tc_params = {}
     param_id_counter = 1000
@@ -344,6 +439,51 @@ def load_fomp_parameters(excel_data):
 
     print(f"--> Successfully loaded configurations for {len(fomp_params)} FOMP process(es).")
     return fomp_params
+
+
+def load_stock_parameters(excel_data):
+    """
+    Reads stock configuration from the main process sheet using Stock_Configuration column.
+    Uses Stock_Configuration column to identify processes that need stock management.
+    
+    Stock Configuration:
+    - Stock_Configuration = "Stock" -> Process has stock management
+    - Stock_Configuration = "No_Stock" -> Process has no stock management
+    """
+    main_sheet_name = "2_1_Definition_Processes"
+    print(f"--> Loading Stock configuration from sheet '{main_sheet_name}'...")
+
+    if main_sheet_name not in excel_data:
+        print(f"--> INFO: Sheet '{main_sheet_name}' not found. Using empty stock configuration.")
+        return {}
+
+    main_df = excel_data[main_sheet_name]
+    if "Process_ID" not in main_df.columns:
+        print(f"--> FATAL ERROR: Column 'Process_ID' not found in sheet '{main_sheet_name}'.")
+        return {}
+
+    # Get stock configuration from Stock_Configuration column
+    stock_processes = main_df[main_df['Stock_Configuration'] == 'Stock']
+    stock_process_ids = stock_processes['Process_ID'].dropna().astype(int).tolist()
+    
+    print(f"--> Using Stock_Configuration column to identify stock processes: {stock_process_ids}")
+    
+    if not stock_process_ids:
+        print(f"--> INFO: No stock processes found.")
+        return {}
+
+    # Create stock configuration dictionary
+    stock_config = {}
+    for process_id in stock_process_ids:
+        process_info = main_df[main_df['Process_ID'] == process_id].iloc[0]
+        stock_config[process_id] = {
+            "process_name": process_info.get('Process_Name', f'Process_{process_id}'),
+            "process_logic": process_info.get('Process_Logic', 'Unknown'),
+            "stock_configuration": process_info.get('Stock_Configuration', 'Stock')
+        }
+
+    print(f"--> Successfully loaded stock configuration for {len(stock_config)} process(es).")
+    return stock_config
 
 
 def _parse_fomp_parameters(process_data):

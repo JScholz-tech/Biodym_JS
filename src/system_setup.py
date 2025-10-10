@@ -123,11 +123,28 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
     for _, row in process_definitions.iterrows():
         if pd.notna(row["Process_Name"]):
             process_id = int(row["ID"])
-            has_tcs = "TC" if "TC?" in row and row["TC?"] == "Yes" else "None"
+            # Handle TC configuration - support both unified and legacy columns
+            has_tcs = "None"
+            if "TC_Configuration" in row and pd.notna(row["TC_Configuration"]):
+                tc_config = str(row["TC_Configuration"]).strip()
+                if tc_config in ["Static", "Dynamic"]:
+                    has_tcs = "TC"
+            elif "TC?" in row and row["TC?"] == "Yes":
+                has_tcs = "TC"
+            
             mfa_system.ProcessList.append(
                 msc.Process(Name=row["Process_Name"], ID=process_id, Extensions=has_tcs)
             )
-            if "Stock?" in row and row["Stock?"] == "Yes":
+            
+            # Handle Stock configuration - support both unified and legacy columns
+            should_create_stock = False
+            if "Stock_Configuration" in row and pd.notna(row["Stock_Configuration"]):
+                stock_config = str(row["Stock_Configuration"]).strip()
+                should_create_stock = (stock_config == "Stock")
+            elif "Stock?" in row and row["Stock?"] == "Yes":
+                should_create_stock = True
+            
+            if should_create_stock:
                 mfa_system.StockDict[f"dS_{process_id}"] = msc.Stock(
                     Name=f"dS_{process_id}", P_Res=process_id, Type=1, Indices="t,e"
                 )
@@ -139,7 +156,10 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
                 is_fomp_process = False
                 if fomp_sheet is not None:
                     fomp_processes = fomp_sheet[fomp_sheet["Process_ID"] == process_id]
-                    is_fomp_process = (row.get("FOMP?", "No") == "Yes") and (not fomp_processes.empty)
+                    # Check for FOMP process using unified Process_Logic or legacy FOMP? column
+                    process_logic = str(row.get("Process_Logic", "")).strip()
+                    fomp_legacy = str(row.get("FOMP?", "No")).strip() == "Yes"
+                    is_fomp_process = (process_logic == "FOMP" or fomp_legacy) and (not fomp_processes.empty)
                 
                 if is_fomp_process:
                     mfa_system.StockDict[f"S_{process_id}"]._fomp_process = True
