@@ -223,6 +223,14 @@ def generate_scenario_comparison_visualizations(
             all_scenario_results=all_scenario_results,
             scenario_definitions=scenario_definitions
         )
+
+        # Generate scenario stock dynamics plot
+        print("📈 Generating scenario stock dynamics plot...")
+        plotting.plot_scenario_stock_dynamics(
+            baseline_results=baseline_results,
+            all_scenario_results=all_scenario_results,
+            scenario_definitions=scenario_definitions
+        )
         
         print("✅ Scenario comparison visualizations completed!")
         

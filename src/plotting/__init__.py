@@ -27,7 +27,7 @@ from .monte_carlo import (
     plot_interactive_mc_stock_comparison,
     plot_interactive_mc_multiple_histograms
 )
-from .scenario import plot_multi_scenario_comparison, plot_scenario_flow_dynamics
+from .scenario import plot_multi_scenario_comparison, plot_scenario_flow_dynamics, plot_scenario_stock_dynamics
 from .graphviz_flow_charts import plot_graphviz_flow_chart_sankey_style
 
 __all__ = [
@@ -54,5 +54,6 @@ __all__ = [
     'plot_interactive_mc_multiple_histograms_simple',
     'plot_multi_scenario_comparison',
     'plot_scenario_flow_dynamics',
+    'plot_scenario_stock_dynamics',
     'plot_graphviz_flow_chart_sankey_style',
 ]
