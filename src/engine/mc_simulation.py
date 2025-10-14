@@ -191,7 +191,7 @@ def run_mc_simulation(
     # --- 2. Build maps for efficient lookup ---
     # Map TC names back to their process ID and get all TC names for a flow
     tc_info_map = {}
-    static_tc_defs = input_data.get('2_3_static_TCs')
+    static_tc_defs = input_data.get('2_2_static_TCs')
     if static_tc_defs is not None:
         for _, row in static_tc_defs.iterrows():
             process_id = row.get('Process_ID')

@@ -129,8 +129,6 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
                 tc_config = str(row["TC_Configuration"]).strip()
                 if tc_config in ["Static", "Dynamic"]:
                     has_tcs = "TC"
-            elif "TC?" in row and row["TC?"] == "Yes":
-                has_tcs = "TC"
             
             mfa_system.ProcessList.append(
                 msc.Process(Name=row["Process_Name"], ID=process_id, Extensions=has_tcs)
@@ -141,8 +139,6 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
             if "Stock_Configuration" in row and pd.notna(row["Stock_Configuration"]):
                 stock_config = str(row["Stock_Configuration"]).strip()
                 should_create_stock = (stock_config == "Stock")
-            elif "Stock?" in row and row["Stock?"] == "Yes":
-                should_create_stock = True
             
             if should_create_stock:
                 mfa_system.StockDict[f"dS_{process_id}"] = msc.Stock(
@@ -275,7 +271,7 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
     process_definitions = all_excel_data["2_1_Definition_Processes"]
     if initial_stock_data is not None:
         for _, row in process_definitions.iterrows():
-            if pd.notna(row["ID"]) and "Initial_Stock?" in row and row["Initial_Stock?"] == "Yes":
+            if pd.notna(row["ID"]) and "Stock_Configuration" in row and row["Stock_Configuration"] == "Stock":
                 process_id = int(row["ID"])
                 stock_data_row = initial_stock_data[initial_stock_data["Process_ID"] == process_id]
                 if not stock_data_row.empty:
@@ -306,10 +302,10 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
     for _, row in content_definitions.iterrows():
         flow_id = row.get("Flow_ID")
         if pd.notna(flow_id) and flow_id in mfa_system.FlowDict:
-            # Map old element names to new column names
+            # Map element names to column names in flow definitions
             element_column_map = {
-                "WC": "Flow_WC",
-                "DM": "Flow_DM", 
+                "WC": "Flow_WC[%]",
+                "DM": "Flow_DM[%]", 
                 "CC": "Flow_CC_DM[%]"  # CC is stored as percentage of DM
             }
             
@@ -345,7 +341,7 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
     flow_tc_map = {}
     
     # Include static TCs
-    static_tc_definitions = all_excel_data.get("2_3_static_TCs")
+    static_tc_definitions = all_excel_data.get("2_2_static_TCs")
     if static_tc_definitions is not None:
         static_tc_definitions_filtered = static_tc_definitions.dropna(subset=['Flow_ID'])
         for _, row in static_tc_definitions_filtered.iterrows():
@@ -358,7 +354,7 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
             flow_tc_map[flow_id] = tc_ids
     
     # Include dynamic TCs
-    dynamic_tc_definitions = all_excel_data.get("2_4_dynamic_TCs")
+    dynamic_tc_definitions = all_excel_data.get("2_3_dynamic_TCs")
     if dynamic_tc_definitions is not None:
         dynamic_tc_definitions_filtered = dynamic_tc_definitions.dropna(subset=['Flow_ID'])
         for _, row in dynamic_tc_definitions_filtered.iterrows():

@@ -5,6 +5,8 @@ Data Loader Module for the BioDYM MFA Model.
 This file contains all functions responsible for reading, validating, and
 parsing the input data from the Excel template file. It acts as the
 interface between the raw data and the core model logic.
+
+UPDATED: Added column name mapping to handle naming convention changes.
 """
 
 import pandas as pd
@@ -17,6 +19,92 @@ try:
 except ImportError:
     ODYM_AVAILABLE = False
     msc = None
+
+
+# Column name mapping for backward compatibility and naming convention updates
+COLUMN_NAME_MAPPING = {
+    # Sheet: {old_name: new_name}
+    "1_1_Definition_Flows": {
+        "Flow_WC_ID ": "Flow_WC_ID",  # Remove trailing space
+        # New [%] columns are already correctly named
+    },
+    "1_2_Data_Flows": {
+        "Flow_Data_Year": "Flow_Data_Year",  # Keep as is
+        "Flow_Material": "Flow_Material",  # Keep as is
+        "WC_[%]": "WC_[%]",  # Keep as is
+        "DM_[%]": "DM_[%]",  # Keep as is
+        "CC_[%]": "CC_[%]",  # Keep as is
+        "Author_Source": "Author_Source",  # Keep as is
+        "Type_Source": "Type_Source",  # Keep as is
+    },
+    "2_1_Definition_Processes": {
+        "Nr. Outflows": "Outflow_count",  # Standardize naming
+    },
+    "2_2_static_TCs": {
+        "Nr. Outflows": "Outflow_count",  # Standardize naming
+        "Titel_Source": "Titel_source",  # Standardize case
+        "Author_Source": "Author_source",  # Standardize case
+    },
+    "2_3_dynamic_TCs": {
+        "Nr. Outflows": "Outflow_count",  # Standardize naming
+        "Titel_Source": "Titel_source",  # Standardize case
+        "Author_Source": "Author_source",  # Standardize case
+    },
+    "2_4_Initial_Stock": {
+        "Nr. Outflows": "Outflow_count",  # Standardize naming
+        "Initial_Stock_WC[%]": "Initial_Stock_WC[%]",  # Keep as is
+        "Initial_Stock_DM[%]": "Initial_Stock_DM[%]",  # Keep as is
+        "Initial_Stock_CC[%]": "Initial_Stock_CC[%]",  # Keep as is
+    },
+    # Add more mappings as needed
+}
+
+# Sheet name mapping for backward compatibility
+SHEET_NAME_MAPPING = {
+    "PX - Template": "PX_Template",  # Standardize separator
+    "2_3_static_TCs": "2_2_static_TCs",  # Handle sheet renumbering
+    # Add more mappings as needed
+}
+
+
+def normalize_column_names(df, sheet_name):
+    """
+    Normalizes column names in a DataFrame based on the column mapping.
+    
+    Args:
+        df (pd.DataFrame): The DataFrame to normalize
+        sheet_name (str): The name of the sheet
+        
+    Returns:
+        pd.DataFrame: DataFrame with normalized column names
+    """
+    if sheet_name in COLUMN_NAME_MAPPING:
+        mapping = COLUMN_NAME_MAPPING[sheet_name]
+        df = df.rename(columns=mapping)
+    return df
+
+
+def normalize_sheet_names(excel_data_dict):
+    """
+    Normalizes sheet names in the Excel data dictionary.
+    
+    Args:
+        excel_data_dict (dict): Dictionary of DataFrames from Excel
+        
+    Returns:
+        dict: Dictionary with normalized sheet names
+    """
+    normalized_data = {}
+    for sheet_name, df in excel_data_dict.items():
+        # Normalize sheet name
+        normalized_sheet_name = SHEET_NAME_MAPPING.get(sheet_name, sheet_name)
+        
+        # Normalize column names
+        df_normalized = normalize_column_names(df, sheet_name)
+        
+        normalized_data[normalized_sheet_name] = df_normalized
+    
+    return normalized_data
 
 
 def validate_input_data(excel_data_dict):
@@ -33,12 +121,12 @@ def validate_input_data(excel_data_dict):
     # Define the minimum required structure for the model to run.
     # Support both new unified columns and legacy columns for backward compatibility
     REQUIRED_STRUCTURE = {
-        "1_1_Definition_Flows": ["Flow_ID", "Flow_Name", "Flow_Output_Process_ID", "Input_Process_ID"],
+        "1_1_Definition_Flows": ["Flow_ID", "Flow_Name", "Flow_Output_Process_ID", "Input_Process_ID", "Flow_WC[%]", "Flow_DM[%]", "Flow_CC_DM[%]"],
         "1_2_Data_Flows": ["Flow_ID", "Flow_Data_Year", "Flow_Material"],
         "2_1_Definition_Processes": ["ID", "Process_Name", "Process_Logic"],
-        "2_3_static_TCs": ["Flow_ID", "Process_ID", "TC_material_ID", "TC_Value_material"],
-        "2_4_dynamic_TCs": ["TC_material_ID", "TC_Value_material", "Year"],
-        "2_5_Initial_Stock": [
+        "2_2_static_TCs": ["Flow_ID", "Process_ID", "TC_material_ID", "TC_Value_material"],
+        "2_3_dynamic_TCs": ["TC_material_ID", "TC_Value_material", "Year"],
+        "2_4_Initial_Stock": [
             "Process_ID",
             "Initial_Stock_material",
             "Initial_Stock_WC[%]",
@@ -50,7 +138,7 @@ def validate_input_data(excel_data_dict):
     for sheet_name, required_columns in REQUIRED_STRUCTURE.items():
         if sheet_name not in excel_data_dict:
             # TC sheets are optional - only required if processes use TCs
-            if sheet_name in ["2_3_static_TCs", "2_4_dynamic_TCs"]:
+            if sheet_name in ["2_2_static_TCs", "2_3_dynamic_TCs"]:
                 print(f"  -> Optional sheet '{sheet_name}' not found (TCs may not be used)")
                 continue
             else:
@@ -222,8 +310,8 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
     Uses TC_Configuration column to determine TC loading strategy.
     
     TC Configuration:
-    - TC_Configuration = "Static" -> Load from 2_3_static_TCs
-    - TC_Configuration = "Dynamic" -> Load from 2_4_dynamic_TCs
+    - TC_Configuration = "Static" -> Load from 2_2_static_TCs
+    - TC_Configuration = "Dynamic" -> Load from 2_3_dynamic_TCs
     - TC_Configuration = "None" or missing -> Skip TCs
     - Process_Logic = "Input", "Output", "Pass-through" -> Skip TCs (regardless of TC_Configuration)
 
@@ -242,8 +330,8 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
     print("--> Loading Transfer Coefficients using unified TC_Configuration...")
     
     process_defs = all_excel_data.get('2_1_Definition_Processes')
-    static_tc_defs = all_excel_data.get('2_3_static_TCs')
-    dynamic_tc_defs = all_excel_data.get('2_4_dynamic_TCs')
+    static_tc_defs = all_excel_data.get('2_2_static_TCs')
+    dynamic_tc_defs = all_excel_data.get('2_3_dynamic_TCs')
 
     if process_defs is None:
         print("-> No Process definitions found. Skipping TC loading.")
