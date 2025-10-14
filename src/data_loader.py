@@ -56,6 +56,29 @@ COLUMN_NAME_MAPPING = {
         "Initial_Stock_DM[%]": "Initial_Stock_DM[%]",  # Keep as is
         "Initial_Stock_CC[%]": "Initial_Stock_CC[%]",  # Keep as is
     },
+    "3_1_Definition_DSM": {
+        "Inflow_Split_[%]": "Inflow_Split_[%]",  # Keep as is
+        "Lifetime_Type": "Lifetime_Type",  # Keep as is
+        "Lifetime_Mean": "Lifetime_Mean",  # Keep as is
+        "Lifetime_StdDev": "Lifetime_StdDev",  # Keep as is
+        "Category_Name": "Category_Name",  # Keep as is
+        "Category_ID": "Category_ID",  # Keep as is
+        "DSM_Parameter": "DSM_Parameter_type",  # Updated to new name
+        "DSM_Value": "DSM_Value",  # Keep as is
+        "DSM_material_count": "DSM_material_count",  # New column
+        "DSM_Parameter_ID": "DSM_Parameter_ID",  # New column
+    },
+    "3_2_Definition_FOMP": {
+        "Pool_ID": "Pool_ID",  # Keep as is
+        "Parameter_Name": "Parameter_Name",  # Keep as is
+        "Value": "Value",  # Keep as is
+        "FOMP_Parameter": "FOMP_Parameter_type",  # Updated to new name
+        "FOMP_Value": "FOMP_Parameter_Value",  # Updated to new name
+        "Nr._Decay_Pools": "Nr._Decay_Pools",  # New column
+        "Pool": "Pool",  # New column
+        "Decay_Pool_count": "Decay_Pool_count",  # New column
+        "FOMP_Parameter_ID": "FOMP_Parameter_ID",  # New column
+    },
     # Add more mappings as needed
 }
 
@@ -464,7 +487,7 @@ def load_dsm_parameters(excel_data):
         process_data = dsm_df[dsm_df['Process_ID'] == process_id]
         
         # Check if this is the new parameter-based format
-        if 'DSM_Parameter' in process_data.columns and 'DSM_Value' in process_data.columns:
+        if 'DSM_Parameter_type' in process_data.columns and 'DSM_Value' in process_data.columns:
             dsm_params[process_id] = _parse_parameter_based_dsm(process_data)
         else:
             # Fall back to old category-based format
@@ -472,62 +495,6 @@ def load_dsm_parameters(excel_data):
 
     print(f"--> Successfully loaded configurations for {len(dsm_params)} DSM process(es).")
     return dsm_params
-
-
-def load_fomp_parameters(excel_data):
-    """
-    Reads the '3_2_Definition_FOMP' sheet and creates the FOMP_PARAMS dictionary.
-    Uses Process_Logic column from the main process sheet to identify FOMP processes.
-    """
-    sheet_name = "3_2_Definition_FOMP"
-    main_sheet_name = "2_1_Definition_Processes"
-    print(f"--> Loading FOMP parameters from sheet '{sheet_name}'...")
-
-    if sheet_name not in excel_data:
-        print(f"--> INFO: Sheet '{sheet_name}' not found. Using empty FOMP configuration.")
-        return {}
-
-    df_fomp = excel_data[sheet_name]
-    if "Process_ID" not in df_fomp.columns:
-        print(f"--> FATAL ERROR: Column 'Process_ID' not found in sheet '{sheet_name}'.")
-        return {}
-
-    # Get FOMP process IDs from the main process sheet
-    fomp_process_ids = []
-    if main_sheet_name in excel_data:
-        main_df = excel_data[main_sheet_name]
-        if 'Process_Logic' in main_df.columns:
-            fomp_processes = main_df[main_df['Process_Logic'] == 'FOMP']
-            fomp_process_ids = fomp_processes['Process_ID'].dropna().astype(int).tolist()
-            print(f"--> Using Process_Logic column from main sheet to identify FOMP processes: {fomp_process_ids}")
-        elif 'FOMP?' in main_df.columns:
-            fomp_processes = main_df[main_df['FOMP?'] == 'Yes']
-            fomp_process_ids = fomp_processes['Process_ID'].dropna().astype(int).tolist()
-            print(f"--> Using legacy FOMP? column from main sheet to identify FOMP processes: {fomp_process_ids}")
-    
-    if not fomp_process_ids:
-        print(f"--> INFO: No FOMP processes found in main sheet.")
-        return {}
-
-    # Filter FOMP sheet data for identified FOMP processes
-    fomp_df = df_fomp[df_fomp['Process_ID'].isin(fomp_process_ids)].copy()
-    if fomp_df.empty:
-        print(f"--> INFO: No FOMP parameter data found for identified FOMP processes.")
-        return {}
-
-    fomp_df = fomp_df.dropna(subset=["Process_ID"])
-    fomp_df["Process_ID"] = fomp_df["Process_ID"].astype(int)
-
-    fomp_params = {}
-    
-    for process_id in fomp_df['Process_ID'].unique():
-        process_data = fomp_df[fomp_df['Process_ID'] == process_id]
-        
-        # Parse FOMP parameters (similar structure to DSM)
-        fomp_params[process_id] = _parse_fomp_parameters(process_data)
-
-    print(f"--> Successfully loaded configurations for {len(fomp_params)} FOMP process(es).")
-    return fomp_params
 
 
 def load_stock_parameters(excel_data):
@@ -595,10 +562,10 @@ def _parse_parameter_based_dsm(process_data):
     categories = {}
     
     for _, row in process_data.iterrows():
-        if pd.isna(row['DSM_Parameter']) or pd.isna(row['DSM_Value']):
+        if pd.isna(row['DSM_Parameter_type']) or pd.isna(row['DSM_Value']):
             continue
             
-        param_name = str(row['DSM_Parameter'])
+        param_name = str(row['DSM_Parameter_type'])
         
         # Extract category number from parameter name
         if '_Cat_' in param_name:
@@ -615,6 +582,20 @@ def _parse_parameter_based_dsm(process_data):
             except (ValueError, IndexError):
                 print(f"--> WARNING: Could not parse parameter name: {param_name}")
                 continue
+        else:
+            # Handle format without _Cat_ pattern - group by category based on order
+            # This assumes categories are grouped together in the data
+            if 'DSM_Category_Name' in param_name:
+                # This is a category name row - start a new category
+                category_name = str(row['DSM_Value'])
+                if category_name not in categories:
+                    categories[category_name] = {}
+            else:
+                # This is a parameter row - add to the current category
+                # Find the most recent category (last one in the dict)
+                if categories:
+                    current_category = list(categories.keys())[-1]
+                    categories[current_category][param_name] = row['DSM_Value']
     
     if not categories:
         print(f"--> WARNING: No valid DSM parameters found for process {process_data['Process_ID'].iloc[0]}")
@@ -632,7 +613,7 @@ def _parse_parameter_based_dsm(process_data):
     output_splits = []
     output_flow_ids = set()
     
-    for cat_num, cat_params in sorted_categories:
+    for cat_key, cat_params in sorted_categories:
         # Basic parameters - ensure numeric conversion
         inflow_split = cat_params.get('DSM_Inflow_Split_[%]', 0)
         inflow_splits.append(float(inflow_split) if inflow_split is not None else 0.0)
@@ -645,7 +626,11 @@ def _parse_parameter_based_dsm(process_data):
         lifetime_stddev = cat_params.get('DSM_Lifetime_StdDev', 0)
         lifetime_stddevs.append(float(lifetime_stddev) if lifetime_stddev is not None else 0.0)
         
-        category_names.append(cat_params.get('DSM_Category_Name', f'Category_{cat_num}'))
+        # Use category name if available, otherwise use the key
+        if isinstance(cat_key, str) and cat_key != 'DSM_Category_Name':
+            category_names.append(cat_key)
+        else:
+            category_names.append(cat_params.get('DSM_Category_Name', f'Category_{len(category_names) + 1}'))
         
         # Output parameters - collect all output flows and ensure numeric conversion
         cat_output_splits = []
@@ -718,8 +703,26 @@ def load_fomp_parameters(excel_data):
         param_name = None
         value = None
         
-        # Check if using Pool_ID system (new approach)
-        if "Pool_ID" in df_fomp.columns and pd.notna(row.get("Pool_ID")):
+        # Check if using FOMP_Parameter_ID format (new system) - PRIORITY
+        if "FOMP_Parameter_ID" in df_fomp.columns and pd.notna(row.get("FOMP_Parameter_ID")):
+            param_id = str(row["FOMP_Parameter_ID"])
+            value = row["FOMP_Parameter_Value"]
+            
+            # Extract process ID from FOMP_Parameter_ID format (e.g., "P04_Inflow_fraction_f (Labile pool)" -> "04")
+            try:
+                if param_id.startswith("P") and "_" in param_id:
+                    process_id = int(param_id[1:].split("_")[0])
+                    # Extract parameter name by removing the process prefix
+                    param_name = param_id.split("_", 1)[1]  # Remove "P04_" prefix
+                else:
+                    print(f"⚠️ WARNING: Could not extract process ID from FOMP_Parameter_ID: {param_id}")
+                    continue
+            except (ValueError, IndexError):
+                print(f"⚠️ WARNING: Could not parse FOMP_Parameter_ID format: {param_id}")
+                continue
+                
+        # Check if using Pool_ID system (legacy approach)
+        elif "Pool_ID" in df_fomp.columns and pd.notna(row.get("Pool_ID")):
             pool_id = str(row["Pool_ID"])
             param_name = row["Parameter_Name"]
             value = row["Value"]
@@ -738,8 +741,14 @@ def load_fomp_parameters(excel_data):
         # Check if using Process_ID system (legacy approach)
         elif "Process_ID" in df_fomp.columns and pd.notna(row.get("Process_ID")):
             process_id = int(row["Process_ID"])
-            param_name = row["Parameter_Name"]
-            value = row["Value"]
+            param_name = row.get("Parameter_Name", "")
+            value = row.get("Value", "")
+            
+        # Check if using new FOMP column format (prefer FOMP_Parameter_type)
+        elif "FOMP_Parameter_type" in df_fomp.columns and pd.notna(row.get("FOMP_Parameter_type")):
+            process_id = int(row["Process_ID"]) if pd.notna(row.get("Process_ID")) else None
+            param_name = row["FOMP_Parameter_type"]
+            value = row["FOMP_Parameter_Value"]
             
         else:
             continue
