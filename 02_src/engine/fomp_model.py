@@ -9,21 +9,31 @@ based on a more precise analytical solution for first-order decay.
 import numpy as np
 
 def _calculate_fomp_series(dm_inflow_series, params, initial_stock_labile, initial_stock_recalcitrant):
-    """
-    Implements the core two-pool, first-order decay model calculation.
+    """Implements the core two-pool, first-order decay model calculation.
 
-    This is a pure function that takes time-series data and parameters as input,
+    This is a pure function that takes time-series data and parameters as input
     and returns a dictionary of calculated time-series arrays. It uses the
-    analytical solution for first-order decay: decay = stock * (1 - exp(-k)).
+    analytical solution for first-order decay for each time step:
+    `decay = stock * (1 - exp(-k))`.
 
-    Args:
-        dm_inflow_series (np.array): Time-series of total Dry Matter (DM) inflow.
-        params (dict): Dictionary of model parameters (f_labile, k_labile, etc.).
-        initial_stock_labile (float): Initial stock of the labile pool.
-        initial_stock_recalcitrant (float): Initial stock of the recalcitrant pool.
+    Parameters
+    ----------
+    dm_inflow_series : np.ndarray
+        Time-series array of total Dry Matter (DM) inflow to the process.
+    params : dict
+        Dictionary of model parameters, including `f_labile`, `k_labile`,
+        `k_recalcitrant`, and `cc_dm`.
+    initial_stock_labile : float
+        The initial stock of the labile pool at the beginning of the simulation.
+    initial_stock_recalcitrant : float
+        The initial stock of the recalcitrant pool.
 
-    Returns:
-        dict: A dictionary of NumPy arrays for calculated time-series.
+    Returns
+    -------
+    dict
+        A dictionary of NumPy arrays for the calculated time-series, including
+        `stock_labile`, `stock_recalcitrant`, `outflow_carbon`, and
+        `outflow_environmental`.
     """
     num_years = len(dm_inflow_series)
     
@@ -81,13 +91,27 @@ def _calculate_fomp_series(dm_inflow_series, params, initial_stock_labile, initi
     return results
 
 def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
-    """
-    Wrapper function to integrate the pure FOMP calculation with the ODYM framework.
+    """Integrates the pure FOMP calculation with the ODYM MFA system.
 
-    This function extracts data from the MFA system, calls the pure calculation 
-    function (_calculate_fomp_series), and assigns the resulting outflows back to 
-    the system. It does NOT modify the stock directly, allowing the main solver 
-    to handle final stock accounting.
+    This function acts as a wrapper. It extracts the required data (like total
+    dry matter inflow) from the `mfa_system` object, calls the pure
+    `_calculate_fomp_series` function to get the decay results, and then assigns
+    the calculated outflows back to the appropriate flow objects in the system.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The MFA system object, which will be modified.
+    fomp_params_config : dict
+        A dictionary containing the configuration for the FOMP process.
+    input_flow_composition : dict
+        A dictionary containing the dynamically calculated composition of the
+        inflow, including keys like 'DM', 'CC', and 'WC'.
+
+    Returns
+    -------
+    odym.MFAsystem
+        The modified MFA system object with FOMP outflows updated.
     """
     time_vector = mfa_system.IndexTable.Classification["Time"].Items
     num_years, num_elements = len(time_vector), len(mfa_system.Elements)
@@ -176,31 +200,4 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
     print(f"   Total carbon output: {np.sum(fomp_results['outflow_carbon']):.2f}")
     print(f"   Total environmental output: {np.sum(fomp_results['outflow_environmental']):.2f}")
 
-    return mfa_system
-
-def calculate_fomp_legacy(mfa_system, fomp_params_config):
-    """
-    Legacy single-outflow FOMP calculation (kept for backward compatibility).
-    """
-    # This function remains unchanged.
-    time_vector = mfa_system.IndexTable.Classification["Time"].Items
-    num_years, num_elements = len(time_vector), len(mfa_system.Elements)
-    process_id = list(fomp_params_config.keys())[0]
-    params = fomp_params_config[process_id]
-    stock_s = mfa_system.StockDict.get(f"S_{process_id}")
-    initial_stock_vector = stock_s.Values[0, :].copy()
-    outflow_flow_name = params.get("outflow_id")
-    f, k1, k2 = params.get("f", 0), params.get("k1", 0), params.get("k2", 0)
-    inflows = [flow.Values for flow in mfa_system.FlowDict.values() if flow.P_End == process_id]
-    inflow_values = sum(inflows) if inflows else np.zeros((num_years, num_elements))
-    new_outflow_values = np.zeros_like(inflow_values, dtype=float)
-    current_stock = initial_stock_vector
-    for t in range(num_years):
-        outflow_t = ((inflow_values[t, :] * f) + (current_stock * k1) + (inflow_values[t, :] * k2))
-        new_outflow_values[t, :] = outflow_t
-        current_stock = current_stock + inflow_values[t, :] - outflow_t
-    if outflow_flow_name in mfa_system.FlowDict:
-        mfa_system.FlowDict[outflow_flow_name].Values = new_outflow_values
-    else:
-        print(f"⚠️ Warning: Outflow {outflow_flow_name} not found in FlowDict")
     return mfa_system
