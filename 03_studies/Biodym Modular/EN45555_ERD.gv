@@ -1,0 +1,32 @@
+// Entity Relationship Diagram
+digraph EN45555_Recyclability_Calculation {
+	fontsize=20 label="ERD für EN 45555 Recyclability Assessment" rankdir=LR splines=ortho
+	node [fontsize=10 shape=record style=rounded]
+	edge [fontsize=8]
+	subgraph cluster_bom {
+		color=lightgrey label="BOM Data Inputs (Product-Inherent)" style=filled
+		Product [label="{<head>Product | \lproduct_id: INTEGER [PK]\lproduct_name: TEXT\ltotal_mass_g: REAL\lisArticle: BOOLEAN [cite: 26]\l}" tooltip="Das zu bewertende Gesamtprodukt "]
+		Component [label="{<head>Component (ProductPart) | \lcomponent_id: INTEGER [PK]\lcomponent_name: TEXT\lpart_mass_g: REAL\lnumber_of_instances: INTEGER \lis_for_disassembly: BOOLEAN\l}" tooltip="Ein Bauteil oder eine Baugruppe innerhalb des Produkts "]
+		JoiningMechanism [label="{<head>JoiningMechanism (Custom Extension) | \ljoining_id: INTEGER [PK]\ljoining_type: TEXT [FK]\ltool_required: TEXT\lis_reversible: BOOLEAN\ldisassembly_time_s: INTEGER\l}" tooltip="Benutzerdefinierte Erweiterung zur Erfassung von Verbindungs- und Demontage-Daten [cite: 164, 165, 166]"]
+		Material [label="{<head>Material | \lmaterial_id: INTEGER [PK]\lmaterial_name: TEXT\lmaterial_class: TEXT \lmaterial_mass_g: REAL\l}" tooltip="Ein homogenes Material innerhalb eines Bauteils "]
+		Substance [label="{<head>Substance | \lsubstance_id: INTEGER [PK]\lsubstance_name: TEXT\lcas_number: TEXT\lconcentration_percent: REAL\l}" tooltip="Eine chemische Substanz innerhalb eines Materials "]
+	}
+	subgraph cluster_eol {
+		color=lightblue label="Process-Dependent Parameters" style=filled
+		EoL_Scenario [label="{<head>EoL Scenario | \lscenario_id: INTEGER [PK]\lscenario_name: TEXT\ldisassembly_factor_C_dis: REAL\lsorting_factor_C_sort: REAL\lrecycling_factor_C_recyc: REAL\l}" tooltip="Parameter, die den End-of-Life Prozess beschreiben (z.B. Effizienz der Recyclinganlage)"]
+	}
+	subgraph cluster_output {
+		color=lightgreen label="Calculation Output" style=filled
+		RecyclabilityCalculation [label="{<head>Recyclability Calculation | \lcalculation_id: INTEGER [PK]\lrecyclability_rate_R_cyc: REAL\lcalculation_date: DATE\l}" tooltip="Das Endergebnis der Berechnung nach EN 45555"]
+	}
+	Product:head -> Component:head [label="1..n
+(contains)" arrowhead=crow arrowtail=none dir=forward]
+	Component:head -> JoiningMechanism:head [label="1..n
+(is joined by)" arrowhead=crow arrowtail=none dir=forward style=dashed]
+	Component:head -> Material:head [label="1..n
+(is made of)" arrowhead=crow arrowtail=none dir=forward]
+	Material:head -> Substance:head [label="1..n
+(contains)" arrowhead=crow arrowtail=none dir=forward]
+	Product:head -> RecyclabilityCalculation:head [label="is assessed in" style=dotted]
+	EoL_Scenario:head -> RecyclabilityCalculation:head [label="provides parameters for" style=dotted]
+}

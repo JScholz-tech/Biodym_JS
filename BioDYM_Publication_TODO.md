@@ -1,3 +1,11 @@
+## Phase 0: Project Refactoring (In Progress)
+1. **Restructure Project Directories** - Rename folders with numbered prefixes to clarify workflow (e.g., `data` -> `01_data`).
+2. **Rename Main Notebook** - Rename `BioDYM_Scientific_Notebook` to `00_BioDYM_Workflow` to signify it as the main entry point.
+3. **Add NumPy Docstrings** - Go through `src` and add proper docstrings to all functions.
+4. **Consolidate User Docs** - Review and merge scattered `.md` files in `docs/` into a unified user guide.
+
+---
+
 # BioDYM Publication-Ready TODO List
 
 ## 🎯 Current Priorities
