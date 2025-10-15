@@ -67,52 +67,25 @@ def calculate_final_balances(mfa_system):
 # --- BioDYM Extension: Stock-Outflow TCs ---
 # This function is a custom addition to ODYM for handling
 # outflows directly from initial stocks.
-def process_stock_outflow_tcs(mfa_system):
+def process_initial_stocks(mfa_system):
     """
     BioDYM Extension to ODYM:
-    Processes stock-outflow transfer coefficients to consume initial stocks.
-    This is NOT part of the standard ODYM framework.
+    Processes initial stock outflows using the new initial stock engine.
+    This replaces the old process_stock_outflow_tcs function.
     """
-    print("--> Processing stock-outflow transfer coefficients...")
+    print("--> Processing initial stock outflows...")
     
-    # Check if stock-outflow TCs were defined during setup
-    if hasattr(mfa_system, 'stock_outflow_tcs'):
-        for process_id, tc_info in mfa_system.stock_outflow_tcs.items():
-            destination_process = tc_info['destination_process']
-            consumption_rate = tc_info['consumption_rate']
-            initial_stock = tc_info['initial_stock']
-            
-            # Create stock-outflow flow
-            flow_name = f"F_{process_id}_{destination_process}_stock"
-            if flow_name not in mfa_system.FlowDict:
-                mfa_system.FlowDict[flow_name] = msc.Flow(
-                    Name=flow_name, 
-                    P_Start=process_id, 
-                    P_End=destination_process, 
-                    Indices="t,e"
-                )
-            
-            # Initialize flow values if not already done
-            flow = mfa_system.FlowDict[flow_name]
-            if flow.Values is None:
-                # Initialize with zeros: shape = (number of years, number of elements)
-                n_years = len(mfa_system.IndexTable.Classification["Time"].Items)
-                n_elements = len(mfa_system.Elements)
-                flow.Values = np.zeros((n_years, n_elements))
-            
-            # Calculate annual consumption
-            annual_consumption = initial_stock * consumption_rate
-            
-            # Set flow values (constant over time)
-            for t in range(len(flow.Values)):
-                flow.Values[t, :] = annual_consumption
-            
-            print(f"--> Created stock-outflow flow: {flow_name} = {annual_consumption[0]:.1f} Mg/year")
+    # Check if initial stock configurations were loaded
+    if hasattr(mfa_system, 'initial_stock_outflows') and mfa_system.initial_stock_outflows:
+        from . import initial_stock_engine
+        
+        # Get initial stock configurations (we need to reload them)
+        # This is a temporary solution - in the future, we should store the configs in mfa_system
+        print("  -> Initial stock outflows already processed during setup")
+        return mfa_system
     else:
-        print("--> No stock-outflow TCs found in system setup")
-    
-    print("--> Stock-outflow TC processing finished.")
-    return mfa_system
+        print("  -> No initial stock outflows found")
+        return mfa_system
 
 
 def enhanced_input_validation(input_flows, dsm_processes):
@@ -229,6 +202,11 @@ def run_mfa_calculation(
             flow.Values = outflow_vector
             if not np.allclose(old_values, flow.Values):
                 something_changed_in_pass = True
+
+        # --- 1.5. Update Initial Stock Flows ---
+        # Update initial stock flows to ensure they're properly integrated
+        from . import initial_stock_engine
+        mfa_system = initial_stock_engine.update_initial_stock_flows_during_solver(mfa_system)
 
         # --- 2. Special Models (DSM) ---
         if config.RUN_DSM_CALCULATION:

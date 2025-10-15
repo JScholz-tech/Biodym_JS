@@ -13,6 +13,7 @@ import pandas as pd
 
 # These are imported by main.py and are available in this namespace
 import ODYM_Classes as msc
+import data_loader
 
 
 def define_model_scope(start_year, end_year, elements):
@@ -267,33 +268,14 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
                 flow_obj.Values[:, 0] = np.array(flow_time_series["Flow_Material"]).ravel()
     print("--> Populated data for primary input flows.")
 
-    initial_stock_data = all_excel_data.get("2_4_Initial_Stock")
-    process_definitions = all_excel_data["2_1_Definition_Processes"]
-    if initial_stock_data is not None:
-        for _, row in process_definitions.iterrows():
-            if pd.notna(row["ID"]) and "Stock_Configuration" in row and row["Stock_Configuration"] == "Stock":
-                process_id = int(row["ID"])
-                stock_data_row = initial_stock_data[initial_stock_data["Process_ID"] == process_id]
-                if not stock_data_row.empty:
-                    stock_s = mfa_system.StockDict.get(f"S_{process_id}")
-                    if stock_s:
-                        mat = stock_data_row["Initial_Stock_material"].iloc[0]
-                        wc_p = stock_data_row["Initial_Stock_WC[%]"].iloc[0]
-                        dm_p = stock_data_row["Initial_Stock_DM[%]"].iloc[0]
-                        cc_p = stock_data_row["Initial_Stock_CC[%]"].iloc[0]
-                        stock_s.Values[0, :] = [mat, mat * wc_p, mat * dm_p, mat * cc_p]
-                        
-                        if "Stock_Outflow_TC" in stock_data_row.columns and pd.notna(stock_data_row["Stock_Outflow_TC"].iloc[0]):
-                            tc_id = stock_data_row["Stock_Outflow_TC"].iloc[0]
-                            destination_process = int(stock_data_row["Destination_Process"].iloc[0])
-                            consumption_rate = float(stock_data_row["Annual_Consumption_Rate"].iloc[0])
-                            mfa_system.ParameterDict[tc_id] = msc.Parameter(Name=tc_id, ID=parameter_id_counter, Values=consumption_rate, Unit="1/year")
-                            parameter_id_counter += 1
-                            if not hasattr(mfa_system, 'stock_outflow_tcs'):
-                                mfa_system.stock_outflow_tcs = {}
-                            mfa_system.stock_outflow_tcs[process_id] = {
-                                'tc_id': tc_id, 'destination_process': destination_process,
-                                'consumption_rate': consumption_rate, 'initial_stock': stock_s.Values[0, :].copy()}
+    # Load initial stock parameters using the new engine
+    initial_stock_configs = data_loader.load_initial_stock_parameters(all_excel_data)
+    
+    # Apply initial stock values to the system
+    if initial_stock_configs:
+        from engine import initial_stock_engine
+        mfa_system = initial_stock_engine.apply_initial_stock_values(mfa_system, initial_stock_configs)
+        mfa_system = initial_stock_engine.process_initial_stock_outflows(mfa_system, initial_stock_configs)
 
     # The old TC loading logic has been removed from this function.
     # It is now handled by the new data_loader.load_tc_parameters function.

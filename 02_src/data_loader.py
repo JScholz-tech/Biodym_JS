@@ -151,10 +151,8 @@ def validate_input_data(excel_data_dict):
         "2_3_dynamic_TCs": ["TC_material_ID", "TC_Value_material", "Year"],
         "2_4_Initial_Stock": [
             "Process_ID",
-            "Initial_Stock_material",
-            "Initial_Stock_WC[%]",
-            "Initial_Stock_DM[%]",
-            "Initial_Stock_CC[%]",
+            "IS_Parameter_type", 
+            "IS_Parameter_Value",
         ],
     }
 
@@ -917,3 +915,22 @@ def load_scenario_definitions(excel_data):
 
     print(f"--> Successfully loaded {len(scenario_definitions)} scenario(s).")
     return scenario_definitions
+
+
+def load_initial_stock_parameters(excel_data):
+    """
+    Loads initial stock parameters using the new initial stock engine.
+    
+    This function delegates to the initial_stock_engine module for consistency
+    with the new long table structure.
+    
+    Args:
+        excel_data (dict): Dictionary of DataFrames from Excel.
+        
+    Returns:
+        dict: Initial stock configurations per process.
+    """
+    # Import here to avoid circular imports
+    from engine import initial_stock_engine
+    
+    return initial_stock_engine.load_initial_stock_parameters(excel_data)
