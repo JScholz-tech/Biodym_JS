@@ -27,17 +27,23 @@ from .publication_style_simplified import (
 
 
 def _calculate_node_positions(processes, flows):
-    """
-    Calculates node x-positions for a Sankey diagram using a topological sort.
-    This helps in creating a structured, left-to-right flow.
-    Handles cycles by assigning all nodes in a cycle to the same layer.
+    """Calculates horizontal (x) positions for Sankey nodes using topological sort.
 
-    Args:
-        processes (list): List of process objects from the MFA system.
-        flows (list): List of flow objects from the MFA system.
+    This algorithm arranges nodes into layers to create a structured, left-to-right
+    flow visualization. It can handle cycles in the graph by assigning all nodes
+    within a cycle to the same layer.
 
-    Returns:
-        dict: A dictionary mapping process ID to its x-coordinate (0 to 1).
+    Parameters
+    ----------
+    processes : list of odym.Process
+        The list of process objects to be included in the layout.
+    flows : list of odym.Flow
+        The list of flow objects connecting the processes.
+
+    Returns
+    -------
+    dict
+        A dictionary mapping each process ID to a normalized x-coordinate (0 to 1).
     """
     nodes = {p.ID for p in processes}
     if not nodes:
@@ -82,164 +88,26 @@ def _calculate_node_positions(processes, flows):
     positions = {node: 0.1 + (layers[node] / max_layer) * 0.8 for node in nodes}
     return positions
 
-def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=None):
+def _create_sankey_widgets(all_process_names, time_items, element_items, max_flow_value):
+    """Creates and returns all ipywidgets for the Sankey diagram UI.
+
+    Parameters
+    ----------
+    all_process_names : list of str
+        A list of all process names for the multi-select widget.
+    time_items : list of int
+        The list of years for the year slider.
+    element_items : list of str
+        The list of elements for the element dropdown.
+    max_flow_value : float
+        The maximum flow value in the dataset, used to set the slider range.
+
+    Returns
+    -------
+    tuple
+        A tuple of created ipywidgets: (year_slider, element_dropdown,
+        process_selector, threshold_slider).
     """
-    Enhanced interactive Sankey diagram with advanced customization options.
-    
-    Features:
-    - Color coding for process types (Regular, DSM, FOMP)
-    - Export functionality (PNG) with organized folder
-    - Professional legend
-    - Flow threshold filtering
-    - Process selection (multi-select, all selected by default)
-    - Proper zoom and frame controls
-    - Manual node positioning
-
-    Args:
-        mfa_system_results (odym.MFAsystem): The solved MFA system object.
-        dsm_params (dict, optional): DSM parameters to identify DSM processes.
-        fomp_params (dict, optional): FOMP parameters to identify FOMP processes.
-    """
-    from ipywidgets import interactive
-    
-    all_process_names = [p.Name for p in mfa_system_results.ProcessList]
-    all_flows = list(mfa_system_results.FlowDict.values())
-    time_items = mfa_system_results.IndexTable.Classification["Time"].Items
-    element_items = mfa_system_results.Elements
-
-    # Determine max flow value for slider
-    max_flow_value = (
-        max(f.Values.max() for f in all_flows if f.Values is not None)
-        if all_flows
-        else 1
-    )
-
-    # Use shiny color schemes from publication standards
-    # Process colors are now handled by get_process_color() function
-    # Element colors are now handled by get_element_color() function
-
-    # Create the FigureWidget with proper zoom controls
-    fig = go.FigureWidget(
-        data=[go.Sankey(
-            node=dict(
-                label=[],
-                color=[],
-                pad=20,
-                thickness=15,
-                line=dict(color="black", width=0.5)
-            ),
-            link=dict(
-                source=[],
-                target=[],
-                value=[],
-                color=[]
-            ),
-            arrangement="snap"
-        )]
-    )
-
-    def get_process_type(process_id):
-        """Determine process type for color coding using publication standards"""
-        return detect_biodym_process_type(process_id, dsm_params=dsm_params, fomp_params=fomp_params)
-
-    def update_sankey(year, element, processes_to_show, min_flow_value):
-        if not processes_to_show:
-            with fig.batch_update():
-                fig.data[0].node.label = []
-            return
-
-        # --- STABLE LAYOUT CALCULATION ---
-        # First, determine the stable set of processes and flows for layout
-        filtered_processes = [p for p in mfa_system_results.ProcessList if p.Name in processes_to_show]
-        process_id_map = {p.ID: i for i, p in enumerate(filtered_processes)}
-        
-        # Layout should be based on all flows between selected processes, regardless of year
-        layout_flows = [f for f in all_flows if f.P_Start in process_id_map and f.P_End in process_id_map]
-        
-        # Calculate node positions ONCE based on the stable topology
-        node_positions = _calculate_node_positions(filtered_processes, layout_flows)
-        node_x_positions = [node_positions.get(p.ID, 0.5) for p in filtered_processes]
-
-        # --- DYNAMIC VALUE FILTERING ---
-        # Now, filter flows for the specific year and value threshold for display
-        year_index = time_items.index(year)
-        element_index = element_items.index(element)
-        final_flows = [
-            f for f in layout_flows
-            if f.Values[year_index, element_index] >= min_flow_value
-        ]
-
-        with fig.batch_update():
-            # Set node properties (positions are now stable)
-            node_labels = []
-            node_colors = []
-            
-            for p in filtered_processes:
-                node_labels.append(p.Name)
-                
-                # Determine if this process has stocks
-                has_stocks = f"S_{p.ID}" in mfa_system_results.StockDict
-                is_dsm = dsm_params and p.ID in dsm_params
-                is_fomp = fomp_params and p.ID in fomp_params
-                
-                # Prioritize DSM/FOMP colors, then stock color
-                if is_dsm or is_fomp:
-                    node_colors.append(get_process_color(get_process_type(p.ID)))
-                elif has_stocks:
-                    node_colors.append(get_stock_color())
-                else:
-                    # Regular processes without stocks
-                    node_colors.append(get_process_color(get_process_type(p.ID)))
-            
-            fig.data[0].node.label = node_labels
-            fig.data[0].node.x = node_x_positions
-            fig.data[0].node.color = node_colors
-
-            if not final_flows:
-                fig.data[0].link.source = []
-                fig.data[0].link.target = []
-                fig.data[0].link.value = []
-            else:
-                # Set link properties for the visible flows
-                flow_values = [f.Values[year_index, element_index] for f in final_flows]
-                # Use shiny element colors from publication standards
-                link_colors = [get_element_color(element)] * len(final_flows)
-                # Use descriptive names if available, fallback to flow ID
-                custom_data = [getattr(f, 'DescriptiveName', f.Name) for f in final_flows]
-
-                fig.data[0].link.source = [process_id_map[f.P_Start] for f in final_flows]
-                fig.data[0].link.target = [process_id_map[f.P_End] for f in final_flows]
-                fig.data[0].link.value = flow_values
-                fig.data[0].link.color = link_colors
-                fig.data[0].link.customdata = custom_data
-                fig.data[0].link.hovertemplate = 'Flow: %{customdata}<br />Source: %{source.label}<br />Target: %{target.label}<br />Value: %{value}<extra></extra>'
-
-            # Update layout with publication standards
-            title_text = f"BioDYM Material Flow Analysis - {element.title()} ({year})"
-            layout_config = get_publication_layout(
-                size='large',
-                show_legend=False  # We have a custom legend widget
-            )
-
-            # Explicitly define title properties to ensure visibility
-            title_layout = {
-                'text': title_text,
-                'x': 0.5,
-                'xanchor': 'center',
-                'font': {
-                    'family': FONT_FAMILY,
-                    'size': FONT_SIZE['title'],
-                    'color': BIOYM_COLORS['dark']
-                }
-            }
-            
-            # Update the layout config with the explicit title
-            layout_config['title'] = title_layout
-            
-            fig.update_layout(**layout_config)
-
-
-    # Create widgets with better organization and longer sliders
     year_slider = IntSlider(
         min=time_items[0],
         max=time_items[-1],
@@ -258,7 +126,6 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
         layout=Layout(width='200px')
     )
     
-    # Multi-select process selector, all selected by default
     process_selector = SelectMultiple(
         options=all_process_names,
         value=tuple(all_process_names),
@@ -279,13 +146,22 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
         layout=Layout(width='400px')
     )
     
+    return year_slider, element_dropdown, process_selector, threshold_slider
 
+def _create_sankey_legend():
+    """Creates and returns the HTML legend widget for the Sankey diagram.
 
-    # Create legend with colors from publication style guide
+    The legend uses colors and labels defined in the publication style guide
+    to explain the color coding of the processes, stocks, and flows.
+
+    Returns
+    -------
+    ipywidgets.HTML
+        An HTML widget containing the formatted legend.
+    """
     legend_html = f"""
     <div style="margin: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9;">
         <h4 style="margin: 0 0 10px 0;">Legend</h4>
-        
         <div style="margin-bottom: 10px;">
             <strong>Processes / Stocks:</strong><br>
             <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
@@ -307,7 +183,6 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
                 </div>
             </div>
         </div>
-        
         <div>
             <strong>Flows:</strong><br>
             <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
@@ -331,11 +206,143 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
         </div>
     </div>
     """
-    
-    legend_widget = HTML(value=legend_html)
+    return HTML(value=legend_html)
 
-    # Set up interaction with all parameters
+def _prepare_sankey_node_data(filtered_processes, mfa_system_results, dsm_params, fomp_params, node_positions):
+    """Prepares the node data dictionary for the Plotly Sankey object.
+
+    Parameters
+    ----------
+    filtered_processes : list of odym.Process
+        The list of process objects to be displayed.
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object.
+    dsm_params : dict
+        DSM parameters, used to identify and color DSM processes.
+    fomp_params : dict
+        FOMP parameters, used to identify and color FOMP processes.
+    node_positions : dict
+        A dictionary mapping process IDs to their x-coordinates.
+
+    Returns
+    -------
+    dict
+        A dictionary formatted for the `node` attribute of a `go.Sankey` object.
+    """
+    node_labels = [p.Name for p in filtered_processes]
+    node_x_positions = [node_positions.get(p.ID, 0.5) for p in filtered_processes]
+    node_colors = []
+    for p in filtered_processes:
+        has_stocks = f"S_{p.ID}" in mfa_system_results.StockDict
+        is_dsm = dsm_params and p.ID in dsm_params
+        is_fomp = fomp_params and p.ID in fomp_params
+        if is_dsm or is_fomp:
+            node_colors.append(get_process_color(detect_biodym_process_type(p.ID, dsm_params=dsm_params, fomp_params=fomp_params)))
+        elif has_stocks:
+            node_colors.append(get_stock_color())
+        else:
+            node_colors.append(get_process_color(detect_biodym_process_type(p.ID, dsm_params=dsm_params, fomp_params=fomp_params)))
+    return dict(label=node_labels, x=node_x_positions, color=node_colors, pad=20, thickness=15, line=dict(color="black", width=0.5))
+
+def _prepare_sankey_link_data(final_flows, process_id_map, year_index, element_index, element):
+    """Prepares the link data dictionary for the Plotly Sankey object.
+
+    Parameters
+    ----------
+    final_flows : list of odym.Flow
+        The list of flow objects to be displayed after filtering.
+    process_id_map : dict
+        A mapping of process IDs to their index in the node list.
+    year_index : int
+        The index of the currently selected year.
+    element_index : int
+        The index of the currently selected element.
+    element : str
+        The name of the currently selected element.
+
+    Returns
+    -------
+    dict
+        A dictionary formatted for the `link` attribute of a `go.Sankey` object.
+    """
+    if not final_flows:
+        return dict(source=[], target=[], value=[])
+
+    flow_values = [f.Values[year_index, element_index] for f in final_flows]
+    link_colors = [get_element_color(element)] * len(final_flows)
+    custom_data = [getattr(f, 'DescriptiveName', f.Name) for f in final_flows]
+
+    return dict(
+        source=[process_id_map[f.P_Start] for f in final_flows],
+        target=[process_id_map[f.P_End] for f in final_flows],
+        value=flow_values,
+        color=link_colors,
+        customdata=custom_data,
+        hovertemplate='Flow: %{customdata}<br />Source: %{source.label}<br />Target: %{target.label}<br />Value: %{value}<extra></extra>'
+    )
+
+def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=None):
+    """Displays a fully interactive Sankey diagram for MFA results.
+
+    This function constructs a user interface using ipywidgets that allows for
+    dynamic exploration of the MFA results. Users can filter by year, element,
+    processes to display, and a minimum flow value threshold.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object containing all calculated data.
+    dsm_params : dict, optional
+        DSM parameters, used to identify and color DSM processes.
+        Default is None.
+    fomp_params : dict, optional
+        FOMP parameters, used to identify and color FOMP processes.
+        Default is None.
+    """
+    from ipywidgets import interactive
     
+    all_process_names = [p.Name for p in mfa_system_results.ProcessList]
+    all_flows = list(mfa_system_results.FlowDict.values())
+    time_items = mfa_system_results.IndexTable.Classification["Time"].Items
+    element_items = mfa_system_results.Elements
+
+    max_flow_value = max(f.Values.max() for f in all_flows if f.Values is not None) if all_flows else 1
+
+    fig = go.FigureWidget(
+        data=[go.Sankey(node={}, link={}, arrangement="snap")]
+    )
+
+    def update_sankey(year, element, processes_to_show, min_flow_value):
+        if not processes_to_show:
+            with fig.batch_update():
+                fig.data[0].node.label = []
+            return
+
+        filtered_processes = [p for p in mfa_system_results.ProcessList if p.Name in processes_to_show]
+        process_id_map = {p.ID: i for i, p in enumerate(filtered_processes)}
+        
+        layout_flows = [f for f in all_flows if f.P_Start in process_id_map and f.P_End in process_id_map]
+        node_positions = _calculate_node_positions(filtered_processes, layout_flows)
+
+        year_index = time_items.index(year)
+        element_index = element_items.index(element)
+        final_flows = [f for f in layout_flows if f.Values[year_index, element_index] >= min_flow_value]
+
+        with fig.batch_update():
+            fig.data[0].node = _prepare_sankey_node_data(filtered_processes, mfa_system_results, dsm_params, fomp_params, node_positions)
+            fig.data[0].link = _prepare_sankey_link_data(final_flows, process_id_map, year_index, element_index, element)
+
+            title_text = f"BioDYM Material Flow Analysis - {element.title()} ({year})"
+            layout_config = get_publication_layout(size='large', show_legend=False)
+            title_layout = {'text': title_text, 'x': 0.5, 'xanchor': 'center', 'font': {'family': FONT_FAMILY, 'size': FONT_SIZE['title'], 'color': BIOYM_COLORS['dark']}}
+            layout_config['title'] = title_layout
+            fig.update_layout(**layout_config)
+
+    year_slider, element_dropdown, process_selector, threshold_slider = _create_sankey_widgets(
+        all_process_names, time_items, element_items, max_flow_value
+    )
+    legend_widget = _create_sankey_legend()
+
     ui = VBox([
         HBox([year_slider, element_dropdown]),
         HBox([process_selector, threshold_slider]),
