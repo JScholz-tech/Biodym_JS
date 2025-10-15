@@ -794,7 +794,7 @@ def load_uncertainty_definitions(excel_data):
 
     for _, row in df_uncertainty.iterrows():
         param_name = row["Parameter_Name"]
-        dist_type = row["Distribution"].lower()
+        dist_type = row["Distribution_Type"].lower()
         definition = {"distribution": dist_type}
 
         if dist_type == "uniform":
