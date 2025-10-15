@@ -15,15 +15,21 @@ import data_loader
 from utils import sample_parameters
 
 def validate_mc_parameters(mc_params_df, mfa_system):
-    """
-    Validates MC parameters to ensure mass balance and prevent conflicts.
-    
-    Args:
-        mc_params_df (pd.DataFrame): MC parameters from Excel
-        mfa_system (odym.MFAsystem): The MFA system to validate against
-        
-    Returns:
-        tuple: (validated_params_df, warnings_list)
+    """Validates Monte Carlo parameters to ensure mass balance and prevent conflicts.
+
+    Parameters
+    ----------
+    mc_params_df : pd.DataFrame
+        DataFrame of Monte Carlo parameters loaded from Excel.
+    mfa_system : odym.MFAsystem
+        The MFA system to validate against.
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - validated_params_df (pd.DataFrame): The validated parameters DataFrame.
+        - warnings (list): A list of warning strings for any issues found.
     """
     warnings = []
     validated_params = mc_params_df.copy()
@@ -63,15 +69,19 @@ def validate_mc_parameters(mc_params_df, mfa_system):
     return validated_params, warnings
 
 def apply_fomp_parameter_updates(fomp_params, sampled_params):
-    """
-    Apply Monte Carlo sampled parameters to FOMP processes.
-    
-    Args:
-        fomp_params (dict): Original FOMP parameters by process ID
-        sampled_params (dict): Sampled parameters from Monte Carlo
-        
-    Returns:
-        dict: Updated FOMP parameters with sampled values
+    """Applies Monte Carlo sampled parameter values to FOMP processes.
+
+    Parameters
+    ----------
+    fomp_params : dict
+        The original FOMP parameters dictionary, keyed by process ID.
+    sampled_params : dict
+        A dictionary of parameter values sampled for a single MC iteration.
+
+    Returns
+    -------
+    dict
+        An updated copy of the FOMP parameters dictionary with sampled values applied.
     """
     updated_fomp_params = copy.deepcopy(fomp_params)
     
@@ -99,17 +109,28 @@ def apply_fomp_parameter_updates(fomp_params, sampled_params):
     return updated_fomp_params
 
 def normalize_tcs_for_process(mfa_system, process_id, varied_tc_name, varied_tc_value):
-    """
-    Ensures all TCs for a process sum to 1.0 by normalizing them.
-    
-    Args:
-        mfa_system (odym.MFAsystem): The MFA system
-        process_id (int): Process ID to normalize
-        varied_tc_name (str): Name of the TC that was varied
-        varied_tc_value (float): New value for the varied TC
-        
-    Returns:
-        dict: Dictionary of normalized TC values
+    """Ensures all transfer coefficients (TCs) for a process sum to 1.0.
+
+    When a single TC for a multi-output process is varied in a Monte Carlo
+    simulation, the other TCs for that process must be adjusted to maintain
+    a mass balance (i.e., they must all sum to 1.0). This function
+    normalizes the TCs to enforce this constraint.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The MFA system object.
+    process_id : int
+        The ID of the process whose TCs need to be normalized.
+    varied_tc_name : str
+        The name of the TC that was just varied by the MC sampler.
+    varied_tc_value : float
+        The new value for the varied TC.
+
+    Returns
+    -------
+    dict
+        A dictionary of all TC names for the process and their new, normalized values.
     """
     # Get all flows for this process
     process_flows = [f for f in mfa_system.FlowDict.values() if f.P_Start == process_id]
@@ -155,31 +176,112 @@ def normalize_tcs_for_process(mfa_system, process_id, varied_tc_name, varied_tc_
         
         return normalized_tcs
 
+def _run_single_mc_iteration(iteration_num, mfa_system_setup, uncertainty_params, fomp_params, config, flow_tc_map, process_logic_map, tc_info_map):
+    """Runs a single iteration of the Monte Carlo simulation.
+
+    This function samples all stochastic parameters, applies them to the system,
+    runs the solver, and collects the results for this single iteration.
+
+    Parameters
+    ----------
+    iteration_num : int
+        The current iteration number (e.g., 1, 2, 3...).
+    mfa_system_setup : odym.MFAsystem
+        A clean, configured MFA system to use as a base.
+    uncertainty_params : dict
+        The dictionary of uncertainty definitions.
+    fomp_params : dict
+        Configuration dictionary for FOMP processes.
+    config : object
+        The main configuration object.
+    flow_tc_map : dict
+        A map from Flow_IDs to their TC_IDs.
+    process_logic_map : dict
+        A map from Process_IDs to their logic.
+    tc_info_map : dict
+        A map containing information about TC relationships.
+
+    Returns
+    -------
+    dict
+        A dictionary containing all the results for this single iteration.
+    """
+    # --- 3a. Sample parameters ---
+    sampled_params = sample_parameters(uncertainty_params)
+    tc_updates = sampled_params.copy()
+
+    # --- 3b. Apply FOMP parameter updates ---
+    updated_fomp_params = apply_fomp_parameter_updates(fomp_params, sampled_params)
+
+    # --- 3c. Propagate Splitter Uncertainty ---
+    for param_name, sample_value in sampled_params.items():
+        if param_name in tc_info_map:
+            info = tc_info_map[param_name]
+            process_id = info['process_id']
+            logic = process_logic_map.get(process_id)
+
+            if logic == 'Splitter':
+                # For a splitter, apply the sampled value to all sibling TCs
+                for sibling_tc in info['sibling_tcs']:
+                    tc_updates[sibling_tc] = sample_value
+
+    # --- 3d. Run Solver ---
+    mfa_system_run, _ = solver.run_mfa_calculation(
+        mfa_system_setup,
+        {},  # dsm_params are not used in MC, can be empty
+        updated_fomp_params,  # Use updated FOMP parameters
+        config,
+        flow_tc_map=flow_tc_map,
+        process_logic_map=process_logic_map,
+        tc_updates=tc_updates,
+    )
+
+    # --- 3e. Collect Results ---
+    iteration_results = {"iteration": iteration_num}
+    for param, value in tc_updates.items():
+        iteration_results[f"{param}_sample"] = value
+    
+    for stock in mfa_system_run.StockDict.values():
+        for i_elem, element_name in enumerate(mfa_system_run.Elements):
+            iteration_results[f"{stock.Name}_{element_name}"] = stock.Values[-1, i_elem]
+            iteration_results[f"{stock.Name}_{element_name}_timeseries"] = stock.Values[:, i_elem].tolist()
+    
+    return iteration_results
+
 def run_mc_simulation(
     mfa_system_setup, input_data, dsm_params, fomp_params, config, process_logic_map, flow_tc_map
 ):
-    """
-    Runs a Monte Carlo simulation by repeatedly sampling parameters and running
-    the MFA calculation.
+    """Runs a Monte Carlo simulation by repeatedly sampling parameters.
 
-    Args:
-        mfa_system_setup (odym.MFAsystem): A fully configured but unsolved MFA system.
-        input_data (dict): The complete dictionary of data from the Excel file.
-        dsm_params (dict): Configuration dictionary for DSM processes.
-        fomp_params (dict): Configuration dictionary for FOMP processes.
-        config (object): The configuration object with simulation settings.
-        process_logic_map (dict): A map from process ID to its logic ('Splitter'/'Transformer').
+    This function orchestrates the Monte Carlo simulation. It sets up the
+    configuration, builds lookup maps, and then calls a helper function
+    in a loop to run each iteration.
 
-    Returns:
-        pd.DataFrame: A DataFrame containing the results of all Monte Carlo iterations.
+    Parameters
+    ----------
+    mfa_system_setup : odym.MFAsystem
+        A fully configured but unsolved MFA system.
+    input_data : dict
+        The complete dictionary of data from the Excel file.
+    dsm_params : dict
+        Configuration dictionary for DSM processes.
+    fomp_params : dict
+        Configuration dictionary for FOMP processes.
+    config : object
+        The configuration object with simulation settings.
+    process_logic_map : dict
+        A map from process ID to its logic ('Splitter'/'Transformer').
+    flow_tc_map : dict
+        A map from Flow_IDs to their TC_IDs.
+
+    Returns
+    -------
+    pd.DataFrame or None
+        A DataFrame containing the results of all Monte Carlo iterations, or
+        None if no uncertainty parameters are defined.
     """
     # --- 1. Configuration ---
-    n_iterations = getattr(config, 'MC_ITERATIONS', None)
-    if n_iterations is None:
-        print("⚠️ WARNING: MC_ITERATIONS not found in configuration!")
-        print("   Please set 'Monte Carlo Iterations' in the Excel configuration sheet.")
-        print("   Using default value of 100 iterations.")
-        n_iterations = 100
+    n_iterations = getattr(config, 'MC_ITERATIONS', 100)
     uncertainty_params = data_loader.load_uncertainty_definitions(input_data)
 
     if not uncertainty_params:
@@ -189,25 +291,15 @@ def run_mc_simulation(
     print(f"\n[MC] Running Monte Carlo simulation with {n_iterations} iterations...")
 
     # --- 2. Build maps for efficient lookup ---
-    # Map TC names back to their process ID and get all TC names for a flow
     tc_info_map = {}
     static_tc_defs = input_data.get('2_2_static_TCs')
     if static_tc_defs is not None:
         for _, row in static_tc_defs.iterrows():
             process_id = row.get('Process_ID')
-            material_tc = row.get('TC_material_ID')
-            if pd.notna(process_id) and pd.notna(material_tc):
-                all_tcs = [
-                    row.get(f'TC_{elem}_ID')
-                    for elem in mfa_system_setup.Elements
-                    if f'TC_{elem}_ID' in row and pd.notna(row.get(f'TC_{elem}_ID'))
-                ]
-                # For any TC name in this flow, we can find its process and sibling TCs
+            if pd.notna(process_id):
+                all_tcs = [row.get(f'TC_{elem}_ID') for elem in mfa_system_setup.Elements if f'TC_{elem}_ID' in row and pd.notna(row.get(f'TC_{elem}_ID'))]
                 for tc_name in all_tcs:
-                    tc_info_map[tc_name] = {
-                        'process_id': int(process_id),
-                        'sibling_tcs': all_tcs,
-                    }
+                    tc_info_map[tc_name] = {'process_id': int(process_id), 'sibling_tcs': all_tcs}
 
     # --- 3. Main Simulation Loop ---
     results_list = []
@@ -216,53 +308,11 @@ def run_mc_simulation(
     for i in range(n_iterations):
         if (i + 1) % 10 == 0:
             print(f"  ... iteration {i + 1}/{n_iterations}")
-
-        # --- 3a. Sample parameters ---
-        sampled_params = sample_parameters(uncertainty_params)
-        tc_updates = sampled_params.copy()
-
-        # --- 3b. Apply FOMP parameter updates ---
-        updated_fomp_params = apply_fomp_parameter_updates(fomp_params, sampled_params)
-
-        # --- 3c. Propagate Splitter Uncertainty ---
-        for param_name, sample_value in sampled_params.items():
-            if param_name in tc_info_map:
-                info = tc_info_map[param_name]
-                process_id = info['process_id']
-                logic = process_logic_map.get(process_id)
-
-                if logic == 'Splitter':
-                    # For a splitter, apply the sampled value to all sibling TCs
-                    for sibling_tc in info['sibling_tcs']:
-                        tc_updates[sibling_tc] = sample_value
-
-        # --- 3d. Run Solver ---
-        mfa_system_run, _ = solver.run_mfa_calculation(
-            mfa_system_setup,
-            dsm_params,
-            updated_fomp_params,  # Use updated FOMP parameters
-            config,
-            flow_tc_map=flow_tc_map, # Pass the map from the setup system
-            process_logic_map=process_logic_map,
-            tc_updates=tc_updates,
+        
+        iteration_results = _run_single_mc_iteration(
+            i + 1, mfa_system_setup, uncertainty_params, fomp_params, config, 
+            flow_tc_map, process_logic_map, tc_info_map
         )
-
-        # --- 3e. Collect Results ---
-        iteration_results = {"iteration": i + 1}
-        for param, value in tc_updates.items():
-            iteration_results[f"{param}_sample"] = value
-        
-        # Collect final year values (for histograms and tornado plots)
-        for stock in mfa_system_run.StockDict.values():
-            for i_elem, element_name in enumerate(mfa_system_run.Elements):
-                iteration_results[f"{stock.Name}_{element_name}"] = stock.Values[-1, i_elem]  # Final year, all element values
-        
-        # Collect full time series data (for paths visualization)
-        for stock in mfa_system_run.StockDict.values():
-            for i_elem, element_name in enumerate(mfa_system_run.Elements):
-                # Store time series as a list for this iteration
-                iteration_results[f"{stock.Name}_{element_name}_timeseries"] = stock.Values[:, i_elem].tolist()
-        
         results_list.append(iteration_results)
 
     print("[MC] Simulation finished.")
