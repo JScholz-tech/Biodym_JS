@@ -25,20 +25,35 @@ def run_scenario_analysis(
     flow_tc_map,
     process_logic_map
 ) -> Tuple[Dict, Dict]:
-    """
-    Runs scenario analysis based on configuration settings.
-    
-    Args:
-        config_obj: Configuration object with scenario settings
-        mfa_system_configured: Configured MFA system (baseline)
-        all_excel_data: Complete Excel data dictionary
-        dsm_params: DSM parameters dictionary
-        fomp_params: FOMP parameters dictionary
-        flow_tc_map: Flow to TC mapping dictionary
-        process_logic_map: Process logic mapping dictionary
-        
-    Returns:
-        Tuple[Dict, Dict]: (all_scenario_results, scenario_definitions)
+    """Orchestrates the entire scenario analysis process.
+
+    This function checks if scenario analysis is enabled in the configuration,
+    loads the scenario definitions from the Excel file, and then calls a helper
+    function to run each selected scenario in a loop.
+
+    Parameters
+    ----------
+    config_obj : object
+        The main configuration object with global settings.
+    mfa_system_configured : odym.MFAsystem
+        A fully configured but unsolved MFA system to use as a baseline.
+    all_excel_data : dict
+        A dictionary of DataFrames for each sheet in the Excel file.
+    dsm_params : dict
+        Configuration dictionary for DSM processes.
+    fomp_params : dict
+        Configuration dictionary for FOMP processes.
+    flow_tc_map : dict
+        A map from Flow_IDs to their TC_IDs.
+    process_logic_map : dict
+        A map from Process_IDs to their logic string.
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - all_scenario_results (dict): A dictionary of solved MFA system objects for each scenario.
+        - scenario_definitions (dict): The raw scenario definition rules from Excel.
     """
     print("\n" + "="*60)
     print("🎭 SCENARIO ANALYSIS ENGINE")
@@ -83,14 +98,21 @@ def run_scenario_analysis(
 
 
 def _extract_scenario_names(config_obj) -> List[str]:
-    """
-    Extract scenario names from configuration object.
-    
-    Args:
-        config_obj: Configuration object
-        
-    Returns:
-        List[str]: List of scenario names to run
+    """Extracts the list of scenarios to run from the configuration object.
+
+    This function checks for attributes like `Selected_Scenario_Name_1`,
+    `Selected_Scenario_Name_2`, etc., in the configuration object to build
+    the list of scenarios that the user has chosen to run.
+
+    Parameters
+    ----------
+    config_obj : object
+        The main configuration object loaded from Excel.
+
+    Returns
+    -------
+    list of str
+        A list of scenario names to be executed.
     """
     scenario_names_to_run = []
     for i in range(1, 10):  # Check for up to 9 scenarios
@@ -124,21 +146,36 @@ def _run_single_scenario(
     flow_tc_map: Dict,
     process_logic_map: Dict
 ) -> Optional[object]:
-    """
-    Run a single scenario calculation.
-    
-    Args:
-        scenario_name: Name of the scenario to run
-        scenario_definitions: Dictionary of all scenario definitions
-        mfa_system_configured: Configured MFA system (baseline)
-        config_obj: Configuration object
-        dsm_params: DSM parameters dictionary
-        fomp_params: FOMP parameters dictionary
-        flow_tc_map: Flow to TC mapping dictionary
-        process_logic_map: Process logic mapping dictionary
-        
-    Returns:
-        MFA system results object or None if scenario not found
+    """Runs the MFA calculation for a single, specified scenario.
+
+    This function creates a deep copy of the baseline MFA system, applies the
+    specific parameter modifications for the given scenario, and then runs
+    the iterative solver.
+
+    Parameters
+    ----------
+    scenario_name : str
+        The name of the scenario to run.
+    scenario_definitions : dict
+        A dictionary containing the rules for all available scenarios.
+    mfa_system_configured : odym.MFAsystem
+        The baseline, configured MFA system to use as a template.
+    config_obj : object
+        The main configuration object.
+    dsm_params : dict
+        Configuration dictionary for DSM processes.
+    fomp_params : dict
+        Configuration dictionary for FOMP processes.
+    flow_tc_map : dict
+        A map from Flow_IDs to their TC_IDs.
+    process_logic_map : dict
+        A map from Process_IDs to their logic string.
+
+    Returns
+    -------
+    odym.MFAsystem or None
+        The solved MFA system object for the scenario, or None if the
+        scenario calculation fails.
     """
     print("\n" + "="*60)
     print(f"🎭 RUNNING SCENARIO: '{scenario_name}'")
@@ -186,13 +223,20 @@ def generate_scenario_comparison_visualizations(
     all_scenario_results: Dict,
     scenario_definitions: Dict
 ) -> None:
-    """
-    Generate comparative visualizations for scenario analysis.
-    
-    Args:
-        baseline_results: Baseline MFA system results
-        all_scenario_results: Dictionary of scenario results
-        scenario_definitions: Dictionary of scenario definitions
+    """Generates and displays a suite of comparative scenario visualizations.
+
+    This function calls various plotting functions from the `plotting` module
+    to create charts that compare the baseline results against all calculated
+    scenarios.
+
+    Parameters
+    ----------
+    baseline_results : odym.MFAsystem
+        The solved MFA system object for the baseline run.
+    all_scenario_results : dict
+        A dictionary of solved MFA system objects for each scenario.
+    scenario_definitions : dict
+        A dictionary containing the rules for all available scenarios.
     """
     if not all_scenario_results:
         print("ℹ️ No scenario results available for visualization.")
@@ -245,13 +289,17 @@ def export_scenario_results(
     scenario_definitions: Dict,
     output_dir: str = "01_data/02_output/scenario_output"
 ) -> None:
-    """
-    Export scenario results to Excel files.
-    
-    Args:
-        all_scenario_results: Dictionary of scenario results
-        scenario_definitions: Dictionary of scenario definitions
-        output_dir: Output directory for results
+    """Exports the results of each scenario to a separate Excel file.
+
+    Parameters
+    ----------
+    all_scenario_results : dict
+        A dictionary of solved MFA system objects for each scenario.
+    scenario_definitions : dict
+        A dictionary containing the rules for all available scenarios.
+    output_dir : str, optional
+        The directory where the result files will be saved.
+        Default is "01_data/02_output/scenario_output".
     """
     if not all_scenario_results:
         print("ℹ️ No scenario results to export.")
@@ -291,15 +339,19 @@ def get_scenario_summary(
     all_scenario_results: Dict,
     scenario_definitions: Dict
 ) -> pd.DataFrame:
-    """
-    Generate a summary DataFrame comparing key metrics across scenarios.
-    
-    Args:
-        all_scenario_results: Dictionary of scenario results
-        scenario_definitions: Dictionary of scenario definitions
-        
-    Returns:
-        pd.DataFrame: Summary comparison of scenarios
+    """Generates a summary DataFrame comparing key metrics across scenarios.
+
+    Parameters
+    ----------
+    all_scenario_results : dict
+        A dictionary of solved MFA system objects for each scenario.
+    scenario_definitions : dict
+        A dictionary containing the rules for all available scenarios.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame where each row summarizes a scenario with key metrics.
     """
     if not all_scenario_results:
         return pd.DataFrame()
