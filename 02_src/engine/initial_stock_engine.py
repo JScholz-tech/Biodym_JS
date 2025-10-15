@@ -13,26 +13,28 @@ import numpy as np
 import pandas as pd
 import sys
 
-sys.path.insert(
-    0,
-    r"C:\Users\Johannes\Nextcloud\BioDYM\bioDYM-CERT-edit-main\framework\ODYM-master_20241127\odym\modules",
-)
+
 
 import ODYM_Classes as msc
 
 
 def load_initial_stock_parameters(excel_data):
-    """
-    Loads initial stock configuration from the long table format.
-    
-    Expected structure:
-    Process_ID | Parameter_Name | Parameter_Value | Unit | Destination_Process | Destination_Flow | Notes
-    
-    Args:
-        excel_data (dict): Dictionary of DataFrames from Excel.
-        
-    Returns:
-        dict: Dictionary with initial stock configurations per process.
+    """Loads and parses initial stock configurations from the Excel file.
+
+    This function reads the '2_4_Initial_Stock' sheet, which is expected
+    to be in a long-table format. It groups parameters by Process_ID and
+    parses them into a structured dictionary for each process.
+
+    Parameters
+    ----------
+    excel_data : dict
+        A dictionary of DataFrames, where keys are sheet names.
+
+    Returns
+    -------
+    dict
+        A dictionary where keys are process IDs and values are the parsed
+        initial stock configuration dictionaries for that process.
     """
     sheet_name = "2_4_Initial_Stock"
     print(f"--> Loading initial stock parameters from sheet '{sheet_name}'...")
@@ -143,14 +145,17 @@ def load_initial_stock_parameters(excel_data):
 
 
 def _validate_initial_stock_config(config):
-    """
-    Validates an initial stock configuration.
-    
-    Args:
-        config (dict): Initial stock configuration dictionary.
-        
-    Returns:
-        bool: True if valid, False otherwise.
+    """Validates a single initial stock configuration dictionary.
+
+    Parameters
+    ----------
+    config : dict
+        The initial stock configuration dictionary for a single process.
+
+    Returns
+    -------
+    bool
+        True if the configuration is valid, False otherwise.
     """
     # Check if we have at least the material amount
     if "Initial_Stock_material" not in config["initial_stock_values"]:
@@ -167,15 +172,23 @@ def _validate_initial_stock_config(config):
 
 
 def apply_initial_stock_values(mfa_system, initial_stock_configs):
-    """
-    Applies initial stock values to the MFA system.
-    
-    Args:
-        mfa_system (odym.MFAsystem): The MFA system object.
-        initial_stock_configs (dict): Initial stock configurations.
-        
-    Returns:
-        odym.MFAsystem: Modified MFA system with initial stock values set.
+    """Applies the parsed initial stock values to the MFA system object.
+
+    This function takes the parsed configurations and sets the stock values
+    for the first time step (t=0) in the corresponding stock objects within
+    the MFA system.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The MFA system object to be modified.
+    initial_stock_configs : dict
+        A dictionary of initial stock configurations, keyed by process ID.
+
+    Returns
+    -------
+    odym.MFAsystem
+        The modified MFA system with initial stock values set.
     """
     print("--> Applying initial stock values...")
     
@@ -198,14 +211,21 @@ def apply_initial_stock_values(mfa_system, initial_stock_configs):
 
 
 def _calculate_initial_stock_values(stock_values):
-    """
-    Calculates the initial stock vector from parameter values.
-    
-    Args:
-        stock_values (dict): Dictionary of stock parameter values.
-        
-    Returns:
-        np.array: Initial stock vector [material, WC, DM, CC].
+    """Calculates the elemental composition of an initial stock.
+
+    Based on the material quantity and content percentages, this function
+    returns a vector with the calculated mass for each element.
+
+    Parameters
+    ----------
+    stock_values : dict
+        A dictionary of initial stock parameter values for one process,
+        e.g., {"Initial_Stock_material": 100, "Initial_Stock_WC[%]": 10}.
+
+    Returns
+    -------
+    np.ndarray
+        A 1D NumPy array representing the initial stock vector for all elements.
     """
     # Default values
     material = stock_values.get("Initial_Stock_material", 0.0)
@@ -222,19 +242,23 @@ def _calculate_initial_stock_values(stock_values):
 
 
 def process_initial_stock_outflows(mfa_system, initial_stock_configs):
-    """
-    Processes initial stock outflows with multiple destinations and splits.
-    
-    This function creates the outflow flows but does NOT set their values.
-    The values are set during solver iterations to ensure proper integration
-    with splitter and transformer logic.
-    
-    Args:
-        mfa_system (odym.MFAsystem): The MFA system object.
-        initial_stock_configs (dict): Initial stock configurations.
-        
-    Returns:
-        odym.MFAsystem: Modified MFA system with stock outflow flows created.
+    """Processes and creates the outflow flows from initial stocks.
+
+    This function reads the outflow configurations (e.g., consumption rates,
+    splits) and creates the necessary `Flow` objects in the MFA system.
+    It does not calculate the flow values, which is handled by the solver.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The MFA system object to be modified.
+    initial_stock_configs : dict
+        A dictionary of initial stock configurations, keyed by process ID.
+
+    Returns
+    -------
+    odym.MFAsystem
+        The modified MFA system with new outflow objects added.
     """
     print("--> Processing initial stock outflows...")
     
@@ -264,17 +288,23 @@ def process_initial_stock_outflows(mfa_system, initial_stock_configs):
 
 
 def _create_outflow_flows(mfa_system, process_id, outflow_configs, initial_stock):
-    """
-    Creates outflow flows for a process based on its configuration.
-    
-    Args:
-        mfa_system (odym.MFAsystem): The MFA system object.
-        process_id (int): Process ID.
-        outflow_configs (list): List of outflow configurations.
-        initial_stock (np.array): Initial stock vector.
-        
-    Returns:
-        list: List of created flow objects.
+    """Creates all outflow flow objects for a single process's initial stock.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The MFA system object.
+    process_id : int
+        The ID of the process owning the initial stock.
+    outflow_configs : list
+        A list of outflow configuration dictionaries for this process.
+    initial_stock : np.ndarray
+        The initial stock vector for the process.
+
+    Returns
+    -------
+    list
+        A list of the newly created `odym.Flow` objects.
     """
     outflow_flows = []
     
@@ -318,24 +348,34 @@ def _create_outflow_flows(mfa_system, process_id, outflow_configs, initial_stock
 
 
 def _create_single_outflow_flow(mfa_system, flow_name, process_id, destination_process, initial_stock, consumption_rate, split_fraction=1.0):
-    """
-    Creates a single outflow flow from initial stock.
-    
-    This function creates the flow structure but does NOT set values.
-    Values are set during solver iterations to ensure proper integration
-    with splitter and transformer logic.
-    
-    Args:
-        mfa_system (odym.MFAsystem): The MFA system object.
-        flow_name (str): Name of the flow.
-        process_id (int): Source process ID.
-        destination_process (int): Destination process ID.
-        initial_stock (np.array): Initial stock vector.
-        consumption_rate (float): Annual consumption rate.
-        split_fraction (float): Fraction of total outflow for this destination.
-        
-    Returns:
-        odym.Flow: Created flow object or None if creation failed.
+    """Creates and configures a single outflow flow from an initial stock.
+
+    This function creates the `Flow` object if it doesn't exist and attaches the
+    initial stock configuration to it. This configuration is later used by the
+    solver to calculate the flow's values during each iteration.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The MFA system object.
+    flow_name : str
+        The name/ID for the new flow.
+    process_id : int
+        The ID of the source process (where the stock is).
+    destination_process : int
+        The ID of the destination process for the outflow.
+    initial_stock : np.ndarray
+        The initial stock vector of the source process.
+    consumption_rate : float
+        The annual consumption rate of the stock.
+    split_fraction : float, optional
+        The fraction of the total outflow directed to this specific flow.
+        Default is 1.0.
+
+    Returns
+    -------
+    odym.Flow or None
+        The created and configured `odym.Flow` object, or None if creation fails.
     """
     # Create flow if it doesn't exist
     if flow_name not in mfa_system.FlowDict:
@@ -367,15 +407,19 @@ def _create_single_outflow_flow(mfa_system, flow_name, process_id, destination_p
 
 
 def calculate_initial_stock_balances(mfa_system, initial_stock_configs):
-    """
-    Calculates stock balances for processes with initial stocks.
-    
-    Args:
-        mfa_system (odym.MFAsystem): The MFA system object.
-        initial_stock_configs (dict): Initial stock configurations.
-        
-    Returns:
-        odym.MFAsystem: Modified MFA system with updated stock balances.
+    """Calculates the time-series stock balance for processes with initial stocks.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The MFA system object.
+    initial_stock_configs : dict
+        A dictionary of initial stock configurations, keyed by process ID.
+
+    Returns
+    -------
+    odym.MFAsystem
+        The modified MFA system with updated stock balance time-series.
     """
     print("--> Calculating initial stock balances...")
     
@@ -406,18 +450,21 @@ def calculate_initial_stock_balances(mfa_system, initial_stock_configs):
 
 
 def update_initial_stock_flows_during_solver(mfa_system):
-    """
-    Updates initial stock outflow flows during solver iterations.
-    
-    This function is called during each solver iteration to ensure
-    initial stock outflows are properly integrated with splitter
-    and transformer logic.
-    
-    Args:
-        mfa_system (odym.MFAsystem): The MFA system object.
-        
-    Returns:
-        odym.MFAsystem: Modified MFA system with updated initial stock flows.
+    """Updates the values of initial stock outflow flows during solver iterations.
+
+    This function is called during each solver iteration to calculate and set
+    the values for flows originating from initial stocks, based on the
+    configuration attached to the flow object.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The MFA system object.
+
+    Returns
+    -------
+    odym.MFAsystem
+        The modified MFA system with updated initial stock flow values.
     """
     if not hasattr(mfa_system, 'initial_stock_outflows'):
         return mfa_system
@@ -440,15 +487,19 @@ def update_initial_stock_flows_during_solver(mfa_system):
 
 
 def get_initial_stock_summary(mfa_system, initial_stock_configs):
-    """
-    Generates a summary of initial stock configurations and results.
-    
-    Args:
-        mfa_system (odym.MFAsystem): The MFA system object.
-        initial_stock_configs (dict): Initial stock configurations.
-        
-    Returns:
-        dict: Summary dictionary with key statistics.
+    """Generates a summary dictionary of initial stock configurations and results.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The solved MFA system object.
+    initial_stock_configs : dict
+        A dictionary of initial stock configurations, keyed by process ID.
+
+    Returns
+    -------
+    dict
+        A summary dictionary containing key statistics about the initial stocks.
     """
     summary = {
         "total_processes": len(initial_stock_configs),
