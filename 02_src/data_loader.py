@@ -91,15 +91,23 @@ SHEET_NAME_MAPPING = {
 
 
 def normalize_column_names(df, sheet_name):
-    """
-    Normalizes column names in a DataFrame based on the column mapping.
-    
-    Args:
-        df (pd.DataFrame): The DataFrame to normalize
-        sheet_name (str): The name of the sheet
-        
-    Returns:
-        pd.DataFrame: DataFrame with normalized column names
+    """Normalizes column names in a DataFrame based on a predefined mapping.
+
+    This function checks for a mapping for the given sheet name in the global
+    COLUMN_NAME_MAPPING constant and applies it. This allows for backward
+    compatibility with older Excel template versions.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The DataFrame whose columns are to be normalized.
+    sheet_name : str
+        The name of the sheet the DataFrame was read from.
+
+    Returns
+    -------
+    pd.DataFrame
+        A new DataFrame with normalized column names.
     """
     if sheet_name in COLUMN_NAME_MAPPING:
         mapping = COLUMN_NAME_MAPPING[sheet_name]
@@ -108,14 +116,21 @@ def normalize_column_names(df, sheet_name):
 
 
 def normalize_sheet_names(excel_data_dict):
-    """
-    Normalizes sheet names in the Excel data dictionary.
-    
-    Args:
-        excel_data_dict (dict): Dictionary of DataFrames from Excel
-        
-    Returns:
-        dict: Dictionary with normalized sheet names
+    """Normalizes sheet and column names in the Excel data dictionary.
+
+    Iterates through a dictionary of DataFrames, first normalizing the sheet name
+    (the dictionary key) and then normalizing the column names of the DataFrame
+    itself.
+
+    Parameters
+    ----------
+    excel_data_dict : dict
+        A dictionary where keys are sheet names and values are pandas DataFrames.
+
+    Returns
+    -------
+    dict
+        A new dictionary with both sheet names and column names normalized.
     """
     normalized_data = {}
     for sheet_name, df in excel_data_dict.items():
@@ -131,13 +146,21 @@ def normalize_sheet_names(excel_data_dict):
 
 
 def validate_input_data(excel_data_dict):
-    """
-    Checks if the loaded Excel data has the expected structure.
-    Raises a ValueError with a clear error message if something is missing.
+    """Checks if the loaded Excel data has the minimum required structure.
 
-    Args:
-        excel_data_dict (dict): A dictionary where keys are sheet names and
-                                values are pandas DataFrames.
+    This function validates that all essential sheets and columns, as defined
+    in the `REQUIRED_STRUCTURE` constant, are present in the input data.
+    It provides clear error messages if a required item is missing.
+
+    Parameters
+    ----------
+    excel_data_dict : dict
+        A dictionary where keys are sheet names and values are pandas DataFrames.
+
+    Raises
+    ------
+    ValueError
+        If a required sheet or column is not found in the input data.
     """
     print("--> Validating input data structure...")
 
@@ -202,11 +225,21 @@ def validate_input_data(excel_data_dict):
 
 
 def validate_process_logic(excel_data):
-    """
-    Validates that processes with Input/Output logic are configured correctly.
-    
-    Args:
-        excel_data (dict): Dictionary of DataFrames from Excel.
+    """Validates that processes with 'Input' or 'Output' logic are configured correctly.
+
+    Checks that processes defined with `Process_Logic` = 'Input' have no
+    inflows defined in the flowsheet, and that 'Output' processes have no
+    outflows. It prints warnings for any inconsistencies.
+
+    Parameters
+    ----------
+    excel_data : dict
+        Dictionary of DataFrames from the loaded Excel file.
+
+    Returns
+    -------
+    dict
+        The `process_logic_map` mapping process IDs to their logic strings.
     """
     print("--> Validating Process_Logic configuration...")
     
@@ -261,11 +294,16 @@ def validate_process_logic(excel_data):
 
 
 def validate_unified_configuration(excel_data):
-    """
-    Validates the unified configuration columns (TC_Configuration, Stock_Configuration).
-    
-    Args:
-        excel_data (dict): Dictionary of DataFrames from Excel.
+    """Validates consistency between Process_Logic and the unified configuration columns.
+
+    Checks for logical consistency between a process's defined `Process_Logic`
+    (e.g., 'DSM') and its `TC_Configuration` and `Stock_Configuration` settings,
+    printing warnings for any identified issues.
+
+    Parameters
+    ----------
+    excel_data : dict
+        Dictionary of DataFrames from the loaded Excel file.
     """
     print("--> Validating unified configuration columns...")
     
@@ -326,23 +364,26 @@ def validate_unified_configuration(excel_data):
 
 
 def load_tc_parameters(all_excel_data, elements, time_vector):
-    """
-    Loads transfer coefficients based on the unified TC_Configuration structure.
-    Uses TC_Configuration column to determine TC loading strategy.
-    
-    TC Configuration:
-    - TC_Configuration = "Static" -> Load from 2_2_static_TCs
-    - TC_Configuration = "Dynamic" -> Load from 2_3_dynamic_TCs
-    - TC_Configuration = "None" or missing -> Skip TCs
-    - Process_Logic = "Input", "Output", "Pass-through" -> Skip TCs (regardless of TC_Configuration)
+    """Loads and constructs all transfer coefficient (TC) parameters.
 
-    Args:
-        all_excel_data (dict): Dictionary of DataFrames from Excel.
-        elements (list): List of element names (e.g., ['material', 'WC', 'DM', 'CC']).
-        time_vector (list): List of years for the analysis.
+    This function orchestrates the loading of both static and dynamic TCs
+    based on the `TC_Configuration` column in the process definitions sheet.
+    It handles different loading strategies and returns a unified dictionary
+    of ODYM Parameter objects.
 
-    Returns:
-        dict: A dictionary of ODYM Parameter objects for all TCs.
+    Parameters
+    ----------
+    all_excel_data : dict
+        Dictionary of DataFrames from the loaded Excel file.
+    elements : list of str
+        List of element names being tracked in the model.
+    time_vector : list or np.ndarray
+        The array of years for the model run, used for interpolating dynamic TCs.
+
+    Returns
+    -------
+    dict
+        A dictionary of ODYM Parameter objects, keyed by parameter name.
     """
     if not ODYM_AVAILABLE:
         print("--> WARNING: ODYM_Classes not available. TC parameters cannot be loaded.")
@@ -435,10 +476,22 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
 
 
 def load_dsm_parameters(excel_data):
-    """
-    Reads the '3_1_Definition_DSM' sheet and creates the DSM_PARAMS dictionary.
-    Uses Process_Logic column from the main process sheet to identify DSM processes.
-    Supports both the old category-based format and the new parameter-based format.
+    """Reads and parses DSM parameters from the '3_1_Definition_DSM' sheet.
+
+    This function identifies DSM processes from the main process sheet and then
+    parses their corresponding parameters from the DSM definition sheet. It can
+    handle both the new parameter-based format and the legacy category-based format.
+
+    Parameters
+    ----------
+    excel_data : dict
+        Dictionary of DataFrames from the loaded Excel file.
+
+    Returns
+    -------
+    dict
+        A dictionary where keys are process IDs and values are dictionaries
+        of the parsed DSM parameters for that process.
     """
     sheet_name = "3_1_Definition_DSM"
     main_sheet_name = "2_1_Definition_Processes"
@@ -496,13 +549,20 @@ def load_dsm_parameters(excel_data):
 
 
 def load_stock_parameters(excel_data):
-    """
-    Reads stock configuration from the main process sheet using Stock_Configuration column.
-    Uses Stock_Configuration column to identify processes that need stock management.
-    
-    Stock Configuration:
-    - Stock_Configuration = "Stock" -> Process has stock management
-    - Stock_Configuration = "No_Stock" -> Process has no stock management
+    """Reads stock configuration from the main process definitions sheet.
+
+    Identifies processes that require stock management based on the
+    `Stock_Configuration` column.
+
+    Parameters
+    ----------
+    excel_data : dict
+        Dictionary of DataFrames from the loaded Excel file.
+
+    Returns
+    -------
+    dict
+        A dictionary of stock configurations, keyed by process ID.
     """
     main_sheet_name = "2_1_Definition_Processes"
     print(f"--> Loading Stock configuration from sheet '{main_sheet_name}'...")
@@ -541,9 +601,22 @@ def load_stock_parameters(excel_data):
 
 
 def _parse_fomp_parameters(process_data):
-    """
-    Parse FOMP parameters from the process data.
-    This is a placeholder implementation - FOMP parsing logic needs to be defined.
+    """Parses FOMP parameters for a given process.
+
+    Note
+    ----
+    This is currently a placeholder and needs to be implemented based on the
+    specific requirements of the FOMP model.
+
+    Parameters
+    ----------
+    process_data : pd.DataFrame
+        The subset of the FOMP definition DataFrame for a single process.
+
+    Returns
+    -------
+    dict
+        A dictionary of the parsed FOMP parameters.
     """
     # TODO: Implement FOMP parameter parsing based on your FOMP requirements
     return {
@@ -553,9 +626,20 @@ def _parse_fomp_parameters(process_data):
 
 
 def _parse_parameter_based_dsm(process_data):
-    """
-    Parse DSM parameters from the new parameter-based format.
-    Each row represents a single parameter for a specific category.
+    """Parses DSM parameters from the new parameter-based format.
+
+    In this format, each row in the DataFrame represents a single parameter
+    for a specific category within a DSM process.
+
+    Parameters
+    ----------
+    process_data : pd.DataFrame
+        The subset of the DSM definition DataFrame for a single process.
+
+    Returns
+    -------
+    dict
+        A dictionary of the parsed DSM parameters in the format expected by the engine.
     """
     categories = {}
     
@@ -660,9 +744,20 @@ def _parse_parameter_based_dsm(process_data):
 
 
 def _parse_category_based_dsm(process_data):
-    """
-    Parse DSM parameters from the old category-based format.
-    Each row represents a complete category.
+    """Parses DSM parameters from the legacy category-based format.
+
+    In this format, each row in the DataFrame represents a complete category
+    with all its parameters.
+
+    Parameters
+    ----------
+    process_data : pd.DataFrame
+        The subset of the DSM definition DataFrame for a single process.
+
+    Returns
+    -------
+    dict
+        A dictionary of the parsed DSM parameters in the format expected by the engine.
     """
     # Sort by Category_ID if available
     if 'Category_ID' in process_data.columns:
@@ -681,9 +776,22 @@ def _parse_category_based_dsm(process_data):
 
 
 def load_fomp_parameters(excel_data):
-    """
-    Reads the '3_2_Definition_FOMP' sheet and constructs the FOMP_PARAMS dictionary.
-    Supports both Process_ID and Pool_ID systems.
+    """Reads and parses FOMP parameters from the '3_2_Definition_FOMP' sheet.
+
+    This function identifies FOMP processes and parses their parameters.
+    It supports multiple legacy formats for backward compatibility, including
+    systems based on `Process_ID`, `Pool_ID`, and the new `FOMP_Parameter_ID`.
+
+    Parameters
+    ----------
+    excel_data : dict
+        Dictionary of DataFrames from the loaded Excel file.
+
+    Returns
+    -------
+    dict
+        A dictionary where keys are process IDs and values are dictionaries
+        of the parsed FOMP parameters for that process.
     """
     sheet_name = "3_2_Definition_FOMP"
     print(f"--> Loading FOMP parameters from sheet '{sheet_name}'...")
@@ -775,9 +883,20 @@ def load_fomp_parameters(excel_data):
 
 
 def load_uncertainty_definitions(excel_data):
-    """
-    Reads the '4_1_Uncertainty_Parameters' sheet and converts it into the
-    UNCERTAINTY_PARAMS dictionary format.
+    """Reads the '4_1_Uncertainty_Parameters' sheet into a dictionary.
+
+    Parses the sheet to create a dictionary of uncertainty parameter definitions
+    formatted for use in the Monte Carlo simulation engine.
+
+    Parameters
+    ----------
+    excel_data : dict
+        Dictionary of DataFrames from the loaded Excel file.
+
+    Returns
+    -------
+    dict
+        A dictionary of uncertainty definitions, keyed by parameter name.
     """
     sheet_name = "4_1_Uncertainty_Parameters"
     print(f"--> Loading uncertainty definitions from sheet '{sheet_name}'...")
@@ -819,16 +938,23 @@ def load_uncertainty_definitions(excel_data):
 
 
 def apply_fomp_uncertainty_updates(fomp_params, uncertainty_updates):
-    """
-    Applies uncertainty parameter updates to FOMP parameters.
-    Handles process-specific parameter names like 'P7_decay_k1 (Labile pool)'.
-    
-    Args:
-        fomp_params (dict): Original FOMP parameters dictionary
-        uncertainty_updates (dict): Sampled parameter values from Monte Carlo
-        
-    Returns:
-        dict: Updated FOMP parameters with uncertainty applied
+    """Applies sampled uncertainty values to FOMP parameters.
+
+    This function is used during Monte Carlo simulations to update the FOMP
+    parameters with values sampled from the defined uncertainty distributions.
+    It handles process-specific parameter names (e.g., 'P04_decay_k1').
+
+    Parameters
+    ----------
+    fomp_params : dict
+        The original FOMP parameters dictionary.
+    uncertainty_updates : dict
+        A dictionary of sampled parameter values from a Monte Carlo iteration.
+
+    Returns
+    -------
+    dict
+        A new dictionary of FOMP parameters with the uncertainty updates applied.
     """
     updated_fomp_params = copy.deepcopy(fomp_params)
     
@@ -859,8 +985,21 @@ def apply_fomp_uncertainty_updates(fomp_params, uncertainty_updates):
 
 
 def load_scenario_definitions(excel_data):
-    """
-    Reads the scenario definitions sheet and parses the definitions.
+    """Reads and parses scenario definitions from the scenario manager sheet.
+
+    This function looks for '5_1_Scenario_Manager' or 'Scenario Manager' and
+    parses the rules for each defined scenario into a structured dictionary.
+
+    Parameters
+    ----------
+    excel_data : dict
+        Dictionary of DataFrames from the loaded Excel file.
+
+    Returns
+    -------
+    dict
+        A dictionary where keys are scenario names and values are lists of
+        the modification rules for that scenario.
     """
     sheet_name = None
     if "5_1_Scenario_Manager" in excel_data:
@@ -918,17 +1057,21 @@ def load_scenario_definitions(excel_data):
 
 
 def load_initial_stock_parameters(excel_data):
-    """
-    Loads initial stock parameters using the new initial stock engine.
-    
-    This function delegates to the initial_stock_engine module for consistency
-    with the new long table structure.
-    
-    Args:
-        excel_data (dict): Dictionary of DataFrames from Excel.
-        
-    Returns:
-        dict: Initial stock configurations per process.
+    """Loads initial stock parameters by delegating to the initial stock engine.
+
+    This function acts as a wrapper to ensure consistency, calling the
+    `load_initial_stock_parameters` function from the dedicated
+    `initial_stock_engine` module.
+
+    Parameters
+    ----------
+    excel_data : dict
+        Dictionary of DataFrames from the loaded Excel file.
+
+    Returns
+    -------
+    dict
+        A dictionary of initial stock configurations, keyed by process ID.
     """
     # Import here to avoid circular imports
     from engine import initial_stock_engine
