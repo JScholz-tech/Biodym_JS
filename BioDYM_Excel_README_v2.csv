@@ -1,0 +1,67 @@
+"''"WELCOME TO BioDYM"'',"'Biomass Dynamic Material Flow Analysis Tool'",,,"[YOUR LOGO HERE]"
+"Version 2.1 | Last Updated: 2025-10-14 | Contact: your.email@example.com",,,,,
+,,,,
+"TABLE OF CONTENTS",,,,,
+"=HYPERLINK(""#A10"",""1. Visual Workflow Guide"")",,,,,
+"=HYPERLINK(""#A25"",""2. Quick Start Guide (5 Steps)"")",,,,,
+"=HYPERLINK(""#A40"",""3. Sheet Overview"")",,,,,
+"=HYPERLINK(""#A55"",""4. Core Concepts Explained"")",,,,,
+"=HYPERLINK(""#A70"",""5. Troubleshooting & FAQ"")",,,,,
+"=HYPERLINK(""#A85"",""6. Best Practices"")",,,,,
+,,,,
+"1. VISUAL WORKFLOW GUIDE",,,,,
+"Follow these core stages to complete your analysis. Start with system definition and move sequentially to results.",,,,,
+,,,,
+"STAGE 1: DEFINE SYSTEM",,,"STAGE 2: ENTER DATA",,,"STAGE 3: CONFIGURE & RUN"
+"Define the building blocks of your model.",,,"Input the numbers for your defined system.",,,"Configure advanced models and run the analysis."
+"⬇️",,,"⬇️",,,"⬇️"
+"Step 1: Define Processes","(Sheet: 2_1_Definition_Processes)","➡️","Step 3: Input Flow Data","(Sheet: 1_2_Data_Flows)","➡️","Step 5: Configure DSM/FOMP (Optional)"
+"⬇️",,,"⬇️",,,"⬇️"
+"Step 2: Define Flows","(Sheet: 1_1_Definition_Flows)","➡️","Step 4: Set Transfer Coefficients","(Sheets: 2_2_static_TCs & 2_3_dynamic_TCs)","➡️","Step 6: Run in Python Notebook"
+,,,,
+,,,,
+"2. QUICK START GUIDE (5 CORE STEPS)",,,,,
+"Follow these 5 steps to get your first model running. Click the blue links to jump to the correct sheet.",,,,,
+"Step",Task,Sheet,Instructions
+"1","Define Your Processes","=HYPERLINK(""#'2_1_Definition_Processes'!A1"",""2_1_Definition_Processes"")","List all the processes in your system (e.g., 'Harvesting', 'Composting'). Assign a 'Process_Logic' to determine how each one behaves."
+"2","Define Your Flows","=HYPERLINK(""#'1_1_Definition_Flows'!A1"",""1_1_Definition_Flows"")","List all the materials and elements that move between your processes. Define their composition (e.g., Water Content, Carbon Content)."
+"3","Enter Flow Data","=HYPERLINK(""#'1_2_Data_Flows'!A1"",""1_2_Data_Flows"")","Enter the known values (e.g., in tonnes) for the flows you defined in Step 2. These are the inputs to your model."
+"4","Set Transfer Coefficients (TCs)","=HYPERLINK(""#'2_2_static_TCs'!A1"",""2_2_static_TCs / 2_3_dynamic_TCs"")","For each process, define how flows are split or transformed. Use 'static_TCs' for simple material splits and 'dynamic_TCs' for changes in elemental composition."
+"5","Run the Analysis",,"Once your data is entered, open the 'BioDYM_Scientific_Notebook.ipynb' and run the cells to perform the MFA calculations and generate results."
+,,,,
+"3. SHEET OVERVIEW",,,,,
+Sheet Name,Purpose,Key Fields,Click to Visit
+"1_1_Definition_Flows","Define all material and element flows in the system.",Flow_ID, Flow_Name, Flow_WC[%], Flow_DM[%], Flow_CC_DM[%],"=HYPERLINK(""#'1_1_Definition_Flows'!A1"",""Go to Sheet"")"
+"1_2_Data_Flows","Enter measured or estimated data for flows.",Flow_ID, Amount, Unit,"=HYPERLINK(""#'1_2_Data_Flows'!A1"",""Go to Sheet"")"
+"2_1_Definition_Processes","Define all processes and their behavior.",Process_ID, Process_Name, Process_Logic,"=HYPERLINK(""#'2_1_Definition_Processes'!A1"",""Go to Sheet"")"
+"2_2_static_TCs","Define material flow transfer coefficients (composition doesn't change).",Process_ID, Flow_ID, TC_Value,"=HYPERLINK(""#'2_2_static_TCs'!A1"",""Go to Sheet"")"
+"2_3_dynamic_TCs","Define element flow transfer coefficients (composition changes).",Process_ID, Flow_ID, TC_Value,"=HYPERLINK(""#'2_3_dynamic_TCs'!A1"",""Go to Sheet"")"
+"2_4_Initial_Stock","Define initial stock amounts for processes.",Process_ID, Stock_Amount,"=HYPERLINK(""#'2_4_Initial_Stock'!A1"",""Go to Sheet"")"
+"3_1_Definition_DSM","Configure Dynamic Stock Management models.",DSM_Parameter_type, DSM_Value,"=HYPERLINK(""#'3_1_Definition_DSM'!A1"",""Go to Sheet"")"
+"3_2_Definition_FOMP","Configure First-Order Mass Pool models.",FOMP_Parameter_ID, FOMP_Parameter_Value,"=HYPERLINK(""#'3_2_Definition_FOMP'!A1"",""Go to Sheet"")"
+"4_1_Uncertainty_Parameters","Define uncertainty for Monte Carlo analysis.",Parameter_Name, Uncertainty_Type,"=HYPERLINK(""#'4_1_Uncertainty_Parameters'!A1"",""Go to Sheet"")"
+"5_1_Scenarios","Define scenarios for comparative analysis.",Scenario_Name, Scenario_Description,"=HYPERLINK(""#'5_1_Scenarios'!A1"",""Go to Sheet"")"
+"7_1_Comments_Validation","Reference sheet with data validation rules and help.",Title, Body, Purpose, Action,"=HYPERLINK(""#'7_1_Comments_Validation'!A1"",""Go to Sheet"")"
+,,,,
+"4. CORE CONCEPTS EXPLAINED",,,,,
+Concept,Explanation,"Example"
+"Process","A 'box' in your model that does something. It can be a physical place (a factory), a transformation (composting), or a boundary (the atmosphere).","'P01_Forest', 'P02_Sawmill', 'P03_Landfill'"
+"Flow","The movement of material or elements from one process to another.","'F_01_02' could be the flow of 'Raw Timber' from the 'Forest' to the 'Sawmill'."
+"Process_Logic","The most important setting for a process. It tells the tool how that process behaves (e.g., as a simple splitter, a stock, or a complex transformation).","'Splitter_Material' logic will split a flow into multiple outputs with the same composition."
+"Transfer Coefficient (TC)","A number (usually between 0 and 1) that defines 'how much' of a flow goes from one process to another.","If a sawmill produces 80% lumber and 20% sawdust from timber, the TCs for the output flows would be 0.8 and 0.2."
+"Static vs. Dynamic TCs","'Static' TCs split the entire material flow. 'Dynamic' TCs split each element (like Carbon, Water) separately, allowing composition to change.","Use 'Static' for sorting plastic bottles. Use 'Dynamic' for composting, where water evaporates and carbon is emitted."
+"DSM & FOMP","Advanced models for processes that have a stock that changes over time. DSM (Dynamic Stock Management) uses lifetime distributions, while FOMP (First-Order Mass Pool) uses decay rates.","Use DSM to model buildings that are demolished after a certain lifetime. Use FOMP to model soil carbon decomposition."
+,,,,
+"5. TROUBLESHOOTING & FAQ",,,,,
+Problem,Quick Fix,What to Check
+"MFA calculation fails or gives strange results","Check your TCs.","Ensure that for each process, the sum of outgoing TCs equals 1 (or 100%). Also check that no process has ONLY inputs or ONLY outputs."
+"A process or flow is missing from the results","Check 'Process_Logic' and Flow IDs.","Make sure the 'Process_Logic' is set correctly in '2_1_Definition_Processes'. Ensure all Flow_IDs are correct and consistent across all sheets."
+"I get a '#VALUE!' or other Excel error","Check data format.","Make sure numbers are formatted as numbers, not text. Ensure percentages are entered as decimals (e.g., 50% is 0.5)."
+"My dropdown list in a cell is empty or wrong","Refresh data validation.","The rules for validation are stored in '7_1_Comments_Validation'. You may need to re-apply the validation macro if you have one."
+,,,,
+"6. BEST PRACTICES",,,,,
+Tip,Why It Helps
+"Start Small","Build a simple model with only a few processes first. Once that works, gradually add more detail and complexity.","This makes it much easier to find errors."
+"Use Descriptive Names","Give clear, descriptive names to processes and flows (e.g., 'Waste_Incineration' instead of 'P05').","Your model will be easier to understand for yourself and others."
+"Check Your Units","Ensure you are using consistent units (e.g., tonnes, kg) for all flows throughout the entire workbook.","Mixing units is a common source of error in MFA."
+"Save Iterations","Save different versions of your file as you make major changes (e.g., 'my_model_v1.xlsm', 'my_model_v2.xlsm').","If you make a mistake, you can easily go back to a working version."

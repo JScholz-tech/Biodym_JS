@@ -1,0 +1,66 @@
+BioDYM - Biomass Dynamic Material Flow Analysis Tool,,,,,
+Version 2.0 | Last Updated: 2024-12-19,,,,,
+,,,,,
+🎯 QUICK START GUIDE,,,,,
+Step 1: Define your processes in "2_1_Definition_Processes",,,,,
+Step 2: Define your flows in "1_1_Definition_Flows",,,,,
+Step 3: Enter flow data in "1_2_Data_Flows",,,,,
+Step 4: Set transfer coefficients in "2_2_static_TCs" and "2_3_dynamic_TCs",,,,,
+Step 5: Configure special processes (DSM/FOMP) if needed,,,,,
+Step 6: Run analysis in Python notebook,,,,,
+,,,,,
+📊 SHEET OVERVIEW,,,,,
+Sheet Name,Purpose,When to Use,Key Fields,Notes
+1_1_Definition_Flows,Define all flows in your system,Start here,Flow_ID, Flow_Name, Flow_WC[%], Flow_DM[%], Flow_CC_DM[%],Required for all analyses
+1_2_Data_Flows,Enter actual flow amounts,After defining flows,Flow_ID, Amount, Unit,Use consistent units throughout
+2_1_Definition_Processes,Define all processes,After defining flows,Process_ID, Process_Name, Process_Logic,Process_Logic determines how process works
+2_2_static_TCs,Material flow coefficients,For material flows,Process_ID, Flow_ID, TC_Value,Use for processes that don't change composition
+2_3_dynamic_TCs,Element flow coefficients,For element flows,Process_ID, Flow_ID, TC_Value,Use for processes that change composition
+2_4_Initial_Stock,Initial stock amounts,For stock processes,Process_ID, Stock_Amount,Only for processes with Stock_Configuration = "Stock"
+3_1_Definition_DSM,Dynamic stock management,For DSM processes,Process_ID, DSM_Parameter_type, DSM_Value,Use for processes with Process_Logic = "DSM"
+3_2_Definition_FOMP,First-order mass pools,For FOMP processes,Process_ID, FOMP_Parameter_ID, FOMP_Parameter_Value,Use for processes with Process_Logic = "FOMP"
+4_1_Uncertainty_Parameters,Uncertainty ranges,For Monte Carlo analysis,Parameter_Name, Uncertainty_Type, Uncertainty_Value,Optional - only for uncertainty analysis
+5_1_Scenarios,Scenario definitions,For scenario analysis,Scenario_Name, Scenario_Description, Optional - only for scenario analysis
+7_1_Comments_Validation,Data validation help,Reference only,Title, Body, Purpose, Action, Note,Contains validation instructions
+,,,,,
+🔧 COMMON TASKS,,,,,
+Task,How to Do It,Where to Go,What to Check
+Add a new process,1. Go to "2_1_Definition_Processes",2. Add new row with Process_Name,3. Set Process_Logic,Make sure Process_Logic matches your process type
+Add a new flow,1. Go to "1_1_Definition_Flows",2. Add new row with Flow_Name,3. Set composition percentages,Check Flow_WC[%] + Flow_DM[%] + Flow_CC_DM[%] = 100%
+Set transfer coefficients,1. Go to "2_2_static_TCs" or "2_3_dynamic_TCs",2. Find your Process_ID and Flow_ID,3. Enter TC_Value,Use static_TCs for material flows, dynamic_TCs for element flows
+Configure DSM process,1. Set Process_Logic = "DSM" in "2_1_Definition_Processes",2. Go to "3_1_Definition_DSM",3. Add DSM parameters,Include DSM_Category_Name, DSM_Inflow_Split_[%], lifetime parameters
+Configure FOMP process,1. Set Process_Logic = "FOMP" in "2_1_Definition_Processes",2. Go to "3_2_Definition_FOMP",3. Add FOMP parameters,Include inflow fractions, decay rates, output flow IDs
+,,,,,
+⚠️ TROUBLESHOOTING,,,,,
+Problem,Quick Fix,Check This
+"#VALUE!" error,Check data format,Make sure numbers are actually numbers, not text
+Missing dropdown options,Refresh validation,Go to "7_1_Comments_Validation" for help
+MFA calculation fails,Check TC values,Make sure transfer coefficients are not all empty
+Process not showing in results,Check Process_Logic,Make sure Process_Logic is set correctly
+Flow not connecting,Check Flow_IDs,Make sure Flow_IDs exist in definition sheets
+,,,,,
+💡 TIPS FOR SUCCESS,,,,,
+Tip,Why It Helps,Example
+Use descriptive names,Helps you remember what each process/flow does,"Wood_Processing" instead of "P01"
+Check your units,Ensures calculations are correct,Use "tonnes" consistently throughout
+Start simple,Add complexity gradually,Begin with basic processes, add DSM/FOMP later
+Use validation,Prevents common errors,Follow the validation messages in each sheet
+Save frequently,Prevents data loss,Save after each major change
+,,,,,
+📞 GETTING HELP,,,,,
+Resource,What You'll Find,When to Use
+7_1_Comments_Validation,Detailed field-by-field instructions,When you're unsure what to enter
+Python Notebook,How to run the analysis,When you're ready to calculate results
+This README,Quick reference and troubleshooting,When you need a quick answer
+,,,,,
+🎨 FUN FACTS,,,,,
+Did you know?,Fun Fact
+BioDYM can model,Over 100 different biomass processes simultaneously
+The system tracks,Not just materials, but also carbon, water, and dry matter flows
+Dynamic stock management,Can simulate how materials age and decay over time
+First-order mass pools,Are perfect for modeling composting and decomposition processes
+,,,,,
+🚀 READY TO START?,,,,,
+1. Go to "2_1_Definition_Processes" to define your first process,,,,,
+2. Then go to "1_1_Definition_Flows" to define your flows,,,,,
+3. Remember: Start simple, add complexity later!,,,,,
