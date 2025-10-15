@@ -357,6 +357,19 @@ if config_obj.RUN_MONTE_CARLO and '4_1_Uncertainty_Parameters' in input_data:
         
         if mc_results is not None and not mc_results.empty:
             print("✅ Monte Carlo simulation completed for baseline.")
+
+            # --- Export MC Results ---
+            print("\n💾 Exporting Monte Carlo results...")
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            mc_output_path = f"data/02_output/mc_output/mc_results_detailed_{timestamp}.xlsx"
+            try:
+                mc_results.to_excel(mc_output_path, index=False)
+                print(f"✅ Monte Carlo results successfully exported to: {mc_output_path}")
+            except Exception as export_error:
+                print(f"⚠️ Could not export Monte Carlo results: {export_error}")
+            # -------------------------
+
             print("\n📊 Monte Carlo Analysis Visualizations:")
             print("   • Multiple Distribution Histograms: Interactively select and view histograms for multiple stocks.")
             print("   • Sensitivity Tornado Plot: Identify which parameters most influence outcomes.")
