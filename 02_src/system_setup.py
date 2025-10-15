@@ -27,55 +27,68 @@ import data_loader
 
 
 def define_model_scope(start_year, end_year, elements):
+    """Defines the temporal and elemental scope of the MFA model.
+
+    This function creates the core ODYM classifications for Time and Element,
+    which are used to structure all data arrays in the system.
+
+    Parameters
+    ----------
+    start_year : int
+        The first year of the analysis.
+    end_year : int
+        The last year of the analysis.
+    elements : list of str
+        A list of strings for the elements to be tracked (e.g., ['material', 'WC']).
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - model_classification (dict): The ModelClassification dictionary.
+        - index_table (pd.DataFrame): The IndexTable DataFrame.
     """
-    Defines the temporal and elemental scope of the MFA model.
+    model_classification = {}
+    my_years = list(np.arange(start_year, end_year + 1))
 
-    Args:
-        start_year (int): The first year of the analysis.
-        end_year (int): The last year of the analysis.
-        elements (list): A list of strings for the elements to be tracked.
-
-    Returns:
-        tuple: A tuple containing the ModelClassification dictionary
-               and the IndexTable DataFrame, which are core ODYM objects.
-    """
-    ModelClassification = {}
-    MyYears = list(np.arange(start_year, end_year + 1))
-
-    ModelClassification["Time"] = msc.Classification(
-        Name="Time", Dimension="Time", ID=1, Items=MyYears
+    model_classification["Time"] = msc.Classification(
+        Name="Time", Dimension="Time", ID=1, Items=my_years
     )
-    ModelClassification["Element"] = msc.Classification(
+    model_classification["Element"] = msc.Classification(
         Name="Elements", Dimension="Element", ID=2, Items=elements
     )
 
-    IndexTable = pd.DataFrame(
+    index_table = pd.DataFrame(
         {
             "Aspect": ["Time", "Element"],
             "Description": ['Model aspect "time"', 'Model aspect "Element"'],
             "Dimension": ["Time", "Element"],
             "Classification": [
-                ModelClassification[Aspect] for Aspect in ["Time", "Element"]
+                model_classification[Aspect] for Aspect in ["Time", "Element"]
             ],
             "IndexLetter": ["t", "e"],
         }
     )
-    IndexTable.set_index("Aspect", inplace=True)
+    index_table.set_index("Aspect", inplace=True)
 
     print("--> Model scope and classifications defined.")
-    return ModelClassification, IndexTable
+    return model_classification, index_table
 
 
 def initialize_mfa_system(model_classification, index_table):
-    """
-    Initializes the main MFAsystem object based on the defined scope.
+    """Initializes the main MFAsystem object based on the defined scope.
 
-    Args:
-        model_classification (dict): The ModelClassification dictionary.
-        index_table (pd.DataFrame): The IndexTable DataFrame.
+    Parameters
+    ----------
+    model_classification : dict
+        The ModelClassification dictionary created by `define_model_scope`.
+    index_table : pd.DataFrame
+        The IndexTable DataFrame created by `define_model_scope`.
 
-    Returns:
-        odym.MFAsystem: An empty but structured MFAsystem object.
+    Returns
+    -------
+    odym.MFAsystem
+        An empty but structured MFAsystem object ready for configuration.
     """
     start_time = model_classification["Time"].Items[0]
     end_time = model_classification["Time"].Items[-1]
@@ -100,17 +113,27 @@ def initialize_mfa_system(model_classification, index_table):
 
 
 def load_and_define_processes(mfa_system, input_data, data_loader):
-    """
-    Loads all data from the Excel file, validates its structure, and defines
-    the processes and empty stock objects in the MFA system.
+    """Load data, validate, and define processes and stocks in the MFA system.
 
-    Args:
-        mfa_system (odym.MFAsystem): The initialized MFA system object.
-        input_data (dict): A dictionary of DataFrames for each Excel sheet.
-        data_loader (module): The imported data_loader module.
+    This function reads all data from the source Excel file, validates the
+    structure, and then iterates through the process definitions sheet to
+    populate the MFAsystem object with Process and Stock objects.
 
-    Returns:
-        tuple: A tuple containing the modified mfa_system object and the same input_data dict.
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The initialized MFA system object.
+    input_data : dict or str
+        A dictionary of DataFrames for each Excel sheet, or a path to the file.
+    data_loader : module
+        The imported data_loader module containing validation functions.
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - mfa_system (odym.MFAsystem): The modified MFAsystem object.
+        - all_excel_data (dict): The dictionary of all data read from Excel.
     """
     print("--> Defining process and stock structures...")
 
@@ -250,57 +273,77 @@ def create_dynamic_tc_parameters(dynamic_tc_data, time_vector):
     return dynamic_tc_dict
 
 
-def define_flows_and_parameters(mfa_system, all_excel_data):
-    """
-    Defines flows, initializes ALL system values, populates them with data,
-    and defines all model parameters (TCs, contents, etc.).
-    """
-    print("--> Defining flows, parameters, and setting all initial values...")
-    parameter_id_counter = 1
+def _initialize_flows(mfa_system, flow_definitions):
+    """Initializes all flows in the MFAsystem from the definitions sheet.
 
-    flow_definitions = all_excel_data["1_1_Definition_Flows"]
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The MFA system object to be modified.
+    flow_definitions : pd.DataFrame
+        DataFrame containing the flow definitions from Excel.
+    """
     for _, row in flow_definitions.iterrows():
         if pd.notna(row["Flow_Name"]):
             start_id, end_id = int(row["Flow_Output_Process_ID"]), int(row["Input_Process_ID"])
             flow_obj = msc.Flow(Name=row["Flow_ID"], P_Start=start_id, P_End=end_id, Indices="t,e")
-            # Store descriptive name for visualizations
             flow_obj.DescriptiveName = row["Flow_Name"]
             mfa_system.FlowDict[row["Flow_ID"]] = flow_obj
-
     mfa_system.Initialize_FlowValues()
     print("--> All flows initialized to zero.")
 
-    flow_data = all_excel_data["1_2_Data_Flows"]
+def _populate_primary_flow_data(mfa_system, flow_data):
+    """Populates flows with primary data from the '1_2_Data_Flows' sheet.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The MFA system object to be modified.
+    flow_data : pd.DataFrame
+        DataFrame containing the flow data from Excel.
+    """
     for flow_id, flow_obj in mfa_system.FlowDict.items():
         if flow_id in flow_data["Flow_ID"].values:
             flow_time_series = flow_data[flow_data["Flow_ID"] == flow_id]
-            if len(flow_time_series) == len(mfa_system.IndexTable.Classification["Time"].Items):
+            if len(flow_time_series) == len(mfa_system.IndexTable.Classification['Time'].Items):
                 flow_obj.Values[:, 0] = np.array(flow_time_series["Flow_Material"]).ravel()
     print("--> Populated data for primary input flows.")
 
-    # Load initial stock parameters using the new engine
+def _apply_initial_stock(mfa_system, all_excel_data):
+    """Loads and applies initial stock configurations to the system.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The MFA system object to be modified.
+    all_excel_data : dict
+        Dictionary of all data read from Excel.
+    """
     initial_stock_configs = data_loader.load_initial_stock_parameters(all_excel_data)
-    
-    # Apply initial stock values to the system
     if initial_stock_configs:
         from engine import initial_stock_engine
         mfa_system = initial_stock_engine.apply_initial_stock_values(mfa_system, initial_stock_configs)
         mfa_system = initial_stock_engine.process_initial_stock_outflows(mfa_system, initial_stock_configs)
 
-    # The old TC loading logic has been removed from this function.
-    # It is now handled by the new data_loader.load_tc_parameters function.
+def _define_content_parameters(mfa_system, content_definitions):
+    """Defines content parameters (e.g., water content) for each flow.
 
-    content_definitions = all_excel_data["1_1_Definition_Flows"]
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The MFA system object to be modified.
+    content_definitions : pd.DataFrame
+        DataFrame containing flow definitions, including content percentages.
+    """
+    parameter_id_counter = 1
     for _, row in content_definitions.iterrows():
         flow_id = row.get("Flow_ID")
         if pd.notna(flow_id) and flow_id in mfa_system.FlowDict:
-            # Map element names to column names in flow definitions
             element_column_map = {
                 "WC": "Flow_WC[%]",
                 "DM": "Flow_DM[%]", 
-                "CC": "Flow_CC_DM[%]"  # CC is stored as percentage of DM
+                "CC": "Flow_CC_DM[%]"
             }
-            
             for element in mfa_system.Elements[1:]:
                 column_name = element_column_map.get(element)
                 if column_name and column_name in row and pd.notna(row[column_name]):
@@ -308,6 +351,17 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
                     mfa_system.ParameterDict[param_name] = msc.Parameter(Name=param_name, ID=parameter_id_counter, Values=row[column_name], Unit="1")
                     parameter_id_counter += 1
 
+def _calculate_elemental_compositions(mfa_system):
+    """Calculates elemental values for flows based on content parameters.
+
+    Iterates through flows and applies the defined content percentages (e.g., WC, DM)
+    to the primary material flow to calculate the values for each element.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The MFA system object to be modified.
+    """
     for flow in mfa_system.FlowDict.values():
         if np.any(flow.Values[:, 0] != 0):
             for i_elem, element_name in enumerate(mfa_system.Elements[1:], 1):
@@ -323,16 +377,30 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
                     cc_fraction = mfa_system.ParameterDict[param_name].Values
                     flow.Values[:, cc_idx] = flow.Values[:, 0] * cc_fraction
 
+def _create_flow_and_process_maps(mfa_system, all_excel_data):
+    """Creates lookup maps for process logic and flow-to-TC mappings.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The MFA system, used to get the list of elements.
+    all_excel_data : dict
+        Dictionary of all data read from Excel.
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - flow_tc_map (dict): Maps Flow_IDs to their corresponding TC_IDs.
+        - process_logic_map (dict): Maps Process_IDs to their Process_Logic.
+    """
     process_definitions = all_excel_data.get("2_1_Definition_Processes")
     process_logic_map = {}
     if process_definitions is not None:
         process_logic_map = process_definitions.set_index('ID')['Process_Logic'].to_dict()
 
-    # Create a lookup map from Flow_ID to a dictionary of its TC_IDs
     print("--> Creating Flow-to-TC mapping...")
     flow_tc_map = {}
-    
-    # Include static TCs
     static_tc_definitions = all_excel_data.get("2_2_static_TCs")
     if static_tc_definitions is not None:
         static_tc_definitions_filtered = static_tc_definitions.dropna(subset=['Flow_ID'])
@@ -345,7 +413,6 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
                     tc_ids[element] = row[tc_id_col]
             flow_tc_map[flow_id] = tc_ids
     
-    # Include dynamic TCs
     dynamic_tc_definitions = all_excel_data.get("2_3_dynamic_TCs")
     if dynamic_tc_definitions is not None:
         dynamic_tc_definitions_filtered = dynamic_tc_definitions.dropna(subset=['Flow_ID'])
@@ -359,6 +426,43 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
                 if tc_id_col in row and pd.notna(row[tc_id_col]):
                     tc_ids[element] = row[tc_id_col]
             flow_tc_map[flow_id] = tc_ids
+    return flow_tc_map, process_logic_map
+
+def define_flows_and_parameters(mfa_system, all_excel_data):
+    """Orchestrates the definition of flows and all model parameters.
+
+    This function calls a series of helper functions to perform the setup
+    of all flows and parameters in a structured sequence.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The MFA system object to be configured.
+    all_excel_data : dict
+        Dictionary of all data read from Excel.
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - mfa_system (odym.MFAsystem): The fully configured MFA system.
+        - all_excel_data (dict): The same input data dictionary.
+        - flow_tc_map (dict): A map from Flow_IDs to their TC_IDs.
+        - process_logic_map (dict): A map from Process_IDs to their logic.
+    """
+    print("--> Defining flows, parameters, and setting all initial values...")
+
+    # Extract data sheets
+    flow_definitions = all_excel_data["1_1_Definition_Flows"]
+    flow_data = all_excel_data["1_2_Data_Flows"]
+
+    # Step-by-step orchestration
+    _initialize_flows(mfa_system, flow_definitions)
+    _populate_primary_flow_data(mfa_system, flow_data)
+    _apply_initial_stock(mfa_system, all_excel_data)
+    _define_content_parameters(mfa_system, flow_definitions)
+    _calculate_elemental_compositions(mfa_system)
+    flow_tc_map, process_logic_map = _create_flow_and_process_maps(mfa_system, all_excel_data)
 
     mfa_system.Consistency_Check()
     return mfa_system, all_excel_data, flow_tc_map, process_logic_map
