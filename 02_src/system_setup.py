@@ -10,6 +10,16 @@ definitions, and setting up all parameters.
 
 import numpy as np
 import pandas as pd
+import sys
+import os
+
+# Add ODYM framework to path to ensure ODYM_Classes can be found
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+odym_path = os.path.join(
+    project_root, "06_framework", "ODYM-master_20241127", "odym", "modules"
+)
+if odym_path not in sys.path:
+    sys.path.insert(0, odym_path)
 
 # These are imported by main.py and are available in this namespace
 import ODYM_Classes as msc
