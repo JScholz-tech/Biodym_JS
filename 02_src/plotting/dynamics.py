@@ -24,15 +24,37 @@ from datetime import datetime
 
 
 def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
-    """
-    Creates DSM Process Dynamics Analysis with a three-panel view: Input, Stock, and Output.
-    Shows stacked area charts for flows by element and a line chart for stock evolution,
-    styled according to the publication guide.
+    """Creates a three-panel interactive plot for DSM process dynamics.
 
-    Args:
-        mfa_system_results (odym.MFAsystem): The solved MFA system object.
-        dsm_params (dict): DSM parameters configuration.
-        dsm_details (dict): Detailed DSM calculation results.
+    This function visualizes the dynamics of a selected Dynamic Stock Model (DSM)
+    process over time. It presents a comprehensive view with three subplots:
+    1.  **Input Flows**: A stacked area chart of all flows entering the process.
+    2.  **Stock Evolution**: A line chart showing the change in the process's stock.
+    3.  **Output Flows**: A stacked area chart of all flows leaving the process.
+
+    The plot is interactive, allowing the user to select the DSM process and
+    the element to display. It also includes a button to export the current
+    view as a high-resolution PNG image.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object, containing the results of the MFA
+        calculation, including all flows and stocks over the simulation period.
+    dsm_params : dict
+        A dictionary containing the configuration parameters for all DSM
+        processes in the model. The keys are process IDs.
+    dsm_details : dict
+        A dictionary containing detailed results from the DSM calculations,
+        though this parameter is not directly used in this specific plotting
+        function, it is part of the consistent API.
+
+    Notes
+    -----
+    The function uses `ipywidgets` for interactivity and `plotly` for plotting.
+    It is designed to be used within a Jupyter Notebook or JupyterLab environment.
+    The styling of the plot is governed by the `get_publication_layout`
+    function to ensure consistency with publication standards.
     """
     if not dsm_params:
         print("No DSM processes found to plot.")
@@ -146,14 +168,31 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
     out.update()
 
 def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
-    """
-    Creates an enhanced, stacked line diagram of DSM stock evolution.
-    Shows initial stock decay and new stock accumulation by individual application categories.
+    """Creates an enhanced, stacked line diagram of DSM stock evolution.
 
-    Args:
-        mfa_system_results (odym.MFAsystem): The solved MFA system object.
-        dsm_params (dict): DSM parameters configuration.
-        dsm_details (dict): Detailed DSM calculation results.
+    This function visualizes the evolution of a Dynamic Stock Model (DSM)
+    stock, separating the decay of the initial stock from the accumulation
+    of new stock due to inflows. It provides a detailed view of how different
+    application categories contribute to the overall stock over time.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object, containing the results of the MFA
+        calculation, including all flows and stocks over the simulation period.
+    dsm_params : dict
+        A dictionary containing the configuration parameters for all DSM
+        processes in the model. Used to identify relevant processes.
+    dsm_details : dict
+        A dictionary containing detailed results from the DSM calculations,
+        including initial stock time series, inflow stock time series by
+        category, category names, and mean lifetimes.
+
+    Notes
+    -----
+    The plot is interactive, allowing the user to select the DSM process and
+    the element to display. It also includes a button to export the current
+    view as a high-resolution PNG image.
     """
     if not dsm_params:
         print("No DSM processes found to plot.")
@@ -270,13 +309,28 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
     out.update()
 
 def plot_fomp_stock_details(mfa_system_results, fomp_params):
-    """
-    Creates detailed stock evolution plots specifically for FOMP processes.
-    Shows organic matter accumulation and mineralization with enhanced design.
+    """Creates detailed stock evolution plots specifically for FOMP processes.
 
-    Args:
-        mfa_system_results (odym.MFAsystem): The solved MFA system object.
-        fomp_params (dict): FOMP parameters configuration.
+    This function visualizes the dynamics of organic matter accumulation and
+    mineralization within a First-Order Mineralization Process (FOMP).
+    It provides an interactive plot showing the organic matter stock evolution,
+    along with annual or cumulative input and mineralization flows.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object, containing the results of the MFA
+        calculation, including all flows and stocks over the simulation period.
+    fomp_params : dict
+        A dictionary containing the configuration parameters for all FOMP
+        processes in the model. Used to identify relevant processes.
+
+    Notes
+    -----
+    The plot is interactive, allowing the user to select the FOMP process,
+    the element to display, and whether to show annual or cumulative values.
+    It also includes a button to export the current view as a high-resolution
+    PNG image and a legend explaining the plot elements.
     """
     if not fomp_params:
         print("No FOMP processes found to plot.")
@@ -511,14 +565,24 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
     out.update()
 
 def plot_system_efficiency_metrics(mfa_system_results):
-    """
-    Creates interactive plots showing system efficiency metrics:
-    - Recycling rates
-    - Recovery rates
-    - Material efficiency indicators
+    """Creates interactive plots showing system efficiency metrics over time.
 
-    Args:
-        mfa_system_results (odym.MFAsystem): The solved MFA system object.
+    This function allows for the visualization of key material efficiency
+    indicators such as recycling rates, recovery rates, and overall material
+    efficiency. Users can select the element and the specific metric to display,
+    providing insights into the system's performance.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object, containing the results of the MFA
+        calculation, including all flows and stocks over the simulation period.
+
+    Notes
+    -----
+    The plot is interactive, allowing the user to select the element and the
+    metric type (Recycling Rate, Recovery Rate, Material Efficiency).
+    The y-axis for all metrics is set to a range of 0 to 100%.
     """
     time_items = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = mfa_system_results.Elements
@@ -690,14 +754,29 @@ def plot_system_efficiency_metrics(mfa_system_results):
     display(fig)
 
 def plot_stock_overview(mfa_system_results, dsm_params=None, fomp_params=None):
-    """
-    Creates a simplified stock overview showing total stock evolution for all elements.
-    This is a streamlined version of the summary dashboard focusing only on stock dynamics.
+    """Plots the total stock evolution for all elements in the system.
 
-    Args:
-        mfa_system_results (odym.MFAsystem): The solved MFA system object.
-        dsm_params (dict, optional): DSM parameters configuration.
-        fomp_params (dict, optional): FOMP parameters configuration.
+    This function creates a single, non-interactive plot showing the time-series
+    of the total aggregated stock for each element across all processes.
+    It provides a high-level overview of how the total material stock
+    (for each element) changes within the entire system over the simulation period.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object containing all calculated data.
+    dsm_params : dict, optional
+        Unused in this function, but kept for API consistency with other
+        plotting functions in this module. Defaults to None.
+    fomp_params : dict, optional
+        Unused in this function, but kept for API consistency with other
+        plotting functions in this module. Defaults to None.
+
+    Notes
+    -----
+    This plot is non-interactive and displays all elements simultaneously.
+    The `dsm_params` and `fomp_params` are included for API consistency
+    but do not influence the plot generated by this function.
     """
     from plotly.subplots import make_subplots
 
@@ -746,27 +825,31 @@ def plot_stock_overview(mfa_system_results, dsm_params=None, fomp_params=None):
 
     fig.show()
 
-def plot_summary_dashboard(mfa_system_results, dsm_params=None, fomp_params=None):
-    """
-    Creates a comprehensive summary dashboard showing key KPIs and system status.
 
-    Args:
-        mfa_system_results (odym.MFAsystem): The solved MFA system object.
-        dsm_params (dict, optional): DSM parameters configuration.
-        fomp_params (dict, optional): FOMP parameters configuration.
-    """
-    # Use the simplified stock overview instead
-    plot_stock_overview(mfa_system_results, dsm_params, fomp_params)
 
 def plot_process_dynamics(mfa_system_results, process_definitions):
-    """
-    Creates three side-by-side line charts showing the dynamics of
-    Inflow, Stock, and Outflow, using process type metadata for smarter titles.
+    """Creates three side-by-side line charts showing the dynamics of a process.
 
-    Args:
-        mfa_system_results (odym.MFAsystem): The solved MFA system object.
-        process_definitions (pd.DataFrame): The DataFrame from the
-                                            '2_1_Definition_Processes' sheet.
+    This function visualizes the time-series evolution of inflow, stock, and
+    outflow for a selected process. It uses process type metadata from the
+    `process_definitions` DataFrame to generate more informative subplot titles.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object, containing the results of the MFA
+        calculation, including all flows and stocks over the simulation period.
+    process_definitions : pd.DataFrame
+        A Pandas DataFrame loaded from the '2_1_Definition_Processes' sheet
+        of the input Excel file. It contains metadata about each process,
+        including a 'Process_Type' column used for smart title generation.
+
+    Notes
+    -----
+    The plot is interactive, allowing the user to select the process and
+    the element to display. If the 'Process_Type' column is not found in
+    `process_definitions`, a warning is issued, and generic titles are used.
+    Processes without an explicit stock are plotted with a flat line at zero.
     """
     from plotly.subplots import make_subplots
 
@@ -880,13 +963,28 @@ def plot_process_dynamics(mfa_system_results, process_definitions):
 
 
 def plot_dynamic_stock_composition(dsm_details, mfa_system_results):
-    """
-    Plots the composition of a dynamic stock over time, separating the
-    decaying initial stock from the stock built up from new inflows.
+    """Plots the composition of a dynamic stock over time.
 
-    Args:
-        dsm_details (dict): The detailed results dictionary from the DSM calculation.
-        mfa_system_results (odym.MFAsystem): The solved MFA system object.
+    This function visualizes how a dynamic stock is composed of its decaying
+    initial stock and the stock built up from new inflows. It allows for
+    analysis of the contributions from different inflow categories over time.
+
+    Parameters
+    ----------
+    dsm_details : dict
+        A dictionary containing detailed results from the DSM calculations,
+        including initial stock time series, inflow stock time series by
+        category, category names, and mean lifetimes.
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object, containing the results of the MFA
+        calculation, including all flows and stocks over the simulation period.
+
+    Notes
+    -----
+    The plot is interactive, allowing the user to select the DSM process,
+    the element to display, and whether to show the data as a bar chart
+    or a line chart. The inflow composition factor is used to correctly
+    apportion elements to the new stock parts.
     """
 
     process_options = list(dsm_details.keys())
@@ -991,14 +1089,26 @@ def plot_dynamic_stock_composition(dsm_details, mfa_system_results):
     display(fig)
 
 def plot_fomp_dynamics(mfa_system_results, fomp_params_config):
-    """
-    Creates side-by-side line charts for Inflow, Stock, and Outflow
-    for a process calculated with FOMP.
+    """Creates side-by-side line charts for Inflow, Stock, and Outflow for FOMP processes.
 
-    Args:
-        mfa_system_results (odym.MFAsystem): The solved MFA system object.
-        fomp_params_config (dict): The configuration dictionary for FOMP processes,
-                                   used to identify which processes to plot.
+    This function visualizes the time-series dynamics of a selected First-Order
+    Mineralization Process (FOMP), showing its total inflow, absolute stock,
+    and outflow (mineralization) in three separate but linked subplots.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object, containing the results of the MFA
+        calculation, including all flows and stocks over the simulation period.
+    fomp_params_config : dict
+        The configuration dictionary for FOMP processes, used to identify
+        which processes are defined as FOMP and should be available for plotting.
+
+    Notes
+    -----
+    The plot is interactive, allowing the user to select the FOMP process
+    and the element to display. The y-axis is labeled as "Mass [Mg]" and
+    uses scientific notation for better readability of potentially large values.
     """
     from plotly.subplots import make_subplots
 
@@ -1082,12 +1192,25 @@ def plot_fomp_dynamics(mfa_system_results, fomp_params_config):
     )
 
 def plot_flow_dynamics(mfa_system_results):
-    """
-    Creates an interactive line/bar chart to show the development of selected
-    flows over time for a chosen element.
+    """Creates an interactive line/bar chart to show the development of selected flows over time.
 
-    Args:
-        mfa_system_results (odym.MFAsystem): The solved MFA system object.
+    This function allows users to visualize the time-series evolution of one or
+    more selected flows for a chosen element. It supports both line and bar
+    chart representations and provides descriptive names for flows for better
+    readability.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object, containing the results of the MFA
+        calculation, including all flows and stocks over the simulation period.
+
+    Notes
+    -----
+    The plot is interactive, allowing the user to select multiple flows,
+    the element to display, and whether to show the data as a bar chart
+    or a line chart. The layout is configured for publication quality,
+    including scientific notation for the y-axis and a visible legend.
     """
 
     # Create options for the widgets with descriptive names
@@ -1182,19 +1305,26 @@ def plot_flow_dynamics(mfa_system_results):
     display(fig)
 
 def plot_stock_bar_chart(mfa_system, title="Stock Levels Over Time"):
-    """
-    Generates an interactive bar chart of stock levels with a time slider
-    and element selection dropdown.
+    """Generates an interactive bar chart of stock levels with time and element selection.
 
-    Displays process names instead of IDs and allows for a polished,
-    publication-ready visualization of stock evolution.
+    This function creates a bar chart that displays the stock levels for each
+    process at a selected year and for a chosen element. It uses process names
+    instead of IDs for clarity and applies a color scheme based on whether
+    the stock value is positive or negative.
 
     Parameters
     ----------
-    mfa_system : object
-        The MFA system object containing calculated results.
+    mfa_system : odym.MFAsystem
+        The MFA system object containing calculated results, including stock data.
     title : str, optional
-        The title for the plot.
+        The title for the plot. Defaults to "Stock Levels Over Time".
+
+    Notes
+    -----
+    The plot is interactive, featuring a year slider and an element dropdown
+    to dynamically update the displayed stock levels. The layout is configured
+    for publication quality, with scientific notation for the y-axis and
+    rotated x-axis labels for process names.
     """
     if not hasattr(mfa_system, 'StockDict') or not mfa_system.StockDict:
         print("No stocks available to plot.")
@@ -1266,24 +1396,34 @@ def plot_stock_bar_chart(mfa_system, title="Stock Levels Over Time"):
 
 
 def plot_system_stock_composition(mfa_system_results, element=None):
-    """
-    Creates an interactive plot showing individual stocks in the system over time.
-    Shows each process stock separately with shiny colors and publication standards.
-    
-    Features:
-    - Interactive element selection
-    - Shows individual process stocks over time
-    - Bar chart or line chart display options
-    - Stacked positive/negative bar chart option
-    - NEW: Grouped by process type (positive vs negative stocks)
-    - Shiny color scheme based on element types
-    - Publication-quality layout and typography
-    - Y-axis starts at 0 with scientific notation for small values
-    - Process names instead of IDs for better readability
+    """Creates an interactive plot showing individual stocks in the system over time.
 
-    Args:
-        mfa_system_results (odym.MFAsystem): The solved MFA system object.
-        element (str, optional): Default element to display. If None, uses first element.
+    This function provides a flexible visualization of stock composition within
+    the MFA system. It can display individual process stocks as line or bar
+    charts, and offers options for stacked positive/negative values or a
+    grouped summary by process type. The plot is designed for publication
+    quality with interactive element selection and clear labeling.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object, containing the results of the MFA
+        calculation, including all flows and stocks over the simulation period.
+    element : str, optional
+        The default element to display when the plot is first rendered.
+        If None, the first element from `mfa_system_results.Elements` is used.
+
+    Notes
+    -----
+    The plot is highly interactive, allowing users to:
+    - Select the element to visualize.
+    - Toggle between bar chart and line chart display.
+    - Choose between a standard stacked bar chart or a stacked chart that
+      separates positive and negative stock contributions.
+    - View a high-level summary grouped by process type (positive vs. negative stocks).
+
+    Process names are used for better readability, and the y-axis starts at 0
+    with scientific notation for stock values.
     """
     if not hasattr(mfa_system_results, 'StockDict') or not mfa_system_results.StockDict:
         print("No stocks available to plot.")
