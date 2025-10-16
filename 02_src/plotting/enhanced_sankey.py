@@ -20,7 +20,24 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 def _safe_float_convert(value, default=1.0):
-    """Safely convert a value to a float, handling strings, commas, and errors."""
+    """Safely convert a value to a float.
+
+    This helper function attempts to convert a given value to a float, handling
+    integers, floats, and strings (with comma as a decimal separator).
+    If the conversion fails, it returns a default value.
+
+    Parameters
+    ----------
+    value : any
+        The value to be converted to a float.
+    default : float, optional
+        The default value to return if conversion fails. Defaults to 1.0.
+
+    Returns
+    -------
+    float
+        The converted float value or the default value.
+    """
     if isinstance(value, (int, float)):
         return float(value)
     try:
@@ -29,7 +46,33 @@ def _safe_float_convert(value, default=1.0):
         return default
 
 def _calculate_node_positions(processes, flows):
-    """Calculates node x-positions for a Sankey diagram using a topological sort."""
+    """Calculates node x-positions for a Sankey diagram using a topological sort.
+
+    This function determines the horizontal (x-axis) position of each node
+    (process) in a Sankey diagram. It constructs a directed graph from the
+    flows between processes and uses a topological sort (Kahn's algorithm)
+    to assign each node to a layer. The layer number then determines the
+    x-position, creating a left-to-right flow layout.
+
+    Parameters
+    ----------
+    processes : list of odym.Process
+        A list of the process objects to be included as nodes in the diagram.
+    flows : list of odym.Flow
+        A list of the flow objects that connect the processes.
+
+    Returns
+    -------
+    dict
+        A dictionary mapping each process ID to its calculated x-position,
+        a float value between 0.1 and 0.9.
+
+    Notes
+    -----
+    Nodes with an in-degree of zero are placed in the first layer (leftmost).
+    If the graph contains cycles, the remaining nodes are placed in a final
+    layer to the right.
+    """
     nodes = {p.ID for p in processes}
     if not nodes:
         return {}
@@ -67,12 +110,50 @@ def _calculate_node_positions(processes, flows):
     return {node: 0.1 + (layers[node] / max_layer) * 0.8 for node in nodes}
 
 def load_visualization_config(excel_file_path):
-    """Load visualization configuration from Excel file."""
+    """Load visualization configuration from an Excel file.
+
+    This function serves as a wrapper around the
+    `visualization_loader.load_visualization_config_from_excel` function,
+    providing a convenient way to load Sankey diagram styling and layout
+    settings from a specified Excel file.
+
+    Parameters
+    ----------
+    excel_file_path : str
+        The absolute path to the Excel file containing the visualization
+        configuration sheets.
+
+    Returns
+    -------
+    dict
+        A dictionary containing the loaded visualization configuration.
+    """
     from .visualization_loader import load_visualization_config_from_excel
     return load_visualization_config_from_excel(excel_file_path)
 
 def calculate_element_specific_positions(processes, config, element):
-    """Calculate node positions based on element-specific settings in the config."""
+    """Calculate node positions based on element-specific settings in the config.
+
+    This function determines the (x, y) coordinates for each process node based
+    on the visualization configuration. It prioritizes element-specific
+    positions (e.g., 'X_Position_C') before falling back to generic positions.
+    The final coordinates are clamped to the valid range [0.0, 1.0].
+
+    Parameters
+    ----------
+    processes : list of odym.Process
+        The list of process objects to be positioned.
+    config : dict
+        The visualization configuration dictionary, loaded from Excel.
+    element : str
+        The specific element for which to calculate positions.
+
+    Returns
+    -------
+    dict
+        A dictionary mapping each process ID to a tuple (x, y) of its
+        calculated coordinates.
+    """
     positions = {}
     for process in processes:
         viz_settings = get_process_visualization(process.ID, process.Name, config, element)
@@ -87,7 +168,32 @@ def calculate_element_specific_positions(processes, config, element):
     return positions
 
 def get_process_visualization(process_id: int, process_name: str, config: dict, element: str = None) -> dict:
-    """Get visualization settings for a process, with robust element-specific positioning."""
+    """Get visualization settings for a process, with robust element-specific positioning.
+
+    This function retrieves the visualization settings (e.g., color, position)
+    for a specific process from the configuration dictionary. It can look up
+    the process by its ID or name. For positions, it implements a fallback
+    logic, prioritizing element-specific keys (e.g., 'X_Position_C') before
+    using generic keys ('X_Position').
+
+    Parameters
+    ----------
+    process_id : int
+        The ID of the process.
+    process_name : str
+        The name of the process, used as a fallback for lookup.
+    config : dict
+        The visualization configuration dictionary.
+    element : str, optional
+        The specific element being plotted. If provided, the function will
+        search for element-specific position keys. Defaults to None.
+
+    Returns
+    -------
+    dict
+        A dictionary of visualization settings for the process. Returns a
+        default dictionary with a grey color if the process is not found.
+    """
     processes_config = config.get('process_colors', config.get('processes', {}))
     proc_key = str(process_id).strip().upper()
     proc_config = processes_config.get(proc_key)
@@ -130,7 +236,27 @@ def get_process_visualization(process_id: int, process_name: str, config: dict, 
     return viz_settings
 
 def get_flow_visualization(flow_id, flow_name, config):
-    """Get visualization settings for a flow."""
+    """Get visualization settings for a flow.
+
+    This function retrieves the visualization settings (e.g., color) for a
+    specific flow from the configuration dictionary. It can look up the flow
+    by its ID or name.
+
+    Parameters
+    ----------
+    flow_id : str
+        The ID of the flow.
+    flow_name : str
+        The name of the flow, used as a fallback for lookup.
+    config : dict
+        The visualization configuration dictionary.
+
+    Returns
+    -------
+    dict
+        A dictionary of visualization settings for the flow. Returns a default
+        dictionary with a blue color if the flow is not found.
+    """
     flows_config = config.get('flow_colors', config.get('flows', {}))
     if flow_id in flows_config:
         return flows_config[flow_id]
@@ -140,7 +266,35 @@ def get_flow_visualization(flow_id, flow_name, config):
     return {'Flow_Color_#': '#1f77b4'}
 
 def plot_enhanced_sankey(mfa_system_results, dsm_params=None, fomp_params=None, visualization_config_path=None):
-    """Enhanced interactive Sankey diagram with selectable layout modes."""
+    """Enhanced interactive Sankey diagram with selectable layout modes.
+
+    This function creates a highly interactive Sankey diagram for visualizing
+    Material Flow Analysis (MFA) results. It allows for dynamic filtering by
+    year, element, and processes, and supports two layout modes:
+    - **Custom**: Node positions are loaded from an Excel configuration file,
+      allowing for precise, publication-ready layouts.
+    - **Auto-Layout**: Node positions are calculated automatically using a
+      topological sort for a clean, hierarchical arrangement.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object containing all calculated data.
+    dsm_params : dict, optional
+        Unused in this function, but kept for API consistency. Defaults to None.
+    fomp_params : dict, optional
+        Unused in this function, but kept for API consistency. Defaults to None.
+    visualization_config_path : str, optional
+        The absolute path to the Excel file containing visualization settings.
+        If not provided or not found, default settings are used.
+
+    Notes
+    -----
+    The function uses `ipywidgets` for interactivity and `plotly` for plotting.
+    It is designed to be used within a Jupyter Notebook or JupyterLab environment.
+    The `dsm_params` and `fomp_params` are included for API consistency but do
+    not influence the plot generated by this function.
+    """
     if visualization_config_path and os.path.exists(visualization_config_path):
         config = load_visualization_config(visualization_config_path)
     else:
