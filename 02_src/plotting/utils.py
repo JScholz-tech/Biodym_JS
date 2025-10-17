@@ -11,12 +11,18 @@ from IPython.display import display
 from datetime import datetime
 
 def plot_enhanced_export_options(fig, filename_prefix="plot"):
-    """
-    Enhanced export functionality with multiple formats and batch capabilities.
-    
-    Args:
-        fig: Plotly figure object
-        filename_prefix (str): Prefix for exported files
+    """Provides interactive buttons for exporting a Plotly figure to various formats.
+
+    This function generates a set of `ipywidgets` buttons that allow users to
+    export a given Plotly figure to PNG, PDF, SVG, or HTML formats. Each export
+    is timestamped and uses a customizable filename prefix.
+
+    Parameters
+    ----------
+    fig : go.Figure
+        The Plotly figure object to be exported.
+    filename_prefix : str, optional
+        A prefix for the exported filenames. Defaults to "plot".
     """
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
