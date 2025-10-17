@@ -107,23 +107,46 @@ def get_publication_layout(
     x_title=None,
     custom_title=None
 ):
-    """
-    Get a standardized layout configuration for publication-quality plots.
-    
-    Args:
-        size (str): Figure size key from FIGURE_SIZES
-        margin (str): Margin key from MARGINS
-        show_grid (bool): Whether to show grid
-        background (str): Background color key from BACKGROUND_COLORS
-        scientific_y (bool): Whether to use scientific notation for y-axis
-        scientific_x (bool): Whether to use scientific notation for x-axis
-        zeroline (bool): Whether to show the zeroline
-        y_title (str): Title for the y-axis
-        x_title (str): Title for the x-axis
-        custom_title (str): Title for the plot
-        
-    Returns:
-        dict: Layout configuration for plotly figures
+    """Generates a standardized layout configuration for publication-quality plots.
+
+    This function provides a consistent visual style for Plotly figures,
+    ensuring they meet publication standards. It configures aspects like
+    figure size, margins, fonts, grid visibility, and axis properties.
+
+    Parameters
+    ----------
+    size : str, optional
+        A key from `FIGURE_SIZES` dict (e.g., 'small', 'medium', 'large',
+        'publication') to set the overall dimensions of the figure.
+        Defaults to 'publication'.
+    margin : str, optional
+        A key from `MARGINS` dict (e.g., 'standard', 'publication') to set
+        the plot margins. Defaults to 'publication'.
+    show_grid : bool, optional
+        If True, displays grid lines on both x and y axes. Defaults to True.
+    background : str, optional
+        A key from `BACKGROUND_COLORS` dict (e.g., 'white', 'light_gray')
+        to set the plot and paper background colors. Defaults to 'white'.
+    scientific_y : bool, optional
+        If True, formats the y-axis tick labels using scientific notation.
+        Defaults to False.
+    scientific_x : bool, optional
+        If True, formats the x-axis tick labels using scientific notation.
+        Defaults to False.
+    zeroline : bool, optional
+        If True, displays a zero line on the axes. Defaults to True.
+    y_title : str, optional
+        The title for the y-axis. Defaults to None.
+    x_title : str, optional
+        The title for the x-axis. Defaults to None.
+    custom_title : str, optional
+        A custom main title for the plot. If None, no main title is set.
+        Defaults to None.
+
+    Returns
+    -------
+    dict
+        A dictionary representing the Plotly layout configuration.
     """
     layout = {
         'width': FIGURE_SIZES[size][0],
@@ -212,55 +235,95 @@ def get_publication_layout(
     return layout
 
 def get_element_color(element_name):
-    """
-    Get the standardized color for a specific element.
-    
-    Args:
-        element_name (str): Name of the element
-        
-    Returns:
-        str: Hex color code
+    """Retrieves the standardized color for a specific element.
+
+    This function maps element names (e.g., 'material', 'wc', 'dm', 'cc')
+    to predefined hexadecimal color codes, ensuring consistent coloring across
+    all plots that visualize element-specific data.
+
+    Parameters
+    ----------
+    element_name : str
+        The name of the element (case-insensitive).
+
+    Returns
+    -------
+    str
+        The hexadecimal color code (e.g., '#00C851') for the given element.
+        If the element name is not found, it defaults to the primary BioDYM color.
     """
     return ELEMENT_COLORS.get(element_name.lower(), BIOYM_COLORS['primary'])
 
 def get_process_color(process_type):
-    """
-    Get the standardized color for a specific process type.
-    
-    Args:
-        process_type (str): Type of process (splitter, transformer, etc.)
-        
-    Returns:
-        str: Hex color code
+    """Retrieves the standardized color for a specific process type.
+
+    This function maps process types (e.g., 'splitter', 'transformer', 'dsm',
+    'fomp') to predefined hexadecimal color codes, ensuring consistent
+    coloring across all plots that visualize process-specific data.
+
+    Parameters
+    ----------
+    process_type : str
+        The type of process (case-insensitive).
+
+    Returns
+    -------
+    str
+        The hexadecimal color code (e.g., '#A23B72') for the given process type.
+        If the process type is not found, it defaults to the primary BioDYM color.
     """
     return PROCESS_COLORS.get(process_type.lower(), BIOYM_COLORS['primary'])
 
 def get_stock_color(element_name=None):
-    """
-    Get the standardized color for stock visualization.
-    
-    Args:
-        element_name (str, optional): Name of the element for element-specific stock colors
-        
-    Returns:
-        str: Hex color code
+    """Retrieves the standardized color for stock visualization.
+
+    This function provides a consistent color for stocks, optionally allowing
+    for element-specific stock colors if an element name is provided.
+
+    Parameters
+    ----------
+    element_name : str, optional
+        The name of the element for which to retrieve a stock color.
+        If None, the default stock color is returned. Defaults to None.
+
+    Returns
+    -------
+    str
+        The hexadecimal color code for the stock.
     """
     if element_name:
         return STOCK_COLORS.get(element_name.lower(), STOCK_COLORS['default'])
     return STOCK_COLORS['default']
 
 def detect_biodym_process_type(process_id, process_logic_map=None, dsm_params=None, fomp_params=None):
-    """
-    Automatically detect the BioDYM process type based on system configuration.
-    
-    Args:
-        process_id (int): Process ID
-        process_logic_map (dict): Map of process IDs to logic types
-        dsm_params (dict): DSM parameters configuration
-        fomp_params (dict): FOMP parameters configuration
-        
-    Returns:
-        str: Process type ('regular', 'splitter', 'transformer', 'dsm', 'fomp')
+    """Automatically detects the BioDYM process type based on configuration.
+
+    This function determines the classification of a given process (e.g.,
+    'dsm', 'fomp', 'splitter', 'transformer', 'regular') by checking
+    its presence in special model configurations (DSM, FOMP) or its defined
+    logic type.
+
+    Parameters
+    ----------
+    process_id : int
+        The unique identifier of the process.
+    process_logic_map : dict, optional
+        A dictionary mapping process IDs to their logic types (e.g.,
+        {'1': 'splitter'}). Defaults to None.
+    dsm_params : dict, optional
+        A dictionary containing the configuration parameters for all DSM
+        processes. If a process_id is a key in this dict, it's a DSM process.
+        Defaults to None.
+    fomp_params : dict, optional
+        A dictionary containing the configuration parameters for all FOMP
+        processes. If a process_id is a key in this dict, it's a FOMP process.
+        Defaults to None.
+
+    Returns
+    -------
+    str
+        A string indicating the detected process type ('regular', 'splitter',
+        'transformer', 'dsm', 'fomp').
     """
     # Check for special models first (DSM and FOMP)
     if dsm_params and process_id in dsm_params:
@@ -278,15 +341,25 @@ def detect_biodym_process_type(process_id, process_logic_map=None, dsm_params=No
     return 'regular'
 
 def create_color_sequence(n_colors, palette='primary'):
-    """
-    Create a sequence of colors for multiple elements/processes.
-    
-    Args:
-        n_colors (int): Number of colors needed
-        palette (str): Color palette to use ('primary', 'element', 'process')
-        
-    Returns:
-        list: List of hex color codes
+    """Generates a sequence of colors for plotting multiple elements or processes.
+
+    This function provides a flexible way to obtain a list of distinct colors
+    from predefined palettes. If more colors are requested than available in
+    the base palette, additional colors are procedurally generated to ensure
+    sufficient variety.
+
+    Parameters
+    ----------
+    n_colors : int
+        The number of colors required in the sequence.
+    palette : str, optional
+        The name of the color palette to use ('primary', 'element',
+        'process'). Defaults to 'primary'.
+
+    Returns
+    -------
+    list of str
+        A list of hexadecimal color codes.
     """
     if palette == 'element':
         base_colors = list(ELEMENT_COLORS.values())
@@ -311,17 +384,28 @@ def create_color_sequence(n_colors, palette='primary'):
     return base_colors[:n_colors]
 
 def get_export_filename(plot_type, element=None, process=None, timestamp=None):
-    """
-    Generate standardized filename for plot exports.
-    
-    Args:
-        plot_type (str): Type of plot (sankey, dynamics, etc.)
-        element (str): Element name (optional)
-        process (str): Process name (optional)
-        timestamp (str): Custom timestamp (optional)
-        
-    Returns:
-        str: Standardized filename
+    """Generates a standardized filename for plot exports.
+
+    This function creates a consistent, descriptive filename for an exported
+    plot based on its type, optional element and process names, and a timestamp.
+
+    Parameters
+    ----------
+    plot_type : str
+        The type of plot (e.g., 'sankey', 'dynamics').
+    element : str, optional
+        The name of the element to include in the filename. Defaults to None.
+    process : str, optional
+        The name of the process to include in the filename. Defaults to None.
+    timestamp : str, optional
+        A custom timestamp (YYYYMMDD_HHMMSS). If None, the current time is
+        used. Defaults to None.
+
+    Returns
+    -------
+    str
+        The generated standardized filename (e.g.,
+        'BioDYM_sankey_carbon_processA_20251016_143000').
     """
     if timestamp is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
