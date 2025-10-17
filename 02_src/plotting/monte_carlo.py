@@ -24,14 +24,28 @@ from .publication_style import (
 
 
 def plot_interactive_mc_histogram(mc_results_df, mfa_system_results=None):
-    """
-    Creates an interactive histogram of stock distributions from MC results.
-    Uses publication standards with shiny colors and standardized export.
-    Uses process names instead of stock IDs when MFA system is provided.
-    
-    Args:
-        mc_results_df (pd.DataFrame): DataFrame with detailed MC results.
-        mfa_system_results (odym.MFAsystem, optional): MFA system to get process names.
+    """Creates an interactive histogram of stock distributions from Monte Carlo results.
+
+    This function visualizes the probability distribution of a selected stock
+    and element from Monte Carlo simulation results. It displays a histogram
+    along with the mean and standard deviation, styled for publication quality.
+    Process names are used for better readability when an MFA system is provided.
+
+    Parameters
+    ----------
+    mc_results_df : pd.DataFrame
+        DataFrame containing the detailed Monte Carlo simulation results.
+        Expected columns follow the format 'S_X_ELEMENT' (e.g., 'S_0_CC').
+    mfa_system_results : odym.MFAsystem, optional
+        The MFA system object, used to map process IDs (e.g., 0 in 'S_0')
+        to meaningful process names for display. Defaults to None.
+
+    Notes
+    -----
+    The plot is interactive, allowing the user to select the process and
+    the element to display. It includes a mean line and an annotation for
+    mean and standard deviation. The histogram shows frequency (count) rather
+    than probability density.
     """
     if mc_results_df is None or mc_results_df.empty:
         print("No Monte Carlo results to plot.")
@@ -156,12 +170,25 @@ def plot_interactive_mc_histogram(mc_results_df, mfa_system_results=None):
     display(VBox([controls, fig_widget]))
 
 def plot_interactive_tornado(mc_results_df):
-    """
-    Creates an interactive tornado plot for sensitivity analysis.
-    Uses publication standards with shiny colors and standardized export.
+    """Creates an interactive tornado plot for sensitivity analysis.
 
-    Args:
-        mc_results_df (pd.DataFrame): DataFrame with detailed MC results.
+    This function visualizes the sensitivity of an output variable to various
+    input parameters using a tornado plot. It calculates the absolute correlation
+    between each input parameter and the selected output variable, displaying
+    them in descending order of influence.
+
+    Parameters
+    ----------
+    mc_results_df : pd.DataFrame
+        DataFrame containing the detailed Monte Carlo simulation results.
+        Expected columns include output variables (e.g., 'S_X_ELEMENT') and
+        parameter samples (e.g., 'param_name_sample').
+
+    Notes
+    -----
+    The plot is interactive, allowing the user to select the output variable
+    for which to perform the sensitivity analysis. The plot is styled for
+    publication quality, with a clear title and axis labels.
     """
     if mc_results_df is None or mc_results_df.empty:
         print("No Monte Carlo results to plot.")
@@ -216,15 +243,29 @@ def plot_interactive_tornado(mc_results_df):
     display(VBox([controls, fig_widget]))
 
 def plot_interactive_mc_paths(mc_results_df, mfa_system_results=None):
-    """
-    Creates an interactive Monte Carlo paths plot showing multiple simulation trajectories.
-    Based on the Python for Finance approach with publication standards.
-    Shows all individual simulation paths creating a "fan" visualization of uncertainty.
-    Uses process names instead of stock IDs when MFA system is provided.
+    """Creates an interactive Monte Carlo paths plot showing multiple simulation trajectories.
 
-    Args:
-        mc_results_df (pd.DataFrame): DataFrame with detailed MC results.
-        mfa_system_results (odym.MFAsystem, optional): MFA system to get process names.
+    This function visualizes the time-series evolution of a selected stock
+    across multiple Monte Carlo simulation runs. It displays individual paths
+    as a "fan" of uncertainty, along with the mean path and confidence bands
+    (e.g., 75% and 95%).
+
+    Parameters
+    ----------
+    mc_results_df : pd.DataFrame
+        DataFrame containing the detailed Monte Carlo simulation results.
+        Expected columns include 'S_X_ELEMENT' for aggregated results and
+        'S_X_ELEMENT_timeseries' for the full time-series paths.
+    mfa_system_results : odym.MFAsystem, optional
+        The MFA system object, used to map process IDs (e.g., 0 in 'S_0')
+        to meaningful process names for display. Defaults to None.
+
+    Notes
+    -----
+    The plot is interactive, allowing the user to select the process and
+    the element to display. For performance, the number of individual paths
+    displayed is limited (e.g., to 100) by sampling evenly from all iterations.
+    Confidence bands are calculated using percentiles of the simulation results.
     """
     if mc_results_df is None or mc_results_df.empty:
         print("No Monte Carlo results to plot.")
@@ -427,8 +468,7 @@ def plot_interactive_mc_paths(mc_results_df, mfa_system_results=None):
     display(VBox([controls, fig_widget]))
 
 def plot_interactive_mc_multiple_histograms(mc_results_df, mfa_system_results=None):
-    """
-    Creates multiple interactive histogram plots for selected Monte Carlo results.
+    """Creates multiple interactive histogram plots for selected Monte Carlo results.
 
     This function provides a multi-select interface to choose several stocks and
     displays a separate, interactive histogram for each one. The plots are
@@ -436,13 +476,20 @@ def plot_interactive_mc_multiple_histograms(mc_results_df, mfa_system_results=No
     selection changes. It uses `go.FigureWidget` to ensure compatibility with
     `ipywidgets`.
 
-    Args:
-        mc_results_df (pd.DataFrame):
-            DataFrame containing the Monte Carlo simulation results. Expected
-            columns follow the format 'S_X_ELEMENT' (e.g., 'S_0_CC').
-        mfa_system_results (odym.MFAsystem, optional):
-            The MFA system object, used to map process IDs (e.g., 0 in 'S_0')
-            to meaningful process names for display.
+    Parameters
+    ----------
+    mc_results_df : pd.DataFrame
+        DataFrame containing the Monte Carlo simulation results. Expected
+        columns follow the format 'S_X_ELEMENT' (e.g., 'S_0_CC').
+    mfa_system_results : odym.MFAsystem, optional
+        The MFA system object, used to map process IDs (e.g., 0 in 'S_0')
+        to meaningful process names for display. Defaults to None.
+
+    Notes
+    -----
+    Each histogram includes a mean line and an annotation for mean and standard
+    deviation, styled for publication quality. The plots are contained within
+    a `VBox` widget, allowing for a flexible display of multiple distributions.
     """
     if mc_results_df is None or mc_results_df.empty:
         print("No Monte Carlo results to plot.")
@@ -564,19 +611,26 @@ def plot_interactive_mc_multiple_histograms(mc_results_df, mfa_system_results=No
 
 
 def plot_interactive_mc_stock_comparison(mc_results_df, mfa_system_results=None):
-    """
-    Creates an interactive plot to compare Monte Carlo result distributions.
+    """Creates an interactive plot to compare Monte Carlo result distributions.
 
     This function overlays histograms for multiple selected stocks on the same
     axes, allowing for direct comparison of their frequency distributions. It uses
     the project's publication style and is fully interactive within a Jupyter
     widget environment.
 
-    Args:
-        mc_results_df (pd.DataFrame):
-            DataFrame with detailed MC results, with columns like 'S_X_ELEMENT'.
-        mfa_system_results (odym.MFAsystem, optional):
-            MFA system object to map process IDs to descriptive names.
+    Parameters
+    ----------
+    mc_results_df : pd.DataFrame
+        DataFrame with detailed MC results, with columns like 'S_X_ELEMENT'.
+    mfa_system_results : odym.MFAsystem, optional
+        MFA system object to map process IDs to descriptive names. Defaults to None.
+
+    Notes
+    -----
+    The plot is interactive, allowing the user to select multiple stocks and
+    an element to compare their distributions. Histograms are overlaid with
+    a degree of transparency to facilitate comparison, and a color cycle is
+    used to distinguish between different stock distributions.
     """
     if mc_results_df is None or mc_results_df.empty:
         print("No Monte Carlo results to plot.")
