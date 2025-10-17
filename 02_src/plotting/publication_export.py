@@ -22,37 +22,62 @@ from .publication_style import (
 )
 
 class PublicationExporter:
-    """
-    Enhanced export functionality for publication-quality figures.
-    Provides unified, consistent export management across all BioDYM plots.
+    """Manages the export of publication-quality figures.
+
+    This class provides a centralized and consistent interface for exporting
+    Plotly figures to various formats (PNG, PDF, SVG, HTML) with standardized
+    filenames, directory structures, and quality settings. It is designed to
+    unify export functionality across all plotting modules in the BioDYM tool.
+
+    Parameters
+    ----------
+    export_dir : str, optional
+        The root directory where all exported figures will be saved.
+        Defaults to "exports".
     """
     
     def __init__(self, export_dir="exports"):
-        """
-        Initialize the exporter.
-        
-        Args:
-            export_dir (str): Directory to save exported figures
+        """Initializes the PublicationExporter.
+
+        Parameters
+        ----------
+        export_dir : str, optional
+            The root directory to save exported figures. Defaults to "exports".
         """
         self.export_dir = export_dir
         self.ensure_export_dir()
         
     def ensure_export_dir(self):
-        """Create export directory if it doesn't exist."""
+        """Ensures the export directory exists.
+
+        This method checks if the directory specified in `self.export_dir`
+        exists, and creates it if it does not.
+        """
         if not os.path.exists(self.export_dir):
             os.makedirs(self.export_dir)
     
     def get_standardized_filename(self, plot_type, parameters=None, timestamp=None):
-        """
-        Generate standardized filename for all plot types.
-        
-        Args:
-            plot_type (str): Type of plot (e.g., 'scenario_comparison', 'dsm_analysis')
-            parameters (dict): Plot parameters (element, process, etc.)
-            timestamp (str): Custom timestamp (optional)
-            
-        Returns:
-            str: Standardized filename
+        """Generates a standardized filename for a plot.
+
+        This method creates a consistent, descriptive filename for an exported
+        plot based on its type and the parameters used to generate it.
+
+        Parameters
+        ----------
+        plot_type : str
+            The type of plot (e.g., 'scenario_comparison', 'dsm_analysis').
+        parameters : dict, optional
+            A dictionary of plot parameters (e.g., element, process) to be
+            included in the filename. Defaults to None.
+        timestamp : str, optional
+            A custom timestamp (YYYYMMDD_HHMMSS). If None, the current time is
+            used. Defaults to None.
+
+        Returns
+        -------
+        str
+            The generated standardized filename (e.g.,
+            'dsm_analysis_20251016_143000_carbon.png').
         """
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -71,17 +96,29 @@ class PublicationExporter:
         return "_".join(filename_parts) + ".png"
     
     def get_export_path(self, plot_type, parameters=None, timestamp=None, use_subdir=True):
-        """
-        Get standardized export path for any plot type.
-        
-        Args:
-            plot_type (str): Type of plot
-            parameters (dict): Plot parameters
-            timestamp (str): Custom timestamp (optional)
-            use_subdir (bool): Whether to use timestamp subdirectory
-            
-        Returns:
-            str: Full export path
+        """Gets the standardized full export path for a plot.
+
+        This method constructs the full file path for an exported plot,
+        including the root export directory, an optional subdirectory for the
+        plot type, and a standardized filename.
+
+        Parameters
+        ----------
+        plot_type : str
+            The type of plot (e.g., 'scenario_comparison').
+        parameters : dict, optional
+            Plot parameters for the filename. Defaults to None.
+        timestamp : str, optional
+            A custom timestamp (YYYYMMDD_HHMMSS). If None, the current time is
+            used. Defaults to None.
+        use_subdir : bool, optional
+            If True, creates a timestamped subdirectory within the plot type
+            directory for better organization. Defaults to True.
+
+        Returns
+        -------
+        str
+            The full, absolute path for the exported file.
         """
         filename = self.get_standardized_filename(plot_type, parameters, timestamp)
         
@@ -101,19 +138,33 @@ class PublicationExporter:
     
     def export_plot(self, fig, plot_type, parameters=None, format='png', 
                    quality='publication', use_subdir=True):
-        """
-        Unified export function for all BioDYM plots.
-        
-        Args:
-            fig: Plotly figure object
-            plot_type (str): Type of plot (e.g., 'scenario_comparison', 'dsm_analysis')
-            parameters (dict): Plot parameters for filename
-            format (str): Export format ('png', 'pdf', 'svg')
-            quality (str): Export quality ('publication', 'high', 'medium')
-            use_subdir (bool): Whether to use timestamp subdirectory
-            
-        Returns:
-            str: Export path if successful, None if failed
+        """Exports a Plotly figure with standardized settings.
+
+        This is a unified export function that saves a given Plotly figure
+        with a standardized filename and path, using predefined quality
+        settings for consistent output.
+
+        Parameters
+        ----------
+        fig : go.Figure
+            The Plotly figure object to be exported.
+        plot_type : str
+            The type of plot (e.g., 'scenario_comparison', 'dsm_analysis').
+        parameters : dict, optional
+            Plot parameters for the filename. Defaults to None.
+        format : str, optional
+            The export format ('png', 'pdf', 'svg'). Defaults to 'png'.
+        quality : str, optional
+            The export quality setting ('publication', 'high', 'medium').
+            Determines resolution and scale. Defaults to 'publication'.
+        use_subdir : bool, optional
+            If True, saves the plot in a timestamped subdirectory.
+            Defaults to True.
+
+        Returns
+        -------
+        str or None
+            The full path to the exported file if successful, otherwise None.
         """
         try:
             # Get standardized export path
@@ -146,17 +197,36 @@ class PublicationExporter:
     
     def export_figure(self, fig, plot_type, filename=None, format='png', 
                      quality='publication', element=None, process=None):
-        """
-        Export a single figure with publication-quality settings.
-        
-        Args:
-            fig: Plotly figure object
-            plot_type (str): Type of plot (sankey, dynamics, etc.)
-            filename (str): Custom filename (optional)
-            format (str): Export format ('png', 'pdf', 'svg', 'html')
-            quality (str): Quality setting ('standard', 'publication', 'print')
-            element (str): Element name for filename (optional)
-            process (str): Process name for filename (optional)
+        """Exports a single figure with publication-quality settings.
+
+        This method applies a publication-ready layout to a figure (if not
+        already applied) and saves it to a specified format and quality.
+
+        Parameters
+        ----------
+        fig : go.Figure
+            The Plotly figure object to export.
+        plot_type : str
+            The type of plot (e.g., 'sankey', 'dynamics').
+        filename : str, optional
+            A custom filename (without extension). If None, a standardized
+            filename is generated. Defaults to None.
+        format : str, optional
+            The export format ('png', 'pdf', 'svg', 'html'). Defaults to 'png'.
+        quality : str, optional
+            The quality setting ('standard', 'publication', 'print').
+            Defaults to 'publication'.
+        element : str, optional
+            The element name, used for generating a standardized filename if
+            `filename` is not provided. Defaults to None.
+        process : str, optional
+            The process name, used for generating a standardized filename if
+            `filename` is not provided. Defaults to None.
+
+        Returns
+        -------
+        str or None
+            The full path to the exported file if successful, otherwise None.
         """
         if filename is None:
             filename = get_export_filename(plot_type, element, process)
@@ -203,13 +273,26 @@ class PublicationExporter:
             return None
     
     def batch_export(self, figures_dict, base_filename=None, formats=['png', 'pdf']):
-        """
-        Export multiple figures in batch.
-        
-        Args:
-            figures_dict (dict): Dictionary of {name: figure} pairs
-            base_filename (str): Base filename for all exports
-            formats (list): List of formats to export
+        """Exports multiple figures in a batch operation.
+
+        This method iterates through a dictionary of named figures and exports
+        each one to the specified formats, using a common base filename.
+
+        Parameters
+        ----------
+        figures_dict : dict
+            A dictionary where keys are descriptive names for the figures and
+            values are the Plotly figure objects (e.g., {'dsm_plot': fig1}).
+        base_filename : str, optional
+            A base filename to be used for all exported files. If None, a
+            timestamped default is generated. Defaults to None.
+        formats : list of str, optional
+            A list of formats to export each figure to. Defaults to ['png', 'pdf'].
+
+        Returns
+        -------
+        list of str
+            A list of file paths for all successfully exported files.
         """
         if base_filename is None:
             base_filename = f"BioDYM_BatchExport_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -227,17 +310,29 @@ class PublicationExporter:
         return exported_files
 
 def create_publication_export_widget(fig, plot_type, element=None, process=None):
-    """
-    Create an enhanced export widget with publication-quality options.
-    
-    Args:
-        fig: Plotly figure object
-        plot_type (str): Type of plot
-        element (str): Element name (optional)
-        process (str): Process name (optional)
-        
-    Returns:
-        ipywidgets.VBox: Export widget
+    """Creates an enhanced export widget with publication-quality options.
+
+    This function generates an `ipywidgets`-based user interface that allows
+    for interactive exporting of a given Plotly figure. The widget provides
+    options for format, quality, and filename, as well as a button for
+    batch exporting to multiple formats at once.
+
+    Parameters
+    ----------
+    fig : go.Figure
+        The Plotly figure object to be exported.
+    plot_type : str
+        The type of plot (e.g., 'sankey', 'dynamics'), used for generating
+        a default filename.
+    element : str, optional
+        The element name, used for the default filename. Defaults to None.
+    process : str, optional
+        The process name, used for the default filename. Defaults to None.
+
+    Returns
+    -------
+    ipywidgets.VBox
+        A VBox widget containing the complete export user interface.
     """
     exporter = PublicationExporter()
     
@@ -333,17 +428,29 @@ def create_publication_export_widget(fig, plot_type, element=None, process=None)
     return widget
 
 def apply_publication_style(fig, title=None, size='publication', show_grid=True):
-    """
-    Apply publication styling to a plotly figure.
-    
-    Args:
-        fig: Plotly figure object
-        title (str): Figure title (optional)
-        size (str): Figure size key
-        show_grid (bool): Whether to show grid
-        
-    Returns:
-        Plotly figure with applied styling
+    """Applies a publication-ready style to a Plotly figure.
+
+    This function updates the layout of a given Plotly figure to match the
+    project's defined publication standards, including font sizes, colors,
+    and grid visibility.
+
+    Parameters
+    ----------
+    fig : go.Figure
+        The Plotly figure object to be styled.
+    title : str, optional
+        A custom title for the figure. If None, the existing title is used.
+        Defaults to None.
+    size : str, optional
+        The figure size key ('publication', 'large', 'medium', 'small').
+        Determines the overall dimensions and font sizes. Defaults to 'publication'.
+    show_grid : bool, optional
+        If True, displays the grid lines on the plot. Defaults to True.
+
+    Returns
+    -------
+    go.Figure
+        The Plotly figure with the publication style applied.
     """
     layout = get_publication_layout(size=size, show_grid=show_grid)
     
@@ -356,14 +463,22 @@ def apply_publication_style(fig, title=None, size='publication', show_grid=True)
     return fig
 
 def create_figure_summary(figures_dict):
-    """
-    Create a summary of all figures for batch export.
-    
-    Args:
-        figures_dict (dict): Dictionary of {name: figure} pairs
-        
-    Returns:
-        ipywidgets.VBox: Summary widget
+    """Creates a summary widget for batch exporting multiple figures.
+
+    This function generates an `ipywidgets`-based UI that displays a summary
+    of all figures intended for batch export and provides a single button to
+    export all of them at once.
+
+    Parameters
+    ----------
+    figures_dict : dict
+        A dictionary where keys are descriptive names for the figures and
+        values are the Plotly figure objects (e.g., {'dsm_plot': fig1}).
+
+    Returns
+    -------
+    ipywidgets.VBox
+        A VBox widget containing the summary title and the export button.
     """
     exporter = PublicationExporter()
     
@@ -393,18 +508,28 @@ def create_figure_summary(figures_dict):
 
 # Convenience function for quick export
 def quick_export(fig, plot_type, element=None, process=None, format='png'):
-    """
-    Quick export function for single figures.
-    
-    Args:
-        fig: Plotly figure object
-        plot_type (str): Type of plot
-        element (str): Element name (optional)
-        process (str): Process name (optional)
-        format (str): Export format
-        
-    Returns:
-        str: Path to exported file
+    """Provides a simple, one-line function for exporting a single figure.
+
+    This is a convenience wrapper around the `PublicationExporter.export_figure`
+    method for quick, straightforward exports with default settings.
+
+    Parameters
+    ----------
+    fig : go.Figure
+        The Plotly figure object to export.
+    plot_type : str
+        The type of plot, used for generating a standardized filename.
+    element : str, optional
+        The element name for the filename. Defaults to None.
+    process : str, optional
+        The process name for the filename. Defaults to None.
+    format : str, optional
+        The export format. Defaults to 'png'.
+
+    Returns
+    -------
+    str or None
+        The full path to the exported file if successful, otherwise None.
     """
     exporter = PublicationExporter()
     return exporter.export_figure(fig, plot_type, format=format, 
