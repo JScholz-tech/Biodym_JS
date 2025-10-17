@@ -11,27 +11,48 @@ import graphviz
 
 def plot_graphviz_flow_chart_sankey_style(processes_df, flows_df, title="BioDYM System - Sankey-Style Block Flow Diagram", 
                                          rankdir="LR", ranksep=1.0, nodesep=0.5, max_processes=20, max_flows=30):
-    """
-    Create a clean, professional Sankey-style block flow diagram using Graphviz.
-    
-    Enhanced version that addresses data quality issues and Graphviz limitations:
-    - Filters out incomplete data
-    - Limits complexity for better visualization
-    - Provides detailed diagnostics
-    - Handles missing data gracefully
-    
-    Args:
-        processes_df (pd.DataFrame): DataFrame containing process definitions.
-        flows_df (pd.DataFrame): DataFrame containing flow definitions.
-        title (str): Chart title
-        rankdir (str): Direction ('LR', 'TB', 'RL', 'BT')
-        ranksep (float): Separation between ranks
-        nodesep (float): Separation between nodes
-        max_processes (int): Maximum number of processes to include
-        max_flows (int): Maximum number of flows to include
-        
-    Returns:
-        graphviz.Digraph: Graphviz diagram object
+    """Create a clean, professional Sankey-style block flow diagram using Graphviz.
+
+    This function generates a block flow diagram that visualizes the system
+    structure defined in the process and flow DataFrames. It is designed to
+    handle potential data quality issues by filtering incomplete data and
+    manages complexity by limiting the number of displayed processes and flows
+    to ensure a readable diagram.
+
+    Parameters
+    ----------
+    processes_df : pd.DataFrame
+        A DataFrame containing process definitions, expected to have 'ID' and
+        'Process_Name' columns.
+    flows_df : pd.DataFrame
+        A DataFrame containing flow definitions, expected to have 'Flow_ID',
+        'Flow_Name', 'Flow_Output_Process_ID', and 'Input_Process_ID' columns.
+    title : str, optional
+        The title of the chart. Defaults to "BioDYM System - Sankey-Style Block Flow Diagram".
+    rankdir : str, optional
+        The direction of the graph layout ('LR' for left-to-right, 'TB' for
+        top-to-bottom). Defaults to "LR".
+    ranksep : float, optional
+        The separation between ranks (layers) in the graph. Defaults to 1.0.
+    nodesep : float, optional
+        The separation between nodes within the same rank. Defaults to 0.5.
+    max_processes : int, optional
+        The maximum number of processes to include in the diagram to manage
+        complexity. Defaults to 20.
+    max_flows : int, optional
+        The maximum number of flows to include in the diagram. Defaults to 30.
+
+    Returns
+    -------
+    graphviz.Digraph or None
+        A Graphviz Digraph object representing the flow chart, or None if an
+        error occurs during generation.
+
+    Notes
+    -----
+    The function provides detailed diagnostic prints during its execution,
+    covering data quality checks, filtering, and complexity management steps.
+    It uses a professional, minimalist black-and-white styling for clarity.
     """
     try:
         print(f"🔍 Graphviz Analysis:")
