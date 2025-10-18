@@ -48,7 +48,25 @@ except ImportError as e:
 
 
 def create_parser():
-    """Create and configure the argument parser."""
+    """
+    Creates and configures the argument parser for the BioDYM MFA CLI.
+
+    This function sets up the command-line interface, defining all expected
+    arguments, their types, help messages, and default values. It also includes
+    examples for how to use the CLI.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        An ArgumentParser object configured with all CLI options.
+
+    Examples
+    --------
+    >>> parser = create_parser()
+    >>> args = parser.parse_args(["--input", "test.xlsx"])
+    >>> args.input
+    'test.xlsx'
+    """
     parser = argparse.ArgumentParser(
         description="BioDYM MFA Model - Material Flow Analysis Tool",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -123,7 +141,36 @@ Examples:
 
 
 def validate_input_file(file_path):
-    """Validate that the input file exists and is readable."""
+    """
+    Validates the existence and format of the input Excel file.
+
+    Checks if the specified file path exists and if the file has a valid
+    Excel extension (.xlsx or .xls). Prints error messages to the console
+    if validation fails.
+
+    Parameters
+    ----------
+    file_path : str
+        The absolute or relative path to the input Excel file.
+
+    Returns
+    -------
+    bool
+        True if the file is valid and exists, False otherwise.
+
+    Examples
+    --------
+    >>> # Assuming 'valid.xlsx' exists and 'invalid.txt' does not
+    >>> validate_input_file("valid.xlsx")
+    True
+    >>> validate_input_file("non_existent.xlsx")
+    ERROR: Input file not found: non_existent.xlsx
+    Please check the file path and try again.
+    False
+    >>> validate_input_file("invalid.txt")
+    ERROR: Input file must be an Excel file (.xlsx or .xls): invalid.txt
+    False
+    """
     if not os.path.exists(file_path):
         print(f"ERROR: Input file not found: {file_path}")
         print("Please check the file path and try again.")
@@ -137,7 +184,35 @@ def validate_input_file(file_path):
 
 
 def run_mfa_analysis(args):
-    """Run the MFA analysis with the given arguments."""
+    """
+    Executes the Material Flow Analysis (MFA) based on provided command-line arguments.
+
+    This function orchestrates the entire MFA workflow, including input validation,
+    model setup, deterministic or Monte Carlo calculation, results summarization,
+    and export.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        An object containing the parsed command-line arguments, such as input file,
+        output file, years, elements, and simulation options.
+
+    Returns
+    -------
+    bool
+        True if the MFA analysis completes successfully, False otherwise.
+
+    Raises
+    ------
+    Exception
+        If any unhandled error occurs during the analysis, it will be caught and
+        an error message will be printed.
+
+    Notes
+    -----
+    The function prints progress and status messages to the console.
+    If `args.verbose` is True, more detailed information is printed.
+    """
     print("=" * 60)
     print("  BioDYM MFA Model - Starting Analysis")
     print("=" * 60)
@@ -353,7 +428,14 @@ def run_mfa_analysis(args):
 
 
 def main():
-    """Main function to handle CLI execution."""
+    """
+    Main function to parse command-line arguments and run the MFA analysis.
+
+    This function serves as the entry point for the command-line interface.
+    It parses the arguments provided by the user and then calls `run_mfa_analysis`
+    to perform the material flow analysis. The system exits with a status code
+    indicating success (0) or failure (1).
+    """
     parser = create_parser()
     args = parser.parse_args()
 

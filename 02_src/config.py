@@ -100,16 +100,69 @@ def get_default_config():
 
 def create_config_object(config_dict):
     """
-    Create a configuration object from dictionary.
+    Creates a configuration object from a dictionary, converting dictionary keys
+    into accessible object attributes.
 
-    Args:
-        config_dict (dict): Configuration dictionary.
+    This function takes a dictionary of configuration settings and transforms it
+    into an object where each key-value pair becomes an attribute-value pair.
+    It also handles the creation of uppercase aliases for backward compatibility.
 
-    Returns:
-        object: Configuration object with attributes.
+    Parameters
+    ----------
+    config_dict : dict
+        A dictionary containing configuration settings. Keys are expected to be
+        strings representing setting names, and values are their corresponding
+        settings.
+
+    Returns
+    -------
+    Config
+        An object with attributes corresponding to the keys in `config_dict`,
+        plus additional uppercase aliases for some attributes.
+
+    Examples
+    --------
+    >>> config_data = {"Start Year": 2020, "End Year": 2030}
+    >>> config_obj = create_config_object(config_data)
+    >>> config_obj.Start_Year
+    2020
+    >>> config_obj.START_YEAR
+    2020
     """
 
     class Config:
+        """
+        A configuration object that holds settings as attributes.
+
+        This inner class is designed to provide attribute-style access to
+        configuration settings that are loaded from a dictionary. It also
+        creates uppercase aliases for certain attributes to maintain backward
+        compatibility.
+
+        Parameters
+        ----------
+        config_dict : dict
+            A dictionary where keys are configuration setting names (e.g., "Start Year")
+            and values are the corresponding settings.
+
+        Attributes
+        ----------
+        <setting_name> : any
+            Each key from `config_dict` is converted into a snake_case attribute.
+            For example, "Start Year" becomes `self.Start_Year`.
+        <SETTING_NAME> : any
+            For certain predefined settings, an uppercase alias is also created.
+            For example, `self.START_YEAR`.
+
+        Examples
+        --------
+        >>> config_data = {"Input File Path": "data.xlsx", "Start Year": 2020}
+        >>> config_obj = create_config_object(config_data)
+        >>> config_obj.Input_File_Path
+        'data.xlsx'
+        >>> config_obj.START_YEAR
+        2020
+        """
         def __init__(self, config_dict):
             # First, set all the normal attributes from Excel
             for key, value in config_dict.items():

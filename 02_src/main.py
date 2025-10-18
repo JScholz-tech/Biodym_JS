@@ -57,7 +57,29 @@ except ImportError as e:
 
 def main():
     """
-    Main function to orchestrate the MFA model execution.
+    Orchestrates the execution of the BioDYM Material Flow Analysis (MFA) model.
+
+    This function serves as the primary entry point for the BioDYM MFA tool when
+    executed as a script. It coordinates the entire workflow, which includes:
+
+    1.  **Setup and Configuration**: Defines the model scope, initializes the MFA system,
+        loads data from Excel, and configures flows and parameters.
+    2.  **Calculation**: Performs either a deterministic MFA calculation or a Monte Carlo
+        simulation based on the configuration.
+    3.  **Visualization**: Generates and displays various plots and charts to visualize
+        the results, including mass balance checks, Sankey diagrams, and stock dynamics.
+
+    The function prints status messages to the console throughout its execution.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    The configuration for the model run (e.g., start year, end year, Monte Carlo settings)
+    is loaded from the `config` module, which typically sources these settings from an
+    Excel input file.
     """
     print("========================================")
     print("  STARTING BioDYM MFA MODEL EXECUTION   ")

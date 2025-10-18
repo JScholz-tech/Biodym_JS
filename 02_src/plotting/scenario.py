@@ -22,15 +22,30 @@ from .publication_style import (
 
 
 def plot_multi_scenario_comparison(baseline_results, all_scenario_results, scenario_definitions):
-    """
-    Creates an interactive comparison plot (bar chart or line diagram) to compare metrics across multiple scenarios,
-    allowing users to select which scenarios to display and view their parameters.
-    Uses publication standards with shiny colors and standardized export.
+    """Creates an interactive comparison plot for multiple scenarios.
 
-    Args:
-        baseline_results (odym.MFAsystem): The baseline MFA system results.
-        all_scenario_results (dict): Dict with scenario names as keys and results as values.
-        scenario_definitions (dict): Dict with scenario names as keys and lists of parameter changes as values.
+    This function generates a bar chart or line diagram to compare key metrics
+    (final stock or total flow) across a baseline and multiple user-selected
+    scenarios. It also displays the parameter changes for each selected scenario.
+
+    Parameters
+    ----------
+    baseline_results : odym.MFAsystem
+        The solved MFA system object representing the baseline scenario.
+    all_scenario_results : dict
+        A dictionary where keys are scenario names (str) and values are the
+        corresponding solved `odym.MFAsystem` objects for each scenario.
+    scenario_definitions : dict
+        A dictionary where keys are scenario names (str) and values are lists
+        of dictionaries, each describing a parameter change for that scenario.
+
+    Notes
+    -----
+    The plot is interactive, allowing users to select the metric (final stock
+    or total flow), the specific item (stock ID or flow ID), the element,
+    the chart type (bar or line), and which scenarios to display. It uses
+    publication standards for styling and includes a display of scenario
+    parameter definitions.
     """
     if not all_scenario_results:
         print("No scenario results to compare.")
@@ -180,21 +195,31 @@ def plot_multi_scenario_comparison(baseline_results, all_scenario_results, scena
 
 
 def plot_scenario_flow_dynamics(baseline_results, all_scenario_results, scenario_definitions):
-    """
-    Creates an interactive time-series plot showing flow dynamics over time for different scenarios.
-    Similar to Flow Dynamics Analysis but with scenario lines for comparison.
-    
-    Features:
-    - Multi-flow selection with checkboxes
-    - Scenario comparison lines over time
-    - Element selection
-    - Publication standards with distinct scenario colors
-    - Export functionality
-    
-    Args:
-        baseline_results (odym.MFAsystem): The baseline MFA system results.
-        all_scenario_results (dict): Dict with scenario names as keys and results as values.
-        scenario_definitions (dict): Dict with scenario names as keys and lists of parameter changes as values.
+    """Creates an interactive time-series plot showing flow dynamics for different scenarios.
+
+    This function visualizes the time-series evolution of selected flows,
+    comparing their dynamics across a baseline and multiple user-selected
+    scenarios. It allows for multi-flow and multi-scenario selection.
+
+    Parameters
+    ----------
+    baseline_results : odym.MFAsystem
+        The solved MFA system object representing the baseline scenario.
+    all_scenario_results : dict
+        A dictionary where keys are scenario names (str) and values are the
+        corresponding solved `odym.MFAsystem` objects for each scenario.
+    scenario_definitions : dict
+        A dictionary where keys are scenario names (str) and values are lists
+        of dictionaries, each describing a parameter change for that scenario.
+        (Note: This parameter is currently not directly used in the plot but
+        is kept for API consistency).
+
+    Notes
+    -----
+    The plot is interactive, allowing users to select multiple flows, the
+    element, and which scenarios to display. Each scenario's flow is plotted
+    as a distinct line, with the baseline clearly marked. Publication standards
+    are applied for styling.
     """
     if not all_scenario_results:
         print("No scenario results to compare.")
@@ -304,20 +329,31 @@ def plot_scenario_flow_dynamics(baseline_results, all_scenario_results, scenario
 
 
 def plot_scenario_stock_dynamics(baseline_results, all_scenario_results, scenario_definitions):
-    """
-    Creates an interactive time-series plot showing stock dynamics over time for different scenarios.
-    
-    Features:
-    - Multi-stock selection with checkboxes
-    - Scenario comparison lines over time
-    - Element selection
-    - Publication standards with distinct scenario colors
-    - Export functionality
-    
-    Args:
-        baseline_results (odym.MFAsystem): The baseline MFA system results.
-        all_scenario_results (dict): Dict with scenario names as keys and results as values.
-        scenario_definitions (dict): Dict with scenario names as keys and lists of parameter changes as values.
+    """Creates an interactive time-series plot showing stock dynamics over time for different scenarios.
+
+    This function visualizes the time-series evolution of selected stocks,
+    comparing their dynamics across a baseline and multiple user-selected
+    scenarios. It allows for multi-stock and multi-scenario selection.
+
+    Parameters
+    ----------
+    baseline_results : odym.MFAsystem
+        The solved MFA system object representing the baseline scenario.
+    all_scenario_results : dict
+        A dictionary where keys are scenario names (str) and values are the
+        corresponding solved `odym.MFAsystem` objects for each scenario.
+    scenario_definitions : dict
+        A dictionary where keys are scenario names (str) and values are lists
+        of dictionaries, each describing a parameter change for that scenario.
+        (Note: This parameter is currently not directly used in the plot but
+        is kept for API consistency).
+
+    Notes
+    -----
+    The plot is interactive, allowing users to select multiple stocks, the
+    element, and which scenarios to display. Each scenario's stock is plotted
+    as a distinct line, with the baseline clearly marked. Publication standards
+    are applied for styling.
     """
     if not all_scenario_results:
         print("No scenario results to compare.")

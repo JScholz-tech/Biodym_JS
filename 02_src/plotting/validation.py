@@ -21,11 +21,24 @@ from .publication_style_simplified import (
 
 
 def plot_optimized_mass_balance_error(mfa_system_results):
-    """
-    Optimized version of mass balance error plot with enhanced performance.
-    
-    Args:
-        mfa_system_results (odym.MFAsystem): The solved MFA system object.
+    """Creates an interactive plot of mass balance errors for each process.
+
+    This function visualizes the mass balance error (inflow - outflow - dS)
+    for each process in the MFA system for a selected year and element.
+    It is optimized for performance by pre-calculating flow sums.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object, containing the results of the MFA
+        calculation, including all flows and stocks over the simulation period.
+
+    Notes
+    -----
+    The plot is interactive, allowing the user to select the year and the
+    element to display. Errors are shown as bar charts, with a horizontal
+    line at zero for reference. The plot adheres to publication styling
+    standards.
     """
     process_names = [p.Name for p in mfa_system_results.ProcessList]
     time_items = mfa_system_results.IndexTable.Classification["Time"].Items
@@ -119,14 +132,24 @@ def plot_optimized_mass_balance_error(mfa_system_results):
 
 
 def plot_total_mass_balance_error(mfa_system_results):
-    """
-    Creates a static bar chart showing the sum of absolute mass balance errors
-    over all years for each process.
-    This version calculates the balance manually to avoid bugs in the
-    underlying ODYM MassBalance() function.
+    """Creates a static bar chart showing the sum of absolute mass balance errors.
 
-    Args:
-        mfa_system_results (odym.MFAsystem): The solved MFA system object.
+    This function calculates and visualizes the total absolute mass balance
+    error for each process and element, aggregated over all years. It manually
+    calculates the balance to ensure correctness, bypassing potential issues
+    with underlying ODYM functions.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object, containing the results of the MFA
+        calculation, including all flows and stocks over the simulation period.
+
+    Notes
+    -----
+    The plot is static and displays the sum of absolute errors for each element
+    as stacked bars per process. It uses publication styling standards and
+    element-specific colors for clarity.
     """
     process_names = [p.Name for p in mfa_system_results.ProcessList]
     element_items = mfa_system_results.Elements
