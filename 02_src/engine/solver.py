@@ -187,29 +187,30 @@ def _calculate_tc_driven_flows(mfa_system, special_processes, process_logic_map,
         except ValueError as e:
             raise ValueError(f"The model's elements are not correctly defined. Missing one of ['material', 'WC', 'DM', 'CC']. Error: {e}")
 
-        if process_logic == 'Splitter':
-            param_name = tc_ids.get('material')
-            if param_name and param_name in mfa_system.ParameterDict:
-                tc_value = mfa_system.ParameterDict[param_name].Values
-                outflow_vector[:, mat_idx] = total_inflow_vector[:, mat_idx] * tc_value
-                inflow_material = total_inflow_vector[:, mat_idx]
-                wc_fraction = np.divide(total_inflow_vector[:, wc_idx], inflow_material, out=np.zeros_like(inflow_material), where=inflow_material!=0)
-                dm_fraction = np.divide(total_inflow_vector[:, dm_idx], inflow_material, out=np.zeros_like(inflow_material), where=inflow_material!=0)
-                cc_fraction = np.divide(total_inflow_vector[:, cc_idx], inflow_material, out=np.zeros_like(inflow_material), where=inflow_material!=0)
-                outflow_vector[:, wc_idx] = outflow_vector[:, mat_idx] * wc_fraction
-                outflow_vector[:, dm_idx] = outflow_vector[:, mat_idx] * dm_fraction
-                outflow_vector[:, cc_idx] = outflow_vector[:, mat_idx] * cc_fraction
-        elif process_logic == 'Transformer':
-            for i_elem, element in [(wc_idx, 'WC'), (dm_idx, 'DM'), (cc_idx, 'CC')]:
-                param_name = tc_ids.get(element, tc_ids.get('material'))
+        if process_logic in ['Splitter', 'Transformer']:
+            if process_logic == 'Splitter':
+                param_name = tc_ids.get('material')
                 if param_name and param_name in mfa_system.ParameterDict:
                     tc_value = mfa_system.ParameterDict[param_name].Values
-                    outflow_vector[:, i_elem] = total_inflow_vector[:, i_elem] * tc_value
-            outflow_vector[:, mat_idx] = outflow_vector[:, wc_idx] + outflow_vector[:, dm_idx]
+                    outflow_vector[:, mat_idx] = total_inflow_vector[:, mat_idx] * tc_value
+                    inflow_material = total_inflow_vector[:, mat_idx]
+                    wc_fraction = np.divide(total_inflow_vector[:, wc_idx], inflow_material, out=np.zeros_like(inflow_material), where=inflow_material!=0)
+                    dm_fraction = np.divide(total_inflow_vector[:, dm_idx], inflow_material, out=np.zeros_like(inflow_material), where=inflow_material!=0)
+                    cc_fraction = np.divide(total_inflow_vector[:, cc_idx], inflow_material, out=np.zeros_like(inflow_material), where=inflow_material!=0)
+                    outflow_vector[:, wc_idx] = outflow_vector[:, mat_idx] * wc_fraction
+                    outflow_vector[:, dm_idx] = outflow_vector[:, mat_idx] * dm_fraction
+                    outflow_vector[:, cc_idx] = outflow_vector[:, mat_idx] * cc_fraction
+            elif process_logic == 'Transformer':
+                for i_elem, element in [(wc_idx, 'WC'), (dm_idx, 'DM'), (cc_idx, 'CC')]:
+                    param_name = tc_ids.get(element, tc_ids.get('material'))
+                    if param_name and param_name in mfa_system.ParameterDict:
+                        tc_value = mfa_system.ParameterDict[param_name].Values
+                        outflow_vector[:, i_elem] = total_inflow_vector[:, i_elem] * tc_value
+                outflow_vector[:, mat_idx] = outflow_vector[:, wc_idx] + outflow_vector[:, dm_idx]
 
-        flow.Values = outflow_vector
-        if not np.allclose(old_values, flow.Values):
-            something_changed = True
+            flow.Values = outflow_vector
+            if not np.allclose(old_values, flow.Values):
+                something_changed = True
     return something_changed
 
 def _calculate_dsm_flows(mfa_system, dsm_processes, dsm_params, iteration):
