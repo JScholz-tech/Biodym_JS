@@ -73,6 +73,7 @@ try:
     import plotting
     import ODYM_Classes as msc
     from plotting.composition import plot_flow_composition
+    from reporting import kpi_dashboard
     print("✅ BioDYM modules imported successfully")
 except ImportError as e:
     print(f"❌ Import error: {e}")
@@ -298,6 +299,11 @@ else:
 print("\n--- Flow Composition ---")
 plot_flow_composition(mfa_results_baseline)
 
+# Export flow composition data
+from plotting.composition_export import export_flow_composition
+export_path = "01_data/02_output/composition_export/flow_composition.xlsx"
+export_flow_composition(mfa_results_baseline, export_path)
+
 
 # # 4. Scenario & Uncertainty Manager
 
@@ -402,6 +408,12 @@ else:
 print("\n" + "="*60)
 print("💾 EXPORTING BASELINE RESULTS")
 print("="*60)
+
+# ## 5.1 KPI Dashboard and Export
+
+kpi_output_path = "01_data/02_output/kpi_dashboard/system_kpis.xlsx"
+kpi_dashboard.generate_kpi_dashboard(mfa_results_baseline, process_logic_map, kpi_output_path)
+
 
 output_file = "01_data/02_output/results_scientific_baseline.xlsx"
 utils.export_results_to_excel(mfa_results_baseline, output_file, input_file_path=input_file)
