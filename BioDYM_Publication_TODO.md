@@ -10,16 +10,32 @@
 
 ## 🎯 Current Priorities
 
-### 1. 📊 Visualization Improvements & Style Guide
+### 1. 📊 Flow Composition Dashboard
 - **Status**: 🔄 Ready to start
 - **Priority**: HIGHEST
+- **Scope**:
+  - Create a horizontal stacked column chart showing the material composition (WC, DM, CC) of every flow.
+  - Normalize the composition to 100%.
+  - Include a slider to select the year.
+
+### 2. 📈 Summary Dashboard
+- **Status**: 🔄 Ready to start
+- **Priority**: HIGH
+- **Scope**:
+  - Create a one-page summary of the dMFA model output.
+  - Display core quantitative findings (carbon stock, net balance, peak year).
+  - Include uncertainty quantification.
+
+### 3. 📊 Visualization Improvements & Style Guide
+- **Status**: 🔄 Ready to start
+- **Priority**: HIGH
 - **Scope**: 
   - Enhance publication-quality plots
   - Standardize color schemes and styling
   - Improve chart readability and accessibility
   - Add consistent formatting across all visualizations
 
-### 2. 📈 Flow Composition Overview Table
+### 4. 📈 Flow Composition Overview Table
 - **Status**: 🔄 Ready to start  
 - **Scope**:
   - Create comprehensive flow composition summary
@@ -27,7 +43,7 @@
   - Export as Excel/CSV for analysis
   - Include time-series data for dynamic flows
 
-### 3. 📤 Enhanced Data Export
+### 5. 📤 Enhanced Data Export
 - **Status**: 🔄 Ready to start
 - **Scope**:
   - Integrate flow composition data into exports
@@ -35,7 +51,7 @@
   - Create structured output formats
   - Include scenario comparison data
 
-### 4. 💬 User Feedback & Error Indication
+### 6. 💬 User Feedback & Error Indication
 - **Status**: 🔄 Ready to start
 - **Scope**:
   - Implement clear error messages
@@ -43,7 +59,7 @@
   - Create user-friendly validation feedback
   - Add helpful hints and suggestions
 
-### 5. 📚 Documentation & Code Commenting
+### 7. 📚 Documentation & Code Commenting
 - **Status**: 🔄 Ready to start
 - **Scope**:
   - Add comprehensive docstrings
@@ -51,7 +67,7 @@
   - Document data structures and formats
   - Add inline code comments
 
-### 6. 🧹 Large Cleanup Session
+### 8. 🧹 Large Cleanup Session
 - **Status**: 🟡 In Progress
 - **Scope**:
   - Remove unused code and files
@@ -59,7 +75,7 @@
   - Organize project structure
   - Clean up temporary files
 
-### 7. 📊 Excel Template Refinement
+### 9. 📊 Excel Template Refinement
 - **Status**: 🔄 Ready to start
 - **Scope**:
   - Standardize Excel template structure

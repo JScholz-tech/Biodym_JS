@@ -72,6 +72,7 @@ try:
     from engine import solver
     import plotting
     import ODYM_Classes as msc
+    from plotting.composition import plot_flow_composition
     print("✅ BioDYM modules imported successfully")
 except ImportError as e:
     print(f"❌ Import error: {e}")
@@ -293,6 +294,11 @@ if fomp_params:
 else:
     print("   ℹ️ No FOMP processes found - skipping FOMP analysis")
 
+# ### 3.3.3 Flow Composition
+print("\n--- Flow Composition ---")
+plot_flow_composition(mfa_results_baseline)
+
+
 # # 4. Scenario & Uncertainty Manager
 
 # ## 4.1 Scenario Analysis & Comparison
@@ -338,13 +344,14 @@ print("="*60)
 if config_obj.RUN_MONTE_CARLO and '4_1_Uncertainty_Parameters' in input_data:
     try:
         from engine.mc_simulation import run_mc_simulation
+        from engine.mc_simulation import run_mc_simulation
         from plotting.monte_carlo import (
             plot_interactive_mc_multiple_histograms,
             plot_interactive_tornado, 
             plot_interactive_mc_paths, 
             plot_interactive_mc_stock_comparison
         )
-        
+        from plotting.composition import plot_flow_composition        
         mc_results = run_mc_simulation(
             mfa_system_configured, 
             input_data, 
