@@ -12,7 +12,7 @@ import os
 
 def calculate_system_kpis(mfa_results, process_logic_map):
     """
-    Calculates a set of system-level KPIs for the MFA results.
+    Calculates a set of system-level KPIs for all elements in the MFA results.
 
     Parameters
     ----------
@@ -24,56 +24,56 @@ def calculate_system_kpis(mfa_results, process_logic_map):
     Returns
     -------
     pd.DataFrame
-        A DataFrame containing the calculated KPIs for each year.
+        A DataFrame containing the calculated KPIs for each year and element.
     """
     years = mfa_results.IndexTable.Classification['Time'].Items
-    try:
-        cc_idx = mfa_results.Elements.index('CC')
-    except ValueError:
-        print("⚠️ Carbon Content (CC) not in elements. Cannot calculate Carbon KPIs.")
-        return pd.DataFrame()
-
+    elements = mfa_results.Elements
+    
     input_processes = {pid for pid, logic in process_logic_map.items() if logic == 'Input'}
     output_processes = {pid for pid, logic in process_logic_map.items() if logic == 'Output'}
 
-    kpi_data = []
+    all_kpi_data = []
 
-    for i, year in enumerate(years):
-        # KPI B: Sum of Carbon Input
-        total_carbon_input = sum(
-            f.Values[i, cc_idx] for f in mfa_results.FlowDict.values() if f.P_Start in input_processes
-        )
+    for element_idx, element_name in enumerate(elements):
+        kpi_data_per_element = []
+        for i, year in enumerate(years):
+            # Total Input
+            total_input = sum(
+                f.Values[i, element_idx] for f in mfa_results.FlowDict.values() if f.P_Start in input_processes
+            )
 
-        # KPI D: Sum of Carbon Output
-        total_carbon_output = sum(
-            f.Values[i, cc_idx] for f in mfa_results.FlowDict.values() if f.P_End in output_processes
-        )
+            # Total Output
+            total_output = sum(
+                f.Values[i, element_idx] for f in mfa_results.FlowDict.values() if f.P_End in output_processes
+            )
 
-        # KPI F: Net Carbon Stock Change
-        net_stock_change = sum(
-            s.Values[i, cc_idx] for s in mfa_results.StockDict.values() if s.Name.startswith('dS_')
-        )
+            # Net Stock Change
+            net_stock_change = sum(
+                s.Values[i, element_idx] for s in mfa_results.StockDict.values() if s.Name.startswith('dS_')
+            )
 
-        # KPI G: Mass Balance Saldo (Carbon)
-        balance_error = total_carbon_input - total_carbon_output - net_stock_change
+            # Mass Balance Error
+            balance_error = total_input - total_output - net_stock_change
 
-        # KPI J: Critical Deviation (%)
-        critical_deviation = (balance_error / total_carbon_input * 100) if total_carbon_input != 0 else 0
+            # Critical Deviation (%)
+            critical_deviation = (balance_error / total_input * 100) if total_input != 0 else 0
 
-        kpi_data.append({
-            'Year': year,
-            'Total Carbon Input (kt C/a)': total_carbon_input,
-            'Total Carbon Output (kt C/a)': total_carbon_output,
-            'Net Carbon Stock Change (kt C/a)': net_stock_change,
-            'Mass Balance Error (kt C/a)': balance_error,
-            'Critical Deviation (%)': critical_deviation
-        })
+            kpi_data_per_element.append({
+                'Year': year,
+                'Element': element_name,
+                'Total Input': total_input,
+                'Total Output': total_output,
+                'Net Stock Change': net_stock_change,
+                'Mass Balance Error': balance_error,
+                'Critical Deviation (%)': critical_deviation
+            })
+        all_kpi_data.extend(kpi_data_per_element)
 
-    return pd.DataFrame(kpi_data)
+    return pd.DataFrame(all_kpi_data)
 
 def generate_kpi_dashboard(mfa_results, process_logic_map, output_path):
     """
-    Calculates KPIs, displays a summary, and exports the full table to Excel.
+    Calculates KPIs for all elements, displays a summary, and exports to Excel.
 
     Parameters
     ----------
@@ -88,60 +88,76 @@ def generate_kpi_dashboard(mfa_results, process_logic_map, output_path):
     if kpi_df.empty:
         return
 
-    # Calculate Throughput KPIs
-    try:
-        cc_idx = mfa_results.Elements.index('CC')
-        all_flows = np.array([f.Values[:, cc_idx] for f in mfa_results.FlowDict.values()])
-        
-        throughput_first_year = all_flows[:, 0].sum()
-        throughput_last_year = all_flows[:, -1].sum()
-        throughput_average = all_flows.mean(axis=1).sum()
+    unit = mfa_results.Unit or "Mass"
+    time_unit = "/a" # Assuming per annum
 
-    except ValueError:
-        throughput_first_year, throughput_last_year, throughput_average = 0, 0, 0
-
-    # --- Display Summary Dashboard ---
     print("\n" + "="*60)
     print("📊 KEY PERFORMANCE INDICATOR (KPI) DASHBOARD")
     print("="*60)
-    
-    first_year_kpis = kpi_df.iloc[0]
-    last_year_kpis = kpi_df.iloc[-1]
 
-    summary = {
-        "Metric": ["Total Carbon Input", "Total Carbon Output", "Net Carbon Stock Change", "Mass Balance Error", "Critical Deviation"],
-        "Unit": ["kt C/a", "kt C/a", "kt C/a", "kt C/a", "%"],
-        f"First Year ({kpi_df['Year'].iloc[0]}) ": [
-            f"{first_year_kpis['Total Carbon Input (kt C/a)']:.2f}",
-            f"{first_year_kpis['Total Carbon Output (kt C/a)']:.2f}",
-            f"{first_year_kpis['Net Carbon Stock Change (kt C/a)']:.2f}",
-            f"{first_year_kpis['Mass Balance Error (kt C/a)']:.4f}",
-            f"{first_year_kpis['Critical Deviation (%)']:.4f}"
-        ],
-        f"Last Year ({kpi_df['Year'].iloc[-1]}) ": [
-            f"{last_year_kpis['Total Carbon Input (kt C/a)']:.2f}",
-            f"{last_year_kpis['Total Carbon Output (kt C/a)']:.2f}",
-            f"{last_year_kpis['Net Carbon Stock Change (kt C/a)']:.2f}",
-            f"{last_year_kpis['Mass Balance Error (kt C/a)']:.4f}",
-            f"{last_year_kpis['Critical Deviation (%)']:.4f}"
-        ]
-    }
-    summary_df = pd.DataFrame(summary)
-    print(summary_df.to_string(index=False))
+    for element_name in mfa_results.Elements:
+        element_kpis = kpi_df[kpi_df['Element'] == element_name]
+        if element_kpis.empty:
+            continue
 
-    print("\n" + "-"*60)
-    print("System Throughput (Carbon):")
-    print(f"  - First Year: {throughput_first_year:.2f} kt C/a")
-    print(f"  - Last Year:  {throughput_last_year:.2f} kt C/a")
-    print(f"  - Average:    {throughput_average:.2f} kt C/a")
-    print("-"*60)
+        # --- Display Summary Dashboard for each element ---
+        print(f"\n--- KPIs for Element: {element_name} ---")
+        first_year_kpis = element_kpis.iloc[0]
+        last_year_kpis = element_kpis.iloc[-1]
+
+        summary = {
+            "Metric": ["Total Input", "Total Output", "Net Stock Change", "Mass Balance Error", "Critical Deviation"],
+            "Unit": [f"{unit}{time_unit}", f"{unit}{time_unit}", f"{unit}{time_unit}", f"{unit}{time_unit}", "%"],
+            f"First Year ({element_kpis['Year'].iloc[0]}) ": [
+                f"{first_year_kpis['Total Input']:.2f}",
+                f"{first_year_kpis['Total Output']:.2f}",
+                f"{first_year_kpis['Net Stock Change']:.2f}",
+                f"{first_year_kpis['Mass Balance Error']:.4f}",
+                f"{first_year_kpis['Critical Deviation (%)']:.4f}"
+            ],
+            f"Last Year ({element_kpis['Year'].iloc[-1]}) ": [
+                f"{last_year_kpis['Total Input']:.2f}",
+                f"{last_year_kpis['Total Output']:.2f}",
+                f"{last_year_kpis['Net Stock Change']:.2f}",
+                f"{last_year_kpis['Mass Balance Error']:.4f}",
+                f"{last_year_kpis['Critical Deviation (%)']:.4f}"
+            ]
+        }
+        summary_df = pd.DataFrame(summary)
+        print(summary_df.to_string(index=False))
+
+        # --- Calculate and Display Throughput for each element ---
+        try:
+            element_idx = mfa_results.Elements.index(element_name)
+            all_flows = np.array([f.Values[:, element_idx] for f in mfa_results.FlowDict.values()])
+            
+            throughput_first_year = all_flows[:, 0].sum()
+            throughput_last_year = all_flows[:, -1].sum()
+            throughput_average = all_flows.mean(axis=1).sum()
+
+            print("\n" + "-"*40)
+            print(f"System Throughput ({element_name}):")
+            print(f"  - First Year: {throughput_first_year:.2f} {unit}{time_unit}")
+            print(f"  - Last Year:  {throughput_last_year:.2f} {unit}{time_unit}")
+            print(f"  - Average:    {throughput_average:.2f} {unit}{time_unit}")
+            print("-"*40)
+
+        except (ValueError, IndexError):
+            continue
 
     # --- Export to Excel ---
     try:
         output_dir = os.path.dirname(output_path)
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        kpi_df.to_excel(output_path, index=False, sheet_name='System_KPIs_by_Year')
-        print(f"\n✅ KPI data successfully exported to: {output_path}")
+        
+        # Re-organize columns for export
+        export_df = kpi_df[[
+            'Year', 'Element', 'Total Input', 'Total Output', 'Net Stock Change', 
+            'Mass Balance Error', 'Critical Deviation (%)'
+        ]]
+
+        export_df.to_excel(output_path, index=False, sheet_name='System_KPIs_by_Year')
+        print(f"\n✅ KPI data for all elements successfully exported to: {output_path}")
     except Exception as e:
         print(f"\n⚠️ Could not export KPI data: {e}")

@@ -188,3 +188,15 @@
 ---
 
 **Next Action**: Start with Visualization Style Guide (Priority #1)
+
+### Phase X: Dashboard Enhancements
+
+1.  **Implement FOMP and DSM Specific KPIs:**
+    *   Identify relevant KPIs for DSM processes (e.g., total inflow/outflow, net stock change, average lifetime).
+    *   Identify relevant KPIs for FOMP processes (e.g., total inflow/mineralization, net stock change, decay rates).
+    *   Integrate calculation of these KPIs into `kpi_dashboard.py`.
+    *   Update `generate_kpi_dashboard` to display and export these KPIs in dedicated sections.
+2.  **Implement Advanced Circularity and Process-Level KPIs:**
+    *   Discuss and define specific **Circularity Metrics** (e.g., Recycling Rate, Self-Sufficiency). This will require user input on how to identify "recycling flows" or "internal production/consumption."
+    *   Implement **Process-Level KPIs** (e.g., throughput, stock change, efficiency for individual processes).
+    *   Consider adding **Time-Series Visualizations** for key KPIs.
