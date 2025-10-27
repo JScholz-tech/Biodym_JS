@@ -1,69 +1,74 @@
-# Implementation Plan: Data Reconciliation Module
+# Implementation Plan: Data Reconciliation Module (Revised)
 
 ## 1. Objective
 
-To implement a data reconciliation feature within the BioDYM MFA tool. This feature will improve the accuracy and consistency of the analysis by adjusting user-provided measurement data to ensure perfect adherence to mass balance constraints. The core of this feature will be a constrained optimization that minimizes the weighted, squared deviations from the original measurements.
+To implement a statistically robust data reconciliation feature to improve the accuracy and consistency of the MFA results. The engine will solve a constrained, weighted least-squares optimization problem to adjust measured data, ensuring adherence to mass balance while providing comprehensive diagnostics for model validation and gross error detection.
 
-## 2. Core Concepts
+## 2. Core Concepts & Formulation
 
-- **Least-Squares Optimization:** The engine will minimize the sum of squared errors between the initial measured values and the final reconciled values, weighted by the variance of each measurement.
-- **Mass Balance Constraints:** The optimization will be constrained by the fundamental law of mass conservation (`Σin - Σout - dS = 0`), which must hold true for every process at every time step.
-- **Uncertainty-Driven:** The process relies on user-defined uncertainties (standard deviations) for each measured flow. Flows with lower uncertainty will be adjusted less by the optimizer.
-- **Overdetermined System:** The feature assumes the user provides enough measured data (including internal flows) to create a system with redundant information, which is the basis for reconciliation.
+- **Formulation:** The problem will be formulated as a Quadratic Program (QP). Let **z** be the vector of measured flow values, **x** be the vector of reconciled values, and **Σ** be the covariance matrix of the measurements (diagonal by default, allowing for independent errors). The objective is to **Minimize (x - z)ᵀΣ⁻¹(x - z)**.
+- **Constraints:** The optimization will be subject to:
+    1.  **Mass Balance:** `Cx = 0`, where C is the matrix defining the mass balance equations (`Σin - Σout - dS = 0`) for each process at each time step.
+    2.  **Bounds:** `l ≤ x ≤ u`, including a non-negativity constraint (`x ≥ 0`) on all flows.
+- **Uncertainty Model:** The system will support uncertainties defined as standard deviations in the `4_1_Uncertainty_Parameters` sheet. It will handle percentage-based inputs, converting them to absolute variance. Zero-variance inputs will be treated as fixed values (not decision variables). The plan includes optional support for block-covariance to model correlated errors.
 
 ## 3. Proposed User Workflow
 
-1.  **Enable Feature:** The user will enable data reconciliation by setting a new flag, `RUN_DATA_RECONCILIATION`, to `TRUE` in the `0_Config` sheet of the input Excel file.
-2.  **Define Uncertainties:** The user will provide the necessary input data in the `4_1_Uncertainty_Parameters` sheet. For each flow they wish to include in the reconciliation, they will create a row specifying:
-    - `Parameter_Name`: The ID of the flow (e.g., `F_1_2`).
-    - `Distribution_Type`: `normal`.
-    - `Mean`: The measured value of the flow.
-    - `StdDev`: The standard deviation of the measurement, representing its uncertainty.
-3.  **Run Notebook:** The user will run the `00_BioDYM_Workflow.ipynb` notebook as usual.
-4.  **Analyze Results:** The system will produce a perfectly mass-balanced result. A new Excel file will be generated comparing the original measured values against the final reconciled values, showing the adjustments made.
+1.  **Enable Feature:** Set `RUN_DATA_RECONCILIATION = TRUE` in the `0_Config` sheet.
+2.  **Define Data & Uncertainties:** Provide measured values and their corresponding uncertainties (as standard deviations or percentages) in the appropriate Excel sheets (`1_2_Data_Flows`, `4_1_Uncertainty_Parameters`).
+3.  **Run Workflow:** Execute the `00_BioDYM_Workflow.ipynb` notebook.
+4.  **Analyze Results:** The primary output will be a reconciled `mfa_system` object. A detailed report will be generated, including statistical diagnostics and a comparison of measured vs. reconciled values.
 
-## 4. Technical Implementation Plan
+## 4. Technical Implementation Plan (Revised & Phased)
 
-This feature will be developed in distinct phases:
+### Phase 1: Foundational Solver & Diagnostics
 
-### Phase 1: Foundation & Core Logic
+- **Dependencies:** Add `SciPy` and `OSQP` (or a similar sparse QP solver) to `pyproject.toml`.
+- **New Module:** Create `02_src/engine/reconciliation.py`.
+- **Solver Implementation:**
+    - Implement a solver function that uses a sparse QP solver (e.g., OSQP) to handle the QP formulation with bounds and equality constraints.
+    - Exploit the block-diagonal structure of the problem over time for performance.
+    - Implement numerical scaling of variables and constraints to improve solver stability.
+- **Initial Diagnostics:** Implement core statistical diagnostics:
+    - **Chi-Square Test:** To assess the overall goodness-of-fit of the reconciled solution.
+    - **Standardized Residuals:** To help identify potential gross errors (outliers) in the input data.
+- **Scope:** The initial implementation will focus on systems with only linear, non-special processes.
 
-- **Dependency:** Add the `SciPy` library to the `pyproject.toml` file to provide the necessary optimization solvers.
-- **New Module:** Create a new file: `02_src/engine/reconciliation.py`.
-- **Core Function:** Implement the main entry point: `run_reconciliation(mfa_system, uncertainty_params)`.
-- **Objective Function:** Within the new module, create a function that calculates the least-squares objective `F = Σ Σ ( (x̃ᵢ,t - xᵢ,t)² / var(x̃ᵢ,t) )` across all flows and time steps.
-- **Constraint Generation:** Implement a function that automatically generates the mass balance constraint equations for all non-special (TC-driven, Pass-through) processes across all time steps.
-- **Initial Test:** The initial implementation will target systems *without* DSM or FOMP processes to validate the core optimization logic.
+### Phase 2: Advanced Reporting & Workflow Integration
 
-### Phase 2: Workflow Integration & Validation Output
-
-- **Modify Workflow:** Edit `00_BioDYM_Workflow.py` to include the logic for selecting the calculation engine. Based on the `RUN_DATA_RECONCILIATION` flag, the workflow will call either the existing `solver.run_mfa_calculation` or the new `reconciliation.run_reconciliation`.
-- **Validation Report:** Create a new function within `reconciliation.py` that generates an Excel report comparing `measured_value`, `reconciled_value`, `adjustment`, and `standard_deviation` for each reconciled flow. This is critical for user trust and transparency.
+- **Gross Error Detection:** Implement a workflow to automatically flag measurements where `|standardized residual| > threshold` (e.g., 3.0), suggesting they may be gross errors.
+- **Enhanced Reporting:** Expand the reconciliation report to include:
+    - **Summary:** Chi-square test result, number of flagged gross errors, degrees of freedom (DOF).
+    - **Detailed View:** For each measurement: initial value, reconciled value, adjustment, std. dev., standardized residual, and uncertainty reduction.
+    - **Node-Level View:** Before/after mass balance gaps for each process.
+- **Workflow Integration:**
+    - Modify `00_BioDYM_Workflow.py` to select between the `solver` and `reconciliation` engines.
+    - Attach reconciliation metadata (diagnostics, convergence status) to the `mfa_system` object for provenance and use by downstream functions.
+    - Add strict input validation for all reconciliation-related data.
 
 ### Phase 3: Handling Special Processes (DSM & FOMP)
 
-- **Iterative Reconciliation:** Refactor `run_reconciliation` to handle the complex, stateful nature of DSM and FOMP processes. This will be achieved with an iterative loop:
-    1.  **Reconcile Simple System:** Run the optimizer on the linear parts of the system, treating DSM/FOMP outflows as temporarily fixed.
-    2.  **Update Special Processes:** Use the newly reconciled flows as inputs to the standard `dsm_model.py` and `fomp_model.py` modules to calculate updated outflows.
-    3.  **Check Convergence:** Compare the new DSM/FOMP outflows with the previous iteration's values. If they have converged, the process is complete. If not, repeat from step 1.
+- **Iterative Coupling:** Implement a fixed-point iteration loop to handle the non-linear DSM and FOMP models:
+    1.  Reconcile the simple, linear parts of the system, keeping DSM/FOMP flows fixed.
+    2.  Use the new reconciled flows as inputs to run the standard DSM/FOMP models, generating updated outflows.
+    3.  Check for convergence using the maximum relative change in DSM/FOMP outflows.
+    4.  **Safeguards:** Implement damping/relaxation (`x_new = α*x_calc + (1-α)*x_old`) to prevent oscillation, a max iteration limit, and clear reporting on non-convergence.
+- **Variable Handling:** Clarify that stock changes (`dS`) for DSM/FOMP processes are calculated by their respective models, not treated as independent variables in the reconciliation.
 
-### Phase 4: Scenario Manager Integration
+### Phase 4: ODYM Compatibility & Finalization
 
-- **Verify Data Flow:** Confirm that the execution order in `00_BioDYM_Workflow.py` correctly applies scenario modifications to the baseline data *before* the reconciliation engine is called. This ensures that scenarios can be used to test the sensitivity of the reconciled solution to changes in input measurements and uncertainties.
+- **Testing Strategy:** Implement a comprehensive testing suite:
+    - Unit tests on synthetic networks with known analytical solutions.
+    - Tests for gross error detection, bounds, and covariance support.
+    - Integration tests for the iterative DSM/FOMP coupling.
+- **ODYM Integration:** Ensure all data structures (indices, axes) are aligned with ODYM conventions. Provide a utility to export reconciled results into ODYM-compatible containers.
+- **Provenance:** Record all reconciliation settings (solver choice, tolerances, weights) as attributes in the final `mfa_system` object.
 
-## 5. Impact on Existing Code
+## 5. Gross Error Detection Strategy
 
-- **New Files:**
-    - `02_src/engine/reconciliation.py`
-    - `IMPLEMENTATION_PLAN_DATA_RECONCILIATION.md`
-- **Modified Files:**
-    - `pyproject.toml` (to add `SciPy`).
-    - `00_BioDYM_Workflow.py` (to add the `if/else` logic for engine selection).
-- **No Impact:** The existing `solver.py`, `dsm_model.py`, `fomp_model.py`, and all `plotting` and `reporting` modules will not be directly modified. They will simply consume the reconciled `mfa_system` object, ensuring full compatibility.
+A key feature will be the ability to detect and handle gross errors (outliers). The proposed workflow is:
 
-## 6. Definition of Done
-
-- A user can successfully enable and run a data reconciliation analysis via the Excel configuration.
-- The feature produces a fully mass-balanced `mfa_system` object that can be used by all downstream plotting and KPI functions.
-- The reconciliation correctly handles systems containing complex DSM and FOMP processes.
-- A validation report is generated, allowing the user to inspect the adjustments made by the optimizer.
+1.  **Run Reconciliation:** Perform an initial run.
+2.  **Flag Outliers:** Automatically identify and flag all measurements with a high standardized residual (e.g., > 3.0).
+3.  **Report:** Clearly list the flagged outliers in the summary report.
+4.  **Optional: Reweight & Rerun:** Provide an option to automatically re-run the reconciliation after down-weighting (increasing the variance of) or excluding the flagged outliers, and document these actions in an audit trail.
