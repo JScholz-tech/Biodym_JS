@@ -283,8 +283,13 @@ def process_initial_stock_outflows(mfa_system, initial_stock_configs):
         
         print(f"  -> Created {len(outflow_flows)} outflow flows for Process {process_id}")
     
-    # Initialize flow values using ODYM method
-    mfa_system.Initialize_FlowValues()
+    # Initialize flow values using ODYM method with error handling
+    try:
+        mfa_system.Initialize_FlowValues()
+        print("--> Initial stock flow values initialized.")
+    except Exception as e:
+        print(f"--> ERROR: Failed to initialize initial stock flow values: {e}")
+        raise
     
     print("--> Initial stock outflows processed.")
     return mfa_system

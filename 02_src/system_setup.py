@@ -240,8 +240,14 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
             # Leave Values as None - ODYM's Initialize_StockValues() will handle this
             delattr(stock_obj, '_fomp_process')
 
-    mfa_system.Initialize_StockValues()
-    print("--> Stock values initialized.")
+    # Initialize stock values using ODYM method with error handling
+    try:
+        mfa_system.Initialize_StockValues()
+        print("--> Stock values initialized.")
+    except Exception as e:
+        print(f"--> ERROR: Failed to initialize stock values: {e}")
+        print(f"    Stock count: {len(mfa_system.StockDict)} stocks defined")
+        raise
 
     return mfa_system, all_excel_data
 
@@ -341,8 +347,14 @@ def _initialize_flows(mfa_system, flow_definitions):
     # Store flow descriptions in mfa_system for later use (external to Flow objects)
     mfa_system._flow_descriptions = flow_descriptions
     
-    mfa_system.Initialize_FlowValues()
-    print("--> All flows initialized to zero.")
+    # Initialize flow values using ODYM method with error handling
+    try:
+        mfa_system.Initialize_FlowValues()
+        print("--> All flows initialized to zero.")
+    except Exception as e:
+        print(f"--> ERROR: Failed to initialize flow values: {e}")
+        print(f"    Flow count: {len(flow_descriptions)} flows defined")
+        raise
 
 def _populate_primary_flow_data(mfa_system, flow_data):
     """Populates flows with primary data from the '1_2_Data_Flows' sheet.
@@ -400,7 +412,14 @@ def _define_content_parameters(mfa_system, content_definitions):
                 column_name = element_column_map.get(element)
                 if column_name and column_name in row and pd.notna(row[column_name]):
                     param_name = f"{element}_{flow_id}"
-                    mfa_system.ParameterDict[param_name] = msc.Parameter(Name=param_name, ID=parameter_id_counter, Values=row[column_name], Unit="1")
+                    # Priority 4: Scalar parameters need Indices="" to avoid crash in Initialize_ParameterValues()
+                    mfa_system.ParameterDict[param_name] = msc.Parameter(
+                        Name=param_name, 
+                        ID=parameter_id_counter, 
+                        Values=row[column_name], 
+                        Indices="",  # Empty string for scalar parameters (prevents AttributeError in Initialize_ParameterValues)
+                        Unit="1"
+                    )
                     parameter_id_counter += 1
 
 def _calculate_elemental_compositions(mfa_system):
@@ -514,13 +533,25 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
     _apply_initial_stock(mfa_system, all_excel_data)
     _define_content_parameters(mfa_system, flow_definitions)
     
-    # Initialize all parameter values using ODYM method
-    mfa_system.Initialize_ParameterValues()
+    # Initialize all parameter values using ODYM method with error handling
+    try:
+        mfa_system.Initialize_ParameterValues()
+        print("--> Parameter values initialized successfully.")
+    except Exception as e:
+        print(f"--> ERROR: Failed to initialize parameter values: {e}")
+        raise
     
     _calculate_elemental_compositions(mfa_system)
     flow_tc_map, process_logic_map = _create_flow_and_process_maps(mfa_system, all_excel_data)
 
-    mfa_system.Consistency_Check()
+    # ODYM compliance: Check system consistency with error handling
+    try:
+        mfa_system.Consistency_Check()
+        print("--> Consistency check passed.")
+    except Exception as e:
+        print(f"--> ERROR: Consistency check failed: {e}")
+        raise
+    
     return mfa_system, all_excel_data, flow_tc_map, process_logic_map
 
 def apply_scenario(mfa_system, scenario_definitions, selected_scenario_name):
