@@ -10,7 +10,7 @@ import pandas as pd
 import graphviz
 
 def plot_graphviz_flow_chart_sankey_style(processes_df, flows_df, title="BioDYM System - Sankey-Style Block Flow Diagram", 
-                                         rankdir="LR", ranksep=1.0, nodesep=0.5, max_processes=20, max_flows=30):
+                                         rankdir="LR", ranksep=1.0, nodesep=0.5, max_processes=50, max_flows=100):
     """Create a clean, professional Sankey-style block flow diagram using Graphviz.
 
     This function generates a block flow diagram that visualizes the system
@@ -38,9 +38,9 @@ def plot_graphviz_flow_chart_sankey_style(processes_df, flows_df, title="BioDYM 
         The separation between nodes within the same rank. Defaults to 0.5.
     max_processes : int, optional
         The maximum number of processes to include in the diagram to manage
-        complexity. Defaults to 20.
+        complexity. Defaults to 50.
     max_flows : int, optional
-        The maximum number of flows to include in the diagram. Defaults to 30.
+        The maximum number of flows to include in the diagram. Defaults to 100.
 
     Returns
     -------
