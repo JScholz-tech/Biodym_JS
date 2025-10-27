@@ -283,61 +283,61 @@ print("   • Flow Dynamics: Multi-flow time series analysis")
 print("   • Stock Analysis: Interactive bar charts with time slider")
 
 # Process Dynamics - 3-panel view showing inflow, stock, and outflow for selected processes
-print("\n🔄 Process Dynamics Analysis:")
+print(f"\n{Icons.MFA} Process Dynamics Analysis:")
 plotting.plot_process_dynamics(mfa_results_baseline, all_excel_data['2_1_Definition_Processes'])
 
 
 # Flow Dynamics - Multi-flow time series with element selection
-print("\n🌊 Flow Dynamics Analysis:")
+print(f"\n{Icons.SANKEY} Flow Dynamics Analysis:")
 plotting.plot_flow_dynamics(mfa_results_baseline)
 
 # Stock Bar Chart - Interactive stock levels with time slider
-print("\n📈 Stock Levels Analysis:")
+print(f"\n{Icons.BAR_CHART} Stock Levels Analysis:")
 plotting.plot_stock_bar_chart(mfa_results_baseline, title="Stock Levels Over Time (Baseline)")
 
 # System Stock Composition - Individual process stocks over time
-print("\n🏗️ Individual Process Stocks Analysis:")
+print(f"\n{Icons.BAR_CHART} Individual Process Stocks Analysis:")
 print("   • Individual process stocks over time")
 print("   • Shows each process stock separately")
 print("   • Element selection and bar/line chart options")
 plotting.plot_system_stock_composition(mfa_results_baseline)
 
 # ### 3.3.2 Specialized Process Analysis (if applicable)
-print("\n📊 Specialized Process Analysis:")
+print(f"\n{Icons.VISUALIZATION} Specialized Process Analysis:")
 
 # DSM Stock Details - Detailed DSM stock evolution (if DSM processes exist)
 if dsm_params and dsm_details_baseline:
-    print("\n🏗️ DSM Stock Evolution Analysis:")
+    print(f"\n{Icons.DSM} DSM Stock Evolution Analysis:")
     print("   • Individual and cumulative stock views")
     print("   • Lifetime analysis and category breakdown")
     plotting.plot_dsm_stock_details(mfa_results_baseline, dsm_params, dsm_details_baseline)
     
-    print("\n🔄 DSM Process Dynamics Analysis:")
+    print(f"\n{Icons.MFA} DSM Process Dynamics Analysis:")
     print("   • Three-panel view: Input, Stock, Output")
     print("   • Stacked flows by element (Material, WC, DM, CC)")
     print("   • Dynamic material composition for DSM processes")
     plotting.plot_dsm_process_dynamics(mfa_results_baseline, dsm_params, dsm_details_baseline)
 else:
-    print("   ℹ️ No DSM processes found - skipping DSM analysis")
+    print(f"   {Icons.INFO} No DSM processes found - skipping DSM analysis")
 
 # FOMP Analysis - FOMP mineralization analysis (if FOMP processes exist)
 if fomp_params:
-    print("\n🌱 FOMP Mineralization Analysis:")
+    print(f"\n{Icons.FOMP} FOMP Mineralization Analysis:")
     print("   • Organic matter accumulation and mineralization")
     print("   • Annual vs cumulative flow analysis")
     plotting.plot_fomp_stock_details(mfa_results_baseline, fomp_params)
     
     # FOMP Process Dynamics - Three-panel view of FOMP processes
-    print("\n🔄 FOMP Process Dynamics:")
+    print(f"\n{Icons.MFA} FOMP Process Dynamics:")
     print("   • Three panels: Input Flows (DM), Stock Evolution (DM), Mineralization Output (DM)")
     print("   • Decay rates displayed as percentages")
     print("   • Water Content (WC) excluded from mineralization")
     plotting.plot_fomp_dynamics(mfa_results_baseline, fomp_params)
 else:
-    print("   ℹ️ No FOMP processes found - skipping FOMP analysis")
+    print(f"   {Icons.INFO} No FOMP processes found - skipping FOMP analysis")
 
 # ### 3.3.3 Flow Composition
-print("\n--- Flow Composition ---")
+print(f"\n{Icons.SUBSECTION} Flow Composition")
 plot_flow_composition(mfa_results_baseline)
 
 # Export flow composition data
@@ -349,9 +349,7 @@ export_flow_composition(mfa_results_baseline, export_path)
 # # 4. Scenario & Uncertainty Manager
 
 # ## 4.1 Scenario Analysis & Comparison
-print("\n" + "="*60)
-print("🎭 SCENARIO ANALYSIS")
-print("="*60)
+print(format_header("SCENARIO ANALYSIS"))
 
 # Import the new scenario engine
 from engine import scenario_engine
@@ -381,12 +379,10 @@ if all_scenario_results:
         scenario_definitions=scenario_definitions
     )
 else:
-    print("ℹ️ No scenarios were processed.")
+    print(f"{Icons.INFO} No scenarios were processed.")
 
 # ## 4.2 Monte Carlo Analysis
-print("\n" + "="*60)
-print("🎲 MONTE CARLO SIMULATION (BASELINE)")
-print("="*60)
+print(format_header("MONTE CARLO SIMULATION (BASELINE)", level=2))
 
 if config_obj.RUN_MONTE_CARLO and '4_1_Uncertainty_Parameters' in input_data:
     try:
@@ -410,21 +406,21 @@ if config_obj.RUN_MONTE_CARLO and '4_1_Uncertainty_Parameters' in input_data:
         )
         
         if mc_results is not None and not mc_results.empty:
-            print("✅ Monte Carlo simulation completed for baseline.")
+            print(format_success("Monte Carlo simulation completed for baseline."))
 
             # --- Export MC Results ---
-            print("\n💾 Exporting Monte Carlo results...")
+            print(f"\n{Icons.EXPORT} Exporting Monte Carlo results...")
             from datetime import datetime
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             mc_output_path = f"01_data/02_output/mc_output/mc_results_detailed_{timestamp}.xlsx"
             try:
                 mc_results.to_excel(mc_output_path, index=False)
-                print(f"✅ Monte Carlo results successfully exported to: {mc_output_path}")
+                print(format_success(f"Monte Carlo results successfully exported to: {mc_output_path}"))
             except Exception as export_error:
-                print(f"⚠️ Could not export Monte Carlo results: {export_error}")
+                print(f"{Icons.WARNING} Could not export Monte Carlo results: {export_error}")
             # -------------------------
 
-            print("\n📊 Monte Carlo Analysis Visualizations:")
+            print(f"\n{Icons.VISUALIZATION} Monte Carlo Analysis Visualizations:")
             print("   • Multiple Distribution Histograms: Interactively select and view histograms for multiple stocks.")
             print("   • Sensitivity Tornado Plot: Identify which parameters most influence outcomes.")
             print("   • Simulation Paths: Visualize the trajectories of all Monte Carlo runs.")
@@ -438,28 +434,25 @@ if config_obj.RUN_MONTE_CARLO and '4_1_Uncertainty_Parameters' in input_data:
             plot_interactive_mc_stock_comparison(mc_results, mfa_results_baseline)
             
     except Exception as e:
-        print(f"⚠️ Monte Carlo simulation failed: {e}")
+        print(f"{Icons.WARNING} Monte Carlo simulation failed: {e}")
         import traceback
         traceback.print_exc()
 else:
-    print("ℹ️ Monte Carlo analysis is disabled or no uncertainty parameters are defined. Skipping.")
+    print(f"{Icons.INFO} Monte Carlo analysis is disabled or no uncertainty parameters are defined. Skipping.")
 
 # # 5. Data Export
 
-print("\n" + "="*60)
-print("💾 EXPORTING BASELINE RESULTS")
-print("="*60)
+print(format_header("EXPORTING BASELINE RESULTS"))
 
 # ## 5.1 KPI Dashboard and Export
 
 kpi_output_path = "01_data/02_output/kpi_dashboard/system_kpis.xlsx"
+print(format_step(Icons.EXPORT, "5.1", "Generating KPI Dashboard..."))
 kpi_dashboard.generate_kpi_dashboard(mfa_results_baseline, process_logic_map, kpi_output_path)
 
-
+print(format_step(Icons.EXPORT, "5.2", "Exporting baseline results..."))
 output_file = "01_data/02_output/results_scientific_baseline.xlsx"
 utils.export_results_to_excel(mfa_results_baseline, output_file, input_file_path=input_file)
-print(f"✅ Baseline results exported to: {output_file}")
+print(format_success(f"Baseline results exported to: {output_file}"))
 
-print("\n" + "="*60)
-print("🎉 ANALYSIS COMPLETE")
-print("="*60)
+print(format_header("ANALYSIS COMPLETE"))
