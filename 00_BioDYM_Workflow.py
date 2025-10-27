@@ -74,9 +74,13 @@ try:
     import ODYM_Classes as msc
     from plotting.composition import plot_flow_composition
     from reporting import kpi_dashboard
-    print("✅ BioDYM modules imported successfully")
+    
+    # Import standard icons
+    from constants import Icons, format_header, format_step, format_success, format_error, format_file_path
+    
+    print(f"{Icons.SUCCESS} BioDYM modules imported successfully")
 except ImportError as e:
-    print(f"❌ Import error: {e}")
+    print(f"{Icons.ERROR} Import error: {e}")
     print("   Current Python path:")
     for i, path in enumerate(sys.path[:5]):  # Show first 5 paths
         print(f"   {i}: {path}")
@@ -84,31 +88,29 @@ except ImportError as e:
 
 # Set up plotting
 plt.style.use('default')
-print("📊 Plotting environment ready")
+print(f"{Icons.VISUALIZATION} Plotting environment ready")
 
 # ## 1.2 Data Input Configuration
 
 # This is the only manual path setting required.
 input_file = "01_data/01_input/251027_Biodym_ODYM.xlsm"
-print(f"📁 Input file: {input_file}")
+print(format_file_path(input_file))
 if not os.path.exists(input_file):
     raise FileNotFoundError(f"Input file not found: {input_file}")
 
 # ## 1.3 System Configuration Extraction
 
-print("\n" + "="*60)
-print("⚙️ EXTRACTING CONFIGURATION FROM EXCEL")
-print("="*60)
+print(format_header("EXTRACTING CONFIGURATION FROM EXCEL"))
 
 # Load the full dataset once. This will be passed to functions that need it.
 input_data = pd.read_excel(
     input_file, sheet_name=None, header=0, engine='openpyxl', na_values=['N.A.', 'NA', 'n/a'], decimal=',')
-print(f"✅ Excel file loaded: {len(input_data)} sheets")
+print(format_success(f"Excel file loaded: {len(input_data)} sheets"))
 
 # Use the robust loader from the config module. This function handles all errors
 # and fallbacks, guaranteeing a valid config object is returned.
 config_obj = config.load_configuration(input_file)
-print("✅ Configuration object loaded.")
+print(format_success("Configuration object loaded."))
 
 # Phase 1b: Extract dimension lists from config
 def get_config_list(config_obj, attribute_name, default=None):
@@ -124,8 +126,8 @@ goods = get_config_list(config_obj, 'Goods', None)
 materials = get_config_list(config_obj, 'Materials', None)
 processes = get_config_list(config_obj, 'Process_Types', None)
 
-print(f"📊 Dimensions loaded from configuration:")
-print(f"   - Regions: {regions}")
+print(f"{Icons.VISUALIZATION} Dimensions loaded from configuration:")
+print(f"   {Icons.ARROW} Regions: {regions}")
 if materials:
     print(f"   - Materials: {materials}")
 if goods:
@@ -147,7 +149,7 @@ try:
     else:
         raise AttributeError("No Elements attribute found in config object")
 except Exception as e:
-    print(f"⚠️ Could not get time/elements from config object: {e}. Falling back to data-driven values.")
+    print(f"{Icons.WARNING} Could not get time/elements from config object: {e}. Falling back to data-driven values.")
     flow_data = input_data['1_2_Data_Flows']
     # Fix: Use correct column name 'Flow_Data_Year' instead of 'Year_Flow'
     years = sorted(flow_data['Flow_Data_Year'].unique())
@@ -160,32 +162,28 @@ run_scenario = getattr(config_obj, 'Run_Scenario_Analysis', False)
 selected_scenario = getattr(config_obj, 'Selected_Scenario_Name 1', getattr(config_obj, 'Selected_Scenario_Name', 'N/A'))
 
 print(f"\n-- Configuration Summary --")
-print(f"📅 Time range: {start_year} - {end_year}")
-print(f"🧪 Elements: {elements}")
-print(f"🎲 Monte Carlo: {'Enabled' if config_obj.RUN_MONTE_CARLO else 'Disabled'}")
-print(f"📊 DSM Calculation: {'Enabled' if config_obj.RUN_DSM_CALCULATION else 'Disabled'}")
-print(f"🌱 FOMP Calculation: {'Enabled' if config_obj.RUN_FOMP_CALCULATION else 'Disabled'}")
-print(f"🎭 Scenario Analysis: {'Enabled' if run_scenario else 'Disabled'}")
+print(f"{Icons.TIME} Time range: {start_year} - {end_year}")
+print(f"{Icons.ELEMENT} Elements: {elements}")
+print(f"{Icons.MONTE_CARLO} Monte Carlo: {'Enabled' if config_obj.RUN_MONTE_CARLO else 'Disabled'}")
+print(f"{Icons.DSM} DSM Calculation: {'Enabled' if config_obj.RUN_DSM_CALCULATION else 'Disabled'}")
+print(f"{Icons.FOMP} FOMP Calculation: {'Enabled' if config_obj.RUN_FOMP_CALCULATION else 'Disabled'}")
+print(f"{Icons.SCENARIO} Scenario Analysis: {'Enabled' if run_scenario else 'Disabled'}")
 if run_scenario:
     print(f"   -> Selected Scenario: '{selected_scenario}'")
 
 # # 2. Calculation and Validation
 
 # ## 2.1 Model Initialization & Calculation
-print("\n" + "="*60)
-print("🚀 RUNNING BASELINE MFA CALCULATION")
-print("="*60)
+print(format_header("RUNNING BASELINE MFA CALCULATION"))
 
-print("📋 Setting up model scope...")
+print(format_step(Icons.SYSTEM, "2.1", "Setting up model scope..."))
 model_classification, index_table = system_setup.define_model_scope(start_year, end_year, elements, regions, goods, materials, processes)
 
-print("🔧 Initializing MFA system...")
+print(format_step(Icons.SYSTEM, "2.2", "Initializing MFA system..."))
 mfa_system_base = system_setup.initialize_mfa_system(model_classification, index_table)
 
 # Phase 1b: Display IndexTable (ODYM convention)
-print("\n" + "="*60)
-print("📊 ODYM SYSTEM INDEX TABLE")
-print("="*60)
+print(format_header("ODYM SYSTEM INDEX TABLE", level=2))
 print(mfa_system_base.IndexTable)
 print("\nAvailable Dimensions:")
 for aspect in mfa_system_base.IndexTable.index:
@@ -197,13 +195,13 @@ for aspect in mfa_system_base.IndexTable.index:
     else:
         print(f"    Items (sample): {classification.Items[:3]} ... ({len(classification.Items)} total)")
 
-print("📊 Loading processes and data...")
+print(format_step(Icons.DATA_LOADING, "2.3", "Loading processes and data..."))
 mfa_system_base, all_excel_data = system_setup.load_and_define_processes(mfa_system_base, input_data, data_loader)
 
-print("🔗 Defining flows and base parameters (e.g., compositions from flowsheet)...")
+print(format_step(Icons.DATA_LOADING, "2.4", "Defining flows and parameters..."))
 mfa_system_configured, _, flow_tc_map, process_logic_map = system_setup.define_flows_and_parameters(mfa_system_base, all_excel_data)
 
-print("⚙️ Loading all model parameters (TCs, DSM, FOMP)...")
+print(format_step(Icons.CONFIGURATION, "2.5", "Loading model parameters (TCs, DSM, FOMP)..."))
 
 # Centralized call to the new, unified TC loader
 time_vector = mfa_system_configured.IndexTable.Classification['Time'].Items
@@ -219,22 +217,20 @@ else:
     fomp_params = {}
 uncertainty_params = data_loader.load_uncertainty_definitions(all_excel_data)
 
-print("✅ All parameters loaded and configured.")
+print(format_success("All parameters loaded and configured."))
 
-print("🧮 Running baseline calculation...")
+print(format_step(Icons.CALCULATION, "2.6", "Running baseline calculation..."))
 mfa_results_baseline, dsm_details_baseline = solver.run_mfa_calculation(mfa_system_configured, dsm_params, fomp_params, config_obj, flow_tc_map=flow_tc_map, process_logic_map=process_logic_map)
-print("✅ Baseline calculation completed successfully!")
+print(format_success("Baseline calculation completed successfully!"))
 
 # ## 2.2 Mass Balance Validation
 
-print("\n" + "="*60)
-print("⚖️ MASS BALANCE VERIFICATION (BASELINE)")
-print("="*60)
+print(format_header("MASS BALANCE VERIFICATION (BASELINE)", level=2))
 plotting.plot_total_mass_balance_error(mfa_results_baseline)
 plotting.plot_optimized_mass_balance_error(mfa_results_baseline)
 
 # ## 2.3 System Flow Diagram (Graphviz)
-print("\n--- System Flow Diagram (Graphviz) ---")
+print(f"\n{Icons.ARROW} System Flow Diagram (Graphviz)")
 try:
     from plotting.graphviz_flow_charts import plot_graphviz_flow_chart_sankey_style
     
@@ -246,44 +242,42 @@ try:
     dot_chart = plot_graphviz_flow_chart_sankey_style(processes_data, flows_data)
     if dot_chart:
         display(dot_chart)
-        print("✅ Graphviz chart created successfully!")
+        print(format_success("Graphviz chart created successfully!"))
 except ImportError:
-    print("⚠️ Graphviz library not found. Skipping this plot.")
+    print(f"{Icons.WARNING} Graphviz library not found. Skipping this plot.")
 except Exception as e:
-    print(f"⚠️ Graphviz chart failed: {e}")
+    print(f"{Icons.WARNING} Graphviz chart failed: {e}")
 
 # # 3. Visualization
 
-print("\n" + "="*60)
-print("📊 VISUALIZATION (BASELINE)")
-print("="*60)
+print(format_header("VISUALIZATION (BASELINE)"))
 
 # ## 3.1 Traditional Sankey Diagram
-print("\n--- Traditional Sankey Diagram ---")
+print(f"\n{Icons.ARROW} Traditional Sankey Diagram")
 plotting.plot_interactive_sankey(mfa_results_baseline, dsm_params, fomp_params)
 
 # ## 3.2 Enhanced Sankey Diagram
-print("\n--- Enhanced Sankey Diagram ---")
+print(f"\n{Icons.ARROW} Enhanced Sankey Diagram")
 try:
     from plotting.enhanced_sankey import plot_enhanced_sankey
-    print("🎯 Creating enhanced Sankey diagram...")
+    print(format_step(Icons.CREATING, "3.2", "Creating enhanced Sankey diagram..."))
     plot_enhanced_sankey(
         mfa_system_results=mfa_results_baseline,
         dsm_params=dsm_params,
         fomp_params=fomp_params,
         visualization_config_path=input_file
     )
-    print("✅ Enhanced Sankey diagram created successfully!")
+    print(format_success("Enhanced Sankey diagram created successfully!"))
 except Exception as e:
-    print(f"⚠️ Enhanced Sankey diagram failed: {e}")
+    print(f"{Icons.WARNING} Enhanced Sankey diagram failed: {e}")
     import traceback
     traceback.print_exc()
 
 # ## 3.3 Additional Visualizations
-print("\n--- Additional Visualizations ---")
+print(f"\n{Icons.ARROW} Additional Visualizations")
 
 # ### 3.3.1 Core System Dynamics
-print("\n📊 Core System Dynamics:")
+print(f"\n{Icons.VISUALIZATION} Core System Dynamics:")
 print("   • Process Dynamics: Interactive 3-panel view (Inflow/Stock/Outflow)")
 print("   • Flow Dynamics: Multi-flow time series analysis")
 print("   • Stock Analysis: Interactive bar charts with time slider")
