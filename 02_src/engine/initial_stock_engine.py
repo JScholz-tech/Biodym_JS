@@ -283,6 +283,9 @@ def process_initial_stock_outflows(mfa_system, initial_stock_configs):
         
         print(f"  -> Created {len(outflow_flows)} outflow flows for Process {process_id}")
     
+    # Initialize flow values using ODYM method
+    mfa_system.Initialize_FlowValues()
+    
     print("--> Initial stock outflows processed.")
     return mfa_system
 
@@ -388,19 +391,18 @@ def _create_single_outflow_flow(mfa_system, flow_name, process_id, destination_p
     
     flow = mfa_system.FlowDict[flow_name]
     
-    # Initialize flow values if not already done
-    if flow.Values is None:
-        n_years = len(mfa_system.IndexTable.Classification["Time"].Items)
-        n_elements = len(mfa_system.Elements)
-        flow.Values = np.zeros((n_years, n_elements))
+    # Initialize flow values using ODYM method (leave as None initially)
+    # ODYM's Initialize_FlowValues() will handle this
     
-    # Store initial stock configuration for solver use
-    if not hasattr(flow, '_initial_stock_config'):
-        flow._initial_stock_config = {
-            'initial_stock': initial_stock.copy(),
-            'consumption_rate': consumption_rate,
-            'split_fraction': split_fraction
-        }
+    # Store initial stock configuration in external dict (ODYM compliance - no custom attributes)
+    if not hasattr(mfa_system, '_initial_stock_configs'):
+        mfa_system._initial_stock_configs = {}
+    
+    mfa_system._initial_stock_configs[flow_name] = {
+        'initial_stock': initial_stock.copy(),
+        'consumption_rate': consumption_rate,
+        'split_fraction': split_fraction
+    }
     
     print(f"    -> Created flow {flow_name} (values will be set during solver)")
     return flow
@@ -471,9 +473,9 @@ def update_initial_stock_flows_during_solver(mfa_system):
     
     for process_id, outflow_flows in mfa_system.initial_stock_outflows.items():
         for flow in outflow_flows:
-            if hasattr(flow, '_initial_stock_config'):
-                config = flow._initial_stock_config
-                
+            # Read from external dict (ODYM compliance)
+            config = getattr(mfa_system, '_initial_stock_configs', {}).get(flow.Name)
+            if config:
                 # Calculate annual consumption with split
                 annual_consumption = (config['initial_stock'] * 
                                     config['consumption_rate'] * 

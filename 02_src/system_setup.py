@@ -140,6 +140,14 @@ def initialize_mfa_system(model_classification, index_table):
         Elements=element_items,
     )
 
+    # ODYM compliance: Check IndexTable consistency
+    try:
+        mfa_system.IndexTableCheck()
+        print("--> IndexTable validation passed.")
+    except ValueError as e:
+        print(f"--> WARNING: IndexTable validation failed: {e}")
+        raise
+
     print("--> MFA system object initialized.")
     return mfa_system
 
@@ -227,8 +235,9 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
                     mfa_system.StockDict[f"S_{process_id}"]._fomp_process = True
 
     for stock_name, stock_obj in mfa_system.StockDict.items():
+        # Mark FOMP processes for ODYM initialization (no manual np.zeros)
         if hasattr(stock_obj, '_fomp_process') and stock_obj._fomp_process:
-            stock_obj.Values = np.zeros((len(mfa_system.IndexTable.Classification['Time'].Items), len(mfa_system.Elements)))
+            # Leave Values as None - ODYM's Initialize_StockValues() will handle this
             delattr(stock_obj, '_fomp_process')
 
     mfa_system.Initialize_StockValues()
@@ -315,12 +324,23 @@ def _initialize_flows(mfa_system, flow_definitions):
     flow_definitions : pd.DataFrame
         DataFrame containing the flow definitions from Excel.
     """
+    # Create external dictionary for flow descriptions (ODYM compliance)
+    flow_descriptions = {}
+    
     for _, row in flow_definitions.iterrows():
         if pd.notna(row["Flow_Name"]):
             start_id, end_id = int(row["Flow_Output_Process_ID"]), int(row["Input_Process_ID"])
             flow_obj = msc.Flow(Name=row["Flow_ID"], P_Start=start_id, P_End=end_id, Indices="t,e")
-            flow_obj.DescriptiveName = row["Flow_Name"]
-            mfa_system.FlowDict[row["Flow_ID"]] = flow_obj
+            flow_id = row["Flow_ID"]
+            
+            # Store descriptive name in external dict (ODYM compliance - no custom attributes)
+            flow_descriptions[flow_id] = row["Flow_Name"]
+            
+            mfa_system.FlowDict[flow_id] = flow_obj
+    
+    # Store flow descriptions in mfa_system for later use (external to Flow objects)
+    mfa_system._flow_descriptions = flow_descriptions
+    
     mfa_system.Initialize_FlowValues()
     print("--> All flows initialized to zero.")
 
@@ -493,6 +513,10 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
     _populate_primary_flow_data(mfa_system, flow_data)
     _apply_initial_stock(mfa_system, all_excel_data)
     _define_content_parameters(mfa_system, flow_definitions)
+    
+    # Initialize all parameter values using ODYM method
+    mfa_system.Initialize_ParameterValues()
+    
     _calculate_elemental_compositions(mfa_system)
     flow_tc_map, process_logic_map = _create_flow_and_process_maps(mfa_system, all_excel_data)
 
