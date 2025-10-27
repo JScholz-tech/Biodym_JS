@@ -60,6 +60,71 @@ def load_config_from_excel(excel_file_path):
                         value = float(value)
 
                 config_dict[key] = value
+        
+        # Phase 1b: Collect Elements from "Element ID X" keys
+        elements = []
+        for key in list(config_dict.keys()):
+            if 'Element ID' in str(key):
+                element_value = config_dict[key]
+                if pd.notna(element_value) and str(element_value).strip():
+                    elements.append(str(element_value).strip())
+        
+        # Add Elements as a comma-separated string
+        if elements:
+            config_dict['Elements'] = ','.join(elements)
+            print(f"✅ Loaded {len(elements)} elements from configuration: {elements}")
+        
+        # Phase 1b: Collect Regions from "Region ID X" keys
+        regions = []
+        for key in list(config_dict.keys()):
+            if 'Region ID' in str(key):
+                region_value = config_dict[key]
+                if pd.notna(region_value) and str(region_value).strip():
+                    regions.append(str(region_value).strip())
+        
+        # Add Regions as a comma-separated string
+        if regions:
+            config_dict['Regions'] = ','.join(regions)
+            print(f"✅ Loaded {len(regions)} regions from configuration: {regions}")
+        
+        # Phase 1b: Collect Goods from "Good Type X" keys
+        goods = []
+        for key in list(config_dict.keys()):
+            if 'Good Type' in str(key) and key != 'Enable ODYM Dimension_Goods':
+                good_value = config_dict[key]
+                if pd.notna(good_value) and str(good_value).strip():
+                    goods.append(str(good_value).strip())
+        
+        # Add Goods as a comma-separated string
+        if goods:
+            config_dict['Goods'] = ','.join(goods)
+            print(f"✅ Loaded {len(goods)} goods from configuration: {goods}")
+        
+        # Phase 1b: Collect Materials from "Material ID X" keys
+        materials = []
+        for key in list(config_dict.keys()):
+            if 'Material ID' in str(key):
+                material_value = config_dict[key]
+                if pd.notna(material_value) and str(material_value).strip():
+                    materials.append(str(material_value).strip())
+        
+        # Add Materials as a comma-separated string
+        if materials:
+            config_dict['Materials'] = ','.join(materials)
+            print(f"✅ Loaded {len(materials)} materials from configuration: {materials}")
+        
+        # Phase 1b: Collect Process Types from "Process Type X" keys
+        process_types = []
+        for key in list(config_dict.keys()):
+            if 'Process Type' in str(key) and key != 'Enable ODYM Dimension_Process':
+                process_value = config_dict[key]
+                if pd.notna(process_value) and str(process_value).strip():
+                    process_types.append(str(process_value).strip())
+        
+        # Add Process Types as a comma-separated string
+        if process_types:
+            config_dict['Process_Types'] = ','.join(process_types)
+            print(f"✅ Loaded {len(process_types)} process types from configuration: {process_types}")
 
         return config_dict
 

@@ -199,5 +199,12 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
 
     print(f"   Total carbon output: {np.sum(fomp_results['outflow_carbon']):.2f}")
     print(f"   Total environmental output: {np.sum(fomp_results['outflow_environmental']):.2f}")
+    
+    # Phase 1a: Add ODYM validation after FOMP calculation
+    try:
+        mfa_system.Consistency_Check()
+        print(f"✅ FOMP validation passed for process {process_id}")
+    except Exception as e:
+        print(f"⚠️ FOMP validation warning for process {process_id}: {e}")
 
     return mfa_system

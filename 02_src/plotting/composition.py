@@ -33,9 +33,11 @@ def plot_flow_composition(mfa_system_results):
 
         for flow_name, flow in flows.items():
             values = flow.Values[i, :]
-            wc_val = values[elements.index('WC')]
-            dm_val = values[elements.index('DM')]
-            cc_val = values[elements.index('CC')]
+            
+            # Phase 1b: Handle new element structure safely
+            wc_val = values[elements.index('WC')] if 'WC' in elements else 0
+            dm_val = values[elements.index('DM')] if 'DM' in elements else 0
+            cc_val = values[elements.index('CC')] if 'CC' in elements else 0
 
             total_mass = wc_val + dm_val
 

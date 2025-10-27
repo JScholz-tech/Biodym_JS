@@ -64,6 +64,14 @@ def calculate_final_balances(mfa_system):
             stock_s.Values = new_s_values
 
     print("--> Stock balance calculation finished.")
+    
+    # Phase 1a: Add ODYM validation
+    try:
+        mfa_system.Consistency_Check()
+        print("✅ Balance validation passed")
+    except Exception as e:
+        print(f"⚠️ Balance validation warning: {e}")
+    
     return mfa_system
 
 
@@ -431,5 +439,12 @@ def run_mfa_calculation(
 
     # --- Final balance calculation ---
     mfa_system = calculate_final_balances(mfa_system)
+    
+    # Phase 1a: Add ODYM validation after complete calculation
+    try:
+        mfa_system.Consistency_Check()
+        print("✅ Final MFA system validation passed")
+    except Exception as e:
+        print(f"⚠️ Final validation warning: {e}")
 
     return mfa_system, dsm_details

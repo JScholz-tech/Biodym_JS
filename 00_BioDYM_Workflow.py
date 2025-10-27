@@ -89,7 +89,7 @@ print("📊 Plotting environment ready")
 # ## 1.2 Data Input Configuration
 
 # This is the only manual path setting required.
-input_file = "01_data/01_input/250922_CS1_Wheat_Straw.xlsx"
+input_file = "01_data/01_input/251027_Biodym_ODYM.xlsm"
 print(f"📁 Input file: {input_file}")
 if not os.path.exists(input_file):
     raise FileNotFoundError(f"Input file not found: {input_file}")
@@ -110,15 +110,47 @@ print(f"✅ Excel file loaded: {len(input_data)} sheets")
 config_obj = config.load_configuration(input_file)
 print("✅ Configuration object loaded.")
 
+# Phase 1b: Extract dimension lists from config
+def get_config_list(config_obj, attribute_name, default=None):
+    """Helper to extract comma-separated lists from config object."""
+    if hasattr(config_obj, attribute_name):
+        value = getattr(config_obj, attribute_name)
+        if value and pd.notna(value):
+            return [item.strip() for item in str(value).split(',') if item.strip()]
+    return default
+
+regions = get_config_list(config_obj, 'Regions', ['Case_Study_Region'])
+goods = get_config_list(config_obj, 'Goods', None)
+materials = get_config_list(config_obj, 'Materials', None)
+processes = get_config_list(config_obj, 'Process_Types', None)
+
+print(f"📊 Dimensions loaded from configuration:")
+print(f"   - Regions: {regions}")
+if materials:
+    print(f"   - Materials: {materials}")
+if goods:
+    print(f"   - Goods: {goods}")
+if processes:
+    print(f"   - Process Types: {processes}")
+
 # Extract core values from the config object, with fallbacks to data-driven values
 try:
     start_year = int(config_obj.Start_Year)
     end_year = int(config_obj.End_Year)
-    elements = [elem.strip() for elem in config_obj.Elements.split(',')]
+    # Try different possible element attribute names
+    if hasattr(config_obj, 'Elements'):
+        elements = [elem.strip() for elem in config_obj.Elements.split(',')]
+    elif hasattr(config_obj, 'Elements_comma_separated'):
+        elements = [elem.strip() for elem in config_obj.Elements_comma_separated.split(',')]
+    elif hasattr(config_obj, 'Element_list'):
+        elements = [elem.strip() for elem in config_obj.Element_list.split(',')]
+    else:
+        raise AttributeError("No Elements attribute found in config object")
 except Exception as e:
     print(f"⚠️ Could not get time/elements from config object: {e}. Falling back to data-driven values.")
     flow_data = input_data['1_2_Data_Flows']
-    years = sorted(flow_data['Year_Flow'].unique())
+    # Fix: Use correct column name 'Flow_Data_Year' instead of 'Year_Flow'
+    years = sorted(flow_data['Flow_Data_Year'].unique())
     start_year = int(min(years))
     end_year = int(max(years))
     elements = ['material', 'WC', 'DM', 'CC']
@@ -145,10 +177,25 @@ print("🚀 RUNNING BASELINE MFA CALCULATION")
 print("="*60)
 
 print("📋 Setting up model scope...")
-model_classification, index_table = system_setup.define_model_scope(start_year, end_year, elements)
+model_classification, index_table = system_setup.define_model_scope(start_year, end_year, elements, regions, goods, materials, processes)
 
 print("🔧 Initializing MFA system...")
 mfa_system_base = system_setup.initialize_mfa_system(model_classification, index_table)
+
+# Phase 1b: Display IndexTable (ODYM convention)
+print("\n" + "="*60)
+print("📊 ODYM SYSTEM INDEX TABLE")
+print("="*60)
+print(mfa_system_base.IndexTable)
+print("\nAvailable Dimensions:")
+for aspect in mfa_system_base.IndexTable.index:
+    classification = mfa_system_base.IndexTable.loc[aspect, 'Classification']
+    index_letter = mfa_system_base.IndexTable.loc[aspect, 'IndexLetter']
+    print(f"  - {aspect} ({index_letter}): {len(classification.Items)} items")
+    if len(classification.Items) <= 5:
+        print(f"    Items: {classification.Items}")
+    else:
+        print(f"    Items (sample): {classification.Items[:3]} ... ({len(classification.Items)} total)")
 
 print("📊 Loading processes and data...")
 mfa_system_base, all_excel_data = system_setup.load_and_define_processes(mfa_system_base, input_data, data_loader)

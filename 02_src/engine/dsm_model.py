@@ -223,6 +223,13 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config):
     total_stock_from_inflows = sum([np.sum(s) for s in stock_from_inflows_by_cat])
     print(f"Total stock accumulated from inflows: {total_stock_from_inflows}")
     print(f"=== END DSM DEBUG for Process {process_id} ===\n")
+    
+    # Phase 1a: Add ODYM validation after DSM calculation
+    try:
+        mfa_system.Consistency_Check()
+        print(f"✅ DSM validation passed for process {process_id}")
+    except Exception as e:
+        print(f"⚠️ DSM validation warning for process {process_id}: {e}")
 
     dsm_details_results = {
         process_id: {

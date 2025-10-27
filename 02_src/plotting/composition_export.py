@@ -26,9 +26,11 @@ def export_flow_composition(mfa_system_results, output_path):
     for i, year in enumerate(years):
         for flow_name, flow in flows.items():
             values = flow.Values[i, :]
-            wc_mass = values[elements.index('WC')]
-            dm_mass = values[elements.index('DM')]
-            cc_mass = values[elements.index('CC')]
+            
+            # Phase 1b: Handle new element structure safely
+            wc_mass = values[elements.index('WC')] if 'WC' in elements else 0
+            dm_mass = values[elements.index('DM')] if 'DM' in elements else 0
+            cc_mass = values[elements.index('CC')] if 'CC' in elements else 0
             non_carbon_dm_mass = dm_mass - cc_mass
             total_mass = wc_mass + dm_mass
 

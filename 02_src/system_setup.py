@@ -26,11 +26,11 @@ import ODYM_Classes as msc
 import data_loader
 
 
-def define_model_scope(start_year, end_year, elements):
-    """Defines the temporal and elemental scope of the MFA model.
-
-    This function creates the core ODYM classifications for Time and Element,
-    which are used to structure all data arrays in the system.
+def define_model_scope(start_year, end_year, elements, regions=None, goods=None, materials=None, processes=None):
+    """Defines the temporal and elemental scope of the MFA model with ODYM dimensions.
+    
+    Phase 1b: Adds support for Region, Good, Material, and Process dimensions.
+    Maintains backward compatibility - all new dimensions are optional with defaults.
 
     Parameters
     ----------
@@ -40,6 +40,14 @@ def define_model_scope(start_year, end_year, elements):
         The last year of the analysis.
     elements : list of str
         A list of strings for the elements to be tracked (e.g., ['material', 'WC']).
+    regions : list of str, optional
+        A list of region names. Defaults to ["Case_Study_Region"] if not provided.
+    goods : list of str, optional
+        A list of good categories. Defaults to None (not used initially).
+    materials : list of str, optional
+        A list of material categories. Defaults to None (not used initially).
+    processes : list of str, optional
+        A list of process types. Defaults to None (not used initially).
 
     Returns
     -------
@@ -50,28 +58,52 @@ def define_model_scope(start_year, end_year, elements):
     """
     model_classification = {}
     my_years = list(np.arange(start_year, end_year + 1))
+    
+    # Default values for backward compatibility
+    if regions is None:
+        regions = ["Case_Study_Region"]  # Default single region
 
+    # Existing dimensions
     model_classification["Time"] = msc.Classification(
         Name="Time", Dimension="Time", ID=1, Items=my_years
     )
     model_classification["Element"] = msc.Classification(
         Name="Elements", Dimension="Element", ID=2, Items=elements
     )
+    
+    # Build index table based on available dimensions
+    aspects = ["Time", "Element"]
+    descriptions = ['Model aspect "time"', 'Model aspect "Element"']
+    dimensions = ["Time", "Element"]
+    index_letters = ["t", "e"]
+    classifications = [
+        model_classification["Time"],
+        model_classification["Element"]
+    ]
+    
+    # Phase 1b: Add Material if defined (for future use)
+    # For now, Materials dimension is not used - Elements handle WC, DM, CC
+    # This keeps compatibility with existing solver code
+    if materials is not None and len(materials) > 0:
+        model_classification["Material"] = msc.Classification(
+            Name="Materials", Dimension="Material", ID=3, Items=materials
+        )
+        aspects.append("Material")
+        descriptions.append('Model aspect "Material"')
+        dimensions.append("Material")
+        index_letters.append("m")
+        classifications.append(model_classification["Material"])
 
-    index_table = pd.DataFrame(
-        {
-            "Aspect": ["Time", "Element"],
-            "Description": ['Model aspect "time"', 'Model aspect "Element"'],
-            "Dimension": ["Time", "Element"],
-            "Classification": [
-                model_classification[Aspect] for Aspect in ["Time", "Element"]
-            ],
-            "IndexLetter": ["t", "e"],
-        }
-    )
+    index_table = pd.DataFrame({
+        "Aspect": aspects,
+        "Description": descriptions,
+        "Dimension": dimensions,
+        "Classification": classifications,
+        "IndexLetter": index_letters,
+    })
     index_table.set_index("Aspect", inplace=True)
 
-    print("--> Model scope and classifications defined.")
+    print(f"--> Model scope and classifications defined with {len(aspects)} dimensions.")
     return model_classification, index_table
 
 
