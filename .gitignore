@@ -22,8 +22,17 @@ venv/
 
 # Temporary Files
 ~$*.xlsx
+~$*.xlsm
 ~$*.docx
 ~$*.pptx
+*.tmp
+*.bak
+*.swp
+*~
+
+# Conflicted copies (Nextcloud, Dropbox, etc.)
+*(*conflicted copy*).*
+*(*Conflicted copy*).*
 
 # Archive and duplicate directories
 Archive/

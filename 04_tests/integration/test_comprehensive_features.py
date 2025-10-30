@@ -44,9 +44,10 @@ sys.path.insert(0, biodym_addon_path)
 
 warnings.filterwarnings("ignore")
 
-# Add project paths
+# Add project paths (duplicate of lines 26-27 - can be removed if causing issues)
 current_dir = os.getcwd()
-    src_path = os.path.join(current_dir, "02_src")sys.path.insert(0, src_path)
+src_path = os.path.join(current_dir, "02_src")
+sys.path.insert(0, src_path)
 
 # Import BioDYM modules
 try:

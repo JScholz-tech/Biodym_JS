@@ -25,6 +25,7 @@ dependencies = [
 ]
 
 [tool.pytest.ini_options]
-norecursedirs = ["Archive", ".*", "*/Archive"]
+norecursedirs = ["Archive", ".*", "*/Archive", "03_studies"]
+testpaths = ["04_tests"]
 
  
