@@ -390,7 +390,10 @@ def _apply_initial_stock(mfa_system, all_excel_data):
         mfa_system = initial_stock_engine.process_initial_stock_outflows(mfa_system, initial_stock_configs)
 
 def _define_content_parameters(mfa_system, content_definitions):
-    """Defines content parameters (e.g., water content) for each flow.
+    """Defines content parameters (e.g., water content, metal fractions) for each flow.
+
+    Dynamically builds column mapping based on available elements in the system.
+    Supports standard naming (Flow_{element}[%]) and legacy naming conventions.
 
     Parameters
     ----------
@@ -399,33 +402,92 @@ def _define_content_parameters(mfa_system, content_definitions):
     content_definitions : pd.DataFrame
         DataFrame containing flow definitions, including content percentages.
     """
+    # Build element-to-column mapping dynamically
+    element_column_map = _build_element_column_map(mfa_system.Elements, content_definitions)
+
     parameter_id_counter = 1
     for _, row in content_definitions.iterrows():
         flow_id = row.get("Flow_ID")
         if pd.notna(flow_id) and flow_id in mfa_system.FlowDict:
-            element_column_map = {
-                "WC": "Flow_WC[%]",
-                "DM": "Flow_DM[%]", 
-                "CC": "Flow_CC_DM[%]"
-            }
+            # Process all elements except 'material' (which is the total)
             for element in mfa_system.Elements[1:]:
                 column_name = element_column_map.get(element)
                 if column_name and column_name in row and pd.notna(row[column_name]):
                     param_name = f"{element}_{flow_id}"
                     # Priority 4: Scalar parameters need Indices="" to avoid crash in Initialize_ParameterValues()
                     mfa_system.ParameterDict[param_name] = msc.Parameter(
-                        Name=param_name, 
-                        ID=parameter_id_counter, 
-                        Values=row[column_name], 
+                        Name=param_name,
+                        ID=parameter_id_counter,
+                        Values=row[column_name],
                         Indices="",  # Empty string for scalar parameters (prevents AttributeError in Initialize_ParameterValues)
                         Unit="1"
                     )
                     parameter_id_counter += 1
 
+
+def _build_element_column_map(elements, content_definitions):
+    """
+    Dynamically builds column name mapping based on elements in the system.
+
+    For each element (except 'material'), looks for columns in this order:
+    1. Standard: Flow_{element}[%]
+    2. Legacy variations: Flow_{element}_[%]
+    3. Special cases: Flow_CC_DM[%] for CC element
+
+    Parameters
+    ----------
+    elements : list of str
+        List of element names (e.g., ['material', 'WC', 'DM', 'CC'] or ['material', 'Fe', 'Cu', 'Al'])
+    content_definitions : pd.DataFrame
+        DataFrame with flow definitions to check available columns
+
+    Returns
+    -------
+    dict
+        Mapping from element name to Excel column name
+        e.g., {'WC': 'Flow_WC[%]', 'DM': 'Flow_DM[%]', 'CC': 'Flow_CC_DM[%]'}
+        or {'Fe': 'Flow_Fe[%]', 'Cu': 'Flow_Cu[%]', 'Al': 'Flow_Al[%]'}
+    """
+    column_map = {}
+    available_columns = content_definitions.columns
+
+    for element in elements:
+        if element == 'material':
+            continue  # Material is total, not a fraction column
+
+        # Try standard naming: Flow_{element}[%]
+        standard_name = f"Flow_{element}[%]"
+        if standard_name in available_columns:
+            column_map[element] = standard_name
+            continue
+
+        # Try legacy naming with underscore: Flow_{element}_[%]
+        legacy_name = f"Flow_{element}_[%]"
+        if legacy_name in available_columns:
+            column_map[element] = legacy_name
+            continue
+
+        # Special case: CC might be stored as "Flow_CC_DM[%]" (carbon of dry matter)
+        if element == 'CC' or element == 'cc':
+            cc_dm_name = "Flow_CC_DM[%]"
+            if cc_dm_name in available_columns:
+                column_map[element] = cc_dm_name
+                continue
+
+        # If not found, log warning (but don't fail - element might not be used)
+        print(f"⚠️  Column for element '{element}' not found in 1_1_Definition_Flows sheet")
+        print(f"    Expected: {standard_name} or {legacy_name}")
+        # Don't add to map - will be skipped in parameter creation
+
+    return column_map
+
 def _calculate_elemental_compositions(mfa_system):
     """Calculates elemental values for flows based on content parameters.
 
-    Iterates through flows and applies the defined content percentages (e.g., WC, DM)
+    Dynamically calculates composition for any elements defined in the system.
+    Works for biomass (WC/DM/CC), metals (Fe/Cu/Al), or any custom elements.
+
+    Iterates through flows and applies the defined content percentages/fractions
     to the primary material flow to calculate the values for each element.
 
     Parameters
@@ -433,20 +495,46 @@ def _calculate_elemental_compositions(mfa_system):
     mfa_system : odym.MFAsystem
         The MFA system object to be modified.
     """
+    elements = mfa_system.Elements
+    mat_idx = 0  # Material is always first element
+
     for flow in mfa_system.FlowDict.values():
-        if np.any(flow.Values[:, 0] != 0):
-            for i_elem, element_name in enumerate(mfa_system.Elements[1:], 1):
-                if element_name == "CC": continue
-                param_name = f"{element_name}_{flow.Name}"
-                if param_name in mfa_system.ParameterDict:
-                    content_value = mfa_system.ParameterDict[param_name].Values
-                    flow.Values[:, i_elem] = flow.Values[:, 0] * content_value
-            if "CC" in mfa_system.Elements:
-                cc_idx = mfa_system.Elements.index("CC")
-                param_name = f"CC_{flow.Name}"
-                if param_name in mfa_system.ParameterDict:
-                    cc_fraction = mfa_system.ParameterDict[param_name].Values
-                    flow.Values[:, cc_idx] = flow.Values[:, 0] * cc_fraction
+        material_values = flow.Values[:, mat_idx]
+
+        # Skip flows with no material
+        if not np.any(material_values != 0):
+            continue
+
+        # Calculate each element's values dynamically
+        for elem_idx, element_name in enumerate(elements):
+            if element_name == 'material':
+                continue  # Skip material (already populated from data)
+
+            # Get parameter for this element-flow combination
+            param_name = f"{element_name}_{flow.Name}"
+            param = mfa_system.ParameterDict.get(param_name)
+
+            if param is None:
+                # No parameter found - element not defined for this flow
+                # This is OK - not all elements need to be defined for all flows
+                flow.Values[:, elem_idx] = 0.0
+                continue
+
+            # Calculate: element_mass = material_mass * fraction
+            fraction = param.Values
+            flow.Values[:, elem_idx] = material_values * fraction
+
+        # Validate: sum of element masses should be <= total material mass
+        # (Allow 1% tolerance for rounding errors)
+        element_sum = np.sum(flow.Values[:, 1:], axis=1)  # Sum all except material
+        material_total = flow.Values[:, mat_idx]
+
+        if np.any(element_sum > material_total * 1.01):
+            max_overshoot = np.max(element_sum - material_total)
+            if max_overshoot > 0.1:  # Only warn if significant (>0.1 Mg)
+                print(f"⚠️  {flow.Name}: Element sum exceeds material mass by {max_overshoot:.3f} Mg")
+                print(f"    Elements: {elements[1:]}")
+                print(f"    Check fraction values sum to ≤ 1.0")
 
 def _create_flow_and_process_maps(mfa_system, all_excel_data):
     """Creates lookup maps for process logic and flow-to-TC mappings.

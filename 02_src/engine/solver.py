@@ -187,34 +187,54 @@ def _calculate_tc_driven_flows(mfa_system, special_processes, process_logic_map,
         total_inflow_vector = sum(f.Values for f in input_flows)
         outflow_vector = np.zeros_like(total_inflow_vector)
 
-        try:
-            mat_idx = mfa_system.Elements.index('material')
-            wc_idx = mfa_system.Elements.index('WC')
-            dm_idx = mfa_system.Elements.index('DM')
-            cc_idx = mfa_system.Elements.index('CC')
-        except ValueError as e:
-            raise ValueError(f"The model's elements are not correctly defined. Missing one of ['material', 'WC', 'DM', 'CC']. Error: {e}")
+        # Get element indices dynamically
+        elements = mfa_system.Elements
+        mat_idx = 0  # Material is always first
+        other_elements = elements[1:]  # All other elements (WC, DM, CC or Fe, Cu, Al, etc.)
+        elem_indices = {elem: idx for idx, elem in enumerate(elements)}
 
         if process_logic in ['Splitter', 'Transformer']:
             if process_logic == 'Splitter':
+                # Splitter: Preserves composition (element fractions stay the same)
                 param_name = tc_ids.get('material')
                 if param_name and param_name in mfa_system.ParameterDict:
                     tc_value = mfa_system.ParameterDict[param_name].Values
                     outflow_vector[:, mat_idx] = total_inflow_vector[:, mat_idx] * tc_value
+
+                    # Preserve composition for all elements
                     inflow_material = total_inflow_vector[:, mat_idx]
-                    wc_fraction = np.divide(total_inflow_vector[:, wc_idx], inflow_material, out=np.zeros_like(inflow_material), where=inflow_material!=0)
-                    dm_fraction = np.divide(total_inflow_vector[:, dm_idx], inflow_material, out=np.zeros_like(inflow_material), where=inflow_material!=0)
-                    cc_fraction = np.divide(total_inflow_vector[:, cc_idx], inflow_material, out=np.zeros_like(inflow_material), where=inflow_material!=0)
-                    outflow_vector[:, wc_idx] = outflow_vector[:, mat_idx] * wc_fraction
-                    outflow_vector[:, dm_idx] = outflow_vector[:, mat_idx] * dm_fraction
-                    outflow_vector[:, cc_idx] = outflow_vector[:, mat_idx] * cc_fraction
+
+                    for element in other_elements:
+                        elem_idx = elem_indices[element]
+
+                        # Calculate fraction: element / material (avoid division by zero)
+                        element_fraction = np.divide(
+                            total_inflow_vector[:, elem_idx],
+                            inflow_material,
+                            out=np.zeros_like(inflow_material),
+                            where=inflow_material != 0
+                        )
+
+                        # Apply fraction to outflow material
+                        outflow_vector[:, elem_idx] = outflow_vector[:, mat_idx] * element_fraction
+
             elif process_logic == 'Transformer':
-                for i_elem, element in [(wc_idx, 'WC'), (dm_idx, 'DM'), (cc_idx, 'CC')]:
+                # Transformer: Changes composition (apply TCs to each element independently)
+                for element in other_elements:
+                    elem_idx = elem_indices[element]
+
+                    # Look for element-specific TC, fallback to material TC
                     param_name = tc_ids.get(element, tc_ids.get('material'))
+
                     if param_name and param_name in mfa_system.ParameterDict:
                         tc_value = mfa_system.ParameterDict[param_name].Values
-                        outflow_vector[:, i_elem] = total_inflow_vector[:, i_elem] * tc_value
-                outflow_vector[:, mat_idx] = outflow_vector[:, wc_idx] + outflow_vector[:, dm_idx]
+                        outflow_vector[:, elem_idx] = total_inflow_vector[:, elem_idx] * tc_value
+                    else:
+                        # No TC found, assume passthrough (no change)
+                        outflow_vector[:, elem_idx] = total_inflow_vector[:, elem_idx]
+
+                # Recalculate total material as sum of all elements
+                outflow_vector[:, mat_idx] = np.sum(outflow_vector[:, 1:], axis=1)
 
             flow.Values = outflow_vector
             if not np.allclose(old_values, flow.Values):
@@ -294,32 +314,49 @@ def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
     bool
         True if any flow values were changed during the calculation, False otherwise.
     """
+    # Check if required elements exist for FOMP
+    required_elements = ['DM', 'CC']
+    missing_elements = [e for e in required_elements if e not in mfa_system.Elements]
+
+    if missing_elements:
+        print(f"⚠️  FOMP calculation skipped: Missing required elements {missing_elements}")
+        print(f"   FOMP requires 'DM' (dry matter) and 'CC' (carbon content) for organic decomposition")
+        print(f"   Available elements: {mfa_system.Elements}")
+        print(f"   Tip: For non-organic systems (e.g., metals), disable FOMP in configuration")
+        return False  # No changes made
+
     something_changed = False
     for process_id in fomp_processes:
         inflows_to_fomp = [f for f in mfa_system.FlowDict.values() if f.P_End == process_id]
         if not (inflows_to_fomp and all(np.any(f.Values != 0) for f in inflows_to_fomp)):
             continue
-        
+
         fomp_outflows = [f for f in mfa_system.FlowDict.values() if f.P_Start == process_id and hasattr(f, '_fomp_protected')]
         old_fomp_out_values = {f.Name: f.Values.copy() for f in fomp_outflows}
 
         total_inflow_values = sum(f.Values for f in inflows_to_fomp)
-        
+
+        # Element indices (already validated above)
         material_idx = mfa_system.Elements.index('material')
         dm_idx = mfa_system.Elements.index('DM')
         cc_idx = mfa_system.Elements.index('CC')
-        wc_idx = mfa_system.Elements.index('WC')
+        wc_idx = mfa_system.Elements.index('WC') if 'WC' in mfa_system.Elements else None
         
         dm_fraction = np.divide(total_inflow_values[:, dm_idx], total_inflow_values[:, material_idx], out=np.zeros_like(total_inflow_values[:, dm_idx]), where=total_inflow_values[:, material_idx] != 0)
         cc_fraction = np.divide(total_inflow_values[:, cc_idx], total_inflow_values[:, material_idx], out=np.zeros_like(total_inflow_values[:, cc_idx]), where=total_inflow_values[:, material_idx] != 0)
-        wc_fraction = np.divide(total_inflow_values[:, wc_idx], total_inflow_values[:, material_idx], out=np.zeros_like(total_inflow_values[:, wc_idx]), where=total_inflow_values[:, material_idx] != 0)
-        
+
         print(f"   FOMP Process {process_id} - Input Flow Composition:")
         print(f"     DM fraction: {np.mean(dm_fraction[dm_fraction > 0]):.3f} (range: {np.min(dm_fraction):.3f} - {np.max(dm_fraction):.3f})")
         print(f"     CC fraction: {np.mean(cc_fraction[cc_fraction > 0]):.3f} (range: {np.min(cc_fraction):.3f} - {np.max(cc_fraction):.3f})")
-        print(f"     WC fraction: {np.mean(wc_fraction[wc_fraction > 0]):.3f} (range: {np.min(wc_fraction):.3f} - {np.max(wc_fraction):.3f})")
-        
-        composition = {'DM': dm_fraction, 'CC': cc_fraction, 'WC': wc_fraction}
+
+        # Build composition dictionary
+        composition = {'DM': dm_fraction, 'CC': cc_fraction}
+
+        # Add WC if available
+        if wc_idx is not None:
+            wc_fraction = np.divide(total_inflow_values[:, wc_idx], total_inflow_values[:, material_idx], out=np.zeros_like(total_inflow_values[:, wc_idx]), where=total_inflow_values[:, material_idx] != 0)
+            composition['WC'] = wc_fraction
+            print(f"     WC fraction: {np.mean(wc_fraction[wc_fraction > 0]):.3f} (range: {np.min(wc_fraction):.3f} - {np.max(wc_fraction):.3f})")
 
         mfa_system = fomp_model.calculate_fomp(mfa_system, {process_id: fomp_params[process_id]}, composition)
 

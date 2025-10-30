@@ -67,12 +67,28 @@ def load_config_from_excel(excel_file_path):
             if 'Element ID' in str(key):
                 element_value = config_dict[key]
                 if pd.notna(element_value) and str(element_value).strip():
-                    elements.append(str(element_value).strip())
-        
-        # Add Elements as a comma-separated string
+                    element_name = str(element_value).strip()
+                    # Remove duplicates
+                    if element_name not in elements:
+                        elements.append(element_name)
+
+        # Ensure 'material' is always first (required for total mass tracking)
         if elements:
+            if 'material' not in elements:
+                elements.insert(0, 'material')
+                print(f"⚠️  'material' element added automatically (required for total mass)")
+            elif elements[0] != 'material':
+                elements.remove('material')
+                elements.insert(0, 'material')
+                print(f"⚠️  'material' element moved to first position (required)")
+
             config_dict['Elements'] = ','.join(elements)
             print(f"✅ Loaded {len(elements)} elements from configuration: {elements}")
+        else:
+            # Fallback to default biomass elements
+            elements = ['material', 'WC', 'DM', 'CC']
+            config_dict['Elements'] = ','.join(elements)
+            print(f"⚠️  No elements found in config, using defaults: {elements}")
         
         # Phase 1b: Collect Regions from "Region ID X" keys
         regions = []
