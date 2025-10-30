@@ -10,7 +10,8 @@ import pandas as pd
 import graphviz
 
 def plot_graphviz_flow_chart_sankey_style(processes_df, flows_df, title="BioDYM System - Sankey-Style Block Flow Diagram", 
-                                         rankdir="LR", ranksep=1.0, nodesep=0.5, max_processes=50, max_flows=100):
+                                         rankdir="LR", ranksep=1.0, nodesep=0.5, max_processes=50, max_flows=100,
+                                         flow_thickness=3.0):
     """Create a clean, professional Sankey-style block flow diagram using Graphviz.
 
     This function generates a block flow diagram that visualizes the system
@@ -41,6 +42,8 @@ def plot_graphviz_flow_chart_sankey_style(processes_df, flows_df, title="BioDYM 
         complexity. Defaults to 50.
     max_flows : int, optional
         The maximum number of flows to include in the diagram. Defaults to 100.
+    flow_thickness : float, optional
+        The thickness of flow edges in the diagram. Defaults to 3.0 for rectangular appearance.
 
     Returns
     -------
@@ -140,7 +143,7 @@ def plot_graphviz_flow_chart_sankey_style(processes_df, flows_df, title="BioDYM 
                 fontname='Arial', 
                 fontsize='7',
                 arrowsize='0.7',
-                penwidth='1.0',
+                penwidth=str(flow_thickness),  # Thick edges create rectangular flow appearance
                 splines='ortho',
                 arrowhead='normal')
         
