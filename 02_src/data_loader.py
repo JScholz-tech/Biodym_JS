@@ -165,18 +165,40 @@ def validate_input_data(excel_data_dict):
     print("--> Validating input data structure...")
 
     # Define the minimum required structure for the model to run.
-    # Support both new unified columns and legacy columns for backward compatibility
+    # Support both new E# format and legacy element-name columns for backward compatibility
     REQUIRED_STRUCTURE = {
-        "1_1_Definition_Flows": ["Flow_ID", "Flow_Name", "Flow_Output_Process_ID", "Input_Process_ID", "Flow_WC[%]", "Flow_DM[%]", "Flow_CC_DM[%]"],
-        "1_2_Data_Flows": ["Flow_ID", "Flow_Data_Year", "Flow_Material"],
+        "1_1_Definition_Flows": ["Flow_ID", "Flow_Name", "Flow_Output_Process_ID", "Input_Process_ID"],
+        "1_2_Data_Flows": ["Flow_ID", "Flow_Data_Year"],
         "2_1_Definition_Processes": ["ID", "Process_Name", "Process_Logic"],
-        "2_2_static_TCs": ["Flow_ID", "Process_ID", "TC_material_ID", "TC_Value_material"],
-        "2_3_dynamic_TCs": ["TC_material_ID", "TC_Value_material", "Year"],
+        "2_2_static_TCs": ["Flow_ID", "Process_ID"],
+        "2_3_dynamic_TCs": ["Year"],
         "2_4_Initial_Stock": [
             "Process_ID",
-            "IS_Parameter_type", 
+            "IS_Parameter_type",
             "IS_Parameter_Value",
         ],
+    }
+
+    # Element-specific columns that can be in different formats
+    # Old format: Flow_WC[%], Flow_DM[%], TC_Value_material
+    # New format: Flow_E2_Fraction[%], E1_TC_Value[%]
+    ELEMENT_COLUMN_PATTERNS = {
+        "1_1_Definition_Flows": {
+            "old": ["Flow_WC[%]", "Flow_DM[%]", "Flow_CC_DM[%]"],
+            "new_pattern": ["Flow_E", "_Fraction[%]"],  # Pattern: Flow_E#_Fraction[%]
+        },
+        "1_2_Data_Flows": {
+            "old": ["Flow_Material"],
+            "new": ["E1_value", "E2_value", "E3_value", "E1_Fraction[%]"],  # Direct match
+        },
+        "2_2_static_TCs": {
+            "old": ["TC_material_ID", "TC_Value_material"],
+            "new": ["E1_TC_ID", "E2_TC_ID", "E1_TC_Value[%]"],  # Direct match
+        },
+        "2_3_dynamic_TCs": {
+            "old": ["TC_material_ID", "TC_Value_material"],
+            "new": ["E1_TC_ID", "E2_TC_ID", "E1_TC_Value[%]"],
+        },
     }
 
     for sheet_name, required_columns in REQUIRED_STRUCTURE.items():
@@ -190,17 +212,17 @@ def validate_input_data(excel_data_dict):
                     f"ERROR: The required sheet '{sheet_name}' was not found in the Excel file!"
                 )
 
-        existing_columns = excel_data_dict[sheet_name].columns
-        
+        existing_columns = list(excel_data_dict[sheet_name].columns)
+
         # Special handling for process definition sheet to support both unified and legacy columns
         if sheet_name == "2_1_Definition_Processes":
             # Check for unified columns first
             unified_columns = ["TC_Configuration", "Stock_Configuration"]
             legacy_columns = ["TC?", "TC_Type", "Stock?", "Initial_Stock?"]
-            
+
             has_unified = all(col in existing_columns for col in unified_columns)
             has_legacy = all(col in existing_columns for col in legacy_columns)
-            
+
             if not has_unified and not has_legacy:
                 missing_unified = [col for col in unified_columns if col not in existing_columns]
                 missing_legacy = [col for col in legacy_columns if col not in existing_columns]
@@ -213,13 +235,50 @@ def validate_input_data(excel_data_dict):
                 print(f"  -> Using unified configuration columns in '{sheet_name}'")
             elif has_legacy:
                 print(f"  -> Using legacy configuration columns in '{sheet_name}'")
-        else:
-            # Standard validation for other sheets
-            for col in required_columns:
-                if col not in existing_columns:
-                    raise ValueError(
-                        f"ERROR: The required column '{col}' is missing from sheet '{sheet_name}'!"
-                    )
+
+        # Standard validation for core columns (non-element-specific)
+        for col in required_columns:
+            if col not in existing_columns:
+                raise ValueError(
+                    f"ERROR: The required column '{col}' is missing from sheet '{sheet_name}'!"
+                )
+
+        # Check for element-specific columns (old OR new format)
+        if sheet_name in ELEMENT_COLUMN_PATTERNS:
+            patterns = ELEMENT_COLUMN_PATTERNS[sheet_name]
+            old_format = patterns.get("old", [])
+            new_format = patterns.get("new", [])
+            new_pattern = patterns.get("new_pattern", [])
+
+            # Check if ANY old format columns exist
+            has_old = any(col in existing_columns for col in old_format)
+
+            # Check if ANY new format columns exist
+            has_new = False
+
+            # Pattern matching (e.g., "Flow_E" and "_Fraction[%]")
+            if new_pattern:
+                pattern_parts = new_pattern
+                has_new = any(
+                    all(part in str(col) for part in pattern_parts)
+                    for col in existing_columns
+                )
+
+            # Direct column name matching
+            if not has_new and new_format:
+                has_new = any(col in existing_columns for col in new_format)
+
+            if not has_old and not has_new:
+                example_format = new_pattern if new_pattern else new_format
+                raise ValueError(
+                    f"ERROR: Sheet '{sheet_name}' must have element columns in either "
+                    f"old format {old_format} OR new E# format (e.g., {example_format}). "
+                    f"No element columns found!"
+                )
+            elif has_new:
+                print(f"  -> Using new E# format for element columns in '{sheet_name}'")
+            elif has_old:
+                print(f"  -> Using legacy element-name format in '{sheet_name}'")
 
     print("--> Input data validation successful.")
 
@@ -421,6 +480,16 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
     tc_params = {}
     param_id_counter = 1000
 
+    # Detect TC column format (old: TC_material_ID, new: E1_TC_ID)
+    tc_format = "old"  # default
+    if static_tc_defs is not None and not static_tc_defs.empty:
+        # Check if new E# format columns exist
+        if 'E1_TC_ID' in static_tc_defs.columns or 'E2_TC_ID' in static_tc_defs.columns:
+            tc_format = "new"
+            print("  -> Detected new E# format for TC columns")
+        else:
+            print("  -> Detected legacy element-name format for TC columns")
+
     # Process Static TCs
     static_processes = [pid for pid, tc_type in process_tc_types.items() if tc_type == 'Static']
     if static_processes and static_tc_defs is not None:
@@ -430,14 +499,22 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
             if pd.isna(process_id) or int(process_id) not in static_processes:
                 continue
 
-            for element in elements:
-                param_name_col = f'TC_{element}_ID'
-                param_value_col = f'TC_Value_{element}'
-                
+            for elem_idx, element in enumerate(elements):
+                # Build column names based on format
+                if tc_format == "new":
+                    # New format: E1_TC_ID, E1_TC_Value[%]
+                    element_id = elem_idx + 1
+                    param_name_col = f'E{element_id}_TC_ID'
+                    param_value_col = f'E{element_id}_TC_Value[%]'
+                else:
+                    # Old format: TC_material_ID, TC_Value_material
+                    param_name_col = f'TC_{element}_ID'
+                    param_value_col = f'TC_Value_{element}'
+
                 if param_name_col in row and pd.notna(row[param_name_col]) and param_value_col in row and pd.notna(row[param_value_col]):
                     param_name = row[param_name_col]
                     value = row[param_value_col]
-                    
+
                     if param_name not in tc_params:
                         tc_params[param_name] = msc.Parameter(Name=param_name, ID=param_id_counter, Values=value, Unit="1")
                         param_id_counter += 1
@@ -449,27 +526,53 @@ def load_tc_parameters(all_excel_data, elements, time_vector):
     dynamic_processes = [pid for pid, tc_type in process_tc_types.items() if tc_type == 'Dynamic']
     if dynamic_processes and dynamic_tc_defs is not None:
         print(f"  -> Processing dynamic TCs for {len(dynamic_processes)} processes...")
-        
-        # Group dynamic TC data by parameter name
-        dynamic_tc_data = dynamic_tc_defs[['TC_material_ID', 'TC_Value_material', 'Year']].dropna()
-        
-        for param_name in dynamic_tc_data['TC_material_ID'].unique():
-            tc_points = dynamic_tc_data[dynamic_tc_data['TC_material_ID'] == param_name]
-            
-            # Create time series
-            ts = pd.Series(tc_points['TC_Value_material'].values, index=tc_points['Year'])
-            
-            # Reindex to full time vector and interpolate
-            ts_full = ts.reindex(time_vector)
-            ts_interpolated = ts_full.interpolate(method="linear", limit_direction="both")
-            
-            # Handle edge cases where interpolation might fail
-            if ts_interpolated.isna().any():
-                ts_interpolated = ts_interpolated.ffill().bfill()
-            
-            tc_params[param_name] = msc.Parameter(Name=param_name, ID=param_id_counter, Values=ts_interpolated.to_numpy(), Unit="1")
-            param_id_counter += 1
-            print(f"    -> Loaded dynamic TC: {param_name} ({len(tc_points)} data points -> {len(ts_interpolated)} time steps)")
+
+        # Detect format for dynamic TCs (same as static)
+        dynamic_tc_format = "old"
+        if 'E1_TC_ID' in dynamic_tc_defs.columns or 'E2_TC_ID' in dynamic_tc_defs.columns:
+            dynamic_tc_format = "new"
+
+        # Process each element
+        for elem_idx, element in enumerate(elements):
+            # Build column names based on format
+            if dynamic_tc_format == "new":
+                element_id = elem_idx + 1
+                param_name_col = f'E{element_id}_TC_ID'
+                param_value_col = f'E{element_id}_TC_Value[%]'
+            else:
+                param_name_col = f'TC_{element}_ID'
+                param_value_col = f'TC_Value_{element}'
+
+            # Check if columns exist
+            if param_name_col not in dynamic_tc_defs.columns or param_value_col not in dynamic_tc_defs.columns:
+                continue
+
+            # Group dynamic TC data by parameter name
+            try:
+                dynamic_tc_data = dynamic_tc_defs[[param_name_col, param_value_col, 'Year']].dropna()
+            except KeyError:
+                continue
+
+            if dynamic_tc_data.empty:
+                continue
+
+            for param_name in dynamic_tc_data[param_name_col].unique():
+                tc_points = dynamic_tc_data[dynamic_tc_data[param_name_col] == param_name]
+
+                # Create time series
+                ts = pd.Series(tc_points[param_value_col].values, index=tc_points['Year'])
+
+                # Reindex to full time vector and interpolate
+                ts_full = ts.reindex(time_vector)
+                ts_interpolated = ts_full.interpolate(method="linear", limit_direction="both")
+
+                # Handle edge cases where interpolation might fail
+                if ts_interpolated.isna().any():
+                    ts_interpolated = ts_interpolated.ffill().bfill()
+
+                tc_params[param_name] = msc.Parameter(Name=param_name, ID=param_id_counter, Values=ts_interpolated.to_numpy(), Unit="1")
+                param_id_counter += 1
+                print(f"    -> Loaded dynamic TC: {param_name} ({len(tc_points)} data points -> {len(ts_interpolated)} time steps)")
 
     print(f"--> TC loading completed: {len(tc_params)} parameters loaded")
     return tc_params

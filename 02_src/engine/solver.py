@@ -143,7 +143,7 @@ def enhanced_input_validation(input_flows, dsm_processes):
     return total_inflow_sum > 0
 
 
-def _calculate_tc_driven_flows(mfa_system, special_processes, process_logic_map, flow_tc_map, dsm_processes):
+def _calculate_tc_driven_flows(mfa_system, special_processes, process_logic_map, flow_tc_map, dsm_processes, config=None):
     """Calculates all flows that are driven by transfer coefficients (TCs).
 
     This function iterates through all flows in the system, identifies those
@@ -233,8 +233,31 @@ def _calculate_tc_driven_flows(mfa_system, special_processes, process_logic_map,
                         # No TC found, assume passthrough (no change)
                         outflow_vector[:, elem_idx] = total_inflow_vector[:, elem_idx]
 
-                # Recalculate total material as sum of all elements
-                outflow_vector[:, mat_idx] = np.sum(outflow_vector[:, 1:], axis=1)
+                # Recalculate total material as sum of TOP-LEVEL elements only
+                # (excludes hierarchical elements like CC which is % of DM, not material)
+                element_hierarchy = getattr(config, 'Element_Hierarchy', {}) if config else {}
+
+                if element_hierarchy:
+                    # Only sum elements with parent='material' or no parent
+                    top_level_sum = np.zeros(len(total_inflow_vector))
+                    for elem in other_elements:
+                        # Find element info in hierarchy
+                        elem_info = None
+                        for eid, info in element_hierarchy.items():
+                            if info['name'] == elem:
+                                elem_info = info
+                                break
+
+                        # Sum only if it's a top-level element
+                        parent = elem_info.get('parent') if elem_info else None
+                        if not parent or parent == 'material':
+                            elem_idx = elem_indices[elem]
+                            top_level_sum += outflow_vector[:, elem_idx]
+
+                    outflow_vector[:, mat_idx] = top_level_sum
+                else:
+                    # Fallback: sum all elements (backward compatibility)
+                    outflow_vector[:, mat_idx] = np.sum(outflow_vector[:, 1:], axis=1)
 
             flow.Values = outflow_vector
             if not np.allclose(old_values, flow.Values):
@@ -451,7 +474,7 @@ def run_mfa_calculation(
         pass_changes = []
 
         # --- 1. TC-driven, DSM, and FOMP flows ---
-        tc_changed = _calculate_tc_driven_flows(mfa_system, special_processes, process_logic_map, flow_tc_map, dsm_processes)
+        tc_changed = _calculate_tc_driven_flows(mfa_system, special_processes, process_logic_map, flow_tc_map, dsm_processes, config)
         pass_changes.append(tc_changed)
         
         # --- 1.5. Update Initial Stock Flows ---

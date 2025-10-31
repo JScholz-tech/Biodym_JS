@@ -31,7 +31,7 @@ def load_config_from_excel(excel_file_path):
                 config_df = pd.read_excel(
                     excel_file_path, sheet_name=sheet_name, header=None
                 )
-                print(f"✅ Found configuration sheet: '{sheet_name}'")
+                print(f"[OK] Found configuration sheet: '{sheet_name}'")
                 break
             except Exception:
                 continue
@@ -61,86 +61,123 @@ def load_config_from_excel(excel_file_path):
 
                 config_dict[key] = value
         
-        # Phase 1b: Collect Elements from "Element ID X" keys
+        # Phase 1b: Collect Elements from "Element_ID_X" keys with hierarchy support
+        element_structure = {}  # {element_id: {'name': str, 'parent': str or None}}
         elements = []
-        for key in list(config_dict.keys()):
-            if 'Element ID' in str(key):
-                element_value = config_dict[key]
-                if pd.notna(element_value) and str(element_value).strip():
-                    element_name = str(element_value).strip()
-                    # Remove duplicates
-                    if element_name not in elements:
-                        elements.append(element_name)
 
-        # Ensure 'material' is always first (required for total mass tracking)
-        if elements:
+        # First pass: collect all Element_ID_X entries
+        for key in list(config_dict.keys()):
+            if key.startswith('Element_ID_'):
+                try:
+                    # Extract element number from Element_ID_X
+                    element_num = int(key.split('_')[-1])
+                    element_value = config_dict[key]
+
+                    if pd.notna(element_value) and str(element_value).strip():
+                        element_name = str(element_value).strip()
+                        element_structure[element_num] = {
+                            'name': element_name,
+                            'parent': None  # Will be filled in second pass
+                        }
+                except (ValueError, IndexError):
+                    continue
+
+        # Second pass: collect Parent_Element_ID_X entries to build hierarchy
+        for key in list(config_dict.keys()):
+            if key.startswith('Parent_Element_ID_'):
+                try:
+                    # Extract element number from Parent_Element_ID_X
+                    element_num = int(key.split('_')[-1])
+                    parent_value = config_dict[key]
+
+                    if pd.notna(parent_value) and str(parent_value).strip():
+                        parent_name = str(parent_value).strip()
+                        if element_num in element_structure:
+                            element_structure[element_num]['parent'] = parent_name
+                except (ValueError, IndexError):
+                    continue
+
+        # Build ordered element list (sorted by element_id)
+        if element_structure:
+            sorted_ids = sorted(element_structure.keys())
+            elements = [element_structure[eid]['name'] for eid in sorted_ids]
+
+            # Ensure 'material' is always first (required for total mass tracking)
             if 'material' not in elements:
                 elements.insert(0, 'material')
-                print(f"⚠️  'material' element added automatically (required for total mass)")
+                print(f"[WARNING] 'material' element added automatically (required for total mass)")
             elif elements[0] != 'material':
                 elements.remove('material')
                 elements.insert(0, 'material')
-                print(f"⚠️  'material' element moved to first position (required)")
+                print(f"[WARNING] 'material' element moved to first position (required)")
 
             config_dict['Elements'] = ','.join(elements)
-            print(f"✅ Loaded {len(elements)} elements from configuration: {elements}")
+            config_dict['Element_Hierarchy'] = element_structure  # Store hierarchy for later use
+
+            # Print hierarchy information
+            print(f"[OK] Loaded {len(elements)} elements from configuration: {elements}")
+            for eid in sorted_ids:
+                elem = element_structure[eid]
+                if elem['parent']:
+                    print(f"   |-- E{eid} ({elem['name']}) is expressed as % of {elem['parent']}")
         else:
             # Fallback to default biomass elements
             elements = ['material', 'WC', 'DM', 'CC']
             config_dict['Elements'] = ','.join(elements)
-            print(f"⚠️  No elements found in config, using defaults: {elements}")
+            config_dict['Element_Hierarchy'] = {}
+            print(f"[WARNING] No elements found in config, using defaults: {elements}")
         
-        # Phase 1b: Collect Regions from "Region ID X" keys
+        # Phase 1b: Collect Regions from "Region_ID_X" keys (supports both formats)
         regions = []
         for key in list(config_dict.keys()):
-            if 'Region ID' in str(key):
+            if key.startswith('Region_ID_') or 'Region ID' in str(key):
                 region_value = config_dict[key]
                 if pd.notna(region_value) and str(region_value).strip():
                     regions.append(str(region_value).strip())
-        
+
         # Add Regions as a comma-separated string
         if regions:
             config_dict['Regions'] = ','.join(regions)
-            print(f"✅ Loaded {len(regions)} regions from configuration: {regions}")
-        
-        # Phase 1b: Collect Goods from "Good Type X" keys
+            print(f"[OK] Loaded {len(regions)} regions from configuration: {regions}")
+
+        # Phase 1b: Collect Goods from "Good_Type_X" keys (supports both formats)
         goods = []
         for key in list(config_dict.keys()):
-            if 'Good Type' in str(key) and key != 'Enable ODYM Dimension_Goods':
+            if (key.startswith('Good_Type_') or 'Good Type' in str(key)) and key != 'Enable ODYM Dimension_Goods':
                 good_value = config_dict[key]
                 if pd.notna(good_value) and str(good_value).strip():
                     goods.append(str(good_value).strip())
-        
+
         # Add Goods as a comma-separated string
         if goods:
             config_dict['Goods'] = ','.join(goods)
-            print(f"✅ Loaded {len(goods)} goods from configuration: {goods}")
-        
-        # Phase 1b: Collect Materials from "Material ID X" keys
+            print(f"[OK] Loaded {len(goods)} goods from configuration: {goods}")
+
+        # Phase 1b: Collect Materials from "Material_ID_X" keys (supports both formats)
         materials = []
         for key in list(config_dict.keys()):
-            if 'Material ID' in str(key):
+            if key.startswith('Material_ID_') or 'Material ID' in str(key):
                 material_value = config_dict[key]
                 if pd.notna(material_value) and str(material_value).strip():
                     materials.append(str(material_value).strip())
-        
+
         # Add Materials as a comma-separated string
         if materials:
             config_dict['Materials'] = ','.join(materials)
-            print(f"✅ Loaded {len(materials)} materials from configuration: {materials}")
-        
-        # Phase 1b: Collect Process Types from "Process Type X" keys
+            print(f"[OK] Loaded {len(materials)} materials from configuration: {materials}")
+
+        # Phase 1b: Collect Process Types from "Process_Type_X" keys (supports both formats)
         process_types = []
         for key in list(config_dict.keys()):
-            if 'Process Type' in str(key) and key != 'Enable ODYM Dimension_Process':
+            if (key.startswith('Process_Type_') or 'Process Type' in str(key)) and key != 'Enable ODYM Dimension_Process':
                 process_value = config_dict[key]
                 if pd.notna(process_value) and str(process_value).strip():
                     process_types.append(str(process_value).strip())
-        
+
         # Add Process Types as a comma-separated string
         if process_types:
             config_dict['Process_Types'] = ','.join(process_types)
-            print(f"✅ Loaded {len(process_types)} process types from configuration: {process_types}")
+            print(f"[OK] Loaded {len(process_types)} process types from configuration: {process_types}")
 
         return config_dict
 

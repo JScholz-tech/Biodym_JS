@@ -334,14 +334,18 @@ def _initialize_flows(mfa_system, flow_definitions):
     flow_descriptions = {}
     
     for _, row in flow_definitions.iterrows():
-        if pd.notna(row["Flow_Name"]):
+        # Check if row has valid flow name and process IDs
+        if (pd.notna(row["Flow_Name"]) and
+            pd.notna(row.get("Flow_Output_Process_ID")) and
+            pd.notna(row.get("Input_Process_ID"))):
+
             start_id, end_id = int(row["Flow_Output_Process_ID"]), int(row["Input_Process_ID"])
             flow_obj = msc.Flow(Name=row["Flow_ID"], P_Start=start_id, P_End=end_id, Indices="t,e")
             flow_id = row["Flow_ID"]
-            
+
             # Store descriptive name in external dict (ODYM compliance - no custom attributes)
             flow_descriptions[flow_id] = row["Flow_Name"]
-            
+
             mfa_system.FlowDict[flow_id] = flow_obj
     
     # Store flow descriptions in mfa_system for later use (external to Flow objects)
@@ -359,6 +363,8 @@ def _initialize_flows(mfa_system, flow_definitions):
 def _populate_primary_flow_data(mfa_system, flow_data):
     """Populates flows with primary data from the '1_2_Data_Flows' sheet.
 
+    Supports both old format (Flow_Material) and new E# format (E1_value).
+
     Parameters
     ----------
     mfa_system : odym.MFAsystem
@@ -366,11 +372,25 @@ def _populate_primary_flow_data(mfa_system, flow_data):
     flow_data : pd.DataFrame
         DataFrame containing the flow data from Excel.
     """
+    # Detect which column format is used for material flow data
+    material_col = None
+    if "Flow_Material" in flow_data.columns:
+        material_col = "Flow_Material"
+        print("[INFO] Using legacy format 'Flow_Material' for flow data")
+    elif "E1_value" in flow_data.columns:
+        material_col = "E1_value"
+        print("[INFO] Using new E# format 'E1_value' for flow data")
+    else:
+        raise ValueError(
+            "ERROR: Could not find material flow column in 1_2_Data_Flows sheet. "
+            "Expected either 'Flow_Material' (old format) or 'E1_value' (new format)"
+        )
+
     for flow_id, flow_obj in mfa_system.FlowDict.items():
         if flow_id in flow_data["Flow_ID"].values:
             flow_time_series = flow_data[flow_data["Flow_ID"] == flow_id]
             if len(flow_time_series) == len(mfa_system.IndexTable.Classification['Time'].Items):
-                flow_obj.Values[:, 0] = np.array(flow_time_series["Flow_Material"]).ravel()
+                flow_obj.Values[:, 0] = np.array(flow_time_series[material_col]).ravel()
     print("--> Populated data for primary input flows.")
 
 def _apply_initial_stock(mfa_system, all_excel_data):
@@ -430,9 +450,12 @@ def _build_element_column_map(elements, content_definitions):
     Dynamically builds column name mapping based on elements in the system.
 
     For each element (except 'material'), looks for columns in this order:
-    1. Standard: Flow_{element}[%]
-    2. Legacy variations: Flow_{element}_[%]
-    3. Special cases: Flow_CC_DM[%] for CC element
+    1. New format: Flow_E{id}_Fraction[%]                       (e.g., Flow_E2_Fraction[%])
+    2. New with label: Flow_E{id}_[%]({element})                (e.g., Flow_E2_[%](WC))
+    3. New simple: Flow_E{id}[%] or Flow_E{id}_[%]              (e.g., Flow_E2[%])
+    4. Standard: Flow_{element}[%]                              (e.g., Flow_WC[%])
+    5. Legacy: Flow_{element}_[%]                               (e.g., Flow_WC_[%])
+    6. Special: Flow_CC_DM[%] for CC element
 
     Parameters
     ----------
@@ -445,17 +468,59 @@ def _build_element_column_map(elements, content_definitions):
     -------
     dict
         Mapping from element name to Excel column name
-        e.g., {'WC': 'Flow_WC[%]', 'DM': 'Flow_DM[%]', 'CC': 'Flow_CC_DM[%]'}
-        or {'Fe': 'Flow_Fe[%]', 'Cu': 'Flow_Cu[%]', 'Al': 'Flow_Al[%]'}
+        e.g., {'WC': 'Flow_E2_[%](WC)', 'DM': 'Flow_E3_[%](DM)', 'CC': 'Flow_E4_[%](CC)'}
+        or {'WC': 'Flow_WC[%]', 'DM': 'Flow_DM[%]', 'CC': 'Flow_CC_DM[%]'} (fallback)
     """
     column_map = {}
-    available_columns = content_definitions.columns
+    available_columns = list(content_definitions.columns)
 
-    for element in elements:
+    for elem_idx, element in enumerate(elements):
         if element == 'material':
             continue  # Material is total, not a fraction column
 
-        # Try standard naming: Flow_{element}[%]
+        # Element index for E{id} format (1-based in Excel, 0-based in Python)
+        element_id = elem_idx + 1
+
+        # Try new format with "Fraction": Flow_E2_Fraction[%]
+        e_format_fraction = f"Flow_E{element_id}_Fraction[%]"
+        if e_format_fraction in available_columns:
+            column_map[element] = e_format_fraction
+            continue
+
+        # Handle Excel duplicate suffix for Fraction format: Flow_E2_Fraction[%]2
+        matching_fraction = [col for col in available_columns if col.startswith(f"Flow_E{element_id}_Fraction[%]")]
+        if matching_fraction:
+            column_map[element] = matching_fraction[0]
+            print(f"[INFO] Using column '{matching_fraction[0]}' for element '{element}'")
+            continue
+
+        # Try new E{id} format with element name in parentheses: Flow_E2_[%](WC)
+        e_format_with_name = f"Flow_E{element_id}_[%]({element})"
+        if e_format_with_name in available_columns:
+            column_map[element] = e_format_with_name
+            continue
+
+        # Handle Excel duplicate column suffix (e.g., Flow_E3_[%](DM)2)
+        e_format_with_suffix_pattern = f"Flow_E{element_id}_[%]({element})"
+        matching_cols = [col for col in available_columns if col.startswith(e_format_with_suffix_pattern)]
+        if matching_cols:
+            column_map[element] = matching_cols[0]  # Use first match
+            print(f"[INFO] Using column '{matching_cols[0]}' for element '{element}'")
+            continue
+
+        # Try new E{id} format without parentheses: Flow_E2[%]
+        e_format_simple = f"Flow_E{element_id}[%]"
+        if e_format_simple in available_columns:
+            column_map[element] = e_format_simple
+            continue
+
+        # Try new E{id} format with underscore and brackets: Flow_E2_[%]
+        e_format_underscore = f"Flow_E{element_id}_[%]"
+        if e_format_underscore in available_columns:
+            column_map[element] = e_format_underscore
+            continue
+
+        # Fallback: Try standard naming: Flow_{element}[%]
         standard_name = f"Flow_{element}[%]"
         if standard_name in available_columns:
             column_map[element] = standard_name
@@ -475,28 +540,42 @@ def _build_element_column_map(elements, content_definitions):
                 continue
 
         # If not found, log warning (but don't fail - element might not be used)
-        print(f"⚠️  Column for element '{element}' not found in 1_1_Definition_Flows sheet")
-        print(f"    Expected: {standard_name} or {legacy_name}")
+        print(f"[WARNING] Column for element '{element}' (E{element_id}) not found in 1_1_Definition_Flows sheet")
+        print(f"    Expected: {e_format_with_name} or {standard_name} or {legacy_name}")
         # Don't add to map - will be skipped in parameter creation
 
     return column_map
 
-def _calculate_elemental_compositions(mfa_system):
+def _calculate_elemental_compositions(mfa_system, element_hierarchy=None):
     """Calculates elemental values for flows based on content parameters.
+
+    Phase 5b: Now supports hierarchical element relationships where elements
+    can be expressed as a percentage of other elements (e.g., CC as % of DM).
 
     Dynamically calculates composition for any elements defined in the system.
     Works for biomass (WC/DM/CC), metals (Fe/Cu/Al), or any custom elements.
 
     Iterates through flows and applies the defined content percentages/fractions
-    to the primary material flow to calculate the values for each element.
+    to calculate the values for each element, respecting parent-child relationships.
 
     Parameters
     ----------
     mfa_system : odym.MFAsystem
         The MFA system object to be modified.
+    element_hierarchy : dict, optional
+        Dictionary mapping element IDs to their structure:
+        {element_id: {'name': str, 'parent': str or None}}
+        If None, all elements are treated as % of material (flat structure).
     """
     elements = mfa_system.Elements
     mat_idx = 0  # Material is always first element
+
+    # Build element name to hierarchy info mapping
+    hierarchy_map = {}
+    if element_hierarchy:
+        for elem_id, elem_info in element_hierarchy.items():
+            elem_name = elem_info['name']
+            hierarchy_map[elem_name] = elem_info
 
     for flow in mfa_system.FlowDict.values():
         material_values = flow.Values[:, mat_idx]
@@ -520,21 +599,50 @@ def _calculate_elemental_compositions(mfa_system):
                 flow.Values[:, elem_idx] = 0.0
                 continue
 
-            # Calculate: element_mass = material_mass * fraction
+            # Phase 5b: Determine parent element for hierarchical calculation
+            elem_info = hierarchy_map.get(element_name, {})
+            parent_element = elem_info.get('parent', 'material')
+
+            if parent_element is None or parent_element == 'material':
+                # Top-level element: calculate as % of material
+                parent_values = material_values
+            else:
+                # Hierarchical element: calculate as % of parent element
+                try:
+                    parent_idx = elements.index(parent_element)
+                    parent_values = flow.Values[:, parent_idx]
+                except ValueError:
+                    # Parent element not found - fallback to material
+                    print(f"[WARNING] Parent element '{parent_element}' for '{element_name}' not found. Using material instead.")
+                    parent_values = material_values
+
+            # Calculate: element_mass = parent_mass * fraction
             fraction = param.Values
-            flow.Values[:, elem_idx] = material_values * fraction
+            flow.Values[:, elem_idx] = parent_values * fraction
 
-        # Validate: sum of element masses should be <= total material mass
-        # (Allow 1% tolerance for rounding errors)
-        element_sum = np.sum(flow.Values[:, 1:], axis=1)  # Sum all except material
-        material_total = flow.Values[:, mat_idx]
+        # Phase 5b: Validate only TOP-LEVEL elements sum to <= material mass
+        # Build list of top-level element indices
+        top_level_indices = []
+        for elem_idx, element_name in enumerate(elements):
+            if element_name == 'material':
+                continue
+            elem_info = hierarchy_map.get(element_name, {})
+            parent = elem_info.get('parent', 'material')
+            if parent is None or parent == 'material':
+                top_level_indices.append(elem_idx)
 
-        if np.any(element_sum > material_total * 1.01):
-            max_overshoot = np.max(element_sum - material_total)
-            if max_overshoot > 0.1:  # Only warn if significant (>0.1 Mg)
-                print(f"⚠️  {flow.Name}: Element sum exceeds material mass by {max_overshoot:.3f} Mg")
-                print(f"    Elements: {elements[1:]}")
-                print(f"    Check fraction values sum to ≤ 1.0")
+        if top_level_indices:
+            # Sum only top-level elements
+            element_sum = np.sum(flow.Values[:, top_level_indices], axis=1)
+            material_total = flow.Values[:, mat_idx]
+
+            if np.any(element_sum > material_total * 1.01):
+                max_overshoot = np.max(element_sum - material_total)
+                if max_overshoot > 0.1:  # Only warn if significant (>0.1 Mg)
+                    top_level_names = [elements[i] for i in top_level_indices]
+                    print(f"[WARNING] {flow.Name}: Top-level element sum exceeds material mass by {max_overshoot:.3f} Mg")
+                    print(f"    Top-level elements: {top_level_names}")
+                    print(f"    Check fraction values sum to ≤ 1.0")
 
 def _create_flow_and_process_maps(mfa_system, all_excel_data):
     """Creates lookup maps for process logic and flow-to-TC mappings.
@@ -560,31 +668,61 @@ def _create_flow_and_process_maps(mfa_system, all_excel_data):
 
     print("--> Creating Flow-to-TC mapping...")
     flow_tc_map = {}
+
+    # Detect TC column format (old: TC_material_ID, new: E1_TC_ID)
+    tc_format = "old"  # default
     static_tc_definitions = all_excel_data.get("2_2_static_TCs")
+    if static_tc_definitions is not None and not static_tc_definitions.empty:
+        if 'E1_TC_ID' in static_tc_definitions.columns or 'E2_TC_ID' in static_tc_definitions.columns:
+            tc_format = "new"
+            print("  -> Detected new E# format for TC mapping")
+        else:
+            print("  -> Detected legacy element-name format for TC mapping")
+
     if static_tc_definitions is not None:
         static_tc_definitions_filtered = static_tc_definitions.dropna(subset=['Flow_ID'])
         for _, row in static_tc_definitions_filtered.iterrows():
             flow_id = row["Flow_ID"]
             tc_ids = {}
-            for element in mfa_system.Elements:
-                tc_id_col = f"TC_{element}_ID"
+            for elem_idx, element in enumerate(mfa_system.Elements):
+                # Build column name based on format
+                if tc_format == "new":
+                    element_id = elem_idx + 1
+                    tc_id_col = f"E{element_id}_TC_ID"
+                else:
+                    tc_id_col = f"TC_{element}_ID"
+
                 if tc_id_col in row and pd.notna(row[tc_id_col]):
                     tc_ids[element] = row[tc_id_col]
             flow_tc_map[flow_id] = tc_ids
-    
+
     dynamic_tc_definitions = all_excel_data.get("2_3_dynamic_TCs")
     if dynamic_tc_definitions is not None:
+        # Detect format for dynamic TCs (might be different from static)
+        dynamic_tc_format = "old"
+        if not dynamic_tc_definitions.empty:
+            if 'E1_TC_ID' in dynamic_tc_definitions.columns or 'E2_TC_ID' in dynamic_tc_definitions.columns:
+                dynamic_tc_format = "new"
+
         dynamic_tc_definitions_filtered = dynamic_tc_definitions.dropna(subset=['Flow_ID'])
         for _, row in dynamic_tc_definitions_filtered.iterrows():
             flow_id = row["Flow_ID"]
             if flow_id not in flow_tc_map:
                 flow_tc_map[flow_id] = {}
             tc_ids = flow_tc_map[flow_id]
-            for element in mfa_system.Elements:
-                tc_id_col = f"TC_{element}_ID"
+            for elem_idx, element in enumerate(mfa_system.Elements):
+                # Build column name based on format
+                if dynamic_tc_format == "new":
+                    element_id = elem_idx + 1
+                    tc_id_col = f"E{element_id}_TC_ID"
+                else:
+                    tc_id_col = f"TC_{element}_ID"
+
                 if tc_id_col in row and pd.notna(row[tc_id_col]):
                     tc_ids[element] = row[tc_id_col]
             flow_tc_map[flow_id] = tc_ids
+
+    print(f"  -> Created TC mapping for {len(flow_tc_map)} flows")
     return flow_tc_map, process_logic_map
 
 def define_flows_and_parameters(mfa_system, all_excel_data):
@@ -628,8 +766,66 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
     except Exception as e:
         print(f"--> ERROR: Failed to initialize parameter values: {e}")
         raise
-    
-    _calculate_elemental_compositions(mfa_system)
+
+    # Phase 5b: Load element hierarchy from config for hierarchical composition calculation
+    element_hierarchy = {}
+    try:
+        # Read configuration sheet to extract Element_Hierarchy
+        config_sheet = None
+        for sheet_name in ["Configuration", "0_Configuration", "Config"]:
+            if sheet_name in all_excel_data:
+                config_sheet = all_excel_data[sheet_name]
+                break
+
+        if config_sheet is not None:
+            # Parse Element_ID_X and Parent_Element_ID_X from config sheet
+            element_structure = {}
+
+            # Convert sheet to key-value pairs (Column B = key, Column C = value)
+            for _, row in config_sheet.iterrows():
+                if pd.notna(row.iloc[1]) and pd.notna(row.iloc[2]):
+                    key = str(row.iloc[1]).strip()
+                    value = row.iloc[2]
+
+                    # First pass: collect Element_ID_X
+                    if key.startswith('Element_ID_'):
+                        try:
+                            element_num = int(key.split('_')[-1])
+                            if pd.notna(value) and str(value).strip():
+                                element_structure[element_num] = {
+                                    'name': str(value).strip(),
+                                    'parent': None
+                                }
+                        except (ValueError, IndexError):
+                            continue
+
+            # Second pass: collect Parent_Element_ID_X
+            for _, row in config_sheet.iterrows():
+                if pd.notna(row.iloc[1]) and pd.notna(row.iloc[2]):
+                    key = str(row.iloc[1]).strip()
+                    value = row.iloc[2]
+
+                    if key.startswith('Parent_Element_ID_'):
+                        try:
+                            element_num = int(key.split('_')[-1])
+                            if pd.notna(value) and str(value).strip():
+                                if element_num in element_structure:
+                                    element_structure[element_num]['parent'] = str(value).strip()
+                        except (ValueError, IndexError):
+                            continue
+
+            element_hierarchy = element_structure
+
+            if element_hierarchy:
+                print(f"--> Using hierarchical element calculation (Phase 5b)")
+                for eid in sorted(element_hierarchy.keys()):
+                    elem = element_hierarchy[eid]
+                    if elem.get('parent'):
+                        print(f"    {elem['name']} = {elem['parent']} × fraction")
+    except Exception as e:
+        print(f"[INFO] Could not load Element_Hierarchy: {e}. Using flat element structure.")
+
+    _calculate_elemental_compositions(mfa_system, element_hierarchy)
     flow_tc_map, process_logic_map = _create_flow_and_process_maps(mfa_system, all_excel_data)
 
     # ODYM compliance: Check system consistency with error handling

@@ -93,7 +93,7 @@ print(f"{Icons.VISUALIZATION} Plotting environment ready")
 # ## 1.2 Data Input Configuration
 
 # This is the only manual path setting required.
-input_file = "01_data/01_input/251027_Biodym_ODYM.xlsm"
+input_file = "01_data/01_input/251031_BioDYM_ODYM.xlsm"
 print(format_file_path(input_file))
 if not os.path.exists(input_file):
     raise FileNotFoundError(f"Input file not found: {input_file}")
