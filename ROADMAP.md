@@ -35,6 +35,63 @@ Future features and planned enhancements for BioDYM.
 
 **Major Features**:
 
+### Composition Dimension Refactor
+
+**Current State**: Composition fractions (WC, DM, CC) stored in element dimension `e`
+
+**Issue**: Conceptual mismatch - treating composition fractions as "elements"
+- Material = total biomass (level 0)
+- WC, DM = fractions of material (level 1)
+- CC = fraction of DM (level 2)
+- This is a hierarchical mass accounting system squeezed into one dimension
+
+**Goal**: Separate composition dimension for ODYM compliance
+
+**Proposed Solution**:
+```python
+# Current structure (v1.0):
+Indices = "t,e"  # (time, element)
+Shape = (26, 4)  # material, WC, DM, CC in same dimension
+# Hierarchy tracked via _element_hierarchy metadata
+
+# New structure (v2.0+):
+Indices = "t,m,c"  # (time, material, composition)
+Shape = (26, 1, 4)  # 1 material type (biomass), 4 composition levels
+# OR
+Indices = "t,g,c"  # (time, good, composition)
+# Where:
+#   m/g = material/good dimension: [biomass]
+#   c = composition dimension: [total, water, dry_matter, carbon]
+```
+
+**Benefits**:
+- ✅ Conceptually clean separation of concerns
+- ✅ Hierarchy built into dimensional structure (not metadata)
+- ✅ More ODYM-compliant
+- ✅ Easier to extend (add more composition levels)
+- ✅ Better scientific rigor
+
+**Required Changes**:
+```python
+# All arrays become 3D instead of 2D
+# Affected: solver.py, dsm_model.py, fomp_model.py, all plotting
+# Excel template needs restructuring
+# Estimate: 6-8 weeks of refactoring + testing
+```
+
+**Rationale**:
+- v1.0 uses pragmatic approach (metadata) to ship on time
+- v2.0+ can do proper refactor with breaking changes allowed
+- This enables other multi-dimensional features (regions, goods, etc.)
+
+**Technical Debt**:
+- Tracked as `_element_hierarchy` attribute on mfa_system (v1.0)
+- To be resolved with proper dimension in v2.0
+
+**Status**: Documented 2025-11-06, planned for v2.0
+
+---
+
 ### Multi-Regional MFA
 
 **Current State**: 2D system (Time × Element)

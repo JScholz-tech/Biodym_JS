@@ -825,6 +825,11 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
     except Exception as e:
         print(f"[INFO] Could not load Element_Hierarchy: {e}. Using flat element structure.")
 
+    # Store hierarchy on mfa_system for plotting and analysis
+    # NOTE: This is a BioDYM extension (not part of standard ODYM)
+    # The '_' prefix indicates custom attribute
+    mfa_system._element_hierarchy = element_hierarchy
+
     _calculate_elemental_compositions(mfa_system, element_hierarchy)
     flow_tc_map, process_logic_map = _create_flow_and_process_maps(mfa_system, all_excel_data)
 
