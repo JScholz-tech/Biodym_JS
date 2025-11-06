@@ -43,12 +43,15 @@ Writing project/
 # Generated output files
 exports/
 
-# Large Excel files (keep only examples)
-data/01_input/*.xlsx
-data/02_output/*.xlsx
-scenarios/*.xlsx
+# Output directory - ignore all generated files
+01_data/02_output/
+!01_data/02_output/.gitkeep
 
-# Keep only essential input files
-!data/01_input/250625_Template_CS0.xlsx
-!data/01_input/250922_CS1_Wheat_Straw.xlsx
-!data/02_output/results_scientific_baseline.xlsx
+# Large Excel files (keep only examples)
+01_data/01_input/*.xlsx
+!01_data/01_input/250625_Template_CS0.xlsx
+!01_data/01_input/250922_CS1_Wheat_Straw.xlsx
+
+# Scenario files
+scenarios/*.xlsx
+scenarios/*.json
