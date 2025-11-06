@@ -396,12 +396,19 @@ def plot_flow_composition(
 
     control_box = HBox(controls, layout=Layout(margin='10px 0'))
 
+    # Set up interaction manually to avoid double widget display
+    from ipywidgets import interactive_output
+
+    out = interactive_output(update_plot, {'year': year_slider})
+
     # Display
-    interact(update_plot, year=year_slider)
     display(control_box)
     if show_validation_warnings:
         display(validation_output)
     display(fig)
+
+    # Initial plot
+    update_plot(year_slider.value)
 
     return fig
 

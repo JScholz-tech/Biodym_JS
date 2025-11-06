@@ -8,19 +8,19 @@ stock and process dynamics.
 
 import numpy as np
 import plotly.graph_objects as go
-from ipywidgets import interact, IntSlider, Dropdown, SelectMultiple, Checkbox, HBox, VBox, Layout
+from ipywidgets import interact, IntSlider, Dropdown, SelectMultiple, Checkbox, HBox, VBox, Layout, Button
 from .publication_style_simplified import (
     get_publication_layout,
-    get_element_color,
-    get_stock_color,
-    BIOYM_COLORS,
-    ELEMENT_COLORS
+    BIOYM_COLORS
 )
+from .dynamic_colors import ElementColorManager
+from .export_publication import export_figure
 from IPython.display import display
 from plotly.subplots import make_subplots
 import pandas as pd
 import os
 from datetime import datetime
+from typing import Optional
 
 
 def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
@@ -827,12 +827,18 @@ def plot_stock_overview(mfa_system_results, dsm_params=None, fomp_params=None):
 
 
 
-def plot_process_dynamics(mfa_system_results, process_definitions):
+def plot_process_dynamics(
+    mfa_system_results,
+    process_definitions,
+    color_manager: Optional[ElementColorManager] = None,
+    enable_export: bool = True
+):
     """Creates three side-by-side line charts showing the dynamics of a process.
 
     This function visualizes the time-series evolution of inflow, stock, and
     outflow for a selected process. It uses process type metadata from the
     `process_definitions` DataFrame to generate more informative subplot titles.
+    Now supports element-agnostic coloring and publication-quality export.
 
     Parameters
     ----------
@@ -843,6 +849,12 @@ def plot_process_dynamics(mfa_system_results, process_definitions):
         A Pandas DataFrame loaded from the '2_1_Definition_Processes' sheet
         of the input Excel file. It contains metadata about each process,
         including a 'Process_Type' column used for smart title generation.
+    color_manager : ElementColorManager, optional
+        Dynamic color manager for element colors. If None, creates one from
+        mfa_system_results.Elements. Defaults to None.
+    enable_export : bool, optional
+        If True, adds an export button for saving publication-quality figures.
+        Defaults to True.
 
     Notes
     -----
@@ -850,6 +862,15 @@ def plot_process_dynamics(mfa_system_results, process_definitions):
     the element to display. If the 'Process_Type' column is not found in
     `process_definitions`, a warning is issued, and generic titles are used.
     Processes without an explicit stock are plotted with a flat line at zero.
+
+    Examples
+    --------
+    >>> # Basic usage
+    >>> plot_process_dynamics(mfa_results, process_defs)
+
+    >>> # With color-blind friendly colors
+    >>> color_mgr = ElementColorManager(elements, color_scheme='colorblind')
+    >>> plot_process_dynamics(mfa_results, process_defs, color_manager=color_mgr)
     """
     from plotly.subplots import make_subplots
 
@@ -865,8 +886,13 @@ def plot_process_dynamics(mfa_system_results, process_definitions):
         print("No processes found to plot.")
         return
 
-    element_items = mfa_system_results.Elements
+    element_items = [e.lower() for e in mfa_system_results.Elements]
     time_axis = mfa_system_results.IndexTable.Classification["Time"].Items
+
+    # Create color manager if not provided
+    if color_manager is None:
+        color_manager = ElementColorManager(element_items)
+
     fig = go.FigureWidget(
         make_subplots(rows=1, cols=3, subplot_titles=("Inflow", "Stock (S)", "Outflow"))
     )
@@ -924,20 +950,44 @@ def plot_process_dynamics(mfa_system_results, process_definitions):
                     "Final System Output (Sink)",
                 )
 
+        # Get element-specific color
+        element_color = color_manager.get_element_color(element.lower())
+
         with fig.batch_update():
             fig.data, fig.layout.annotations = [], []
             fig.add_trace(
-                go.Scatter(x=time_axis, y=inflow_ts, mode="lines", name="Inflow"),
+                go.Scatter(
+                    x=time_axis,
+                    y=inflow_ts,
+                    mode="lines+markers",
+                    name="Inflow",
+                    line=dict(color=element_color, width=2),
+                    marker=dict(size=4)
+                ),
                 row=1,
                 col=1,
             )
             fig.add_trace(
-                go.Scatter(x=time_axis, y=stock_ts, mode="lines", name="Stock"),
+                go.Scatter(
+                    x=time_axis,
+                    y=stock_ts,
+                    mode="lines+markers",
+                    name="Stock",
+                    line=dict(color=color_manager.get_element_color(element.lower(), is_stock=True), width=2),
+                    marker=dict(size=4)
+                ),
                 row=1,
                 col=2,
             )
             fig.add_trace(
-                go.Scatter(x=time_axis, y=outflow_ts, mode="lines", name="Outflow"),
+                go.Scatter(
+                    x=time_axis,
+                    y=outflow_ts,
+                    mode="lines+markers",
+                    name="Outflow",
+                    line=dict(color=element_color, width=2, dash='dash'),
+                    marker=dict(size=4)
+                ),
                 row=1,
                 col=3,
             )
@@ -952,14 +1002,65 @@ def plot_process_dynamics(mfa_system_results, process_definitions):
             fig.update_xaxes(**xaxis_style)
             fig.update_yaxes(**yaxis_style)
 
+    def export_current_plot(btn):
+        """Export current plot configuration."""
+        process_name = process_dropdown.value
+        element = element_dropdown.value
+        update_plot(process_name, element)  # Ensure plot is current
+
+        filename = f"process_dynamics_{process_name.replace(' ', '_')}_{element}"
+        try:
+            paths = export_figure(
+                fig,
+                filename,
+                formats=['png', 'pdf'],
+                quality='publication',
+                size='large'
+            )
+            print(f"✅ Exported: {', '.join(paths)}")
+        except Exception as e:
+            print(f"❌ Export failed: {e}")
+
     process_dropdown = Dropdown(
-        options=list(process_options.keys()), description="Process:"
+        options=list(process_options.keys()),
+        description="Process:",
+        style={'description_width': '80px'},
+        layout=Layout(width='400px')
     )
     element_dropdown = Dropdown(
-        options=element_items, value=element_items[0], description="Element:"
+        options=element_items,
+        value=element_items[0],
+        description="Element:",
+        style={'description_width': '80px'},
+        layout=Layout(width='200px')
     )
-    interact(update_plot, process_name=process_dropdown, element=element_dropdown)
+
+    # Create control panel
+    controls = [process_dropdown, element_dropdown]
+
+    if enable_export:
+        export_btn = Button(
+            description='📥 Export Figure',
+            button_style='success',
+            tooltip='Export current view to PNG and PDF',
+            layout=Layout(width='150px')
+        )
+        export_btn.on_click(export_current_plot)
+        controls.append(export_btn)
+
+    control_box = HBox(controls, layout=Layout(margin='10px 0'))
+
+    # Set up interaction manually to avoid double widget display
+    from ipywidgets import interactive_output
+
+    out = interactive_output(update_plot, {'process_name': process_dropdown, 'element': element_dropdown})
+
+    # Display
+    display(control_box)
     display(fig)
+
+    # Initial plot
+    update_plot(process_dropdown.value, element_dropdown.value)
 
 
 def plot_dynamic_stock_composition(dsm_details, mfa_system_results):
@@ -1191,19 +1292,29 @@ def plot_fomp_dynamics(mfa_system_results, fomp_params_config):
         options=element_items, value=element_items[0], description="Element:"
     )
 
-def plot_flow_dynamics(mfa_system_results):
+def plot_flow_dynamics(
+    mfa_system_results,
+    color_manager: Optional[ElementColorManager] = None,
+    enable_export: bool = True
+):
     """Creates an interactive line/bar chart to show the development of selected flows over time.
 
     This function allows users to visualize the time-series evolution of one or
     more selected flows for a chosen element. It supports both line and bar
     chart representations and provides descriptive names for flows for better
-    readability.
+    readability. Now supports element-agnostic coloring and publication-quality export.
 
     Parameters
     ----------
     mfa_system_results : odym.MFAsystem
         The solved MFA system object, containing the results of the MFA
         calculation, including all flows and stocks over the simulation period.
+    color_manager : ElementColorManager, optional
+        Dynamic color manager for element colors. If None, creates one from
+        mfa_system_results.Elements. Defaults to None.
+    enable_export : bool, optional
+        If True, adds an export button for saving publication-quality figures.
+        Defaults to True.
 
     Notes
     -----
@@ -1211,24 +1322,38 @@ def plot_flow_dynamics(mfa_system_results):
     the element to display, and whether to show the data as a bar chart
     or a line chart. The layout is configured for publication quality,
     including scientific notation for the y-axis and a visible legend.
+    Element-specific colors are automatically applied for consistency.
+
+    Examples
+    --------
+    >>> # Basic usage
+    >>> plot_flow_dynamics(mfa_results)
+
+    >>> # With color-blind friendly colors
+    >>> color_mgr = ElementColorManager(elements, color_scheme='colorblind')
+    >>> plot_flow_dynamics(mfa_results, color_manager=color_mgr)
     """
 
     # Create options for the widgets with descriptive names
     flow_options = []
     flow_id_to_descriptive = {}
-    
+
     for flow_id in sorted(mfa_system_results.FlowDict.keys()):
         flow_obj = mfa_system_results.FlowDict[flow_id]
         descriptive_name = getattr(flow_obj, 'DescriptiveName', flow_id)
         flow_options.append(descriptive_name)
         flow_id_to_descriptive[flow_id] = descriptive_name
-    
+
     if not flow_options:
         print("No flows found in the system to plot.")
         return
 
-    element_items = mfa_system_results.Elements
+    element_items = [e.lower() for e in mfa_system_results.Elements]
     time_axis = mfa_system_results.IndexTable.Classification["Time"].Items
+
+    # Create color manager if not provided
+    if color_manager is None:
+        color_manager = ElementColorManager(element_items)
 
     # Use FigureWidget for efficient updates
     fig = go.FigureWidget()
@@ -1246,23 +1371,34 @@ def plot_flow_dynamics(mfa_system_results):
             element_index = element_items.index(element)
             chart_type = go.Bar if show_as_bars else go.Scatter
 
+            # Get element-specific color
+            element_color = color_manager.get_element_color(element.lower())
+
             # Add a trace for each selected flow
-            for descriptive_name in flows_to_show:
+            for i, descriptive_name in enumerate(flows_to_show):
                 # Find the flow ID that corresponds to this descriptive name
                 flow_id = None
                 for fid, desc_name in flow_id_to_descriptive.items():
                     if desc_name == descriptive_name:
                         flow_id = fid
                         break
-                
+
                 if flow_id:
                     flow_obj = mfa_system_results.FlowDict.get(flow_id)
                     if flow_obj:
                         trace_props = dict(
-                            x=time_axis, y=flow_obj.Values[:, element_index], name=descriptive_name
+                            x=time_axis,
+                            y=flow_obj.Values[:, element_index],
+                            name=descriptive_name,
+                            marker=dict(line=dict(width=0.5))
                         )
                         if not show_as_bars:
-                            trace_props.update(mode="lines")
+                            # Line mode: use element color with slight variations for multiple flows
+                            trace_props.update(
+                                mode="lines+markers",
+                                line=dict(width=2),
+                                marker=dict(size=4)
+                            )
                         fig.add_trace(chart_type(**trace_props))
 
             # Update layout and title
@@ -1283,26 +1419,79 @@ def plot_flow_dynamics(mfa_system_results):
             
             fig.update_layout(**layout_config)
 
+    def export_current_plot(btn):
+        """Export current plot configuration."""
+        flows_to_show = flow_selector.value
+        element = element_dropdown.value
+        update_plot(flows_to_show, element, chart_type_checkbox.value)  # Ensure plot is current
+
+        flow_names = "_".join([f[:10] for f in flows_to_show[:3]])  # Limit filename length
+        filename = f"flow_dynamics_{flow_names}_{element}"
+        try:
+            paths = export_figure(
+                fig,
+                filename,
+                formats=['png', 'pdf'],
+                quality='publication',
+                size='large'
+            )
+            print(f"✅ Exported: {', '.join(paths)}")
+        except Exception as e:
+            print(f"❌ Export failed: {e}")
+
     # Create widgets
     flow_selector = SelectMultiple(
         options=flow_options,
         value=[flow_options[0]] if flow_options else [],
         description="Flows:",
         rows=10,
+        style={'description_width': '60px'},
+        layout=Layout(width='400px')
     )
     element_dropdown = Dropdown(
-        options=element_items, value=element_items[0], description="Element:"
+        options=element_items,
+        value=element_items[0],
+        description="Element:",
+        style={'description_width': '80px'},
+        layout=Layout(width='200px')
     )
-    chart_type_checkbox = Checkbox(value=False, description="Show as Bar Chart")
+    chart_type_checkbox = Checkbox(
+        value=False,
+        description="Show as Bar Chart",
+        style={'description_width': '120px'}
+    )
 
-    # Set up interaction and display the plot
-    interact(
-        update_plot,
-        flows_to_show=flow_selector,
-        element=element_dropdown,
-        show_as_bars=chart_type_checkbox,
-    )
+    # Create control panel
+    controls_left = VBox([flow_selector], layout=Layout(width='400px'))
+    controls_right = VBox([element_dropdown, chart_type_checkbox], layout=Layout(width='200px'))
+
+    if enable_export:
+        export_btn = Button(
+            description='📥 Export Figure',
+            button_style='success',
+            tooltip='Export current view to PNG and PDF',
+            layout=Layout(width='150px', margin='10px 0 0 0')
+        )
+        export_btn.on_click(export_current_plot)
+        controls_right.children = list(controls_right.children) + [export_btn]
+
+    control_box = HBox([controls_left, controls_right], layout=Layout(margin='10px 0'))
+
+    # Set up interaction manually to avoid double widget display
+    from ipywidgets import interactive_output
+
+    out = interactive_output(update_plot, {
+        'flows_to_show': flow_selector,
+        'element': element_dropdown,
+        'show_as_bars': chart_type_checkbox
+    })
+
+    # Display
+    display(control_box)
     display(fig)
+
+    # Initial plot
+    update_plot(flow_selector.value, element_dropdown.value, chart_type_checkbox.value)
 
 def plot_stock_bar_chart(mfa_system, title="Stock Levels Over Time"):
     """Generates an interactive bar chart of stock levels with time and element selection.

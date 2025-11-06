@@ -198,10 +198,17 @@ def plot_optimized_mass_balance_error(
 
     control_box = HBox(controls, layout=Layout(margin='10px 0'))
 
+    # Set up interaction manually to avoid double widget display
+    from ipywidgets import interactive_output
+
+    out = interactive_output(update_plot, {'year': year_slider, 'element': element_dropdown})
+
     # Display
-    interact(update_plot, year=year_slider, element=element_dropdown)
     display(control_box)
     display(fig)
+
+    # Initial plot
+    update_plot(year_slider.value, element_dropdown.value)
     
 
 
