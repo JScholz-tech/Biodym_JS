@@ -252,31 +252,14 @@ except Exception as e:
 
 print(format_header("VISUALIZATION (BASELINE)"))
 
-# ## 3.1 Traditional Sankey Diagram
-print(f"\n{Icons.ARROW} Traditional Sankey Diagram")
+# ## 3.1 Sankey Diagram
+print(f"\n{Icons.ARROW} Sankey Diagram")
 plotting.plot_interactive_sankey(mfa_results_baseline, dsm_params, fomp_params)
 
-# ## 3.2 Enhanced Sankey Diagram
-print(f"\n{Icons.ARROW} Enhanced Sankey Diagram")
-try:
-    from plotting.enhanced_sankey import plot_enhanced_sankey
-    print(format_step(Icons.CREATING, "3.2", "Creating enhanced Sankey diagram..."))
-    plot_enhanced_sankey(
-        mfa_system_results=mfa_results_baseline,
-        dsm_params=dsm_params,
-        fomp_params=fomp_params,
-        visualization_config_path=input_file
-    )
-    print(format_success("Enhanced Sankey diagram created successfully!"))
-except Exception as e:
-    print(f"{Icons.WARNING} Enhanced Sankey diagram failed: {e}")
-    import traceback
-    traceback.print_exc()
-
-# ## 3.3 Additional Visualizations
+# ## 3.2 Additional Visualizations
 print(f"\n{Icons.ARROW} Additional Visualizations")
 
-# ### 3.3.1 Core System Dynamics
+# ### 3.2.1 Core System Dynamics
 print(f"\n{Icons.VISUALIZATION} Core System Dynamics:")
 print("   • Process Dynamics: Interactive 3-panel view (Inflow/Stock/Outflow)")
 print("   • Flow Dynamics: Multi-flow time series analysis")
@@ -302,7 +285,7 @@ print("   • Shows each process stock separately")
 print("   • Element selection and bar/line chart options")
 plotting.plot_system_stock_composition(mfa_results_baseline)
 
-# ### 3.3.2 Specialized Process Analysis (if applicable)
+# ### 3.2.2 Specialized Process Analysis (if applicable)
 print(f"\n{Icons.VISUALIZATION} Specialized Process Analysis:")
 
 # DSM Stock Details - Detailed DSM stock evolution (if DSM processes exist)
@@ -336,7 +319,7 @@ if fomp_params:
 else:
     print(f"   {Icons.INFO} No FOMP processes found - skipping FOMP analysis")
 
-# ### 3.3.3 Flow Composition
+# ### 3.2.3 Flow Composition
 print(f"\n{Icons.SUBSECTION} Flow Composition")
 plot_flow_composition(mfa_results_baseline)
 

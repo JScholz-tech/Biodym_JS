@@ -14,10 +14,12 @@ from datetime import datetime
 import os
 import math
 from ipywidgets import FloatSlider, IntSlider, Button, HBox, VBox, HTML, Layout, Dropdown, SelectMultiple
+from IPython.display import display
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 def _safe_float_convert(value, default=1.0):
     """Safely convert a value to a float.
@@ -412,3 +414,251 @@ def plot_enhanced_sankey(mfa_system_results, dsm_params=None, fomp_params=None, 
 
     display(VBox([controls, fig]))
     handle_change(None) # Initial plot draw
+
+def plot_element_multiplot_sankey(mfa_system_results, visualization_config_path=None, elements_to_plot=None, subplot_height=350):
+    """Create stacked Sankey diagrams showing multiple elements with time slider.
+
+    This function creates a vertically-stacked multiplot where each subplot shows
+    a different element (material, WC, DM, CC). All subplots share a single time
+    slider, allowing you to see how the multi-level elemental composition evolves
+    over time. This visualization emphasizes both the multi-level character
+    (hierarchical elements) and dynamic evolution (time slider).
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object containing all calculated data.
+    visualization_config_path : str, optional
+        The absolute path to the Excel file containing visualization settings.
+        If not provided, default settings are used.
+    elements_to_plot : list of str, optional
+        List of element names to plot. If None, uses all elements from the system.
+    subplot_height : int, optional
+        Height in pixels for each subplot. Total figure height will be
+        (num_elements × subplot_height). Defaults to 350.
+
+    Returns
+    -------
+    None
+        Displays the interactive multiplot in the notebook.
+
+    Notes
+    -----
+    This function creates an interactive visualization with:
+    - Time slider: Navigate through years (updates all subplots)
+    - Process selector: Filter which processes to show
+    - Min flow slider: Filter out small flows
+    - Layout dropdown: Switch between Custom (Excel) and Auto-Layout
+
+    The multiplot design shows the multi-level character of BioDYM's element
+    tracking system, with material at the top, followed by WC, DM, and CC.
+    """
+    if visualization_config_path and os.path.exists(visualization_config_path):
+        config = load_visualization_config(visualization_config_path)
+    else:
+        config = {}
+        print("Warning: Visualization config file not found. Using default settings.")
+
+    all_processes = mfa_system_results.ProcessList
+    all_flows = list(mfa_system_results.FlowDict.values())
+    time_items = mfa_system_results.IndexTable.Classification["Time"].Items
+    element_items = mfa_system_results.Elements
+
+    # Determine which elements to plot
+    if elements_to_plot is None:
+        elements_to_plot = element_items
+    else:
+        # Validate requested elements exist
+        elements_to_plot = [e for e in elements_to_plot if e in element_items]
+
+    num_elements = len(elements_to_plot)
+    total_height = num_elements * subplot_height
+
+    # Create subplot structure
+    subplot_titles = [f"{elem.upper()}" for elem in elements_to_plot]
+    fig = make_subplots(
+        rows=num_elements,
+        cols=1,
+        subplot_titles=subplot_titles,
+        specs=[[{"type": "sankey"}] for _ in range(num_elements)],
+        vertical_spacing=0.08
+    )
+
+    # Convert to FigureWidget for interactivity
+    fig = go.FigureWidget(fig)
+
+    layout_settings = config.get('layout_settings', {})
+    max_flow_value = max(f.Values.max() for f in all_flows if f.Values is not None) if all_flows else 1
+
+    def _safe_int_convert(value, default=1200):
+        return int(_safe_float_convert(value, default))
+
+    # --- WIDGETS ---
+    year_slider = IntSlider(
+        min=time_items[0],
+        max=time_items[-1],
+        value=time_items[0],
+        description="Year:",
+        layout=Layout(width='400px')
+    )
+    process_selector = SelectMultiple(
+        options=[p.Name for p in all_processes],
+        value=[p.Name for p in all_processes],
+        description='Processes:',
+        layout=Layout(width='500px', height='120px')
+    )
+    min_flow_slider = FloatSlider(
+        value=0,
+        min=0,
+        max=max_flow_value,
+        step=max_flow_value / 100 if max_flow_value > 0 else 1,
+        description='Min Flow:',
+        layout=Layout(width='400px')
+    )
+    layout_dropdown = Dropdown(
+        options=['Custom', 'Auto-Layout'],
+        value='Custom',
+        description='Layout:',
+        layout=Layout(width='200px')
+    )
+
+    # --- UI LAYOUT ---
+    controls = VBox([
+        HBox([year_slider, layout_dropdown]),
+        HBox([process_selector, min_flow_slider])
+    ])
+
+    # --- UPDATE FUNCTION ---
+    def update_multiplot(year, processes_to_show, min_flow_value, layout_type):
+        """Update all subplots for the selected year and filters."""
+        with fig.batch_update():
+            if not processes_to_show:
+                # Clear all subplots
+                for i in range(num_elements):
+                    fig.data[i].node.label = []
+                    fig.data[i].link.source = []
+                return
+
+            year_index = time_items.index(year)
+            filtered_processes = [p for p in all_processes if p.Name in processes_to_show]
+            process_id_to_index = {p.ID: i for i, p in enumerate(filtered_processes)}
+
+            # Calculate node positions once (shared across elements)
+            if layout_type == 'Auto-Layout':
+                arrangement = 'snap'
+                layout_flows = [f for f in all_flows if f.P_Start in process_id_to_index and f.P_End in process_id_to_index]
+                node_positions = _calculate_node_positions(filtered_processes, layout_flows)
+                node_x = [node_positions.get(p.ID, 0.5) for p in filtered_processes]
+                node_y = None
+                current_pad, current_thickness = 15, 12
+                show_axes = False
+            else:  # 'Custom' mode
+                arrangement = 'fixed'
+                all_positions = calculate_element_specific_positions(all_processes, config, elements_to_plot[0])
+                padding_factor = _safe_float_convert(layout_settings.get('Padding_Factor', 0.1), 0.1)
+                zoom_factor = _safe_float_convert(layout_settings.get('Zoom_Factor', 1.0), 1.0)
+                padding = max(0.05, padding_factor / zoom_factor)
+
+                x_values = [pos[0] for pos in all_positions.values()]
+                y_values = [pos[1] for pos in all_positions.values()]
+
+                if x_values and y_values:
+                    min_x, max_x = min(x_values), max(x_values)
+                    min_y, max_y = min(y_values), max(y_values)
+                    span_x, span_y = max_x - min_x, max_y - min_y
+                    target_span = 1.0 - 2 * padding
+                    scale = min(target_span / max(span_x, 0.1), target_span / max(span_y, 0.1))
+                    center_x, center_y = (min_x + max_x) / 2, (min_y + max_y) / 2
+
+                    for pid, pos in all_positions.items():
+                        all_positions[pid] = (
+                            0.5 + (pos[0] - center_x) * scale,
+                            0.5 + (pos[1] - center_y) * scale
+                        )
+
+                node_x = [all_positions.get(p.ID, (0.5, 0.5))[0] for p in filtered_processes]
+                node_y = [all_positions.get(p.ID, (0.5, 0.5))[1] for p in filtered_processes]
+                node_scale_factor = _safe_float_convert(layout_settings.get('Node_Scale_Factor', 1.0))
+                current_pad = int(12 * zoom_factor * node_scale_factor)
+                current_thickness = int(18 * zoom_factor * node_scale_factor)
+                show_axes = True
+
+            node_colors = [
+                get_process_visualization(p.ID, p.Name, config).get('Node_Color_#', '#808080')
+                for p in filtered_processes
+            ]
+
+            # Update each subplot (one per element)
+            for elem_idx, element in enumerate(elements_to_plot):
+                element_index = element_items.index(element)
+
+                # Filter flows for this element
+                final_flows = [
+                    f for f in all_flows
+                    if f.P_Start in process_id_to_index
+                    and f.P_End in process_id_to_index
+                    and f.Values[year_index, element_index] >= min_flow_value
+                ]
+
+                # Update node for this subplot
+                fig.data[elem_idx].arrangement = arrangement
+                fig.data[elem_idx].node = dict(
+                    label=[p.Name for p in filtered_processes],
+                    x=node_x,
+                    y=node_y,
+                    color=node_colors,
+                    pad=current_pad,
+                    thickness=current_thickness,
+                    line=dict(color="black", width=0.5)
+                )
+
+                # Update links for this subplot
+                if final_flows:
+                    flow_values = [f.Values[year_index, element_index] for f in final_flows]
+                    flow_sources = [process_id_to_index[f.P_Start] for f in final_flows]
+                    flow_targets = [process_id_to_index[f.P_End] for f in final_flows]
+                    default_flow_color = config.get('elements', {}).get(element, {}).get('Color', '#888')
+                    flow_colors = [
+                        get_flow_visualization(f.Name, f.Name, config).get('Flow_Color_#', default_flow_color)
+                        for f in final_flows
+                    ]
+                    custom_data = [getattr(f, 'DescriptiveName', f.Name) for f in final_flows]
+
+                    fig.data[elem_idx].link = dict(
+                        source=flow_sources,
+                        target=flow_targets,
+                        value=flow_values,
+                        color=flow_colors,
+                        customdata=custom_data,
+                        hovertemplate='Flow: %{customdata}<br>Source: %{source.label}<br>Target: %{target.label}<br>Value: %{value:.2f}<extra></extra>'
+                    )
+                else:
+                    fig.data[elem_idx].link = dict(source=[], target=[], value=[])
+
+            # Update overall layout
+            window_width = _safe_int_convert(layout_settings.get('Window_Width', 1400))
+            fig.update_layout(
+                height=total_height,
+                width=window_width,
+                title_text=f"Multi-Element Sankey Diagram - Year {year}",
+                font_size=12,
+                showlegend=False,
+                hovermode='closest'
+            )
+
+    # --- WIDGET INTERACTION ---
+    def handle_change(change):
+        update_multiplot(
+            year_slider.value,
+            process_selector.value,
+            min_flow_slider.value,
+            layout_dropdown.value
+        )
+
+    year_slider.observe(handle_change, names='value')
+    process_selector.observe(handle_change, names='value')
+    min_flow_slider.observe(handle_change, names='value')
+    layout_dropdown.observe(handle_change, names='value')
+
+    display(VBox([controls, fig]))
+    handle_change(None)  # Initial plot draw

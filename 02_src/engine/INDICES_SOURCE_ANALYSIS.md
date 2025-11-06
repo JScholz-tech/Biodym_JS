@@ -302,3 +302,7 @@ The current hardcoded approach is:
 
 This is **acceptable for Phase 1a** (2D compliance), but **Excel-driven indices** would be a useful future enhancement for multi-dimensional models.
 
+
+
+
+

@@ -69,7 +69,8 @@ FIGURE_SIZES = {
     'small': (800, 600),
     'medium': (1000, 750),
     'large': (1200, 900),
-    'publication': (1000, 800)
+    'publication': (1000, 800),
+    'sankey_wide': (2600, 500)  # Very wide Sankey (horizontal elongated flow) - increased for better visibility
 }
 
 # Standard Margins

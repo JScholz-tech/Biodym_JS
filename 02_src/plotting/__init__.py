@@ -4,7 +4,8 @@ Plotting Subpackage for BioDYM.
 """
 
 # Import key plotting functions for easy access
-from .sankey import plot_interactive_sankey
+from .sankey import plot_interactive_sankey, plot_element_multiplot_sankey
+from .enhanced_sankey import plot_enhanced_sankey
 from .dynamics import (
     plot_dsm_stock_details,
     plot_dsm_process_dynamics,
@@ -31,6 +32,8 @@ from .graphviz_flow_charts import plot_graphviz_flow_chart_sankey_style
 
 __all__ = [
     'plot_interactive_sankey',
+    'plot_enhanced_sankey',
+    'plot_element_multiplot_sankey',
     'plot_dsm_stock_details',
     'plot_dsm_process_dynamics',
     'plot_fomp_stock_details',

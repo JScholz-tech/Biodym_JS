@@ -1,9 +1,18 @@
 
 # -*- coding: utf-8 -*-
 """
-Sankey Diagram Plotting Module.
+Sankey Diagram Plotting Module for BioDYM.
 
-This file contains the functions for generating interactive Sankey diagrams.
+This module provides interactive Sankey diagram visualizations for Material Flow
+Analysis (MFA) results, including:
+- Interactive single-element Sankey diagrams with year/process/flow filtering
+- Element-agnostic coloring (works with any element set)
+- Multi-element vertical stacked visualizations
+- Automatic node positioning using topological sorting
+- Publication-quality styling and export
+
+Author: BioDYM Development Team
+Date: 2025-11-06
 """
 
 import plotly.graph_objects as go
@@ -12,9 +21,9 @@ from IPython.display import display
 import os
 from datetime import datetime
 import collections
+from typing import Optional
 from .publication_style_simplified import (
     get_publication_layout,
-    get_element_color,
     get_process_color,
     detect_biodym_process_type,
     get_stock_color,
@@ -24,6 +33,7 @@ from .publication_style_simplified import (
     FONT_FAMILY,
     FONT_SIZE
 )
+from .dynamic_colors import ElementColorManager
 
 
 def _calculate_node_positions(processes, flows):
@@ -148,17 +158,37 @@ def _create_sankey_widgets(all_process_names, time_items, element_items, max_flo
     
     return year_slider, element_dropdown, process_selector, threshold_slider
 
-def _create_sankey_legend():
+def _create_sankey_legend(element_items, color_manager):
     """Creates and returns the HTML legend widget for the Sankey diagram.
 
     The legend uses colors and labels defined in the publication style guide
-    to explain the color coding of the processes, stocks, and flows.
+    to explain the color coding of the processes, stocks, and flows. The flow
+    legend is dynamically generated based on the actual elements in the system.
+
+    Parameters
+    ----------
+    element_items : list of str
+        List of element names from the MFA system.
+    color_manager : ElementColorManager
+        Color manager for element-agnostic coloring.
 
     Returns
     -------
     ipywidgets.HTML
         An HTML widget containing the formatted legend.
     """
+    # Generate flow legend items dynamically
+    flow_legend_items = []
+    for element in element_items:
+        element_color = color_manager.get_element_color(element.lower())
+        flow_legend_items.append(f"""
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 20px; height: 20px; background-color: {element_color}; margin-right: 5px;"></div>
+                    <span>{element.upper()}</span>
+                </div>""")
+
+    flow_legend_html = "\n".join(flow_legend_items)
+
     legend_html = f"""
     <div style="margin: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9;">
         <h4 style="margin: 0 0 10px 0;">Legend</h4>
@@ -186,22 +216,7 @@ def _create_sankey_legend():
         <div>
             <strong>Flows:</strong><br>
             <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px;">
-                <div style="display: flex; align-items: center;">
-                    <div style="width: 20px; height: 20px; background-color: {get_element_color('material')}; margin-right: 5px;"></div>
-                    <span>Material</span>
-                </div>
-                <div style="display: flex; align-items: center;">
-                    <div style="width: 20px; height: 20px; background-color: {get_element_color('wc')}; margin-right: 5px;"></div>
-                    <span>WC</span>
-                </div>
-                <div style="display: flex; align-items: center;">
-                    <div style="width: 20px; height: 20px; background-color: {get_element_color('dm')}; margin-right: 5px;"></div>
-                    <span>DM</span>
-                </div>
-                <div style="display: flex; align-items: center;">
-                    <div style="width: 20px; height: 20px; background-color: {get_element_color('cc')}; margin-right: 5px;"></div>
-                    <span>CC</span>
-                </div>
+                {flow_legend_html}
             </div>
         </div>
     </div>
@@ -244,7 +259,7 @@ def _prepare_sankey_node_data(filtered_processes, mfa_system_results, dsm_params
             node_colors.append(get_process_color(detect_biodym_process_type(p.ID, dsm_params=dsm_params, fomp_params=fomp_params)))
     return dict(label=node_labels, x=node_x_positions, color=node_colors, pad=20, thickness=15, line=dict(color="black", width=0.5))
 
-def _prepare_sankey_link_data(final_flows, process_id_map, year_index, element_index, element):
+def _prepare_sankey_link_data(final_flows, process_id_map, year_index, element_index, element, color_manager):
     """Prepares the link data dictionary for the Plotly Sankey object.
 
     Parameters
@@ -259,6 +274,8 @@ def _prepare_sankey_link_data(final_flows, process_id_map, year_index, element_i
         The index of the currently selected element.
     element : str
         The name of the currently selected element.
+    color_manager : ElementColorManager
+        Color manager for element-agnostic coloring.
 
     Returns
     -------
@@ -269,7 +286,7 @@ def _prepare_sankey_link_data(final_flows, process_id_map, year_index, element_i
         return dict(source=[], target=[], value=[])
 
     flow_values = [f.Values[year_index, element_index] for f in final_flows]
-    link_colors = [get_element_color(element)] * len(final_flows)
+    link_colors = [color_manager.get_element_color(element.lower())] * len(final_flows)
     custom_data = [getattr(f, 'DescriptiveName', f.Name) for f in final_flows]
 
     return dict(
@@ -281,12 +298,18 @@ def _prepare_sankey_link_data(final_flows, process_id_map, year_index, element_i
         hovertemplate='Flow: %{customdata}<br />Source: %{source.label}<br />Target: %{target.label}<br />Value: %{value}<extra></extra>'
     )
 
-def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=None):
+def plot_interactive_sankey(
+    mfa_system_results,
+    dsm_params=None,
+    fomp_params=None,
+    color_manager: Optional[ElementColorManager] = None
+):
     """Displays a fully interactive Sankey diagram for MFA results.
 
     This function constructs a user interface using ipywidgets that allows for
     dynamic exploration of the MFA results. Users can filter by year, element,
-    processes to display, and a minimum flow value threshold.
+    processes to display, and a minimum flow value threshold. Uses element-agnostic
+    coloring for consistency across all visualizations.
 
     Parameters
     ----------
@@ -298,13 +321,20 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
     fomp_params : dict, optional
         FOMP parameters, used to identify and color FOMP processes.
         Default is None.
+    color_manager : ElementColorManager, optional
+        Dynamic color manager for element colors. If None, creates one from
+        mfa_system_results.Elements. Defaults to None.
     """
     from ipywidgets import interactive
-    
+
     all_process_names = [p.Name for p in mfa_system_results.ProcessList]
     all_flows = list(mfa_system_results.FlowDict.values())
     time_items = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = mfa_system_results.Elements
+
+    # Create color manager if not provided
+    if color_manager is None:
+        color_manager = ElementColorManager([e.lower() for e in element_items])
 
     max_flow_value = max(f.Values.max() for f in all_flows if f.Values is not None) if all_flows else 1
 
@@ -330,10 +360,10 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
 
         with fig.batch_update():
             fig.data[0].node = _prepare_sankey_node_data(filtered_processes, mfa_system_results, dsm_params, fomp_params, node_positions)
-            fig.data[0].link = _prepare_sankey_link_data(final_flows, process_id_map, year_index, element_index, element)
+            fig.data[0].link = _prepare_sankey_link_data(final_flows, process_id_map, year_index, element_index, element, color_manager)
 
             title_text = f"BioDYM Material Flow Analysis - {element.title()} ({year})"
-            layout_config = get_publication_layout(size='large', show_legend=False)
+            layout_config = get_publication_layout(size='sankey_wide', show_legend=False)
             title_layout = {'text': title_text, 'x': 0.5, 'xanchor': 'center', 'font': {'family': FONT_FAMILY, 'size': FONT_SIZE['title'], 'color': BIOYM_COLORS['dark']}}
             layout_config['title'] = title_layout
             fig.update_layout(**layout_config)
@@ -341,7 +371,7 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
     year_slider, element_dropdown, process_selector, threshold_slider = _create_sankey_widgets(
         all_process_names, time_items, element_items, max_flow_value
     )
-    legend_widget = _create_sankey_legend()
+    legend_widget = _create_sankey_legend(element_items, color_manager)
 
     ui = VBox([
         HBox([year_slider, element_dropdown]),
@@ -358,3 +388,131 @@ def plot_interactive_sankey(mfa_system_results, dsm_params=None, fomp_params=Non
     display(ui)
     display(fig)
     out.update()
+
+def plot_element_multiplot_sankey(
+    mfa_system_results,
+    dsm_params=None,
+    fomp_params=None,
+    elements_to_plot=None,
+    subplot_height=350,
+    color_manager: Optional[ElementColorManager] = None
+):
+    """Display multiple Sankey diagrams stacked vertically, one per element.
+
+    This function creates a vertically-stacked arrangement where each subplot shows
+    a different element. All subplots share a single time slider, process selector,
+    and min flow filter, allowing synchronized exploration of the multi-level
+    elemental composition over time. Uses element-agnostic coloring for consistency.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object containing all calculated data.
+    dsm_params : dict, optional
+        DSM parameters for process coloring. Default is None.
+    fomp_params : dict, optional
+        FOMP parameters for process coloring. Default is None.
+    elements_to_plot : list of str, optional
+        List of element names to plot. If None, uses all elements from the system.
+    subplot_height : int, optional
+        Height in pixels for each subplot. Default is 350.
+    color_manager : ElementColorManager, optional
+        Dynamic color manager for element colors. If None, creates one from
+        mfa_system_results.Elements. Defaults to None.
+
+    Returns
+    -------
+    None
+        Displays the interactive multiplot in the notebook.
+    """
+    from ipywidgets import interactive
+
+    all_process_names = [p.Name for p in mfa_system_results.ProcessList]
+    all_flows = list(mfa_system_results.FlowDict.values())
+    time_items = mfa_system_results.IndexTable.Classification["Time"].Items
+    element_items = mfa_system_results.Elements
+
+    # Create color manager if not provided
+    if color_manager is None:
+        color_manager = ElementColorManager([e.lower() for e in element_items])
+
+    # Determine which elements to plot
+    if elements_to_plot is None:
+        elements_to_plot = element_items
+    else:
+        # Validate requested elements exist
+        elements_to_plot = [e for e in elements_to_plot if e in element_items]
+
+    num_elements = len(elements_to_plot)
+    max_flow_value = max(f.Values.max() for f in all_flows if f.Values is not None) if all_flows else 1
+
+    # Create one FigureWidget per element
+    figures = []
+    for elem in elements_to_plot:
+        fig = go.FigureWidget(data=[go.Sankey(node={}, link={}, arrangement="snap")])
+        fig.update_layout(
+            height=subplot_height,
+            width=2200,
+            title_text=f"{elem.upper()}",
+            font_size=12,
+            margin=dict(l=50, r=50, t=50, b=20)
+        )
+        figures.append(fig)
+
+    def update_all_sankeys(year, processes_to_show, min_flow_value):
+        """Update all element subplots for the selected year and filters."""
+        if not processes_to_show:
+            for fig in figures:
+                with fig.batch_update():
+                    fig.data[0].node.label = []
+            return
+
+        filtered_processes = [p for p in mfa_system_results.ProcessList if p.Name in processes_to_show]
+        process_id_map = {p.ID: i for i, p in enumerate(filtered_processes)}
+
+        layout_flows = [f for f in all_flows if f.P_Start in process_id_map and f.P_End in process_id_map]
+        node_positions = _calculate_node_positions(filtered_processes, layout_flows)
+        year_index = time_items.index(year)
+
+        # Update each figure (one per element)
+        for fig_idx, element in enumerate(elements_to_plot):
+            element_index = element_items.index(element)
+            final_flows = [f for f in layout_flows if f.Values[year_index, element_index] >= min_flow_value]
+
+            with figures[fig_idx].batch_update():
+                figures[fig_idx].data[0].node = _prepare_sankey_node_data(
+                    filtered_processes, mfa_system_results, dsm_params, fomp_params, node_positions
+                )
+                figures[fig_idx].data[0].link = _prepare_sankey_link_data(
+                    final_flows, process_id_map, year_index, element_index, element, color_manager
+                )
+
+    # Create shared widgets
+    year_slider, element_dropdown, process_selector, threshold_slider = _create_sankey_widgets(
+        all_process_names, time_items, element_items, max_flow_value
+    )
+
+    # Remove element dropdown (not needed for multiplot)
+    year_slider.description = "Year:"
+    threshold_slider.description = "Min Flow:"
+
+    ui = VBox([
+        HBox([year_slider, threshold_slider]),
+        process_selector
+    ])
+
+    # Connect widgets to update function
+    out = interactive(
+        update_all_sankeys,
+        year=year_slider,
+        processes_to_show=process_selector,
+        min_flow_value=threshold_slider
+    )
+
+    # Display UI and all figures stacked vertically
+    display(ui)
+    for fig in figures:
+        display(fig)
+
+    # Initial draw
+    update_all_sankeys(year_slider.value, process_selector.value, threshold_slider.value)

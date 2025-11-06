@@ -108,7 +108,8 @@ FIGURE_SIZES = {
     'wide': (1400, 700),       # Wide plots (dashboards)
     'tall': (800, 1200),       # Tall plots
     'square': (800, 800),      # Square plots
-    'publication': (1000, 800) # Publication standard
+    'publication': (1000, 800), # Publication standard
+    'sankey_wide': (2600, 500) # Very wide Sankey (horizontal elongated flow) - increased for better visibility
 }
 
 # Print Dimensions (A4, Letter)

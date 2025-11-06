@@ -337,3 +337,7 @@ Process(Name="Harvest", ID=1)  # No Indices!
 
 **Key Insight**: The Process is just a location. Regional data lives in the Flows and Stocks connected to that Process.
 
+
+
+
+
