@@ -44,6 +44,60 @@ from . import sankey_config
 from .dynamic_colors import ElementColorManager
 
 
+def _wrap_label_text(text, max_chars):
+    """Wrap long text labels with HTML line breaks.
+
+    Respects existing <br> tags and wraps at word boundaries.
+
+    Parameters
+    ----------
+    text : str
+        The text to wrap
+    max_chars : int
+        Maximum characters per line (0 = no wrapping)
+
+    Returns
+    -------
+    str
+        Text with <br> tags inserted at appropriate points
+    """
+    if not sankey_config.NODE_LABEL_WRAP or max_chars <= 0:
+        return text
+
+    # If text already has manual line breaks, keep them
+    if "<br>" in text.lower():
+        return text
+
+    # If text is short enough, no wrapping needed
+    if len(text) <= max_chars:
+        return text
+
+    # Wrap at word boundaries
+    words = text.split()
+    lines = []
+    current_line = []
+    current_length = 0
+
+    for word in words:
+        word_length = len(word)
+        # +1 for space
+        if current_length + word_length + (1 if current_line else 0) <= max_chars:
+            current_line.append(word)
+            current_length += word_length + (1 if current_line else 0)
+        else:
+            # Start new line
+            if current_line:
+                lines.append(" ".join(current_line))
+            current_line = [word]
+            current_length = word_length
+
+    # Add last line
+    if current_line:
+        lines.append(" ".join(current_line))
+
+    return "<br>".join(lines)
+
+
 def _prepare_sankey_data(
     filtered_processes,
     flows_data,
@@ -51,7 +105,7 @@ def _prepare_sankey_data(
     dsm_params,
     fomp_params,
     node_pad,
-    node_scale_factor,
+    node_thickness,
 ):
     """Prepare node and link data for Plotly Sankey.
 
@@ -71,8 +125,8 @@ def _prepare_sankey_data(
         FOMP parameters
     node_pad : int
         Padding between nodes in pixels
-    node_scale_factor : float
-        Scale factor for node sizes
+    node_thickness : int
+        Thickness of node bars in pixels
 
     Returns
     -------
@@ -82,8 +136,11 @@ def _prepare_sankey_data(
     # Build process ID to index mapping
     process_id_map = {p.ID: i for i, p in enumerate(filtered_processes)}
 
-    # Prepare node labels
-    node_labels = [p.Name for p in filtered_processes]
+    # Prepare node labels with automatic wrapping
+    node_labels = [
+        _wrap_label_text(p.Name, sankey_config.NODE_LABEL_MAX_CHARS)
+        for p in filtered_processes
+    ]
 
     # Determine node colors based on process type
     node_colors = []
@@ -107,9 +164,18 @@ def _prepare_sankey_data(
         "label": node_labels,
         "color": node_colors,
         "pad": node_pad,
-        "thickness": 20 * node_scale_factor,
+        "thickness": node_thickness,
         "line": {"color": "black", "width": 0.5},
+        "font": {
+            "size": sankey_config.FONT_SIZE_LABELS,
+            "color": sankey_config.FONT_COLOR_LABELS,
+            "family": FONT_FAMILY,
+        },
     }
+
+    # Apply bold font weight if configured (Plotly doesn't support weight directly, use HTML)
+    if sankey_config.FONT_WEIGHT_LABELS == "bold":
+        node_dict["font"]["weight"] = "bold"
 
     # Prepare link data
     if not flows_data:
@@ -134,6 +200,10 @@ def _prepare_sankey_data(
         "customdata": link_customdata,
         "hovertemplate": "Flow: %{customdata}<br />Source: %{source.label}<br />Target: %{target.label}<br />Value: %{value}<extra></extra>",
     }
+
+    # Add arrows to flows if enabled
+    if sankey_config.ENABLE_FLOW_ARROWS:
+        link_dict["arrowlen"] = sankey_config.FLOW_ARROW_LENGTH
 
     return node_dict, link_dict
 
@@ -253,7 +323,7 @@ def plot_interactive_sankey(
     width=sankey_config.WINDOW_WIDTH,
     height=sankey_config.WINDOW_HEIGHT,
     node_pad=sankey_config.NODE_SPACING,
-    node_scale_factor=sankey_config.NODE_SCALE_FACTOR,
+    node_thickness=sankey_config.NODE_THICKNESS,
 ):
     """Display an interactive Sankey diagram for MFA results.
 
@@ -276,8 +346,8 @@ def plot_interactive_sankey(
         Diagram height in pixels
     node_pad : int, optional
         Padding between nodes in pixels
-    node_scale_factor : float, optional
-        Scale factor for node sizes
+    node_thickness : int, optional
+        Thickness of node bars in pixels
 
     Examples
     --------
@@ -348,7 +418,7 @@ def plot_interactive_sankey(
             dsm_params,
             fomp_params,
             node_pad,
-            node_scale_factor,
+            node_thickness,
         )
 
         # Set link colors based on element
@@ -389,6 +459,31 @@ def plot_interactive_sankey(
                     b=height * sankey_config.PADDING_FACTOR,
                 ),
             }
+
+            # Add vertical grid lines if enabled
+            if sankey_config.ENABLE_GRID and sankey_config.GRID_TYPE == "vertical_lines":
+                shapes = []
+                for x_pos in sankey_config.GRID_VERTICAL_POSITIONS:
+                    shapes.append(
+                        dict(
+                            type="line",
+                            x0=x_pos,
+                            x1=x_pos,
+                            y0=0,
+                            y1=1,
+                            xref="paper",
+                            yref="paper",
+                            line=dict(
+                                color=sankey_config.GRID_LINE_COLOR,
+                                width=sankey_config.GRID_LINE_WIDTH,
+                                dash=sankey_config.GRID_LINE_DASH,
+                            ),
+                            opacity=sankey_config.GRID_LINE_OPACITY,
+                            layer="below",
+                        )
+                    )
+                layout_config["shapes"] = shapes
+
             fig.update_layout(**layout_config)
 
     # Create widgets
@@ -432,7 +527,7 @@ def plot_element_multiplot_sankey(
     subplot_height=sankey_config.WINDOW_HEIGHT,
     subplot_width=sankey_config.WINDOW_WIDTH,
     node_pad=sankey_config.NODE_SPACING,
-    node_scale_factor=sankey_config.NODE_SCALE_FACTOR,
+    node_thickness=sankey_config.NODE_THICKNESS,
     color_manager: Optional[ElementColorManager] = None,
 ):
     """Display multiple Sankey diagrams stacked vertically (one per element).
@@ -456,8 +551,8 @@ def plot_element_multiplot_sankey(
         Width per subplot in pixels
     node_pad : int, optional
         Padding between nodes in pixels
-    node_scale_factor : float, optional
-        Scale factor for node sizes
+    node_thickness : int, optional
+        Thickness of node bars in pixels
     color_manager : ElementColorManager, optional
         Color manager (auto-created if None)
     """
@@ -488,7 +583,9 @@ def plot_element_multiplot_sankey(
     figures = []
     for elem in elements_to_plot:
         fig = go.FigureWidget(data=[go.Sankey(node={}, link={})])
-        fig.update_layout(
+
+        # Build layout config
+        layout_config = dict(
             height=subplot_height,
             width=subplot_width,
             title_text=f"{elem.upper()}",
@@ -506,6 +603,32 @@ def plot_element_multiplot_sankey(
             paper_bgcolor=sankey_config.BACKGROUND_COLOR,
             plot_bgcolor=sankey_config.GRID_COLOR,
         )
+
+        # Add vertical grid lines if enabled
+        if sankey_config.ENABLE_GRID and sankey_config.GRID_TYPE == "vertical_lines":
+            shapes = []
+            for x_pos in sankey_config.GRID_VERTICAL_POSITIONS:
+                shapes.append(
+                    dict(
+                        type="line",
+                        x0=x_pos,
+                        x1=x_pos,
+                        y0=0,
+                        y1=1,
+                        xref="paper",
+                        yref="paper",
+                        line=dict(
+                            color=sankey_config.GRID_LINE_COLOR,
+                            width=sankey_config.GRID_LINE_WIDTH,
+                            dash=sankey_config.GRID_LINE_DASH,
+                        ),
+                        opacity=sankey_config.GRID_LINE_OPACITY,
+                        layer="below",
+                    )
+                )
+            layout_config["shapes"] = shapes
+
+        fig.update_layout(**layout_config)
         figures.append(fig)
 
     def update_all_sankeys(year, processes_to_show, flows_to_show, min_flow_value):
@@ -548,7 +671,7 @@ def plot_element_multiplot_sankey(
                 dsm_params,
                 fomp_params,
                 node_pad,
-                node_scale_factor,
+                node_thickness,
             )
 
             # Set link colors
