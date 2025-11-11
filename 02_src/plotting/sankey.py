@@ -370,9 +370,13 @@ def plot_interactive_sankey(
                     "xanchor": "center",
                     "font": {
                         "family": FONT_FAMILY,
-                        "size": FONT_SIZE["title"],
+                        "size": sankey_config.FONT_SIZE_TITLE,
                         "color": BIOYM_COLORS["dark"],
                     },
+                },
+                "font": {
+                    "family": FONT_FAMILY,
+                    "size": sankey_config.FONT_SIZE_LABELS,
                 },
                 "width": width,
                 "height": height,
@@ -488,7 +492,11 @@ def plot_element_multiplot_sankey(
             height=subplot_height,
             width=subplot_width,
             title_text=f"{elem.upper()}",
-            font_size=16,
+            font=dict(
+                family=FONT_FAMILY,
+                size=sankey_config.FONT_SIZE_LABELS,
+            ),
+            title_font_size=sankey_config.FONT_SIZE_SUBPLOT,
             margin=dict(
                 l=subplot_width * sankey_config.PADDING_FACTOR,
                 r=subplot_width * sankey_config.PADDING_FACTOR,
