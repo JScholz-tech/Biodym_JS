@@ -30,6 +30,10 @@ venv/
 *.swp
 *~
 
+# Backup files
+*_backup_*.py
+*_conflict_backup.py
+
 # Conflicted copies (Nextcloud, Dropbox, etc.)
 *(*conflicted copy*).*
 *(*Conflicted copy*).*
@@ -55,3 +59,8 @@ exports/
 # Scenario files
 scenarios/*.xlsx
 scenarios/*.json
+
+# Root-level temporary documentation files
+/SANKEY_*.md
+/cursor.md
+/test_*.py
