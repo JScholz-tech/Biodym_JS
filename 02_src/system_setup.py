@@ -116,9 +116,7 @@ def define_model_scope(
     )
     index_table.set_index("Aspect", inplace=True)
 
-    print(
-        f"--> Model scope and classifications defined with {len(aspects)} dimensions."
-    )
+    # Removed verbose print - model scope is shown in validation summary
     return model_classification, index_table
 
 
@@ -158,16 +156,15 @@ def initialize_mfa_system(model_classification, index_table):
     # ODYM compliance: Check IndexTable consistency
     try:
         mfa_system.IndexTableCheck()
-        print("--> IndexTable validation passed.")
     except ValueError as e:
         print(f"--> WARNING: IndexTable validation failed: {e}")
         raise
 
-    print("--> MFA system object initialized.")
+    # Removed verbose print - initialization is shown in validation summary
     return mfa_system
 
 
-def load_and_define_processes(mfa_system, input_data, data_loader):
+def load_and_define_processes(mfa_system, input_data, data_loader, debug_mode=False):
     """Load data, validate, and define processes and stocks in the MFA system.
 
     This function reads all data from the source Excel file, validates the
@@ -182,6 +179,8 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
         A dictionary of DataFrames for each Excel sheet, or a path to the file.
     data_loader : module
         The imported data_loader module containing validation functions.
+    debug_mode : bool, optional
+        If True, print detailed loading progress. Default is False.
 
     Returns
     -------
@@ -190,7 +189,8 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
         - mfa_system (odym.MFAsystem): The modified MFAsystem object.
         - all_excel_data (dict): The dictionary of all data read from Excel.
     """
-    print("--> Defining process and stock structures...")
+    if debug_mode:
+        print("--> Defining process and stock structures...")
 
     # Accept either a pre-loaded dict of DataFrames or a path to an Excel file
     if isinstance(input_data, dict):
@@ -207,9 +207,10 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
             na_values=["N.A.", "NA", "n/a"],
             decimal=",",
         )
-        print(f"   ✓ Excel file loaded safely (original file remains unlocked)")
+        if debug_mode:
+            print(f"   ✓ Excel file loaded safely (original file remains unlocked)")
 
-    data_loader.validate_input_data(all_excel_data)
+    data_loader.validate_input_data(all_excel_data, debug_mode=debug_mode)
 
     process_definitions = all_excel_data["2_1_Definition_Processes"]
     for _, row in process_definitions.iterrows():
@@ -263,7 +264,8 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
     # Initialize stock values using ODYM method with error handling
     try:
         mfa_system.Initialize_StockValues()
-        print("--> Stock values initialized.")
+        if debug_mode:
+            print("--> Stock values initialized.")
     except Exception as e:
         print(f"--> ERROR: Failed to initialize stock values: {e}")
         print(f"    Stock count: {len(mfa_system.StockDict)} stocks defined")
@@ -390,14 +392,14 @@ def _initialize_flows(mfa_system, flow_definitions):
     # Initialize flow values using ODYM method with error handling
     try:
         mfa_system.Initialize_FlowValues()
-        print("--> All flows initialized to zero.")
+        # Removed verbose print - flows are shown in validation summary
     except Exception as e:
         print(f"--> ERROR: Failed to initialize flow values: {e}")
         print(f"    Flow count: {len(flow_descriptions)} flows defined")
         raise
 
 
-def _populate_primary_flow_data(mfa_system, flow_data):
+def _populate_primary_flow_data(mfa_system, flow_data, debug_mode=False):
     """Populates flows with primary data from the '1_2_Data_Flows' sheet.
 
     Supports both old format (Flow_Material) and new E# format (E1_value).
@@ -408,15 +410,19 @@ def _populate_primary_flow_data(mfa_system, flow_data):
         The MFA system object to be modified.
     flow_data : pd.DataFrame
         DataFrame containing the flow data from Excel.
+    debug_mode : bool, optional
+        If True, print detailed loading progress. Default is False.
     """
     # Detect which column format is used for material flow data
     material_col = None
     if "Flow_Material" in flow_data.columns:
         material_col = "Flow_Material"
-        print("[INFO] Using legacy format 'Flow_Material' for flow data")
+        if debug_mode:
+            print("[INFO] Using legacy format 'Flow_Material' for flow data")
     elif "E1_value" in flow_data.columns:
         material_col = "E1_value"
-        print("[INFO] Using new E# format 'E1_value' for flow data")
+        if debug_mode:
+            print("[INFO] Using new E# format 'E1_value' for flow data")
     else:
         raise ValueError(
             "ERROR: Could not find material flow column in 1_2_Data_Flows sheet. "
@@ -430,7 +436,8 @@ def _populate_primary_flow_data(mfa_system, flow_data):
                 mfa_system.IndexTable.Classification["Time"].Items
             ):
                 flow_obj.Values[:, 0] = np.array(flow_time_series[material_col]).ravel()
-    print("--> Populated data for primary input flows.")
+    if debug_mode:
+        print("--> Populated data for primary input flows.")
 
 
 def _apply_initial_stock(mfa_system, all_excel_data):
@@ -710,7 +717,7 @@ def _calculate_elemental_compositions(mfa_system, element_hierarchy=None):
                     print(f"    Check fraction values sum to ≤ 1.0")
 
 
-def _create_flow_and_process_maps(mfa_system, all_excel_data):
+def _create_flow_and_process_maps(mfa_system, all_excel_data, debug_mode=False):
     """Creates lookup maps for process logic and flow-to-TC mappings.
 
     Parameters
@@ -719,6 +726,8 @@ def _create_flow_and_process_maps(mfa_system, all_excel_data):
         The MFA system, used to get the list of elements.
     all_excel_data : dict
         Dictionary of all data read from Excel.
+    debug_mode : bool, optional
+        If True, print detailed mapping progress. Default is False.
 
     Returns
     -------
@@ -734,7 +743,8 @@ def _create_flow_and_process_maps(mfa_system, all_excel_data):
             "Process_Logic"
         ].to_dict()
 
-    print("--> Creating Flow-to-TC mapping...")
+    if debug_mode:
+        print("--> Creating Flow-to-TC mapping...")
     flow_tc_map = {}
 
     # Detect TC column format (old: TC_material_ID, new: E1_TC_ID)
@@ -746,9 +756,11 @@ def _create_flow_and_process_maps(mfa_system, all_excel_data):
             or "E2_TC_ID" in static_tc_definitions.columns
         ):
             tc_format = "new"
-            print("  -> Detected new E# format for TC mapping")
+            if debug_mode:
+                print("  -> Detected new E# format for TC mapping")
         else:
-            print("  -> Detected legacy element-name format for TC mapping")
+            if debug_mode:
+                print("  -> Detected legacy element-name format for TC mapping")
 
     if static_tc_definitions is not None:
         static_tc_definitions_filtered = static_tc_definitions.dropna(
@@ -800,11 +812,12 @@ def _create_flow_and_process_maps(mfa_system, all_excel_data):
                     tc_ids[element] = row[tc_id_col]
             flow_tc_map[flow_id] = tc_ids
 
-    print(f"  -> Created TC mapping for {len(flow_tc_map)} flows")
+    if debug_mode:
+        print(f"  -> Created TC mapping for {len(flow_tc_map)} flows")
     return flow_tc_map, process_logic_map
 
 
-def define_flows_and_parameters(mfa_system, all_excel_data):
+def define_flows_and_parameters(mfa_system, all_excel_data, debug_mode=False):
     """Orchestrates the definition of flows and all model parameters.
 
     This function calls a series of helper functions to perform the setup
@@ -816,6 +829,8 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
         The MFA system object to be configured.
     all_excel_data : dict
         Dictionary of all data read from Excel.
+    debug_mode : bool, optional
+        If True, print detailed setup progress. Default is False.
 
     Returns
     -------
@@ -826,7 +841,8 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
         - flow_tc_map (dict): A map from Flow_IDs to their TC_IDs.
         - process_logic_map (dict): A map from Process_IDs to their logic.
     """
-    print("--> Defining flows, parameters, and setting all initial values...")
+    if debug_mode:
+        print("--> Defining flows, parameters, and setting all initial values...")
 
     # Extract data sheets
     flow_definitions = all_excel_data["1_1_Definition_Flows"]
@@ -834,14 +850,15 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
 
     # Step-by-step orchestration
     _initialize_flows(mfa_system, flow_definitions)
-    _populate_primary_flow_data(mfa_system, flow_data)
+    _populate_primary_flow_data(mfa_system, flow_data, debug_mode=debug_mode)
     _apply_initial_stock(mfa_system, all_excel_data)
     _define_content_parameters(mfa_system, flow_definitions)
 
     # Initialize all parameter values using ODYM method with error handling
     try:
         mfa_system.Initialize_ParameterValues()
-        print("--> Parameter values initialized successfully.")
+        if debug_mode:
+            print("--> Parameter values initialized successfully.")
     except Exception as e:
         print(f"--> ERROR: Failed to initialize parameter values: {e}")
         raise
@@ -897,7 +914,7 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
 
             element_hierarchy = element_structure
 
-            if element_hierarchy:
+            if element_hierarchy and debug_mode:
                 print(f"--> Using hierarchical element calculation (Phase 5b)")
                 for eid in sorted(element_hierarchy.keys()):
                     elem = element_hierarchy[eid]
@@ -915,13 +932,14 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
 
     _calculate_elemental_compositions(mfa_system, element_hierarchy)
     flow_tc_map, process_logic_map = _create_flow_and_process_maps(
-        mfa_system, all_excel_data
+        mfa_system, all_excel_data, debug_mode=debug_mode
     )
 
     # ODYM compliance: Check system consistency with error handling
     try:
         mfa_system.Consistency_Check()
-        print("--> Consistency check passed.")
+        if debug_mode:
+            print("--> Consistency check passed.")
     except Exception as e:
         print(f"--> ERROR: Consistency check failed: {e}")
         raise
