@@ -16,6 +16,7 @@ venv/
 .idea/
 .project
 .classpath
+.claude/
 
 # Notebooks
 .ipynb_checkpoints/
@@ -47,6 +48,11 @@ Writing project/
 # Generated output files
 exports/
 
+# Case study output files (generated plots, analysis results)
+03_studies/*/*.png
+03_studies/*/*.xlsx
+03_studies/*/Sankey*
+
 # Output directory - ignore all generated files
 01_data/02_output/
 !01_data/02_output/.gitkeep
@@ -62,8 +68,3 @@ exports/
 # Scenario files
 scenarios/*.xlsx
 scenarios/*.json
-
-# Root-level temporary documentation files
-/SANKEY_*.md
-/cursor.md
-/test_*.py
