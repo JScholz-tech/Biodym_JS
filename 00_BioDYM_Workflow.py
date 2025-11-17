@@ -177,6 +177,23 @@ except ImportError as e:
 plt.style.use("default")
 print(f"{Icons.VISUALIZATION} Plotting environment ready")
 
+# Initialize Plotly widgets to prevent empty plot issues
+# This forces the widget communication channel to be established early
+print(f"{Icons.CONFIGURATION} Initializing interactive widget system...")
+import time
+from ipywidgets import IntSlider
+
+try:
+    # Create dummy widgets to initialize the comm channel
+    _dummy_fig = go.FigureWidget()
+    _dummy_slider = IntSlider()
+    time.sleep(0.5)  # Allow widget registration to complete
+    del _dummy_fig, _dummy_slider
+    print(f"{Icons.SUCCESS} Widget system initialized successfully")
+except Exception as e:
+    print(f"{Icons.WARNING} Widget initialization had issues: {e}")
+    print(f"{Icons.INFO} Plots may take longer on first render")
+
 # ## 1.2 Data Input Configuration
 #
 # ⚠️ **IMPORTANT**: Set your Excel file path below - this is the only required change to run the analysis!
