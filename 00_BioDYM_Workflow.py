@@ -300,12 +300,12 @@ mfa_system_configured.ParameterDict.update(
 )  # Add the new TC params to the system
 
 # Load other special model parameters
-dsm_params = data_loader.load_dsm_parameters(all_excel_data)
+dsm_params = data_loader.load_dsm_parameters(all_excel_data, debug_mode=DEBUG_MODE)
 if config_obj.RUN_FOMP_CALCULATION:
-    fomp_params = data_loader.load_fomp_parameters(all_excel_data)
+    fomp_params = data_loader.load_fomp_parameters(all_excel_data, debug_mode=DEBUG_MODE)
 else:
     fomp_params = {}
-uncertainty_params = data_loader.load_uncertainty_definitions(all_excel_data)
+uncertainty_params = data_loader.load_uncertainty_definitions(all_excel_data, debug_mode=DEBUG_MODE)
 
 print(format_success("All parameters loaded and configured."))
 

@@ -682,7 +682,7 @@ def load_tc_parameters(all_excel_data, elements, time_vector, debug_mode=False):
     return tc_params
 
 
-def load_dsm_parameters(excel_data):
+def load_dsm_parameters(excel_data, debug_mode=False):
     """Reads and parses DSM parameters from the '3_1_Definition_DSM' sheet.
 
     This function identifies DSM processes from the main process sheet and then
@@ -693,6 +693,8 @@ def load_dsm_parameters(excel_data):
     ----------
     excel_data : dict
         Dictionary of DataFrames from the loaded Excel file.
+    debug_mode : bool, optional
+        If True, print detailed loading progress. Default is False.
 
     Returns
     -------
@@ -702,12 +704,14 @@ def load_dsm_parameters(excel_data):
     """
     sheet_name = "3_1_Definition_DSM"
     main_sheet_name = "2_1_Definition_Processes"
-    print(f"--> Loading DSM parameters from sheet '{sheet_name}'...")
+    if debug_mode:
+        print(f"--> Loading DSM parameters from sheet '{sheet_name}'...")
 
     if sheet_name not in excel_data:
-        print(
-            f"--> INFO: Sheet '{sheet_name}' not found. Using empty DSM configuration."
-        )
+        if debug_mode:
+            print(
+                f"--> INFO: Sheet '{sheet_name}' not found. Using empty DSM configuration."
+            )
         return {}
 
     df_dsm = excel_data[sheet_name]
@@ -724,24 +728,28 @@ def load_dsm_parameters(excel_data):
         if "Process_Logic" in main_df.columns:
             dsm_processes = main_df[main_df["Process_Logic"] == "DSM"]
             dsm_process_ids = dsm_processes["Process_ID"].dropna().astype(int).tolist()
-            print(
-                f"--> Using Process_Logic column from main sheet to identify DSM processes: {dsm_process_ids}"
-            )
+            if debug_mode:
+                print(
+                    f"--> Using Process_Logic column from main sheet to identify DSM processes: {dsm_process_ids}"
+                )
         elif "DSM?" in main_df.columns:
             dsm_processes = main_df[main_df["DSM?"] == "Yes"]
             dsm_process_ids = dsm_processes["Process_ID"].dropna().astype(int).tolist()
-            print(
-                f"--> Using legacy DSM? column from main sheet to identify DSM processes: {dsm_process_ids}"
-            )
+            if debug_mode:
+                print(
+                    f"--> Using legacy DSM? column from main sheet to identify DSM processes: {dsm_process_ids}"
+                )
 
     if not dsm_process_ids:
-        print(f"--> INFO: No DSM processes found in main sheet.")
+        if debug_mode:
+            print(f"--> INFO: No DSM processes found in main sheet.")
         return {}
 
     # Filter DSM sheet data for identified DSM processes
     dsm_df = df_dsm[df_dsm["Process_ID"].isin(dsm_process_ids)].copy()
     if dsm_df.empty:
-        print(f"--> INFO: No DSM parameter data found for identified DSM processes.")
+        if debug_mode:
+            print(f"--> INFO: No DSM parameter data found for identified DSM processes.")
         return {}
 
     dsm_df = dsm_df.dropna(subset=["Process_ID"])
@@ -762,9 +770,10 @@ def load_dsm_parameters(excel_data):
             # Fall back to old category-based format
             dsm_params[process_id] = _parse_category_based_dsm(process_data)
 
-    print(
-        f"--> Successfully loaded configurations for {len(dsm_params)} DSM process(es)."
-    )
+    if debug_mode:
+        print(
+            f"--> Successfully loaded configurations for {len(dsm_params)} DSM process(es)."
+        )
     return dsm_params
 
 
@@ -1010,7 +1019,7 @@ def _parse_category_based_dsm(process_data):
     }
 
 
-def load_fomp_parameters(excel_data):
+def load_fomp_parameters(excel_data, debug_mode=False):
     """Reads and parses FOMP parameters from the '3_2_Definition_FOMP' sheet.
 
     This function identifies FOMP processes and parses their parameters.
@@ -1021,6 +1030,8 @@ def load_fomp_parameters(excel_data):
     ----------
     excel_data : dict
         Dictionary of DataFrames from the loaded Excel file.
+    debug_mode : bool, optional
+        If True, print detailed loading progress. Default is False.
 
     Returns
     -------
@@ -1029,12 +1040,14 @@ def load_fomp_parameters(excel_data):
         of the parsed FOMP parameters for that process.
     """
     sheet_name = "3_2_Definition_FOMP"
-    print(f"--> Loading FOMP parameters from sheet '{sheet_name}'...")
+    if debug_mode:
+        print(f"--> Loading FOMP parameters from sheet '{sheet_name}'...")
 
     if sheet_name not in excel_data:
-        print(
-            f"--> INFO: Sheet '{sheet_name}' not found. Using empty FOMP configuration."
-        )
+        if debug_mode:
+            print(
+                f"--> INFO: Sheet '{sheet_name}' not found. Using empty FOMP configuration."
+            )
         return {}
 
     df_fomp = excel_data[sheet_name]
@@ -1124,16 +1137,17 @@ def load_fomp_parameters(excel_data):
             except (ValueError, TypeError):
                 fomp_params[process_id][param_name] = value
 
-    print(
-        f"--> Successfully loaded configurations for {len(fomp_params)} FOMP process(es)."
-    )
-    for process_id, params in fomp_params.items():
-        print(f"   Process {process_id}: {len(params)} parameters")
+    if debug_mode:
+        print(
+            f"--> Successfully loaded configurations for {len(fomp_params)} FOMP process(es)."
+        )
+        for process_id, params in fomp_params.items():
+            print(f"   Process {process_id}: {len(params)} parameters")
 
     return fomp_params
 
 
-def load_uncertainty_definitions(excel_data):
+def load_uncertainty_definitions(excel_data, debug_mode=False):
     """Reads the '4_1_Uncertainty_Parameters' sheet into a dictionary.
 
     Parses the sheet to create a dictionary of uncertainty parameter definitions
@@ -1143,6 +1157,8 @@ def load_uncertainty_definitions(excel_data):
     ----------
     excel_data : dict
         Dictionary of DataFrames from the loaded Excel file.
+    debug_mode : bool, optional
+        If True, print detailed loading progress. Default is False.
 
     Returns
     -------
@@ -1150,20 +1166,24 @@ def load_uncertainty_definitions(excel_data):
         A dictionary of uncertainty definitions, keyed by parameter name.
     """
     sheet_name = "4_1_Uncertainty_Parameters"
-    print(f"--> Loading uncertainty definitions from sheet '{sheet_name}'...")
+    if debug_mode:
+        print(f"--> Loading uncertainty definitions from sheet '{sheet_name}'...")
 
     if sheet_name not in excel_data:
-        print(
-            f"--> INFO: Sheet '{sheet_name}' not found. No uncertainties will be loaded."
-        )
+        if debug_mode:
+            print(
+                f"--> INFO: Sheet '{sheet_name}' not found. No uncertainties will be loaded."
+            )
         return {}
 
     df_uncertainty = excel_data[sheet_name]
-    print(f"  DEBUG: df_uncertainty before dropna:\n{df_uncertainty}")
+    if debug_mode:
+        print(f"  DEBUG: df_uncertainty before dropna:\n{df_uncertainty}")
     df_uncertainty = df_uncertainty.dropna(subset=["Parameter_Name"])
-    print(
-        f"  DEBUG: df_uncertainty after dropna (rows: {len(df_uncertainty)}):\n{df_uncertainty}"
-    )
+    if debug_mode:
+        print(
+            f"  DEBUG: df_uncertainty after dropna (rows: {len(df_uncertainty)}):\n{df_uncertainty}"
+        )
     uncertainty_params = {}
 
     for _, row in df_uncertainty.iterrows():
@@ -1188,9 +1208,10 @@ def load_uncertainty_definitions(excel_data):
         if len(definition) > 1:
             uncertainty_params[param_name] = definition
 
-    print(
-        f"--> Successfully loaded {len(uncertainty_params)} uncertainty parameter definition(s)."
-    )
+    if debug_mode:
+        print(
+            f"--> Successfully loaded {len(uncertainty_params)} uncertainty parameter definition(s)."
+        )
     return uncertainty_params
 
 
