@@ -14,7 +14,7 @@ import sys
 import os
 
 # Add ODYM framework to path to ensure ODYM_Classes can be found
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 odym_path = os.path.join(
     project_root, "06_framework", "ODYM-master_20241127", "odym", "modules"
 )
@@ -25,10 +25,24 @@ if odym_path not in sys.path:
 import ODYM_Classes as msc
 import data_loader
 
+# Handle both direct import and package import
+try:
+    from . import utils
+except ImportError:
+    import utils
 
-def define_model_scope(start_year, end_year, elements, regions=None, goods=None, materials=None, processes=None):
+
+def define_model_scope(
+    start_year,
+    end_year,
+    elements,
+    regions=None,
+    goods=None,
+    materials=None,
+    processes=None,
+):
     """Defines the temporal and elemental scope of the MFA model with ODYM dimensions.
-    
+
     Phase 1b: Adds support for Region, Good, Material, and Process dimensions.
     Maintains backward compatibility - all new dimensions are optional with defaults.
 
@@ -58,7 +72,7 @@ def define_model_scope(start_year, end_year, elements, regions=None, goods=None,
     """
     model_classification = {}
     my_years = list(np.arange(start_year, end_year + 1))
-    
+
     # Default values for backward compatibility
     if regions is None:
         regions = ["Case_Study_Region"]  # Default single region
@@ -70,17 +84,14 @@ def define_model_scope(start_year, end_year, elements, regions=None, goods=None,
     model_classification["Element"] = msc.Classification(
         Name="Elements", Dimension="Element", ID=2, Items=elements
     )
-    
+
     # Build index table based on available dimensions
     aspects = ["Time", "Element"]
     descriptions = ['Model aspect "time"', 'Model aspect "Element"']
     dimensions = ["Time", "Element"]
     index_letters = ["t", "e"]
-    classifications = [
-        model_classification["Time"],
-        model_classification["Element"]
-    ]
-    
+    classifications = [model_classification["Time"], model_classification["Element"]]
+
     # Phase 1b: Add Material if defined (for future use)
     # For now, Materials dimension is not used - Elements handle WC, DM, CC
     # This keeps compatibility with existing solver code
@@ -94,16 +105,20 @@ def define_model_scope(start_year, end_year, elements, regions=None, goods=None,
         index_letters.append("m")
         classifications.append(model_classification["Material"])
 
-    index_table = pd.DataFrame({
-        "Aspect": aspects,
-        "Description": descriptions,
-        "Dimension": dimensions,
-        "Classification": classifications,
-        "IndexLetter": index_letters,
-    })
+    index_table = pd.DataFrame(
+        {
+            "Aspect": aspects,
+            "Description": descriptions,
+            "Dimension": dimensions,
+            "Classification": classifications,
+            "IndexLetter": index_letters,
+        }
+    )
     index_table.set_index("Aspect", inplace=True)
 
-    print(f"--> Model scope and classifications defined with {len(aspects)} dimensions.")
+    print(
+        f"--> Model scope and classifications defined with {len(aspects)} dimensions."
+    )
     return model_classification, index_table
 
 
@@ -182,14 +197,17 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
         all_excel_data = input_data
     else:
         # Load all sheets into a dict; tests may patch pd.read_excel to return a dict
-        all_excel_data = pd.read_excel(
+        # NOTE: Uses decimal=',' for European standard (comma as decimal separator)
+        # Use safe_read_excel to avoid file locking issues
+        all_excel_data = utils.safe_read_excel(
             input_data,
             sheet_name=None,
             header=0,
             engine="openpyxl",
             na_values=["N.A.", "NA", "n/a"],
-            decimal=',',
+            decimal=",",
         )
+        print(f"   ✓ Excel file loaded safely (original file remains unlocked)")
 
     data_loader.validate_input_data(all_excel_data)
 
@@ -203,17 +221,17 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
                 tc_config = str(row["TC_Configuration"]).strip()
                 if tc_config in ["Static", "Dynamic"]:
                     has_tcs = "TC"
-            
+
             mfa_system.ProcessList.append(
                 msc.Process(Name=row["Process_Name"], ID=process_id, Extensions=has_tcs)
             )
-            
+
             # Handle Stock configuration - support both unified and legacy columns
             should_create_stock = False
             if "Stock_Configuration" in row and pd.notna(row["Stock_Configuration"]):
                 stock_config = str(row["Stock_Configuration"]).strip()
-                should_create_stock = (stock_config == "Stock")
-            
+                should_create_stock = stock_config == "Stock"
+
             if should_create_stock:
                 mfa_system.StockDict[f"dS_{process_id}"] = msc.Stock(
                     Name=f"dS_{process_id}", P_Res=process_id, Type=1, Indices="t,e"
@@ -221,7 +239,7 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
                 mfa_system.StockDict[f"S_{process_id}"] = msc.Stock(
                     Name=f"S_{process_id}", P_Res=process_id, Type=0, Indices="t,e"
                 )
-                
+
                 fomp_sheet = all_excel_data.get("3_2_Definition_FOMP")
                 is_fomp_process = False
                 if fomp_sheet is not None:
@@ -229,16 +247,18 @@ def load_and_define_processes(mfa_system, input_data, data_loader):
                     # Check for FOMP process using unified Process_Logic or legacy FOMP? column
                     process_logic = str(row.get("Process_Logic", "")).strip()
                     fomp_legacy = str(row.get("FOMP?", "No")).strip() == "Yes"
-                    is_fomp_process = (process_logic == "FOMP" or fomp_legacy) and (not fomp_processes.empty)
-                
+                    is_fomp_process = (process_logic == "FOMP" or fomp_legacy) and (
+                        not fomp_processes.empty
+                    )
+
                 if is_fomp_process:
                     mfa_system.StockDict[f"S_{process_id}"]._fomp_process = True
 
     for stock_name, stock_obj in mfa_system.StockDict.items():
         # Mark FOMP processes for ODYM initialization (no manual np.zeros)
-        if hasattr(stock_obj, '_fomp_process') and stock_obj._fomp_process:
+        if hasattr(stock_obj, "_fomp_process") and stock_obj._fomp_process:
             # Leave Values as None - ODYM's Initialize_StockValues() will handle this
-            delattr(stock_obj, '_fomp_process')
+            delattr(stock_obj, "_fomp_process")
 
     # Initialize stock values using ODYM method with error handling
     try:
@@ -258,38 +278,42 @@ def create_dynamic_tc_parameters_from_2_4_format(dynamic_tc_data, time_vector):
     Expects columns: TC_material_ID, Year, TC_Value_material
     """
     print("--> Generating dynamic TC time series from 2_4 format...")
-    
+
     # Extract the relevant columns
-    tc_data = dynamic_tc_data[['TC_material_ID', 'TC_Value_material', 'Year']].dropna()
-    
+    tc_data = dynamic_tc_data[["TC_material_ID", "TC_Value_material", "Year"]].dropna()
+
     if tc_data.empty:
         print("  -> No valid TC data found in 2_4_dynamic_tcs format")
         return {}
-    
+
     # Group by TC_ID and create time series
     dynamic_tc_dict = {}
-    unique_tc_ids = tc_data['TC_material_ID'].unique()
-    
+    unique_tc_ids = tc_data["TC_material_ID"].unique()
+
     for tc_id in unique_tc_ids:
-        tc_points = tc_data[tc_data['TC_material_ID'] == tc_id]
-        
+        tc_points = tc_data[tc_data["TC_material_ID"] == tc_id]
+
         # Create time series
-        ts = pd.Series(tc_points['TC_Value_material'].values, index=tc_points['Year'])
-        
+        ts = pd.Series(tc_points["TC_Value_material"].values, index=tc_points["Year"])
+
         # Reindex to full time vector and interpolate
         ts_full = ts.reindex(time_vector)
         ts_interpolated = ts_full.interpolate(method="linear", limit_direction="both")
-        
+
         # Handle edge cases where interpolation might fail
         if ts_interpolated.isna().any():
             # Fill remaining NaN values with the nearest available value
             ts_interpolated = ts_interpolated.ffill().bfill()
-        
-        dynamic_tc_dict[tc_id] = ts_interpolated.to_numpy()
-        
-        print(f"  -> Created time series for {tc_id}: {len(tc_points)} data points -> {len(ts_interpolated)} time steps")
 
-    print(f"--> Generated {len(dynamic_tc_dict)} dynamic TC parameter(s) from 2_4 format.")
+        dynamic_tc_dict[tc_id] = ts_interpolated.to_numpy()
+
+        print(
+            f"  -> Created time series for {tc_id}: {len(tc_points)} data points -> {len(ts_interpolated)} time steps"
+        )
+
+    print(
+        f"--> Generated {len(dynamic_tc_dict)} dynamic TC parameter(s) from 2_4 format."
+    )
     return dynamic_tc_dict
 
 
@@ -300,12 +324,18 @@ def create_dynamic_tc_parameters(dynamic_tc_data, time_vector):
     print("--> Generating dynamic TC time series via interpolation...")
     required_cols = ["TC_ID", "Year", "Value"]
     if not all(col in dynamic_tc_data.columns for col in required_cols):
-        raise ValueError(f"The '2_5_dynamic_tcs' sheet is missing one of the required columns: {required_cols}.")
+        raise ValueError(
+            f"The '2_5_dynamic_tcs' sheet is missing one of the required columns: {required_cols}."
+        )
 
     cleaned_data = dynamic_tc_data.dropna(subset=["TC_ID", "Year"])
-    duplicates = cleaned_data[cleaned_data.duplicated(subset=["TC_ID", "Year"], keep=False)]
+    duplicates = cleaned_data[
+        cleaned_data.duplicated(subset=["TC_ID", "Year"], keep=False)
+    ]
     if not duplicates.empty:
-        raise ValueError(f"Duplicate entries found for the same TC in the same year in '2_5_dynamic_tcs'. Conflicting rows:\n{duplicates.sort_values(by=['TC_ID', 'Year'])}")
+        raise ValueError(
+            f"Duplicate entries found for the same TC in the same year in '2_5_dynamic_tcs'. Conflicting rows:\n{duplicates.sort_values(by=['TC_ID', 'Year'])}"
+        )
 
     dynamic_tc_dict = {}
     unique_tc_ids = cleaned_data["TC_ID"].unique()
@@ -332,25 +362,31 @@ def _initialize_flows(mfa_system, flow_definitions):
     """
     # Create external dictionary for flow descriptions (ODYM compliance)
     flow_descriptions = {}
-    
+
     for _, row in flow_definitions.iterrows():
         # Check if row has valid flow name and process IDs
-        if (pd.notna(row["Flow_Name"]) and
-            pd.notna(row.get("Flow_Output_Process_ID")) and
-            pd.notna(row.get("Input_Process_ID"))):
-
-            start_id, end_id = int(row["Flow_Output_Process_ID"]), int(row["Input_Process_ID"])
-            flow_obj = msc.Flow(Name=row["Flow_ID"], P_Start=start_id, P_End=end_id, Indices="t,e")
+        if (
+            pd.notna(row["Flow_Name"])
+            and pd.notna(row.get("Flow_Output_Process_ID"))
+            and pd.notna(row.get("Input_Process_ID"))
+        ):
+            start_id, end_id = (
+                int(row["Flow_Output_Process_ID"]),
+                int(row["Input_Process_ID"]),
+            )
+            flow_obj = msc.Flow(
+                Name=row["Flow_ID"], P_Start=start_id, P_End=end_id, Indices="t,e"
+            )
             flow_id = row["Flow_ID"]
 
             # Store descriptive name in external dict (ODYM compliance - no custom attributes)
             flow_descriptions[flow_id] = row["Flow_Name"]
 
             mfa_system.FlowDict[flow_id] = flow_obj
-    
+
     # Store flow descriptions in mfa_system for later use (external to Flow objects)
     mfa_system._flow_descriptions = flow_descriptions
-    
+
     # Initialize flow values using ODYM method with error handling
     try:
         mfa_system.Initialize_FlowValues()
@@ -359,6 +395,7 @@ def _initialize_flows(mfa_system, flow_definitions):
         print(f"--> ERROR: Failed to initialize flow values: {e}")
         print(f"    Flow count: {len(flow_descriptions)} flows defined")
         raise
+
 
 def _populate_primary_flow_data(mfa_system, flow_data):
     """Populates flows with primary data from the '1_2_Data_Flows' sheet.
@@ -389,9 +426,12 @@ def _populate_primary_flow_data(mfa_system, flow_data):
     for flow_id, flow_obj in mfa_system.FlowDict.items():
         if flow_id in flow_data["Flow_ID"].values:
             flow_time_series = flow_data[flow_data["Flow_ID"] == flow_id]
-            if len(flow_time_series) == len(mfa_system.IndexTable.Classification['Time'].Items):
+            if len(flow_time_series) == len(
+                mfa_system.IndexTable.Classification["Time"].Items
+            ):
                 flow_obj.Values[:, 0] = np.array(flow_time_series[material_col]).ravel()
     print("--> Populated data for primary input flows.")
+
 
 def _apply_initial_stock(mfa_system, all_excel_data):
     """Loads and applies initial stock configurations to the system.
@@ -406,8 +446,14 @@ def _apply_initial_stock(mfa_system, all_excel_data):
     initial_stock_configs = data_loader.load_initial_stock_parameters(all_excel_data)
     if initial_stock_configs:
         from engine import initial_stock_engine
-        mfa_system = initial_stock_engine.apply_initial_stock_values(mfa_system, initial_stock_configs)
-        mfa_system = initial_stock_engine.process_initial_stock_outflows(mfa_system, initial_stock_configs)
+
+        mfa_system = initial_stock_engine.apply_initial_stock_values(
+            mfa_system, initial_stock_configs
+        )
+        mfa_system = initial_stock_engine.process_initial_stock_outflows(
+            mfa_system, initial_stock_configs
+        )
+
 
 def _define_content_parameters(mfa_system, content_definitions):
     """Defines content parameters (e.g., water content, metal fractions) for each flow.
@@ -423,7 +469,9 @@ def _define_content_parameters(mfa_system, content_definitions):
         DataFrame containing flow definitions, including content percentages.
     """
     # Build element-to-column mapping dynamically
-    element_column_map = _build_element_column_map(mfa_system.Elements, content_definitions)
+    element_column_map = _build_element_column_map(
+        mfa_system.Elements, content_definitions
+    )
 
     parameter_id_counter = 1
     for _, row in content_definitions.iterrows():
@@ -440,7 +488,7 @@ def _define_content_parameters(mfa_system, content_definitions):
                         ID=parameter_id_counter,
                         Values=row[column_name],
                         Indices="",  # Empty string for scalar parameters (prevents AttributeError in Initialize_ParameterValues)
-                        Unit="1"
+                        Unit="1",
                     )
                     parameter_id_counter += 1
 
@@ -475,7 +523,7 @@ def _build_element_column_map(elements, content_definitions):
     available_columns = list(content_definitions.columns)
 
     for elem_idx, element in enumerate(elements):
-        if element == 'material':
+        if element == "material":
             continue  # Material is total, not a fraction column
 
         # Element index for E{id} format (1-based in Excel, 0-based in Python)
@@ -488,10 +536,16 @@ def _build_element_column_map(elements, content_definitions):
             continue
 
         # Handle Excel duplicate suffix for Fraction format: Flow_E2_Fraction[%]2
-        matching_fraction = [col for col in available_columns if col.startswith(f"Flow_E{element_id}_Fraction[%]")]
+        matching_fraction = [
+            col
+            for col in available_columns
+            if col.startswith(f"Flow_E{element_id}_Fraction[%]")
+        ]
         if matching_fraction:
             column_map[element] = matching_fraction[0]
-            print(f"[INFO] Using column '{matching_fraction[0]}' for element '{element}'")
+            print(
+                f"[INFO] Using column '{matching_fraction[0]}' for element '{element}'"
+            )
             continue
 
         # Try new E{id} format with element name in parentheses: Flow_E2_[%](WC)
@@ -502,7 +556,11 @@ def _build_element_column_map(elements, content_definitions):
 
         # Handle Excel duplicate column suffix (e.g., Flow_E3_[%](DM)2)
         e_format_with_suffix_pattern = f"Flow_E{element_id}_[%]({element})"
-        matching_cols = [col for col in available_columns if col.startswith(e_format_with_suffix_pattern)]
+        matching_cols = [
+            col
+            for col in available_columns
+            if col.startswith(e_format_with_suffix_pattern)
+        ]
         if matching_cols:
             column_map[element] = matching_cols[0]  # Use first match
             print(f"[INFO] Using column '{matching_cols[0]}' for element '{element}'")
@@ -533,18 +591,21 @@ def _build_element_column_map(elements, content_definitions):
             continue
 
         # Special case: CC might be stored as "Flow_CC_DM[%]" (carbon of dry matter)
-        if element == 'CC' or element == 'cc':
+        if element == "CC" or element == "cc":
             cc_dm_name = "Flow_CC_DM[%]"
             if cc_dm_name in available_columns:
                 column_map[element] = cc_dm_name
                 continue
 
         # If not found, log warning (but don't fail - element might not be used)
-        print(f"[WARNING] Column for element '{element}' (E{element_id}) not found in 1_1_Definition_Flows sheet")
+        print(
+            f"[WARNING] Column for element '{element}' (E{element_id}) not found in 1_1_Definition_Flows sheet"
+        )
         print(f"    Expected: {e_format_with_name} or {standard_name} or {legacy_name}")
         # Don't add to map - will be skipped in parameter creation
 
     return column_map
+
 
 def _calculate_elemental_compositions(mfa_system, element_hierarchy=None):
     """Calculates elemental values for flows based on content parameters.
@@ -574,7 +635,7 @@ def _calculate_elemental_compositions(mfa_system, element_hierarchy=None):
     hierarchy_map = {}
     if element_hierarchy:
         for elem_id, elem_info in element_hierarchy.items():
-            elem_name = elem_info['name']
+            elem_name = elem_info["name"]
             hierarchy_map[elem_name] = elem_info
 
     for flow in mfa_system.FlowDict.values():
@@ -586,7 +647,7 @@ def _calculate_elemental_compositions(mfa_system, element_hierarchy=None):
 
         # Calculate each element's values dynamically
         for elem_idx, element_name in enumerate(elements):
-            if element_name == 'material':
+            if element_name == "material":
                 continue  # Skip material (already populated from data)
 
             # Get parameter for this element-flow combination
@@ -601,9 +662,9 @@ def _calculate_elemental_compositions(mfa_system, element_hierarchy=None):
 
             # Phase 5b: Determine parent element for hierarchical calculation
             elem_info = hierarchy_map.get(element_name, {})
-            parent_element = elem_info.get('parent', 'material')
+            parent_element = elem_info.get("parent", "material")
 
-            if parent_element is None or parent_element == 'material':
+            if parent_element is None or parent_element == "material":
                 # Top-level element: calculate as % of material
                 parent_values = material_values
             else:
@@ -613,7 +674,9 @@ def _calculate_elemental_compositions(mfa_system, element_hierarchy=None):
                     parent_values = flow.Values[:, parent_idx]
                 except ValueError:
                     # Parent element not found - fallback to material
-                    print(f"[WARNING] Parent element '{parent_element}' for '{element_name}' not found. Using material instead.")
+                    print(
+                        f"[WARNING] Parent element '{parent_element}' for '{element_name}' not found. Using material instead."
+                    )
                     parent_values = material_values
 
             # Calculate: element_mass = parent_mass * fraction
@@ -624,11 +687,11 @@ def _calculate_elemental_compositions(mfa_system, element_hierarchy=None):
         # Build list of top-level element indices
         top_level_indices = []
         for elem_idx, element_name in enumerate(elements):
-            if element_name == 'material':
+            if element_name == "material":
                 continue
             elem_info = hierarchy_map.get(element_name, {})
-            parent = elem_info.get('parent', 'material')
-            if parent is None or parent == 'material':
+            parent = elem_info.get("parent", "material")
+            if parent is None or parent == "material":
                 top_level_indices.append(elem_idx)
 
         if top_level_indices:
@@ -640,9 +703,12 @@ def _calculate_elemental_compositions(mfa_system, element_hierarchy=None):
                 max_overshoot = np.max(element_sum - material_total)
                 if max_overshoot > 0.1:  # Only warn if significant (>0.1 Mg)
                     top_level_names = [elements[i] for i in top_level_indices]
-                    print(f"[WARNING] {flow.Name}: Top-level element sum exceeds material mass by {max_overshoot:.3f} Mg")
+                    print(
+                        f"[WARNING] {flow.Name}: Top-level element sum exceeds material mass by {max_overshoot:.3f} Mg"
+                    )
                     print(f"    Top-level elements: {top_level_names}")
                     print(f"    Check fraction values sum to ≤ 1.0")
+
 
 def _create_flow_and_process_maps(mfa_system, all_excel_data):
     """Creates lookup maps for process logic and flow-to-TC mappings.
@@ -664,7 +730,9 @@ def _create_flow_and_process_maps(mfa_system, all_excel_data):
     process_definitions = all_excel_data.get("2_1_Definition_Processes")
     process_logic_map = {}
     if process_definitions is not None:
-        process_logic_map = process_definitions.set_index('ID')['Process_Logic'].to_dict()
+        process_logic_map = process_definitions.set_index("ID")[
+            "Process_Logic"
+        ].to_dict()
 
     print("--> Creating Flow-to-TC mapping...")
     flow_tc_map = {}
@@ -673,14 +741,19 @@ def _create_flow_and_process_maps(mfa_system, all_excel_data):
     tc_format = "old"  # default
     static_tc_definitions = all_excel_data.get("2_2_static_TCs")
     if static_tc_definitions is not None and not static_tc_definitions.empty:
-        if 'E1_TC_ID' in static_tc_definitions.columns or 'E2_TC_ID' in static_tc_definitions.columns:
+        if (
+            "E1_TC_ID" in static_tc_definitions.columns
+            or "E2_TC_ID" in static_tc_definitions.columns
+        ):
             tc_format = "new"
             print("  -> Detected new E# format for TC mapping")
         else:
             print("  -> Detected legacy element-name format for TC mapping")
 
     if static_tc_definitions is not None:
-        static_tc_definitions_filtered = static_tc_definitions.dropna(subset=['Flow_ID'])
+        static_tc_definitions_filtered = static_tc_definitions.dropna(
+            subset=["Flow_ID"]
+        )
         for _, row in static_tc_definitions_filtered.iterrows():
             flow_id = row["Flow_ID"]
             tc_ids = {}
@@ -701,10 +774,15 @@ def _create_flow_and_process_maps(mfa_system, all_excel_data):
         # Detect format for dynamic TCs (might be different from static)
         dynamic_tc_format = "old"
         if not dynamic_tc_definitions.empty:
-            if 'E1_TC_ID' in dynamic_tc_definitions.columns or 'E2_TC_ID' in dynamic_tc_definitions.columns:
+            if (
+                "E1_TC_ID" in dynamic_tc_definitions.columns
+                or "E2_TC_ID" in dynamic_tc_definitions.columns
+            ):
                 dynamic_tc_format = "new"
 
-        dynamic_tc_definitions_filtered = dynamic_tc_definitions.dropna(subset=['Flow_ID'])
+        dynamic_tc_definitions_filtered = dynamic_tc_definitions.dropna(
+            subset=["Flow_ID"]
+        )
         for _, row in dynamic_tc_definitions_filtered.iterrows():
             flow_id = row["Flow_ID"]
             if flow_id not in flow_tc_map:
@@ -724,6 +802,7 @@ def _create_flow_and_process_maps(mfa_system, all_excel_data):
 
     print(f"  -> Created TC mapping for {len(flow_tc_map)} flows")
     return flow_tc_map, process_logic_map
+
 
 def define_flows_and_parameters(mfa_system, all_excel_data):
     """Orchestrates the definition of flows and all model parameters.
@@ -758,7 +837,7 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
     _populate_primary_flow_data(mfa_system, flow_data)
     _apply_initial_stock(mfa_system, all_excel_data)
     _define_content_parameters(mfa_system, flow_definitions)
-    
+
     # Initialize all parameter values using ODYM method with error handling
     try:
         mfa_system.Initialize_ParameterValues()
@@ -788,13 +867,13 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
                     value = row.iloc[2]
 
                     # First pass: collect Element_ID_X
-                    if key.startswith('Element_ID_'):
+                    if key.startswith("Element_ID_"):
                         try:
-                            element_num = int(key.split('_')[-1])
+                            element_num = int(key.split("_")[-1])
                             if pd.notna(value) and str(value).strip():
                                 element_structure[element_num] = {
-                                    'name': str(value).strip(),
-                                    'parent': None
+                                    "name": str(value).strip(),
+                                    "parent": None,
                                 }
                         except (ValueError, IndexError):
                             continue
@@ -805,12 +884,14 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
                     key = str(row.iloc[1]).strip()
                     value = row.iloc[2]
 
-                    if key.startswith('Parent_Element_ID_'):
+                    if key.startswith("Parent_Element_ID_"):
                         try:
-                            element_num = int(key.split('_')[-1])
+                            element_num = int(key.split("_")[-1])
                             if pd.notna(value) and str(value).strip():
                                 if element_num in element_structure:
-                                    element_structure[element_num]['parent'] = str(value).strip()
+                                    element_structure[element_num]["parent"] = str(
+                                        value
+                                    ).strip()
                         except (ValueError, IndexError):
                             continue
 
@@ -820,10 +901,12 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
                 print(f"--> Using hierarchical element calculation (Phase 5b)")
                 for eid in sorted(element_hierarchy.keys()):
                     elem = element_hierarchy[eid]
-                    if elem.get('parent'):
+                    if elem.get("parent"):
                         print(f"    {elem['name']} = {elem['parent']} × fraction")
     except Exception as e:
-        print(f"[INFO] Could not load Element_Hierarchy: {e}. Using flat element structure.")
+        print(
+            f"[INFO] Could not load Element_Hierarchy: {e}. Using flat element structure."
+        )
 
     # Store hierarchy on mfa_system for plotting and analysis
     # NOTE: This is a BioDYM extension (not part of standard ODYM)
@@ -831,7 +914,9 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
     mfa_system._element_hierarchy = element_hierarchy
 
     _calculate_elemental_compositions(mfa_system, element_hierarchy)
-    flow_tc_map, process_logic_map = _create_flow_and_process_maps(mfa_system, all_excel_data)
+    flow_tc_map, process_logic_map = _create_flow_and_process_maps(
+        mfa_system, all_excel_data
+    )
 
     # ODYM compliance: Check system consistency with error handling
     try:
@@ -840,8 +925,9 @@ def define_flows_and_parameters(mfa_system, all_excel_data):
     except Exception as e:
         print(f"--> ERROR: Consistency check failed: {e}")
         raise
-    
+
     return mfa_system, all_excel_data, flow_tc_map, process_logic_map
+
 
 def apply_scenario(mfa_system, scenario_definitions, selected_scenario_name):
     """
@@ -859,26 +945,30 @@ def apply_scenario(mfa_system, scenario_definitions, selected_scenario_name):
     modifications = scenario_definitions.get(selected_scenario_name, [])
 
     for mod in modifications:
-        param_name = mod['Parameter_Name']
-        
+        param_name = mod["Parameter_Name"]
+
         # Validate and clean operation field
-        operation_raw = mod['Operation']
-        if pd.isna(operation_raw) or operation_raw == '':
-            print(f"       WARNING: Empty operation for parameter '{param_name}'. Skipping.")
+        operation_raw = mod["Operation"]
+        if pd.isna(operation_raw) or operation_raw == "":
+            print(
+                f"       WARNING: Empty operation for parameter '{param_name}'. Skipping."
+            )
             continue
         operation = str(operation_raw).lower().strip()
-        
+
         # Validate and clean value field
-        value_raw = mod['New_Value']
+        value_raw = mod["New_Value"]
         if pd.isna(value_raw):
-            print(f"       WARNING: Empty value for parameter '{param_name}'. Skipping.")
+            print(
+                f"       WARNING: Empty value for parameter '{param_name}'. Skipping."
+            )
             continue
         value = float(value_raw)
-        
+
         # Get year range (if specified)
-        start_year = mod.get('start_year', None)
-        end_year = mod.get('end_year', None)
-        
+        start_year = mod.get("start_year", None)
+        end_year = mod.get("end_year", None)
+
         # Determine year range for modification
         if start_year is not None and end_year is not None:
             year_range_str = f" (years {start_year}-{end_year})"
@@ -889,26 +979,32 @@ def apply_scenario(mfa_system, scenario_definitions, selected_scenario_name):
         else:
             year_range_str = " (all years)"
 
-        print(f"    -> Applying: {param_name} | Operation: {operation} | Value: {value}{year_range_str}")
+        print(
+            f"    -> Applying: {param_name} | Operation: {operation} | Value: {value}{year_range_str}"
+        )
 
-        if param_name.startswith('F_') and param_name in mfa_system.FlowDict:
+        if param_name.startswith("F_") and param_name in mfa_system.FlowDict:
             flow_obj = mfa_system.FlowDict[param_name]
-            
+
             # Get time indices for year range
-            time_indices = _get_time_indices_for_year_range(mfa_system, start_year, end_year)
-            
+            time_indices = _get_time_indices_for_year_range(
+                mfa_system, start_year, end_year
+            )
+
             # Skip if no valid time indices
             if len(time_indices) == 0:
                 continue
-            
-            if operation == 'replace':
+
+            if operation == "replace":
                 flow_obj.Values[time_indices, 0] = float(value)
-            elif operation == 'multiply':
+            elif operation == "multiply":
                 flow_obj.Values[time_indices, 0] *= float(value)
-            elif operation == 'add':
+            elif operation == "add":
                 flow_obj.Values[time_indices, 0] += float(value)
             else:
-                print(f"       WARNING: Unknown operation '{operation}' for Flow {param_name}")
+                print(
+                    f"       WARNING: Unknown operation '{operation}' for Flow {param_name}"
+                )
 
         elif param_name in mfa_system.ParameterDict:
             param_obj = mfa_system.ParameterDict[param_name]
@@ -916,37 +1012,47 @@ def apply_scenario(mfa_system, scenario_definitions, selected_scenario_name):
 
             if is_dynamic:
                 # For dynamic parameters, apply year-specific modifications
-                time_indices = _get_time_indices_for_year_range(mfa_system, start_year, end_year)
-                
+                time_indices = _get_time_indices_for_year_range(
+                    mfa_system, start_year, end_year
+                )
+
                 # Skip if no valid time indices
                 if len(time_indices) == 0:
                     continue
-                
-                if operation == 'replace':
+
+                if operation == "replace":
                     param_obj.Values[time_indices] = float(value)
-                elif operation == 'multiply':
+                elif operation == "multiply":
                     param_obj.Values[time_indices] *= float(value)
-                elif operation == 'add':
+                elif operation == "add":
                     param_obj.Values[time_indices] += float(value)
                 else:
-                    print(f"       WARNING: Unknown operation '{operation}' for Parameter {param_name}")
+                    print(
+                        f"       WARNING: Unknown operation '{operation}' for Parameter {param_name}"
+                    )
             else:
                 # For static parameters, check if year range is specified
                 if start_year is not None or end_year is not None:
-                    print(f"       WARNING: Parameter '{param_name}' is static but year range specified ({start_year}-{end_year}). Static parameters apply to all years.")
-                
+                    print(
+                        f"       WARNING: Parameter '{param_name}' is static but year range specified ({start_year}-{end_year}). Static parameters apply to all years."
+                    )
+
                 # For static parameters, apply to all values (backward compatibility)
-                if operation == 'replace':
+                if operation == "replace":
                     param_obj.Values = float(value)
-                elif operation == 'multiply':
+                elif operation == "multiply":
                     param_obj.Values *= float(value)
-                elif operation == 'add':
+                elif operation == "add":
                     param_obj.Values += float(value)
                 else:
-                    print(f"       WARNING: Unknown operation '{operation}' for Parameter {param_name}")
-        
+                    print(
+                        f"       WARNING: Unknown operation '{operation}' for Parameter {param_name}"
+                    )
+
         else:
-            print(f"       WARNING: Parameter or Flow '{param_name}' not found in the system.")
+            print(
+                f"       WARNING: Parameter or Flow '{param_name}' not found in the system."
+            )
 
     print("\n    -> Recalculating elemental compositions for modified flows...")
     for flow in mfa_system.FlowDict.values():
@@ -963,26 +1069,28 @@ def apply_scenario(mfa_system, scenario_definitions, selected_scenario_name):
 def _get_time_indices_for_year_range(mfa_system, start_year, end_year):
     """
     Get time indices for a specific year range.
-    
+
     Args:
         mfa_system: MFA system object
         start_year: Start year (None means from beginning)
         end_year: End year (None means to end)
-        
+
     Returns:
         numpy array of time indices
     """
     time_items = mfa_system.IndexTable.Classification["Time"].Items
-    
+
     # Validate year range
     if start_year is not None and end_year is not None and start_year > end_year:
-        print(f"       WARNING: start_year ({start_year}) > end_year ({end_year}). Skipping modification.")
+        print(
+            f"       WARNING: start_year ({start_year}) > end_year ({end_year}). Skipping modification."
+        )
         return np.array([])
-    
+
     if start_year is None and end_year is None:
         # Apply to all years
         return np.arange(len(time_items))
-    
+
     # Find start index
     if start_year is None:
         start_idx = 0
@@ -993,9 +1101,11 @@ def _get_time_indices_for_year_range(mfa_system, start_year, end_year):
                 start_idx = i
                 break
         if start_idx is None:
-            print(f"       WARNING: start_year ({start_year}) is beyond the model time range ({time_items[0]}-{time_items[-1]}). Skipping modification.")
+            print(
+                f"       WARNING: start_year ({start_year}) is beyond the model time range ({time_items[0]}-{time_items[-1]}). Skipping modification."
+            )
             return np.array([])
-    
+
     # Find end index
     if end_year is None:
         end_idx = len(time_items)
@@ -1007,11 +1117,13 @@ def _get_time_indices_for_year_range(mfa_system, start_year, end_year):
                 break
         if end_idx is None:
             end_idx = len(time_items)  # Beyond range
-    
+
     # Validate that we have a valid range
     if start_idx >= end_idx:
-        print(f"       WARNING: No valid time indices found for year range {start_year}-{end_year}. Skipping modification.")
+        print(
+            f"       WARNING: No valid time indices found for year range {start_year}-{end_year}. Skipping modification."
+        )
         return np.array([])
-    
+
     # Return indices for the year range
     return np.arange(start_idx, end_idx)

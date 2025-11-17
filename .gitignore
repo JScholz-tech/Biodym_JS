@@ -56,6 +56,9 @@ exports/
 !01_data/01_input/250625_Template_CS0.xlsx
 !01_data/01_input/250922_CS1_Wheat_Straw.xlsx
 
+# Temporary/lock files created by Windows/Excel (hex names like EC231400, 8494D220)
+01_data/01_input/[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]
+
 # Scenario files
 scenarios/*.xlsx
 scenarios/*.json

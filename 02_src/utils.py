@@ -10,7 +10,107 @@ import numpy as np
 import pandas as pd
 import json
 import os
+import shutil
+import tempfile
 from datetime import datetime
+from pathlib import Path
+
+
+def create_temp_excel_copy(excel_path, silent=False):
+    """Create a temporary copy of an Excel file to avoid file locking issues.
+
+    When Python reads an Excel file, it can create file locks that conflict
+    with Excel when the user tries to save the original file. This function
+    creates a temporary copy that Python can safely read without locking the original.
+
+    Parameters
+    ----------
+    excel_path : str or Path
+        Path to the original Excel file
+    silent : bool, optional
+        If True, suppresses print messages. Default is False.
+
+    Returns
+    -------
+    str
+        Path to the temporary copy of the Excel file
+
+    Notes
+    -----
+    The temporary file will be automatically cleaned up when Python exits.
+    The original file remains unlocked and can be edited/saved freely.
+
+    Examples
+    --------
+    >>> temp_path = create_temp_excel_copy("my_analysis.xlsx")
+    >>> df = pd.read_excel(temp_path)  # Reads from temp copy
+    # Original file can be edited/saved in Excel without conflicts
+    """
+    excel_path = Path(excel_path)
+
+    # Create a temporary file with the same extension
+    suffix = excel_path.suffix  # .xlsx or .xlsm
+    temp_fd, temp_path = tempfile.mkstemp(suffix=suffix, prefix="BioDYM_temp_")
+
+    # Close the file descriptor (we just need the path)
+    os.close(temp_fd)
+
+    # Copy the Excel file to the temp location
+    shutil.copy2(excel_path, temp_path)
+
+    if not silent:
+        print(f"\n📋 Created temporary copy of input file for safe reading")
+        print(f"   Original: {excel_path.name}")
+        print(f"   Temp copy: {temp_path}")
+        print(f"   ✓ You can now edit and save the original file without conflicts\n")
+
+    return temp_path
+
+
+def safe_read_excel(excel_path, **kwargs):
+    """Read Excel file from a temporary copy to avoid file locking issues.
+
+    This is a drop-in replacement for pd.read_excel() that automatically
+    creates a temporary copy of the Excel file before reading. This prevents
+    file locking conflicts when the user tries to edit/save the original file.
+
+    Parameters
+    ----------
+    excel_path : str or Path
+        Path to the Excel file to read
+    **kwargs
+        All other arguments are passed directly to pd.read_excel()
+
+    Returns
+    -------
+    DataFrame or dict of DataFrames
+        Same return type as pd.read_excel()
+
+    Examples
+    --------
+    >>> df = safe_read_excel("data.xlsx", sheet_name="Sheet1")
+    >>> all_sheets = safe_read_excel("data.xlsx", sheet_name=None)
+    """
+    excel_path = Path(excel_path)
+
+    # Create temp copy (show message on first call)
+    temp_path = create_temp_excel_copy(excel_path, silent=False)
+
+    print(f"   📖 Reading from temporary copy...")
+    print(f"   ✓ Original file '{excel_path.name}' is free to edit/save\n")
+
+    # Read from temp copy
+    try:
+        result = pd.read_excel(temp_path, **kwargs)
+        return result
+    finally:
+        # Clean up temp file immediately after reading
+        try:
+            os.unlink(temp_path)
+            print(f"   🗑️  Temp file cleaned up: {temp_path}")
+        except Exception as e:
+            print(f"   ⚠️  Could not delete temp file (will be auto-cleaned): {e}")
+            pass  # Temp file will be cleaned up on exit anyway
 
 
 def sample_parameters(uncertainty_params):
@@ -97,8 +197,9 @@ def sample_parameters(uncertainty_params):
     return sampled_values
 
 
-
-def export_results_to_excel(mfa_system_results, output_path, input_file_path="Not specified"):
+def export_results_to_excel(
+    mfa_system_results, output_path, input_file_path="Not specified"
+):
     """
     Exports MFA system results to a professionally formatted Excel file.
 
@@ -137,7 +238,7 @@ def export_results_to_excel(mfa_system_results, output_path, input_file_path="No
     if mfa_system_results is None:
         print("Export skipped: No results to export.")
         return
-        
+
     print(f"--> Exporting results to '{output_path}'...")
 
     try:
@@ -147,24 +248,34 @@ def export_results_to_excel(mfa_system_results, output_path, input_file_path="No
         print(f"Export skipped: Error: {e}")
         return
 
-    with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
+    with pd.ExcelWriter(output_path, engine="xlsxwriter") as writer:
         workbook = writer.book
-        header_format = workbook.add_format({'bold': True, 'bottom': 2, 'bg_color': '#F0F0F0'})
+        header_format = workbook.add_format(
+            {"bold": True, "bottom": 2, "bg_color": "#F0F0F0"}
+        )
 
         # --- 1. Export Info Sheet ---
-        meta_df = pd.DataFrame([
-            ["Input File", input_file_path],
-            ["Export Date", datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
-            ["Time Range", f"{time_index[0]} - {time_index[-1]}"],
-            ["Elements", ", ".join(elements)],
-            ["Total Processes", len(mfa_system_results.ProcessList)],
-            ["Total Flows", len(mfa_system_results.FlowDict)],
-            ["Total Stocks", len([s for s in mfa_system_results.StockDict if s.startswith('S_')])]
-        ], columns=["Attribute", "Value"])
+        meta_df = pd.DataFrame(
+            [
+                ["Input File", input_file_path],
+                ["Export Date", datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+                ["Time Range", f"{time_index[0]} - {time_index[-1]}"],
+                ["Elements", ", ".join(elements)],
+                ["Total Processes", len(mfa_system_results.ProcessList)],
+                ["Total Flows", len(mfa_system_results.FlowDict)],
+                [
+                    "Total Stocks",
+                    len(
+                        [s for s in mfa_system_results.StockDict if s.startswith("S_")]
+                    ),
+                ],
+            ],
+            columns=["Attribute", "Value"],
+        )
         meta_df.to_excel(writer, sheet_name="Export_Info", index=False)
         worksheet = writer.sheets["Export_Info"]
-        worksheet.set_column('A:A', 20) # Set width for Attribute column
-        worksheet.set_column('B:B', 80) # Set width for Value column
+        worksheet.set_column("A:A", 20)  # Set width for Attribute column
+        worksheet.set_column("B:B", 80)  # Set width for Value column
 
         # --- 2. Long-Format Data (for programmatic use) ---
         flow_data_rows = []
@@ -199,28 +310,31 @@ def export_results_to_excel(mfa_system_results, output_path, input_file_path="No
         for element in elements:
             # Flows Wide
             if not flow_df_long.empty and element in flow_df_long.columns:
-                flow_df_wide = flow_df_long.pivot_table(index="Flow", columns="Year", values=element)
+                flow_df_wide = flow_df_long.pivot_table(
+                    index="Flow", columns="Year", values=element
+                )
                 sheet_name = f"Flows_wide_{element}"
                 flow_df_wide.to_excel(writer, sheet_name=sheet_name)
                 worksheet = writer.sheets[sheet_name]
-                worksheet.write(0, 0, 'Flow', header_format)
+                worksheet.write(0, 0, "Flow", header_format)
                 for col_num, value in enumerate(flow_df_wide.columns.values):
                     worksheet.write(0, col_num + 1, value, header_format)
-                worksheet.set_column(0, 0, 30) # Width for flow names
+                worksheet.set_column(0, 0, 30)  # Width for flow names
 
             # Stocks Wide
             if not stock_df_long.empty and element in stock_df_long.columns:
-                stock_df_wide = stock_df_long.pivot_table(index="Stock", columns="Year", values=element)
+                stock_df_wide = stock_df_long.pivot_table(
+                    index="Stock", columns="Year", values=element
+                )
                 sheet_name = f"Stocks_wide_{element}"
                 stock_df_wide.to_excel(writer, sheet_name=sheet_name)
                 worksheet = writer.sheets[sheet_name]
-                worksheet.write(0, 0, 'Stock', header_format)
+                worksheet.write(0, 0, "Stock", header_format)
                 for col_num, value in enumerate(stock_df_wide.columns.values):
                     worksheet.write(0, col_num + 1, value, header_format)
-                worksheet.set_column(0, 0, 30) # Width for stock names
+                worksheet.set_column(0, 0, 30)  # Width for stock names
 
     print(f"✅ Results successfully exported to {output_path}")
-
 
 
 class ScenarioManager:
