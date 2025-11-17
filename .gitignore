@@ -45,6 +45,10 @@ biodym_mfa_tool/
 studies/
 Writing project/
 
+# AI assistance and utility scripts (not part of core project)
+07_AI_Coding_Assistance/
+scripts/
+
 # Generated output files
 exports/
 
