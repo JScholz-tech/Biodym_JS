@@ -335,9 +335,9 @@ time_span = end_year - start_year + 1
 
 # Count parameters
 num_static_tcs = sum(1 for p in mfa_system_configured.ParameterDict.values()
-                     if 'TC' in p.Name and len(p.Values.shape) == 0)
+                     if 'TC' in p.Name and np.isscalar(p.Values))
 num_dynamic_tcs = sum(1 for p in mfa_system_configured.ParameterDict.values()
-                      if 'TC' in p.Name and len(p.Values.shape) > 0)
+                      if 'TC' in p.Name and isinstance(p.Values, np.ndarray))
 num_dsm_processes = len(dsm_params) if dsm_params else 0
 num_fomp_processes = len(fomp_params) if fomp_params else 0
 
