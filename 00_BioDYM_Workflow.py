@@ -68,6 +68,12 @@
 # - **Documentation**: `05_docs/` folder
 # - **Issues**: [GitHub Issues](https://github.com/your-repo/BioDYM/issues)
 #
+# ### 🔧 Debug Mode
+# Set `DEBUG_MODE = True` below to see detailed technical output during data loading and calculation.
+# Default: `False` (clean, user-friendly output)
+
+DEBUG_MODE = False  # Set to True for detailed technical output
+
 # ---
 
 # # 1. Setup and Data Loading
@@ -271,12 +277,12 @@ mfa_system_base = system_setup.initialize_mfa_system(model_classification, index
 
 print(format_step(Icons.DATA_LOADING, "2.3", "Loading processes and data..."))
 mfa_system_base, all_excel_data = system_setup.load_and_define_processes(
-    mfa_system_base, input_data, data_loader
+    mfa_system_base, input_data, data_loader, debug_mode=DEBUG_MODE
 )
 
 print(format_step(Icons.DATA_LOADING, "2.4", "Defining flows and parameters..."))
 mfa_system_configured, _, flow_tc_map, process_logic_map = (
-    system_setup.define_flows_and_parameters(mfa_system_base, all_excel_data)
+    system_setup.define_flows_and_parameters(mfa_system_base, all_excel_data, debug_mode=DEBUG_MODE)
 )
 
 print(
@@ -288,7 +294,7 @@ print(
 # Centralized call to the new, unified TC loader
 time_vector = mfa_system_configured.IndexTable.Classification["Time"].Items
 elements_list = mfa_system_configured.Elements
-tc_params = data_loader.load_tc_parameters(all_excel_data, elements_list, time_vector)
+tc_params = data_loader.load_tc_parameters(all_excel_data, elements_list, time_vector, debug_mode=DEBUG_MODE)
 mfa_system_configured.ParameterDict.update(
     tc_params
 )  # Add the new TC params to the system
@@ -313,6 +319,71 @@ mfa_results_baseline, dsm_details_baseline = solver.run_mfa_calculation(
     process_logic_map=process_logic_map,
 )
 print(format_success("Baseline calculation completed successfully!"))
+
+# ## 2.7 Data Validation Summary
+#
+# ### 📋 Summary of Loaded Data
+
+print(format_header("DATA VALIDATION SUMMARY", level=2))
+
+# Count loaded items
+num_processes = len(mfa_system_configured.ProcessList)
+num_flows = len(mfa_system_configured.FlowDict)
+num_stocks = len([k for k in mfa_system_configured.StockDict.keys()])
+num_elements = len(elements)
+time_span = end_year - start_year + 1
+
+# Count parameters
+num_static_tcs = sum(1 for p in mfa_system_configured.ParameterDict.values()
+                     if 'TC' in p.Name and len(p.Values.shape) == 0)
+num_dynamic_tcs = sum(1 for p in mfa_system_configured.ParameterDict.values()
+                      if 'TC' in p.Name and len(p.Values.shape) > 0)
+num_dsm_processes = len(dsm_params) if dsm_params else 0
+num_fomp_processes = len(fomp_params) if fomp_params else 0
+
+# Display summary
+print("\n📊 Configuration & Scope")
+print(f"  ✅ Time range: {start_year}-{end_year} ({time_span} years)")
+print(f"  ✅ Elements: {num_elements} defined ({', '.join(elements)})")
+print(f"  ✅ Regions: {len(regions)} ({', '.join(regions)})")
+
+print("\n🏗️  System Structure")
+print(f"  ✅ Processes: {num_processes} loaded")
+print(f"  ✅ Flows: {num_flows} defined")
+print(f"  ✅ Stocks: {num_stocks} configured")
+
+print("\n⚙️  Parameters")
+print(f"  ✅ Transfer Coefficients:")
+print(f"     • Static TCs: {num_static_tcs}")
+print(f"     • Dynamic TCs: {num_dynamic_tcs}")
+if num_dsm_processes > 0:
+    print(f"  ✅ DSM Processes: {num_dsm_processes} configured")
+else:
+    print(f"  ⚠️  DSM Processes: None configured")
+if num_fomp_processes > 0:
+    print(f"  ✅ FOMP Processes: {num_fomp_processes} configured")
+else:
+    print(f"  ⚠️  FOMP Processes: None configured")
+
+# Check for warnings
+warnings_found = []
+if num_dsm_processes == 0 and config_obj.RUN_DSM_CALCULATION:
+    warnings_found.append("DSM calculation enabled but no processes configured")
+if num_fomp_processes == 0 and config_obj.RUN_FOMP_CALCULATION:
+    warnings_found.append("FOMP calculation enabled but no processes configured")
+
+# Overall status
+print("\n📍 Overall Status")
+if len(warnings_found) == 0:
+    print("  🟢 ALL SYSTEMS GO - No warnings detected")
+    print("  ✅ All required data loaded successfully")
+else:
+    print(f"  🟡 READY WITH {len(warnings_found)} WARNING(S)")
+    for warning in warnings_found:
+        print(f"     ⚠️  {warning}")
+    print("  ✅ Analysis can proceed (warnings are non-critical)")
+
+print()
 
 # ## 2.2 Mass Balance Verification
 
