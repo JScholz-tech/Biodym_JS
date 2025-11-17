@@ -1,0 +1,24 @@
+Process_ID,Name,X_Position_Material,Y_Position_Material,Node_Color_#,Rationale
+0,Environment,0.05,0.20,#228B22,Input - bottom left
+1,Atmosphere,0.05,0.15,#87CEEB,Input - emissions
+2,Rye_Cultivation,0.20,0.35,#90EE90,Primary production
+3,Rye_Harvest,0.25,0.35,#90EE90,After cultivation
+4,Rye-Grain Processing,0.35,0.50,#F5DEB3,Processing - main flow
+5,Rye-Straw FOMP,0.50,0.25,#C73E1D,FOMP - decay (HIGHLIGHTED)
+6,Rye-Straw Use,0.38,0.45,#F5DEB3,Straw utilization
+7,Biogas Incineration,0.85,0.50,#6C757D,End-of-life
+8,Biogas Production-Delta,0.48,0.52,#F5DEB3,Near biogas
+9,Biogas Production,0.50,0.50,#F5DEB3,Secondary processing
+10,Cow-Manure Production,0.35,0.80,#8B4513,Supporting - upper
+11,MBC Production,0.55,0.65,#F5DEB3,Pre-use processing
+12,MBC Production Waste,0.53,0.72,#6C757D,Waste treatment
+13,MBC Production-Delta,0.52,0.68,#F5DEB3,Near MBC prod
+14,Millet Production,0.38,0.82,#8B4513,Supporting - upper
+15,MBC Use-Phase DSM,0.70,0.65,#28A745,DSM - STOCK (HIGHLIGHTED)
+16,MBC-EoL Treatment,0.82,0.65,#6C757D,End-of-life
+17,MBC-EoL Pyrolysis,0.85,0.70,#6C757D,EoL option 1
+18,MBC-EoL Incineration,0.85,0.60,#6C757D,EoL option 2
+19,Ash Treatment,0.88,0.65,#808080,Final treatment
+20,Water Import,0.05,0.80,#1E90FF,Input - water
+21,Water Export,0.95,0.80,#4682B4,Output - water
+22,Lithosphere Stock,0.95,0.20,#654321,Output - soil

@@ -15,7 +15,8 @@ try:
     from .. import utils
 except ImportError:
     import sys
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     import utils
 
 
@@ -133,7 +134,9 @@ def load_part6_visualization_sheets(excel_file_path: str) -> Dict[str, Any]:
         layout_sheet_names = ["6_3_Layout_Settings", "6_3_Layout_Configuration"]
         actual_layout_sheet = find_sheet_by_name(excel_file, layout_sheet_names)
         if actual_layout_sheet:
-            layout_df = utils.safe_read_excel(excel_file_path, sheet_name=actual_layout_sheet)
+            layout_df = utils.safe_read_excel(
+                excel_file_path, sheet_name=actual_layout_sheet
+            )
             if "Setting" in layout_df.columns and "Value" in layout_df.columns:
                 layout_dict = {}
                 for _, row in layout_df.iterrows():
@@ -202,7 +205,9 @@ def load_color_palette_config(excel_file_path: str) -> Dict[str, Any]:
             print("  Loaded Color_Palette")
         sheet_name = find_sheet_by_name(excel_file, ["Process_Type_Colors"])
         if sheet_name:
-            process_type_df = utils.safe_read_excel(excel_file_path, sheet_name=sheet_name)
+            process_type_df = utils.safe_read_excel(
+                excel_file_path, sheet_name=sheet_name
+            )
             config["process_type_colors"] = process_type_df.to_dict("records")
             print("  Loaded Process_Type_Colors")
     except Exception as e:

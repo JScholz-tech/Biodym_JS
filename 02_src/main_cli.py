@@ -28,9 +28,7 @@ odym_path = os.path.join(
 sys.path.insert(0, odym_path)
 
 # Add bioDYM add-on to path
-biodym_addon_path = os.path.join(
-    project_root, "framework", "bioDYM_add-on", "modules"
-)
+biodym_addon_path = os.path.join(project_root, "framework", "bioDYM_add-on", "modules")
 sys.path.insert(0, biodym_addon_path)
 
 # Import BioDYM modules
@@ -231,14 +229,16 @@ def run_mfa_analysis(args):
     # Set defaults if not provided
     start_year = args.start_year if args.start_year is not None else 2025
     end_year = args.end_year if args.end_year is not None else 2050
-    elements = args.elements if args.elements is not None else ['material', 'WC', 'DM', 'CC']
+    elements = (
+        args.elements if args.elements is not None else ["material", "WC", "DM", "CC"]
+    )
 
     # Configuration summary
     print("\nConfiguration:")
     print(f"   Input file: {args.input}")
     print(f"   Output file: {args.output}")
     print(f"   Time range: {start_year} - {end_year}")
-    elements_str = ', '.join(elements)
+    elements_str = ", ".join(elements)
     print(f"   Elements: {elements_str}")
     print(f"   Monte Carlo: {'Yes' if args.monte_carlo else 'No'}")
     if args.monte_carlo:

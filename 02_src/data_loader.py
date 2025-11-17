@@ -10,7 +10,6 @@ UPDATED: Added column name mapping to handle naming convention changes.
 """
 
 import pandas as pd
-import numpy as np
 
 # Import ODYM classes only when needed
 try:
@@ -558,7 +557,9 @@ def load_tc_parameters(all_excel_data, elements, time_vector, debug_mode=False):
     ]
     if static_processes and static_tc_defs is not None:
         if debug_mode:
-            print(f"  -> Processing static TCs for {len(static_processes)} processes...")
+            print(
+                f"  -> Processing static TCs for {len(static_processes)} processes..."
+            )
         for _, row in static_tc_defs.iterrows():
             process_id = row.get("Process_ID")
             if pd.isna(process_id) or int(process_id) not in static_processes:
@@ -603,7 +604,9 @@ def load_tc_parameters(all_excel_data, elements, time_vector, debug_mode=False):
     ]
     if dynamic_processes and dynamic_tc_defs is not None:
         if debug_mode:
-            print(f"  -> Processing dynamic TCs for {len(dynamic_processes)} processes...")
+            print(
+                f"  -> Processing dynamic TCs for {len(dynamic_processes)} processes..."
+            )
 
         # Detect format for dynamic TCs (same as static)
         dynamic_tc_format = "old"
@@ -678,7 +681,9 @@ def load_tc_parameters(all_excel_data, elements, time_vector, debug_mode=False):
     if len(tc_params) > 0:
         static_count = len([p for p in static_processes]) if static_processes else 0
         dynamic_count = len([p for p in dynamic_processes]) if dynamic_processes else 0
-        print(f"   ✓ Loaded {len(tc_params)} transfer coefficients ({static_count} static, {dynamic_count} dynamic)")
+        print(
+            f"   ✓ Loaded {len(tc_params)} transfer coefficients ({static_count} static, {dynamic_count} dynamic)"
+        )
     return tc_params
 
 
@@ -742,14 +747,16 @@ def load_dsm_parameters(excel_data, debug_mode=False):
 
     if not dsm_process_ids:
         if debug_mode:
-            print(f"--> INFO: No DSM processes found in main sheet.")
+            print("--> INFO: No DSM processes found in main sheet.")
         return {}
 
     # Filter DSM sheet data for identified DSM processes
     dsm_df = df_dsm[df_dsm["Process_ID"].isin(dsm_process_ids)].copy()
     if dsm_df.empty:
         if debug_mode:
-            print(f"--> INFO: No DSM parameter data found for identified DSM processes.")
+            print(
+                "--> INFO: No DSM parameter data found for identified DSM processes."
+            )
         return {}
 
     dsm_df = dsm_df.dropna(subset=["Process_ID"])
@@ -818,7 +825,7 @@ def load_stock_parameters(excel_data):
     )
 
     if not stock_process_ids:
-        print(f"--> INFO: No stock processes found.")
+        print("--> INFO: No stock processes found.")
         return {}
 
     # Create stock configuration dictionary
@@ -1296,7 +1303,7 @@ def load_scenario_definitions(excel_data):
     print(f"--> Loading scenario definitions from sheet '{sheet_name}'...")
 
     if not sheet_name or excel_data[sheet_name].empty:
-        print(f"--> INFO: Scenario sheet not found or is empty. No scenarios loaded.")
+        print("--> INFO: Scenario sheet not found or is empty. No scenarios loaded.")
         return {}
 
     df = excel_data[sheet_name]

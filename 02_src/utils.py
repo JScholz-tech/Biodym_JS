@@ -58,12 +58,6 @@ def create_temp_excel_copy(excel_path, silent=False):
     # Copy the Excel file to the temp location
     shutil.copy2(excel_path, temp_path)
 
-    if not silent:
-        print(f"\n📋 Created temporary copy of input file for safe reading")
-        print(f"   Original: {excel_path.name}")
-        print(f"   Temp copy: {temp_path}")
-        print(f"   ✓ You can now edit and save the original file without conflicts\n")
-
     return temp_path
 
 
@@ -95,9 +89,6 @@ def safe_read_excel(excel_path, **kwargs):
 
     # Create temp copy (show message on first call)
     temp_path = create_temp_excel_copy(excel_path, silent=False)
-
-    print(f"   📖 Reading from temporary copy...")
-    print(f"   ✓ Original file '{excel_path.name}' is free to edit/save\n")
 
     # Read from temp copy
     try:

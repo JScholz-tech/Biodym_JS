@@ -8,7 +8,10 @@ based on a more precise analytical solution for first-order decay.
 
 import numpy as np
 
-def _calculate_fomp_series(dm_inflow_series, params, initial_stock_labile, initial_stock_recalcitrant):
+
+def _calculate_fomp_series(
+    dm_inflow_series, params, initial_stock_labile, initial_stock_recalcitrant
+):
     """Implements the core two-pool, first-order decay model calculation.
 
     This is a pure function that takes time-series data and parameters as input
@@ -36,7 +39,7 @@ def _calculate_fomp_series(dm_inflow_series, params, initial_stock_labile, initi
         `outflow_environmental`.
     """
     num_years = len(dm_inflow_series)
-    
+
     # Create result arrays
     stock_labile_series = np.zeros(num_years)
     stock_recalcitrant_series = np.zeros(num_years)
@@ -44,10 +47,10 @@ def _calculate_fomp_series(dm_inflow_series, params, initial_stock_labile, initi
     outflow_environmental_series = np.zeros(num_years)
 
     # Get parameters from dict
-    f_labile = params['f_labile']
-    k_labile = params['k_labile']
-    k_recalcitrant = params['k_recalcitrant']
-    cc_dm = params['cc_dm']
+    f_labile = params["f_labile"]
+    k_labile = params["k_labile"]
+    k_recalcitrant = params["k_recalcitrant"]
+    cc_dm = params["cc_dm"]
 
     # Initialize stocks for the loop
     current_stock_labile = initial_stock_labile
@@ -68,8 +71,10 @@ def _calculate_fomp_series(dm_inflow_series, params, initial_stock_labile, initi
 
         # d. Calculate Stocks at End of Year
         end_of_year_labile = (stock_start_labile - decay_labile) + inflow_labile
-        end_of_year_recalcitrant = (stock_start_recalcitrant - decay_recalcitrant) + inflow_recalcitrant
-        
+        end_of_year_recalcitrant = (
+            stock_start_recalcitrant - decay_recalcitrant
+        ) + inflow_recalcitrant
+
         stock_labile_series[t] = end_of_year_labile
         stock_recalcitrant_series[t] = end_of_year_recalcitrant
 
@@ -83,12 +88,13 @@ def _calculate_fomp_series(dm_inflow_series, params, initial_stock_labile, initi
         current_stock_recalcitrant = end_of_year_recalcitrant
 
     results = {
-        'stock_labile': stock_labile_series,
-        'stock_recalcitrant': stock_recalcitrant_series,
-        'outflow_carbon': outflow_carbon_series,
-        'outflow_environmental': outflow_environmental_series,
+        "stock_labile": stock_labile_series,
+        "stock_recalcitrant": stock_recalcitrant_series,
+        "outflow_carbon": outflow_carbon_series,
+        "outflow_environmental": outflow_environmental_series,
     }
     return results
+
 
 def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
     """Integrates the pure FOMP calculation with the ODYM MFA system.
@@ -121,38 +127,46 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
     fomp_excel_params = fomp_params_config[process_id]
 
     try:
-        material_idx = mfa_system.Elements.index('material')
-        dm_idx = mfa_system.Elements.index('DM')
-        cc_idx = mfa_system.Elements.index('CC')
+        material_idx = mfa_system.Elements.index("material")
+        dm_idx = mfa_system.Elements.index("DM")
+        cc_idx = mfa_system.Elements.index("CC")
     except ValueError as e:
-        raise ValueError(f"❌ FOMP Error: MFA system is missing a required element: {e}")
+        raise ValueError(
+            f"❌ FOMP Error: MFA system is missing a required element: {e}"
+        )
 
     # Get the total Dry Matter (DM) inflow time-series
     inflows = [f.Values for f in mfa_system.FlowDict.values() if f.P_End == process_id]
-    total_inflow_values = sum(inflows) if inflows else np.zeros((num_years, num_elements))
+    total_inflow_values = (
+        sum(inflows) if inflows else np.zeros((num_years, num_elements))
+    )
     dm_inflow_series = total_inflow_values[:, dm_idx]
 
     # Assemble parameters for the pure calculation function
-    dm_fraction = input_flow_composition.get('DM', 1.0)
-    cc_fraction = input_flow_composition.get('CC', 0.0)
-    
+    dm_fraction = input_flow_composition.get("DM", 1.0)
+    cc_fraction = input_flow_composition.get("CC", 0.0)
+
     # Handle both scalar and time-series composition fractions
     if isinstance(dm_fraction, np.ndarray) and dm_fraction.ndim > 0:
         # Time-series composition - use mean values for parameter calculation
-        dm_fraction_mean = np.mean(dm_fraction[dm_fraction > 0]) if np.any(dm_fraction > 0) else 1.0
-        cc_fraction_mean = np.mean(cc_fraction[cc_fraction > 0]) if np.any(cc_fraction > 0) else 0.0
+        dm_fraction_mean = (
+            np.mean(dm_fraction[dm_fraction > 0]) if np.any(dm_fraction > 0) else 1.0
+        )
+        cc_fraction_mean = (
+            np.mean(cc_fraction[cc_fraction > 0]) if np.any(cc_fraction > 0) else 0.0
+        )
     else:
         # Scalar composition
         dm_fraction_mean = float(dm_fraction)
         cc_fraction_mean = float(cc_fraction)
-    
+
     params_for_calc = {
-        'f_labile': fomp_excel_params.get("Inflow_fraction_f (Labile pool)", 0.7),
-        'k_labile': fomp_excel_params.get("decay_k1 (Labile pool)", 0.5),
-        'k_recalcitrant': fomp_excel_params.get("decay_k2 (Recalcitrant pool)", 0.025),
-        'cc_dm': cc_fraction_mean / dm_fraction_mean if dm_fraction_mean != 0 else 0.0
+        "f_labile": fomp_excel_params.get("Inflow_fraction_f (Labile pool)", 0.7),
+        "k_labile": fomp_excel_params.get("decay_k1 (Labile pool)", 0.5),
+        "k_recalcitrant": fomp_excel_params.get("decay_k2 (Recalcitrant pool)", 0.025),
+        "cc_dm": cc_fraction_mean / dm_fraction_mean if dm_fraction_mean != 0 else 0.0,
     }
-    
+
     # Initial stocks for FOMP are always zero by definition in this model
     initial_stock_labile = 0.0
     initial_stock_recalcitrant = 0.0
@@ -162,7 +176,7 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
         dm_inflow_series,
         params_for_calc,
         initial_stock_labile,
-        initial_stock_recalcitrant
+        initial_stock_recalcitrant,
     )
 
     # --- 3. Assign results back to the MFA System in a physically consistent way ---
@@ -171,21 +185,21 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
 
     # Create multi-element carbon outflow vector
     carbon_outflow_values = np.zeros_like(total_inflow_values)
-    outflow_carbon_mass = fomp_results['outflow_carbon']
+    outflow_carbon_mass = fomp_results["outflow_carbon"]
     carbon_outflow_values[:, material_idx] = outflow_carbon_mass
     carbon_outflow_values[:, dm_idx] = outflow_carbon_mass
     carbon_outflow_values[:, cc_idx] = outflow_carbon_mass
-    
+
     # Create multi-element environmental outflow vector
     environmental_outflow_values = np.zeros_like(total_inflow_values)
-    
+
     # Part 1: The non-carbon part of the DECAYED dry matter
-    outflow_env_mass = fomp_results['outflow_environmental']
+    outflow_env_mass = fomp_results["outflow_environmental"]
     environmental_outflow_values[:, material_idx] += outflow_env_mass
     environmental_outflow_values[:, dm_idx] += outflow_env_mass
 
     # Part 2: The water from the INITIAL INPUT (Water Bypass)
-    wc_idx = mfa_system.Elements.index('WC')
+    wc_idx = mfa_system.Elements.index("WC")
     input_water_mass = total_inflow_values[:, wc_idx]
     environmental_outflow_values[:, material_idx] += input_water_mass
     environmental_outflow_values[:, wc_idx] += input_water_mass
@@ -193,13 +207,17 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
     # Assign the final calculated flows to the system
     if carbon_outflow_id in mfa_system.FlowDict:
         mfa_system.FlowDict[carbon_outflow_id].Values = carbon_outflow_values
-    
+
     if environmental_outflow_id in mfa_system.FlowDict:
-        mfa_system.FlowDict[environmental_outflow_id].Values = environmental_outflow_values
+        mfa_system.FlowDict[
+            environmental_outflow_id
+        ].Values = environmental_outflow_values
 
     print(f"   Total carbon output: {np.sum(fomp_results['outflow_carbon']):.2f}")
-    print(f"   Total environmental output: {np.sum(fomp_results['outflow_environmental']):.2f}")
-    
+    print(
+        f"   Total environmental output: {np.sum(fomp_results['outflow_environmental']):.2f}"
+    )
+
     # Phase 1a: Add ODYM validation after FOMP calculation
     try:
         mfa_system.Consistency_Check()

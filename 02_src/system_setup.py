@@ -208,7 +208,7 @@ def load_and_define_processes(mfa_system, input_data, data_loader, debug_mode=Fa
             decimal=",",
         )
         if debug_mode:
-            print(f"   ✓ Excel file loaded safely (original file remains unlocked)")
+            print("   ✓ Excel file loaded safely (original file remains unlocked)")
 
     data_loader.validate_input_data(all_excel_data, debug_mode=debug_mode)
 
@@ -714,7 +714,7 @@ def _calculate_elemental_compositions(mfa_system, element_hierarchy=None):
                         f"[WARNING] {flow.Name}: Top-level element sum exceeds material mass by {max_overshoot:.3f} Mg"
                     )
                     print(f"    Top-level elements: {top_level_names}")
-                    print(f"    Check fraction values sum to ≤ 1.0")
+                    print("    Check fraction values sum to ≤ 1.0")
 
 
 def _create_flow_and_process_maps(mfa_system, all_excel_data, debug_mode=False):
@@ -915,7 +915,7 @@ def define_flows_and_parameters(mfa_system, all_excel_data, debug_mode=False):
             element_hierarchy = element_structure
 
             if element_hierarchy and debug_mode:
-                print(f"--> Using hierarchical element calculation (Phase 5b)")
+                print("--> Using hierarchical element calculation (Phase 5b)")
                 for eid in sorted(element_hierarchy.keys()):
                     elem = element_hierarchy[eid]
                     if elem.get("parent"):

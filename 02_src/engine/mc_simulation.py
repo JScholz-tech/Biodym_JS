@@ -14,6 +14,7 @@ from . import solver
 import data_loader
 from utils import sample_parameters
 
+
 def validate_mc_parameters(mc_params_df, mfa_system):
     """Validates Monte Carlo parameters to ensure mass balance and prevent conflicts.
 
@@ -33,40 +34,55 @@ def validate_mc_parameters(mc_params_df, mfa_system):
     """
     warnings = []
     validated_params = mc_params_df.copy()
-    
+
     # Check for dynamic TC conflicts
     dynamic_tc_processes = set()
     for flow in mfa_system.FlowDict.values():
-        if hasattr(flow, 'TC') and isinstance(flow.TC, np.ndarray) and len(flow.TC) > 1:
+        if hasattr(flow, "TC") and isinstance(flow.TC, np.ndarray) and len(flow.TC) > 1:
             process_id = flow.P_Start
             dynamic_tc_processes.add(process_id)
-    
+
     # Check for TC mass balance issues
-    tc_params = validated_params[validated_params['Parameter_Name'].str.startswith('TC_', na=False)]
-    
+    tc_params = validated_params[
+        validated_params["Parameter_Name"].str.startswith("TC_", na=False)
+    ]
+
     for _, row in tc_params.iterrows():
-        tc_name = row['Parameter_Name']
+        tc_name = row["Parameter_Name"]
         # Extract process ID from TC name (e.g., TC_05_06 -> process 5)
         try:
-            process_id = int(tc_name.split('_')[1])
-            
+            process_id = int(tc_name.split("_")[1])
+
             # Check if this process has dynamic TCs
             if process_id in dynamic_tc_processes:
-                warnings.append(f"⚠️ WARNING: {tc_name} conflicts with dynamic TCs in process {process_id}")
-            
+                warnings.append(
+                    f"⚠️ WARNING: {tc_name} conflicts with dynamic TCs in process {process_id}"
+                )
+
             # Check if this process has multiple outputs
-            process_flows = [f for f in mfa_system.FlowDict.values() if f.P_Start == process_id]
+            process_flows = [
+                f for f in mfa_system.FlowDict.values() if f.P_Start == process_id
+            ]
             if len(process_flows) > 1:
                 # Check if all TCs for this process are defined in MC
-                process_tcs = [p for p in tc_params['Parameter_Name'] if p.startswith(f'TC_{process_id}_')]
+                process_tcs = [
+                    p
+                    for p in tc_params["Parameter_Name"]
+                    if p.startswith(f"TC_{process_id}_")
+                ]
                 if len(process_tcs) < len(process_flows):
-                    missing_tcs = [f.Name for f in process_flows if f.Name not in process_tcs]
-                    warnings.append(f"⚠️ WARNING: Process {process_id} has {len(process_flows)} outputs but only {len(process_tcs)} TCs in MC. Missing: {missing_tcs}")
-                    
+                    missing_tcs = [
+                        f.Name for f in process_flows if f.Name not in process_tcs
+                    ]
+                    warnings.append(
+                        f"⚠️ WARNING: Process {process_id} has {len(process_flows)} outputs but only {len(process_tcs)} TCs in MC. Missing: {missing_tcs}"
+                    )
+
         except (ValueError, IndexError):
             warnings.append(f"⚠️ WARNING: Could not parse process ID from {tc_name}")
-    
+
     return validated_params, warnings
+
 
 def apply_fomp_parameter_updates(fomp_params, sampled_params):
     """Applies Monte Carlo sampled parameter values to FOMP processes.
@@ -84,29 +100,36 @@ def apply_fomp_parameter_updates(fomp_params, sampled_params):
         An updated copy of the FOMP parameters dictionary with sampled values applied.
     """
     updated_fomp_params = copy.deepcopy(fomp_params)
-    
+
     for param_name, sampled_value in sampled_params.items():
         # Check if this is a FOMP parameter (starts with P and contains process info)
         if param_name.startswith("P") and "_decay_" in param_name:
             try:
                 # Extract process ID from parameter name (e.g., "P08_decay_k1 (Labile pool)" -> 8)
                 process_id = int(param_name[1:].split("_")[0])
-                
+
                 # Extract the base parameter name (e.g., "decay_k1 (Labile pool)")
                 base_param_name = param_name.split("_", 1)[1]  # Remove "P08_" prefix
-                
+
                 # Apply the sampled value to the correct process and parameter
                 if process_id in updated_fomp_params:
                     updated_fomp_params[process_id][base_param_name] = sampled_value
-                    print(f"   Applied MC sample: {param_name} = {sampled_value:.4f} to Process {process_id}")
+                    print(
+                        f"   Applied MC sample: {param_name} = {sampled_value:.4f} to Process {process_id}"
+                    )
                 else:
-                    print(f"⚠️ WARNING: Process {process_id} not found in FOMP parameters for {param_name}")
-                    
+                    print(
+                        f"⚠️ WARNING: Process {process_id} not found in FOMP parameters for {param_name}"
+                    )
+
             except (ValueError, IndexError) as e:
-                print(f"⚠️ WARNING: Could not parse FOMP parameter name: {param_name} - {e}")
+                print(
+                    f"⚠️ WARNING: Could not parse FOMP parameter name: {param_name} - {e}"
+                )
                 continue
-    
+
     return updated_fomp_params
+
 
 def normalize_tcs_for_process(mfa_system, process_id, varied_tc_name, varied_tc_value):
     """Ensures all transfer coefficients (TCs) for a process sum to 1.0.
@@ -134,37 +157,37 @@ def normalize_tcs_for_process(mfa_system, process_id, varied_tc_name, varied_tc_
     """
     # Get all flows for this process
     process_flows = [f for f in mfa_system.FlowDict.values() if f.P_Start == process_id]
-    
+
     if len(process_flows) <= 1:
         # Single output process - no normalization needed
         return {varied_tc_name: varied_tc_value}
-    
+
     # Get current TC values
     current_tcs = {}
     for flow in process_flows:
-        if hasattr(flow, 'TC'):
+        if hasattr(flow, "TC"):
             if isinstance(flow.TC, np.ndarray):
                 current_tcs[flow.Name] = flow.TC[0] if len(flow.TC) > 0 else 0.0
             else:
                 current_tcs[flow.Name] = float(flow.TC)
         else:
             current_tcs[flow.Name] = 0.0
-    
+
     # Update the varied TC
     current_tcs[varied_tc_name] = varied_tc_value
-    
+
     # Calculate normalization factor
     total_tc = sum(current_tcs.values())
     if total_tc > 0:
         normalization_factor = 1.0 / total_tc
-        
+
         # Apply normalization to all TCs
         normalized_tcs = {}
         for flow in process_flows:
             normalized_tcs[flow.Name] = current_tcs[flow.Name] * normalization_factor
             # Update the flow's TC value
             flow.TC = np.array([normalized_tcs[flow.Name]])
-        
+
         return normalized_tcs
     else:
         # If total is 0, distribute equally
@@ -173,10 +196,20 @@ def normalize_tcs_for_process(mfa_system, process_id, varied_tc_name, varied_tc_
         for flow in process_flows:
             normalized_tcs[flow.Name] = equal_tc
             flow.TC = np.array([equal_tc])
-        
+
         return normalized_tcs
 
-def _run_single_mc_iteration(iteration_num, mfa_system_setup, uncertainty_params, fomp_params, config, flow_tc_map, process_logic_map, tc_info_map):
+
+def _run_single_mc_iteration(
+    iteration_num,
+    mfa_system_setup,
+    uncertainty_params,
+    fomp_params,
+    config,
+    flow_tc_map,
+    process_logic_map,
+    tc_info_map,
+):
     """Runs a single iteration of the Monte Carlo simulation.
 
     This function samples all stochastic parameters, applies them to the system,
@@ -217,12 +250,12 @@ def _run_single_mc_iteration(iteration_num, mfa_system_setup, uncertainty_params
     for param_name, sample_value in sampled_params.items():
         if param_name in tc_info_map:
             info = tc_info_map[param_name]
-            process_id = info['process_id']
+            process_id = info["process_id"]
             logic = process_logic_map.get(process_id)
 
-            if logic == 'Splitter':
+            if logic == "Splitter":
                 # For a splitter, apply the sampled value to all sibling TCs
-                for sibling_tc in info['sibling_tcs']:
+                for sibling_tc in info["sibling_tcs"]:
                     tc_updates[sibling_tc] = sample_value
 
     # --- 3d. Run Solver ---
@@ -240,16 +273,25 @@ def _run_single_mc_iteration(iteration_num, mfa_system_setup, uncertainty_params
     iteration_results = {"iteration": iteration_num}
     for param, value in tc_updates.items():
         iteration_results[f"{param}_sample"] = value
-    
+
     for stock in mfa_system_run.StockDict.values():
         for i_elem, element_name in enumerate(mfa_system_run.Elements):
             iteration_results[f"{stock.Name}_{element_name}"] = stock.Values[-1, i_elem]
-            iteration_results[f"{stock.Name}_{element_name}_timeseries"] = stock.Values[:, i_elem].tolist()
-    
+            iteration_results[f"{stock.Name}_{element_name}_timeseries"] = stock.Values[
+                :, i_elem
+            ].tolist()
+
     return iteration_results
 
+
 def run_mc_simulation(
-    mfa_system_setup, input_data, dsm_params, fomp_params, config, process_logic_map, flow_tc_map
+    mfa_system_setup,
+    input_data,
+    dsm_params,
+    fomp_params,
+    config,
+    process_logic_map,
+    flow_tc_map,
 ):
     """Runs a Monte Carlo simulation by repeatedly sampling parameters.
 
@@ -281,7 +323,7 @@ def run_mc_simulation(
         None if no uncertainty parameters are defined.
     """
     # --- 1. Configuration ---
-    n_iterations = getattr(config, 'MC_ITERATIONS', 100)
+    n_iterations = getattr(config, "MC_ITERATIONS", 100)
     uncertainty_params = data_loader.load_uncertainty_definitions(input_data)
 
     if not uncertainty_params:
@@ -292,14 +334,21 @@ def run_mc_simulation(
 
     # --- 2. Build maps for efficient lookup ---
     tc_info_map = {}
-    static_tc_defs = input_data.get('2_2_static_TCs')
+    static_tc_defs = input_data.get("2_2_static_TCs")
     if static_tc_defs is not None:
         for _, row in static_tc_defs.iterrows():
-            process_id = row.get('Process_ID')
+            process_id = row.get("Process_ID")
             if pd.notna(process_id):
-                all_tcs = [row.get(f'TC_{elem}_ID') for elem in mfa_system_setup.Elements if f'TC_{elem}_ID' in row and pd.notna(row.get(f'TC_{elem}_ID'))]
+                all_tcs = [
+                    row.get(f"TC_{elem}_ID")
+                    for elem in mfa_system_setup.Elements
+                    if f"TC_{elem}_ID" in row and pd.notna(row.get(f"TC_{elem}_ID"))
+                ]
                 for tc_name in all_tcs:
-                    tc_info_map[tc_name] = {'process_id': int(process_id), 'sibling_tcs': all_tcs}
+                    tc_info_map[tc_name] = {
+                        "process_id": int(process_id),
+                        "sibling_tcs": all_tcs,
+                    }
 
     # --- 3. Main Simulation Loop ---
     results_list = []
@@ -308,10 +357,16 @@ def run_mc_simulation(
     for i in range(n_iterations):
         if (i + 1) % 10 == 0:
             print(f"  ... iteration {i + 1}/{n_iterations}")
-        
+
         iteration_results = _run_single_mc_iteration(
-            i + 1, mfa_system_setup, uncertainty_params, fomp_params, config, 
-            flow_tc_map, process_logic_map, tc_info_map
+            i + 1,
+            mfa_system_setup,
+            uncertainty_params,
+            fomp_params,
+            config,
+            flow_tc_map,
+            process_logic_map,
+            tc_info_map,
         )
         results_list.append(iteration_results)
 

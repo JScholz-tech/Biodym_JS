@@ -36,6 +36,31 @@
 #
 # ---
 #
+# ### 📖 Table of Contents
+#
+# * [0. Introduction](#0.-Introduction)
+#   * [🚀 Quick Start Guide](#🚀-Quick-Start-Guide)
+# * [1. Setup and Data Loading](#1.-Setup-and-Data-Loading)
+#   * [1.1 Environment Setup](#1.1-Environment-Setup)
+#   * [1.2 Data Input Configuration](#1.2-Data-Input-Configuration)
+#   * [1.3 System Configuration Extraction](#1.3-System-Configuration-Extraction)
+# * [2. Calculation & Mass Balance](#2.-Calculation-&-Mass-Balance)
+#   * [2.1 Model Initialization & Calculation](#2.1-Model-Initialization-&-Calculation)
+#   * [2.2 Data Validation Summary](#2.2-Data-Validation-Summary)
+#   * [2.3 Mass Balance Verification](#2.3-Mass-Balance-Verification)
+#   * [2.4 System Flow Diagram (Graphviz)](#2.4-System-Flow-Diagram-(Graphviz))
+#   * [2.5 Flow Composition Validation](#2.5-Flow-Composition-Validation)
+# * [3. Visualization](#3.-Visualization)
+#   * [3.1 Sankey Diagrams](#3.1-Sankey-Diagrams)
+#   * [3.2 Additional Visualizations](#3.2-Additional-Visualizations)
+# * [4. Scenario & Uncertainty Manager](#4.-Scenario-&-Uncertainty-Manager)
+#   * [4.1 Scenario Analysis & Comparison](#4.1-Scenario-Analysis-&-Comparison)
+#   * [4.2 Monte Carlo Analysis](#4.2-Monte-Carlo-Analysis)
+# * [5. Data Export](#5.-Data-Export)
+#   * [5.1 KPI Dashboard and Export](#5.1-KPI-Dashboard-and-Export)
+#
+# ---
+#
 # ## 📋 Workflow Overview
 #
 # This notebook follows a structured approach to Material Flow Analysis:
@@ -95,20 +120,20 @@ from IPython.display import display, HTML, Markdown
 import copy
 
 # Suppress openpyxl data validation warnings (harmless, caused by Excel dropdown rules)
-warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
+warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
-# Add BioDYM modules to path
+# Add BioDYM modules to path to make them importable
 src_path = os.path.join(os.getcwd(), "02_src")
 sys.path.insert(0, src_path)
 
-# Add ODYM framework to path
+# Add ODYM framework to path. ODYM is a foundational library for this project.
 project_root = os.getcwd()
 odym_path = os.path.join(
     project_root, "06_framework", "ODYM-master_20241127", "odym", "modules"
 )
 sys.path.insert(0, odym_path)
 
-# Add bioDYM add-on to path
+# Add bioDYM add-on to path for custom extensions.
 biodym_addon_path = os.path.join(
     project_root, "06_framework", "bioDYM_add-on", "modules"
 )
@@ -139,6 +164,10 @@ try:
     print(f"{Icons.SUCCESS} BioDYM modules imported successfully")
 except ImportError as e:
     print(f"{Icons.ERROR} Import error: {e}")
+    print(f"{Icons.ERROR} A required module could not be found.")
+    print(
+        f"{Icons.INFO} Please ensure all dependencies are installed by running: uv sync"
+    )
     print("   Current Python path:")
     for i, path in enumerate(sys.path[:5]):  # Show first 5 paths
         print(f"   {i}: {path}")
@@ -282,7 +311,9 @@ mfa_system_base, all_excel_data = system_setup.load_and_define_processes(
 
 print(format_step(Icons.DATA_LOADING, "2.4", "Defining flows and parameters..."))
 mfa_system_configured, _, flow_tc_map, process_logic_map = (
-    system_setup.define_flows_and_parameters(mfa_system_base, all_excel_data, debug_mode=DEBUG_MODE)
+    system_setup.define_flows_and_parameters(
+        mfa_system_base, all_excel_data, debug_mode=DEBUG_MODE
+    )
 )
 
 print(
@@ -294,7 +325,9 @@ print(
 # Centralized call to the new, unified TC loader
 time_vector = mfa_system_configured.IndexTable.Classification["Time"].Items
 elements_list = mfa_system_configured.Elements
-tc_params = data_loader.load_tc_parameters(all_excel_data, elements_list, time_vector, debug_mode=DEBUG_MODE)
+tc_params = data_loader.load_tc_parameters(
+    all_excel_data, elements_list, time_vector, debug_mode=DEBUG_MODE
+)
 mfa_system_configured.ParameterDict.update(
     tc_params
 )  # Add the new TC params to the system
@@ -302,10 +335,14 @@ mfa_system_configured.ParameterDict.update(
 # Load other special model parameters
 dsm_params = data_loader.load_dsm_parameters(all_excel_data, debug_mode=DEBUG_MODE)
 if config_obj.RUN_FOMP_CALCULATION:
-    fomp_params = data_loader.load_fomp_parameters(all_excel_data, debug_mode=DEBUG_MODE)
+    fomp_params = data_loader.load_fomp_parameters(
+        all_excel_data, debug_mode=DEBUG_MODE
+    )
 else:
     fomp_params = {}
-uncertainty_params = data_loader.load_uncertainty_definitions(all_excel_data, debug_mode=DEBUG_MODE)
+uncertainty_params = data_loader.load_uncertainty_definitions(
+    all_excel_data, debug_mode=DEBUG_MODE
+)
 
 print(format_success("All parameters loaded and configured."))
 
@@ -320,7 +357,7 @@ mfa_results_baseline, dsm_details_baseline = solver.run_mfa_calculation(
 )
 print(format_success("Baseline calculation completed successfully!"))
 
-# ## 2.7 Data Validation Summary
+# ## 2.2 Data Validation Summary
 #
 # ### 📋 Summary of Loaded Data
 
@@ -334,10 +371,16 @@ num_elements = len(elements)
 time_span = end_year - start_year + 1
 
 # Count parameters
-num_static_tcs = sum(1 for p in mfa_system_configured.ParameterDict.values()
-                     if 'TC' in p.Name and np.isscalar(p.Values))
-num_dynamic_tcs = sum(1 for p in mfa_system_configured.ParameterDict.values()
-                      if 'TC' in p.Name and isinstance(p.Values, np.ndarray))
+num_static_tcs = sum(
+    1
+    for p in mfa_system_configured.ParameterDict.values()
+    if "TC" in p.Name and np.isscalar(p.Values)
+)
+num_dynamic_tcs = sum(
+    1
+    for p in mfa_system_configured.ParameterDict.values()
+    if "TC" in p.Name and isinstance(p.Values, np.ndarray)
+)
 num_dsm_processes = len(dsm_params) if dsm_params else 0
 num_fomp_processes = len(fomp_params) if fomp_params else 0
 
@@ -385,13 +428,13 @@ else:
 
 print()
 
-# ## 2.2 Mass Balance Verification
+# ## 2.3 Mass Balance Verification
 
 print(format_header("MASS BALANCE VERIFICATION (BASELINE)", level=2))
 plotting.plot_total_mass_balance_error(mfa_results_baseline)
 plotting.plot_optimized_mass_balance_error(mfa_results_baseline)
 
-# ## 2.3 System Flow Diagram (Graphviz)
+# ## 2.4 System Flow Diagram (Graphviz)
 print(f"\n{Icons.ARROW} System Flow Diagram (Graphviz)")
 try:
     from plotting.graphviz_flow_charts import plot_graphviz_flow_chart_sankey_style
@@ -409,6 +452,18 @@ except ImportError:
     print(f"{Icons.WARNING} Graphviz library not found. Skipping this plot.")
 except Exception as e:
     print(f"{Icons.WARNING} Graphviz chart failed: {e}")
+
+# ## 2.5 Flow Composition Validation
+print(f"\n{Icons.ARROW} Flow Composition Validation")
+print("   • Validates completeness of element composition across all flows")
+print("   • Interactive visualization of flow composition hierarchy")
+plot_flow_composition(mfa_results_baseline)
+
+# Export flow composition data
+from plotting.composition_export import export_flow_composition
+
+export_path = "01_data/02_output/composition_export/flow_composition.xlsx"
+export_flow_composition(mfa_results_baseline, export_path)
 
 # # 3. Visualization
 
@@ -436,6 +491,7 @@ plotting.plot_enhanced_sankey(
     visualization_config_path=input_file,
 )
 
+
 # ## 3.2 Additional Visualizations
 print(f"\n{Icons.ARROW} Additional Visualizations")
 
@@ -450,7 +506,6 @@ print(f"\n{Icons.MFA} Process Dynamics Analysis:")
 plotting.plot_process_dynamics(
     mfa_results_baseline, all_excel_data["2_1_Definition_Processes"]
 )
-
 
 # Flow Dynamics - Multi-flow time series with element selection
 print(f"\n{Icons.SANKEY} Flow Dynamics Analysis:")
@@ -509,16 +564,6 @@ if fomp_params:
 else:
     print(f"   {Icons.INFO} No FOMP processes found - skipping FOMP analysis")
 
-# ### 3.2.3 Flow Composition
-print(f"\n{Icons.SUBSECTION} Flow Composition")
-plot_flow_composition(mfa_results_baseline)
-
-# Export flow composition data
-from plotting.composition_export import export_flow_composition
-
-export_path = "01_data/02_output/composition_export/flow_composition.xlsx"
-export_flow_composition(mfa_results_baseline, export_path)
-
 
 # # 4. Scenario & Uncertainty Manager
 
@@ -561,14 +606,12 @@ print(format_header("MONTE CARLO SIMULATION (BASELINE)", level=2))
 if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
     try:
         from engine.mc_simulation import run_mc_simulation
-        from engine.mc_simulation import run_mc_simulation
         from plotting.monte_carlo import (
             plot_interactive_mc_multiple_histograms,
             plot_interactive_tornado,
             plot_interactive_mc_paths,
             plot_interactive_mc_stock_comparison,
         )
-        from plotting.composition import plot_flow_composition
 
         mc_results = run_mc_simulation(
             mfa_system_configured,

@@ -23,57 +23,58 @@ from typing import List, Dict, Optional, Tuple
 
 # Default palette (bright, distinct colors)
 DEFAULT_ELEMENT_PALETTE = [
-    '#00C851',  # Bright Green - material
-    '#007BFF',  # Bright Blue - water
-    '#FF8C00',  # Bright Orange - dry matter
-    '#FF4444',  # Bright Red - carbon
-    '#9C27B0',  # Purple - nitrogen
-    '#FFC107',  # Yellow - phosphorus
-    '#00BCD4',  # Cyan - additional
-    '#E91E63',  # Pink - additional
+    "#00C851",  # Bright Green - material
+    "#007BFF",  # Bright Blue - water
+    "#FF8C00",  # Bright Orange - dry matter
+    "#FF4444",  # Bright Red - carbon
+    "#9C27B0",  # Purple - nitrogen
+    "#FFC107",  # Yellow - phosphorus
+    "#00BCD4",  # Cyan - additional
+    "#E91E63",  # Pink - additional
 ]
 
 # Color-blind friendly palette (Okabe-Ito + extensions)
 # Works for Protanopia, Deuteranopia, Tritanopia
 COLORBLIND_ELEMENT_PALETTE = [
-    '#0173B2',  # Blue - material (replaces green)
-    '#56B4E9',  # Sky Blue - water
-    '#E69F00',  # Orange - dry matter
-    '#CC79A7',  # Pink - carbon (replaces red)
-    '#009E73',  # Teal - nitrogen
-    '#F0E442',  # Yellow - phosphorus
-    '#D55E00',  # Vermillion - additional
-    '#999999',  # Gray - additional
+    "#0173B2",  # Blue - material (replaces green)
+    "#56B4E9",  # Sky Blue - water
+    "#E69F00",  # Orange - dry matter
+    "#CC79A7",  # Pink - carbon (replaces red)
+    "#009E73",  # Teal - nitrogen
+    "#F0E442",  # Yellow - phosphorus
+    "#D55E00",  # Vermillion - additional
+    "#999999",  # Gray - additional
 ]
 
 # Grayscale palette (for black & white printing)
 GRAYSCALE_ELEMENT_PALETTE = [
-    '#2C2C2C',  # Very dark gray
-    '#5C5C5C',  # Dark gray
-    '#8C8C8C',  # Medium gray
-    '#BCBCBC',  # Light gray
-    '#4C4C4C',  # Dark gray 2
-    '#7C7C7C',  # Medium gray 2
-    '#ACACAC',  # Light gray 2
-    '#DCDCDC',  # Very light gray
+    "#2C2C2C",  # Very dark gray
+    "#5C5C5C",  # Dark gray
+    "#8C8C8C",  # Medium gray
+    "#BCBCBC",  # Light gray
+    "#4C4C4C",  # Dark gray 2
+    "#7C7C7C",  # Medium gray 2
+    "#ACACAC",  # Light gray 2
+    "#DCDCDC",  # Very light gray
 ]
 
 # Stock colors (distinct from flow colors, more muted)
 STOCK_PALETTE = [
-    '#6F42C1',  # Purple - default stock
-    '#28A745',  # Green - material stock
-    '#17A2B8',  # Teal - water stock
-    '#FD7E14',  # Dark orange - dry matter stock
-    '#DC3545',  # Dark red - carbon stock
-    '#6610F2',  # Indigo - additional
-    '#20C997',  # Turquoise - additional
-    '#E83E8C',  # Magenta - additional
+    "#6F42C1",  # Purple - default stock
+    "#28A745",  # Green - material stock
+    "#17A2B8",  # Teal - water stock
+    "#FD7E14",  # Dark orange - dry matter stock
+    "#DC3545",  # Dark red - carbon stock
+    "#6610F2",  # Indigo - additional
+    "#20C997",  # Turquoise - additional
+    "#E83E8C",  # Magenta - additional
 ]
 
 
 # =============================================================================
 # ELEMENT COLOR MANAGER
 # =============================================================================
+
 
 class ElementColorManager:
     """
@@ -102,8 +103,8 @@ class ElementColorManager:
     def __init__(
         self,
         elements: List[str],
-        color_scheme: str = 'default',
-        custom_palette: Optional[List[str]] = None
+        color_scheme: str = "default",
+        custom_palette: Optional[List[str]] = None,
     ):
         """
         Initialize the element color manager.
@@ -133,9 +134,9 @@ class ElementColorManager:
         """Get the base color palette based on color scheme."""
         if self._custom_palette:
             return self._custom_palette
-        elif self.color_scheme == 'colorblind':
+        elif self.color_scheme == "colorblind":
             return COLORBLIND_ELEMENT_PALETTE
-        elif self.color_scheme == 'grayscale':
+        elif self.color_scheme == "grayscale":
             return GRAYSCALE_ELEMENT_PALETTE
         else:
             return DEFAULT_ELEMENT_PALETTE
@@ -189,10 +190,8 @@ class ElementColorManager:
         value = 0.8 + (index % 2) * 0.1  # Vary brightness slightly
 
         rgb = colorsys.hsv_to_rgb(hue, saturation, value)
-        return '#{:02x}{:02x}{:02x}'.format(
-            int(rgb[0] * 255),
-            int(rgb[1] * 255),
-            int(rgb[2] * 255)
+        return "#{:02x}{:02x}{:02x}".format(
+            int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255)
         )
 
     def _mute_color(self, hex_color: str, factor: float = 0.6) -> str:
@@ -213,8 +212,8 @@ class ElementColorManager:
             Muted hexadecimal color code
         """
         # Convert hex to RGB
-        hex_color = hex_color.lstrip('#')
-        rgb = tuple(int(hex_color[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+        hex_color = hex_color.lstrip("#")
+        rgb = tuple(int(hex_color[i : i + 2], 16) / 255.0 for i in (0, 2, 4))
 
         # Convert to HSV
         h, s, v = colorsys.rgb_to_hsv(*rgb)
@@ -226,10 +225,8 @@ class ElementColorManager:
         # Convert back to RGB
         rgb_new = colorsys.hsv_to_rgb(h, s_new, v_new)
 
-        return '#{:02x}{:02x}{:02x}'.format(
-            int(rgb_new[0] * 255),
-            int(rgb_new[1] * 255),
-            int(rgb_new[2] * 255)
+        return "#{:02x}{:02x}{:02x}".format(
+            int(rgb_new[0] * 255), int(rgb_new[1] * 255), int(rgb_new[2] * 255)
         )
 
     def get_element_color(self, element: str, is_stock: bool = False) -> str:
@@ -321,9 +318,9 @@ class ElementColorManager:
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 def create_element_color_manager(
-    config_obj,
-    color_scheme: str = 'default'
+    config_obj, color_scheme: str = "default"
 ) -> ElementColorManager:
     """
     Create an ElementColorManager from a BioDYM config object.
@@ -348,8 +345,8 @@ def create_element_color_manager(
     >>> material_color = color_manager.get_element_color('material')
     """
     # Extract elements from config
-    elements_str = config_obj.get('Elements', 'material,WC,DM,CC')
-    elements = [e.strip().lower() for e in elements_str.split(',')]
+    elements_str = config_obj.get("Elements", "material,WC,DM,CC")
+    elements = [e.strip().lower() for e in elements_str.split(",")]
 
     return ElementColorManager(elements, color_scheme)
 
@@ -376,17 +373,18 @@ def get_element_color_legacy(element_name: str) -> str:
     DEPRECATED: Use ElementColorManager instead for new code.
     """
     legacy_colors = {
-        'material': '#00C851',
-        'wc': '#007BFF',
-        'dm': '#FF8C00',
-        'cc': '#FF4444',
+        "material": "#00C851",
+        "wc": "#007BFF",
+        "dm": "#FF8C00",
+        "cc": "#FF4444",
     }
-    return legacy_colors.get(element_name.lower(), '#2E86AB')
+    return legacy_colors.get(element_name.lower(), "#2E86AB")
 
 
 # =============================================================================
 # COLOR SCHEME TESTING
 # =============================================================================
+
 
 def print_color_scheme_comparison(elements: List[str]):
     """
@@ -399,7 +397,7 @@ def print_color_scheme_comparison(elements: List[str]):
     elements : List[str]
         List of element names to display
     """
-    schemes = ['default', 'colorblind', 'grayscale']
+    schemes = ["default", "colorblind", "grayscale"]
 
     print("=" * 80)
     print("ELEMENT COLOR SCHEME COMPARISON")

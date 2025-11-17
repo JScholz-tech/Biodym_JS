@@ -32,13 +32,11 @@ from IPython.display import display
 from typing import Optional
 
 from .publication_style_simplified import (
-    get_publication_layout,
     get_process_color,
     detect_biodym_process_type,
     get_stock_color,
     BIOYM_COLORS,
     FONT_FAMILY,
-    FONT_SIZE,
 )
 from . import sankey_config
 from .dynamic_colors import ElementColorManager
@@ -453,7 +451,10 @@ def plot_interactive_sankey(
             }
 
             # Add vertical grid lines if enabled
-            if sankey_config.ENABLE_GRID and sankey_config.GRID_TYPE == "vertical_lines":
+            if (
+                sankey_config.ENABLE_GRID
+                and sankey_config.GRID_TYPE == "vertical_lines"
+            ):
                 shapes = []
                 for x_pos in sankey_config.GRID_VERTICAL_POSITIONS:
                     shapes.append(

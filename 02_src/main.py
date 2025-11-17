@@ -34,9 +34,7 @@ odym_path = os.path.join(
 sys.path.insert(0, odym_path)
 
 # Add bioDYM add-on to path
-biodym_addon_path = os.path.join(
-    project_root, "framework", "bioDYM_add-on", "modules"
-)
+biodym_addon_path = os.path.join(project_root, "framework", "bioDYM_add-on", "modules")
 sys.path.insert(0, biodym_addon_path)
 
 # --- Import Custom and External Modules ---

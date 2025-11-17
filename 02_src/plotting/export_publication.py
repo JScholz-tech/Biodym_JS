@@ -15,9 +15,7 @@ Author: BioDYM Development Team
 Date: 2025-11-04
 """
 
-import os
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Union, List, Tuple
@@ -30,20 +28,20 @@ import warnings
 
 # Standard DPI settings
 DPI_SETTINGS = {
-    'screen': 96,       # Screen display
-    'web': 150,         # Web/presentations
-    'print': 300,       # Print quality
-    'publication': 400, # High-quality publication
+    "screen": 96,  # Screen display
+    "web": 150,  # Web/presentations
+    "print": 300,  # Print quality
+    "publication": 400,  # High-quality publication
 }
 
 # Figure size presets (width, height in inches for print)
 PRINT_SIZES = {
-    'single_column': (3.5, 2.625),    # Single column in 2-column layout
-    'double_column': (7.0, 5.25),     # Full width in 2-column layout
-    'full_page': (7.5, 10),           # Full page
-    'slide': (10, 7.5),               # Presentation slide
-    'poster': (36, 48),               # Poster
-    'custom': None,                   # User-defined
+    "single_column": (3.5, 2.625),  # Single column in 2-column layout
+    "double_column": (7.0, 5.25),  # Full width in 2-column layout
+    "full_page": (7.5, 10),  # Full page
+    "slide": (10, 7.5),  # Presentation slide
+    "poster": (36, 48),  # Poster
+    "custom": None,  # User-defined
 }
 
 # Default export directory
@@ -54,17 +52,18 @@ DEFAULT_EXPORT_DIR = "01_data/02_output/figures"
 # MAIN EXPORT FUNCTION
 # =============================================================================
 
+
 def export_figure(
     fig: go.Figure,
     filename: str,
-    formats: Optional[Union[str, List[str]]] = 'png',
-    quality: str = 'publication',
+    formats: Optional[Union[str, List[str]]] = "png",
+    quality: str = "publication",
     size: Optional[Union[str, Tuple[float, float]]] = None,
     dpi: Optional[int] = None,
     output_dir: Optional[str] = None,
     timestamp: bool = True,
     overwrite: bool = False,
-    verbose: bool = True
+    verbose: bool = True,
 ) -> List[str]:
     """
     Export a Plotly figure to publication-quality file(s).
@@ -141,22 +140,22 @@ def export_figure(
     """
 
     # Validate and normalize formats
-    if formats == 'all':
-        formats_list = ['png', 'pdf', 'svg', 'html']
+    if formats == "all":
+        formats_list = ["png", "pdf", "svg", "html"]
     elif isinstance(formats, str):
         formats_list = [formats]
     else:
         formats_list = formats
 
     # Validate formats
-    valid_formats = ['png', 'pdf', 'svg', 'eps', 'html', 'json']
+    valid_formats = ["png", "pdf", "svg", "eps", "html", "json"]
     for fmt in formats_list:
         if fmt not in valid_formats:
             raise ValueError(f"Invalid format '{fmt}'. Valid: {valid_formats}")
 
     # Determine DPI
     if dpi is None:
-        dpi = DPI_SETTINGS.get(quality, DPI_SETTINGS['publication'])
+        dpi = DPI_SETTINGS.get(quality, DPI_SETTINGS["publication"])
 
     # Calculate scale factor for Plotly (Plotly uses 96 DPI as base)
     scale_factor = dpi / 96.0
@@ -211,15 +210,15 @@ def export_figure(
 
         # Export based on format
         try:
-            if fmt == 'html':
+            if fmt == "html":
                 # HTML preserves interactivity
-                fig.write_html(str(full_path), include_plotlyjs='cdn')
+                fig.write_html(str(full_path), include_plotlyjs="cdn")
 
-            elif fmt == 'json':
+            elif fmt == "json":
                 # JSON for programmatic access
                 fig.write_json(str(full_path))
 
-            elif fmt == 'eps':
+            elif fmt == "eps":
                 # EPS: First export to PDF, then convert (kaleido limitation)
                 temp_pdf = output_path / f"{base_filename}_temp.pdf"
                 fig.write_image(str(temp_pdf), scale=scale_factor)
@@ -227,31 +226,32 @@ def export_figure(
                 # Convert PDF to EPS (requires ghostscript or similar)
                 try:
                     import subprocess
-                    subprocess.run([
-                        'pdftops', '-eps', str(temp_pdf), str(full_path)
-                    ], check=True, capture_output=True)
+
+                    subprocess.run(
+                        ["pdftops", "-eps", str(temp_pdf), str(full_path)],
+                        check=True,
+                        capture_output=True,
+                    )
                     temp_pdf.unlink()  # Remove temporary PDF
                 except (subprocess.CalledProcessError, FileNotFoundError):
                     warnings.warn(
                         "EPS conversion failed. Install ghostscript/poppler-utils. "
                         "Keeping PDF instead."
                     )
-                    temp_pdf.rename(full_path.with_suffix('.pdf'))
-                    fmt = 'pdf'  # Update format for message
+                    temp_pdf.rename(full_path.with_suffix(".pdf"))
+                    fmt = "pdf"  # Update format for message
 
             else:
                 # PNG, PDF, SVG (via kaleido)
-                fig.write_image(
-                    str(full_path),
-                    format=fmt,
-                    scale=scale_factor
-                )
+                fig.write_image(str(full_path), format=fmt, scale=scale_factor)
 
             exported_files.append(str(full_path))
 
             if verbose:
                 file_size = full_path.stat().st_size / 1024  # KB
-                print(f"✅ Exported {fmt.upper()}: {full_path} ({file_size:.1f} KB, {dpi} DPI)")
+                print(
+                    f"✅ Exported {fmt.upper()}: {full_path} ({file_size:.1f} KB, {dpi} DPI)"
+                )
 
         except Exception as e:
             if verbose:
@@ -264,6 +264,7 @@ def export_figure(
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
+
 
 def quick_export_png(fig: go.Figure, filename: str, **kwargs) -> str:
     """
@@ -285,11 +286,13 @@ def quick_export_png(fig: go.Figure, filename: str, **kwargs) -> str:
     str
         Path to exported file
     """
-    files = export_figure(fig, filename, formats='png', quality='publication', **kwargs)
+    files = export_figure(fig, filename, formats="png", quality="publication", **kwargs)
     return files[0] if files else None
 
 
-def export_for_paper(fig: go.Figure, filename: str, size: str = 'double_column') -> List[str]:
+def export_for_paper(
+    fig: go.Figure, filename: str, size: str = "double_column"
+) -> List[str]:
     """
     Export figure optimized for scientific paper.
 
@@ -314,11 +317,11 @@ def export_for_paper(fig: go.Figure, filename: str, size: str = 'double_column')
     return export_figure(
         fig,
         filename,
-        formats=['png', 'pdf'],
-        quality='publication',
+        formats=["png", "pdf"],
+        quality="publication",
         size=size,
         timestamp=True,
-        verbose=True
+        verbose=True,
     )
 
 
@@ -344,19 +347,15 @@ def export_for_presentation(fig: go.Figure, filename: str) -> List[str]:
     return export_figure(
         fig,
         filename,
-        formats=['png', 'html'],
-        quality='web',
-        size='slide',
+        formats=["png", "html"],
+        quality="web",
+        size="slide",
         timestamp=True,
-        verbose=True
+        verbose=True,
     )
 
 
-def batch_export_figures(
-    figures: dict,
-    quality: str = 'publication',
-    **kwargs
-) -> dict:
+def batch_export_figures(figures: dict, quality: str = "publication", **kwargs) -> dict:
     """
     Export multiple figures with consistent settings.
 
@@ -402,6 +401,7 @@ def batch_export_figures(
 # EXPORT REPORT
 # =============================================================================
 
+
 def generate_export_report(output_dir: Optional[str] = None) -> str:
     """
     Generate a report of all exported figures in the output directory.
@@ -433,7 +433,7 @@ def generate_export_report(output_dir: Optional[str] = None) -> str:
     # Group files by format
     files_by_format = {}
 
-    for file_path in output_path.glob('*'):
+    for file_path in output_path.glob("*"):
         if file_path.is_file():
             ext = file_path.suffix[1:]  # Remove leading dot
             if ext not in files_by_format:
@@ -447,7 +447,7 @@ def generate_export_report(output_dir: Optional[str] = None) -> str:
         "=" * 80,
         f"Directory: {output_path.absolute()}",
         f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        ""
+        "",
     ]
 
     total_files = 0
@@ -470,19 +470,22 @@ def generate_export_report(output_dir: Optional[str] = None) -> str:
         total_files += len(files)
         total_size += format_size
 
-    report_lines.extend([
-        "",
-        "=" * 80,
-        f"TOTAL: {total_files} files, {total_size / (1024 * 1024):.2f} MB",
-        "=" * 80
-    ])
+    report_lines.extend(
+        [
+            "",
+            "=" * 80,
+            f"TOTAL: {total_files} files, {total_size / (1024 * 1024):.2f} MB",
+            "=" * 80,
+        ]
+    )
 
-    return '\n'.join(report_lines)
+    return "\n".join(report_lines)
 
 
 # =============================================================================
 # INITIALIZATION
 # =============================================================================
+
 
 def set_default_export_directory(path: str):
     """

@@ -114,13 +114,13 @@ def load_config_from_excel(excel_file_path):
             if "material" not in elements:
                 elements.insert(0, "material")
                 print(
-                    f"[WARNING] 'material' element added automatically (required for total mass)"
+                    "[WARNING] 'material' element added automatically (required for total mass)"
                 )
             elif elements[0] != "material":
                 elements.remove("material")
                 elements.insert(0, "material")
                 print(
-                    f"[WARNING] 'material' element moved to first position (required)"
+                    "[WARNING] 'material' element moved to first position (required)"
                 )
 
             config_dict["Elements"] = ",".join(elements)

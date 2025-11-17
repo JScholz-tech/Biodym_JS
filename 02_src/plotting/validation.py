@@ -1,4 +1,3 @@
-
 # -*- coding: utf-8 -*-
 """
 Validation Plotting Module for BioDYM.
@@ -14,24 +13,22 @@ Date: 2025-11-04
 
 import numpy as np
 import plotly.graph_objects as go
-from ipywidgets import interact, IntSlider, Dropdown, Button, HBox, VBox, Layout
+from ipywidgets import IntSlider, Dropdown, Button, HBox, Layout
 from IPython.display import display
-from datetime import datetime
 from typing import Optional
 
 from .publication_style_simplified import (
     get_publication_layout,
     BIOYM_COLORS,
-    FIGURE_SIZES
 )
-from .dynamic_colors import ElementColorManager, create_element_color_manager
+from .dynamic_colors import ElementColorManager
 from .export_publication import export_figure
 
 
 def plot_optimized_mass_balance_error(
     mfa_system_results,
     color_manager: Optional[ElementColorManager] = None,
-    enable_export: bool = True
+    enable_export: bool = True,
 ):
     """Creates an interactive plot of mass balance errors for each process.
 
@@ -105,7 +102,9 @@ def plot_optimized_mass_balance_error(
             out_val = outflow_sums.get(p.ID, 0)
 
             ds_val = mfa_system_results.StockDict.get(f"dS_{p.ID}", None)
-            ds_sum = ds_val.Values[year_index, element_index] if ds_val is not None else 0
+            ds_sum = (
+                ds_val.Values[year_index, element_index] if ds_val is not None else 0
+            )
 
             error = in_val - out_val - ds_sum
             errors.append(error)
@@ -116,34 +115,36 @@ def plot_optimized_mass_balance_error(
 
         with fig.batch_update():
             fig.data = []  # Clear previous data
-            fig.add_trace(go.Bar(
-                x=process_names,
-                y=errors,
-                marker_color=colors,
-                marker_line=dict(color=BIOYM_COLORS['dark'], width=1),
-                hovertemplate='<b>%{x}</b><br>Error: %{y:.2e} Mg<extra></extra>'
-            ))
+            fig.add_trace(
+                go.Bar(
+                    x=process_names,
+                    y=errors,
+                    marker_color=colors,
+                    marker_line=dict(color=BIOYM_COLORS["dark"], width=1),
+                    hovertemplate="<b>%{x}</b><br>Error: %{y:.2e} Mg<extra></extra>",
+                )
+            )
 
             # Apply publication layout with proper formatting
             layout_config = get_publication_layout(
-                size='large',
+                size="large",
                 show_grid=True,
                 scientific_y=True,
                 custom_title=f"Mass Balance Error: {element.upper()} ({year})",
                 x_title="Process",
-                y_title="Mass Balance Error (Mg)"
+                y_title="Mass Balance Error (Mg)",
             )
-            layout_config['xaxis']['tickangle'] = -45
-            layout_config['shapes'] = [
-                    dict(
-                        type="line",
-                        y0=0,
-                        y1=0,
-                        x0=-0.5,
-                        x1=len(process_names) - 0.5,
-                        line=dict(color=BIOYM_COLORS['dark'], width=2, dash='dash'),
-                    )
-                ]
+            layout_config["xaxis"]["tickangle"] = -45
+            layout_config["shapes"] = [
+                dict(
+                    type="line",
+                    y0=0,
+                    y1=0,
+                    x0=-0.5,
+                    x1=len(process_names) - 0.5,
+                    line=dict(color=BIOYM_COLORS["dark"], width=2, dash="dash"),
+                )
+            ]
             fig.update_layout(layout_config)
 
     def export_current_plot(btn):
@@ -157,9 +158,9 @@ def plot_optimized_mass_balance_error(
             paths = export_figure(
                 fig,
                 filename,
-                formats=['png', 'pdf'],
-                quality='publication',
-                size='large'
+                formats=["png", "pdf"],
+                quality="publication",
+                size="large",
             )
             print(f"✅ Exported: {', '.join(paths)}")
         except Exception as e:
@@ -172,15 +173,15 @@ def plot_optimized_mass_balance_error(
         step=1,
         value=time_items[0],
         description="Year:",
-        style={'description_width': '60px'},
-        layout=Layout(width='400px')
+        style={"description_width": "60px"},
+        layout=Layout(width="400px"),
     )
     element_dropdown = Dropdown(
         options=element_items,
         value=element_items[0],
         description="Element:",
-        style={'description_width': '60px'},
-        layout=Layout(width='300px')
+        style={"description_width": "60px"},
+        layout=Layout(width="300px"),
     )
 
     # Create control panel
@@ -188,20 +189,22 @@ def plot_optimized_mass_balance_error(
 
     if enable_export:
         export_btn = Button(
-            description='📥 Export Figure',
-            button_style='success',
-            tooltip='Export current view to PNG and PDF',
-            layout=Layout(width='150px')
+            description="📥 Export Figure",
+            button_style="success",
+            tooltip="Export current view to PNG and PDF",
+            layout=Layout(width="150px"),
         )
         export_btn.on_click(export_current_plot)
         controls.append(export_btn)
 
-    control_box = HBox(controls, layout=Layout(margin='10px 0'))
+    control_box = HBox(controls, layout=Layout(margin="10px 0"))
 
     # Set up interaction manually to avoid double widget display
     from ipywidgets import interactive_output
 
-    out = interactive_output(update_plot, {'year': year_slider, 'element': element_dropdown})
+    out = interactive_output(
+        update_plot, {"year": year_slider, "element": element_dropdown}
+    )
 
     # Display
     display(control_box)
@@ -209,14 +212,13 @@ def plot_optimized_mass_balance_error(
 
     # Initial plot
     update_plot(year_slider.value, element_dropdown.value)
-    
 
 
 def plot_total_mass_balance_error(
     mfa_system_results,
     color_manager: Optional[ElementColorManager] = None,
     enable_export: bool = True,
-    export_filename: str = "mass_balance_total"
+    export_filename: str = "mass_balance_total",
 ):
     """Creates a static bar chart showing the sum of absolute mass balance errors.
 
@@ -296,7 +298,9 @@ def plot_total_mass_balance_error(
     total_errors = {element: [] for element in element_items}
     for p_idx, p in enumerate(mfa_system_results.ProcessList):
         for e_idx, element in enumerate(element_items):
-            total_error_for_element = np.sum(np.abs(manual_balance_matrix[:, p_idx, e_idx]))
+            total_error_for_element = np.sum(
+                np.abs(manual_balance_matrix[:, p_idx, e_idx])
+            )
             total_errors[element].append(total_error_for_element)
 
     fig = go.Figure()
@@ -305,38 +309,40 @@ def plot_total_mass_balance_error(
     for element, errors in total_errors.items():
         element_color = color_manager.get_element_color(element)
 
-        fig.add_trace(go.Bar(
-            name=element.upper(),
-            x=process_names,
-            y=errors,
-            marker_color=element_color,
-            marker_line=dict(color=BIOYM_COLORS['dark'], width=1),
-            hovertemplate=f'<b>%{{x}}</b><br>{element.upper()}: %{{y:.2e}} Mg<extra></extra>'
-        ))
+        fig.add_trace(
+            go.Bar(
+                name=element.upper(),
+                x=process_names,
+                y=errors,
+                marker_color=element_color,
+                marker_line=dict(color=BIOYM_COLORS["dark"], width=1),
+                hovertemplate=f"<b>%{{x}}</b><br>{element.upper()}: %{{y:.2e}} Mg<extra></extra>",
+            )
+        )
 
     # Apply publication layout with proper formatting
     layout_config = get_publication_layout(
-        size='large',
+        size="large",
         show_grid=True,
         scientific_y=True,
         custom_title="Total Absolute Mass Balance Error (All Years)",
         x_title="Process",
-        y_title="Sum of Absolute Errors (Mg)"
+        y_title="Sum of Absolute Errors (Mg)",
     )
-    layout_config['barmode'] = 'stack'
-    layout_config['legend'] = {
-        'title': {'text': 'Element', 'font': {'size': 12}},
-        'font': {'size': 10},
-        'bgcolor': 'rgba(255,255,255,0.8)',
-        'bordercolor': BIOYM_COLORS['neutral'],
-        'borderwidth': 1,
-        'orientation': 'v',
-        'yanchor': 'top',
-        'y': 1,
-        'xanchor': 'right',
-        'x': 1
+    layout_config["barmode"] = "stack"
+    layout_config["legend"] = {
+        "title": {"text": "Element", "font": {"size": 12}},
+        "font": {"size": 10},
+        "bgcolor": "rgba(255,255,255,0.8)",
+        "bordercolor": BIOYM_COLORS["neutral"],
+        "borderwidth": 1,
+        "orientation": "v",
+        "yanchor": "top",
+        "y": 1,
+        "xanchor": "right",
+        "x": 1,
     }
-    layout_config['xaxis']['tickangle'] = -45
+    layout_config["xaxis"]["tickangle"] = -45
 
     fig.update_layout(layout_config)
 
@@ -349,15 +355,13 @@ def plot_total_mass_balance_error(
             paths = export_figure(
                 fig,
                 export_filename,
-                formats=['png', 'pdf'],
-                quality='publication',
-                size='large',
-                timestamp=True
+                formats=["png", "pdf"],
+                quality="publication",
+                size="large",
+                timestamp=True,
             )
             print(f"\n✅ Figure exported: {', '.join(paths)}")
         except Exception as e:
             print(f"\n⚠️ Export failed: {e}")
 
     return fig
-    
-

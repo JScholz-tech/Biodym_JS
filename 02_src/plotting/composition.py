@@ -13,17 +13,15 @@ Date: 2025-11-04
 """
 
 import plotly.graph_objects as go
-import numpy as np
-from ipywidgets import interact, IntSlider, Dropdown, Button, HBox, VBox, Layout, HTML
+from ipywidgets import IntSlider, Button, HBox, Layout, HTML
 from IPython.display import display
 from typing import Optional, Dict, List, Tuple
 
 from .publication_style_simplified import (
     get_publication_layout,
     BIOYM_COLORS,
-    FIGURE_SIZES
 )
-from .dynamic_colors import ElementColorManager, create_element_color_manager
+from .dynamic_colors import ElementColorManager
 from .export_publication import export_figure
 
 
@@ -32,7 +30,7 @@ def plot_flow_composition(
     color_manager: Optional[ElementColorManager] = None,
     enable_export: bool = True,
     show_validation_warnings: bool = True,
-    composition_tolerance: float = 1.0
+    composition_tolerance: float = 1.0,
 ):
     """
     Creates an interactive stacked bar chart to visualize flow composition with validation.
@@ -105,7 +103,7 @@ def plot_flow_composition(
     >>> #   Total: 100% ✓
     """
     flows = mfa_system_results.FlowDict
-    years = mfa_system_results.IndexTable.Classification['Time'].Items
+    years = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = [e.lower() for e in mfa_system_results.Elements]
 
     # Create color manager if not provided
@@ -114,7 +112,7 @@ def plot_flow_composition(
 
     # Get element hierarchy info if available
     # NOTE: _element_hierarchy is a BioDYM extension (stored by system_setup.py)
-    element_hierarchy = getattr(mfa_system_results, '_element_hierarchy', {})
+    element_hierarchy = getattr(mfa_system_results, "_element_hierarchy", {})
 
     # Build composition structure respecting hierarchy
     # Strategy: Show "Remaining X" for elements with children, plus all leaf elements
@@ -127,7 +125,7 @@ def plot_flow_composition(
     leaf_elements = []
 
     for e in element_items:
-        if e == 'material':
+        if e == "material":
             continue
 
         # Check if this element has children (any element whose parent is this element)
@@ -135,7 +133,11 @@ def plot_flow_composition(
         if element_hierarchy:
             for elem_id, elem_info in element_hierarchy.items():
                 # Compare parent name (case-insensitive)
-                parent_name = elem_info.get('parent', '').lower() if elem_info.get('parent') else None
+                parent_name = (
+                    elem_info.get("parent", "").lower()
+                    if elem_info.get("parent")
+                    else None
+                )
                 if parent_name == e.lower():
                     has_children = True
                     break
@@ -151,7 +153,7 @@ def plot_flow_composition(
     element_display_names = {}  # Map internal name -> display name
 
     for e in element_items:
-        if e == 'material':
+        if e == "material":
             continue
 
         if e in elements_with_children:
@@ -169,7 +171,9 @@ def plot_flow_composition(
     fig = go.FigureWidget()
     validation_output = HTML()
 
-    def validate_composition(flow_name: str, percentages: Dict[str, float]) -> Tuple[bool, str]:
+    def validate_composition(
+        flow_name: str, percentages: Dict[str, float]
+    ) -> Tuple[bool, str]:
         """
         Validate that composition percentages sum to 100%.
 
@@ -199,7 +203,7 @@ def plot_flow_composition(
             values = flow.Values[year_index, :]
 
             # Get material (total mass) - always at index 0
-            material_idx = element_items.index('material')
+            material_idx = element_items.index("material")
             total_mass = values[material_idx]
 
             if total_mass > 1e-10:  # Only include flows with mass
@@ -209,9 +213,9 @@ def plot_flow_composition(
                 flow_percentages = {}
 
                 for display_elem in composable_elements:
-                    if display_elem.startswith('remaining_'):
+                    if display_elem.startswith("remaining_"):
                         # This is a "Remaining X" element
-                        parent_elem = display_elem.replace('remaining_', '')
+                        parent_elem = display_elem.replace("remaining_", "")
                         parent_idx = element_items.index(parent_elem)
                         parent_val = values[parent_idx]
 
@@ -220,30 +224,40 @@ def plot_flow_composition(
                         if element_hierarchy:
                             for elem_id, elem_info in element_hierarchy.items():
                                 # Check if this element's parent is the current parent_elem
-                                elem_parent = elem_info.get('parent', '').lower() if elem_info.get('parent') else None
+                                elem_parent = (
+                                    elem_info.get("parent", "").lower()
+                                    if elem_info.get("parent")
+                                    else None
+                                )
                                 if elem_parent == parent_elem.lower():
                                     # This is a child element - subtract its value
-                                    child_name = elem_info['name'].lower()
+                                    child_name = elem_info["name"].lower()
                                     if child_name in element_items:
                                         child_idx = element_items.index(child_name)
                                         children_sum += values[child_idx]
 
                         # Remaining = parent - sum(children)
                         remaining_val = parent_val - children_sum
-                        percentage = (remaining_val / total_mass * 100) if total_mass > 0 else 0
+                        percentage = (
+                            (remaining_val / total_mass * 100) if total_mass > 0 else 0
+                        )
 
                     else:
                         # Regular element (leaf or no hierarchy)
                         elem_idx = element_items.index(display_elem)
                         elem_val = values[elem_idx]
-                        percentage = (elem_val / total_mass * 100) if total_mass > 0 else 0
+                        percentage = (
+                            (elem_val / total_mass * 100) if total_mass > 0 else 0
+                        )
 
                     element_percentages[display_elem].append(percentage)
                     flow_percentages[display_elem] = percentage
 
                 # Validate composition
                 if show_validation_warnings:
-                    is_valid, warning = validate_composition(flow_name, flow_percentages)
+                    is_valid, warning = validate_composition(
+                        flow_name, flow_percentages
+                    )
                     if not is_valid:
                         validation_warnings.append(warning)
 
@@ -254,87 +268,90 @@ def plot_flow_composition(
             # Add trace for each element
             for display_elem in composable_elements:
                 # Get appropriate color
-                if display_elem.startswith('remaining_'):
+                if display_elem.startswith("remaining_"):
                     # Use parent element color but lighter/muted
-                    parent_elem = display_elem.replace('remaining_', '')
+                    parent_elem = display_elem.replace("remaining_", "")
                     base_color = color_manager.get_element_color(parent_elem)
                     # Make it lighter by converting to RGB and adjusting
-                    import re
-                    hex_color = base_color.lstrip('#')
-                    r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+                    hex_color = base_color.lstrip("#")
+                    r, g, b = tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
                     # Lighten by blending with white (increase RGB values)
                     r = int(r + (255 - r) * 0.4)
                     g = int(g + (255 - g) * 0.4)
                     b = int(b + (255 - b) * 0.4)
-                    element_color = f'#{r:02x}{g:02x}{b:02x}'
+                    element_color = f"#{r:02x}{g:02x}{b:02x}"
                 else:
                     element_color = color_manager.get_element_color(display_elem)
 
-                display_name = element_display_names.get(display_elem, display_elem.upper())
+                display_name = element_display_names.get(
+                    display_elem, display_elem.upper()
+                )
 
-                fig.add_trace(go.Bar(
-                    y=flow_names,
-                    x=element_percentages[display_elem],
-                    name=display_name,
-                    orientation='h',
-                    marker=dict(
-                        color=element_color,
-                        line=dict(color=BIOYM_COLORS['dark'], width=0.5)
-                    ),
-                    hovertemplate=f'<b>%{{y}}</b><br>{display_name}: %{{x:.1f}}%<extra></extra>'
-                ))
+                fig.add_trace(
+                    go.Bar(
+                        y=flow_names,
+                        x=element_percentages[display_elem],
+                        name=display_name,
+                        orientation="h",
+                        marker=dict(
+                            color=element_color,
+                            line=dict(color=BIOYM_COLORS["dark"], width=0.5),
+                        ),
+                        hovertemplate=f"<b>%{{y}}</b><br>{display_name}: %{{x:.1f}}%<extra></extra>",
+                    )
+                )
 
             # Apply publication layout
             layout_config = get_publication_layout(
-                size='large',
+                size="large",
                 show_grid=True,
                 custom_title=f"Flow Composition ({year})",
                 x_title="Composition (%)",
-                y_title="Flows"
+                y_title="Flows",
             )
 
             # Customize for composition plot
-            layout_config['barmode'] = 'stack'
-            layout_config['xaxis']['range'] = [0, 105]  # Slightly over 100% to show errors
-            layout_config['legend'] = {
-                'title': {'text': 'Element', 'font': {'size': 12}},
-                'font': {'size': 10},
-                'bgcolor': 'rgba(255,255,255,0.9)',
-                'bordercolor': BIOYM_COLORS['neutral'],
-                'borderwidth': 1,
-                'orientation': 'h',
-                'yanchor': 'bottom',
-                'y': 1.02,
-                'xanchor': 'right',
-                'x': 1
+            layout_config["barmode"] = "stack"
+            layout_config["xaxis"]["range"] = [
+                0,
+                105,
+            ]  # Slightly over 100% to show errors
+            layout_config["legend"] = {
+                "title": {"text": "Element", "font": {"size": 12}},
+                "font": {"size": 10},
+                "bgcolor": "rgba(255,255,255,0.9)",
+                "bordercolor": BIOYM_COLORS["neutral"],
+                "borderwidth": 1,
+                "orientation": "h",
+                "yanchor": "bottom",
+                "y": 1.02,
+                "xanchor": "right",
+                "x": 1,
             }
 
             # Add 100% reference line
-            layout_config['shapes'] = [
+            layout_config["shapes"] = [
                 dict(
                     type="line",
                     x0=100,
                     x1=100,
                     y0=-0.5,
                     y1=len(flow_names) - 0.5,
-                    line=dict(
-                        color=BIOYM_COLORS['dark'],
-                        width=2,
-                        dash='dash'
-                    ),
+                    line=dict(color=BIOYM_COLORS["dark"], width=2, dash="dash"),
                 )
             ]
 
             # Add annotation for 100% line
-            layout_config['annotations'] = [
+            layout_config["annotations"] = [
                 dict(
                     x=100,
                     y=1.05,
-                    xref='x',
-                    yref='paper',
-                    text='100%',
+                    xref="x",
+                    yref="paper",
+                    text="100%",
                     showarrow=False,
-                    font=dict(size=10, color=BIOYM_COLORS['dark'])
+                    font=dict(size=10, color=BIOYM_COLORS["dark"]),
                 )
             ]
 
@@ -362,9 +379,9 @@ def plot_flow_composition(
             paths = export_figure(
                 fig,
                 filename,
-                formats=['png', 'pdf'],
-                quality='publication',
-                size='large'
+                formats=["png", "pdf"],
+                quality="publication",
+                size="large",
             )
             print(f"✅ Exported: {', '.join(paths)}")
         except Exception as e:
@@ -377,8 +394,8 @@ def plot_flow_composition(
         step=1,
         value=years[0],
         description="Year:",
-        style={'description_width': '60px'},
-        layout=Layout(width='400px')
+        style={"description_width": "60px"},
+        layout=Layout(width="400px"),
     )
 
     # Create control panel
@@ -386,20 +403,20 @@ def plot_flow_composition(
 
     if enable_export:
         export_btn = Button(
-            description='📥 Export Figure',
-            button_style='success',
-            tooltip='Export current view to PNG and PDF',
-            layout=Layout(width='150px')
+            description="📥 Export Figure",
+            button_style="success",
+            tooltip="Export current view to PNG and PDF",
+            layout=Layout(width="150px"),
         )
         export_btn.on_click(export_current_plot)
         controls.append(export_btn)
 
-    control_box = HBox(controls, layout=Layout(margin='10px 0'))
+    control_box = HBox(controls, layout=Layout(margin="10px 0"))
 
     # Set up interaction manually to avoid double widget display
     from ipywidgets import interactive_output
 
-    out = interactive_output(update_plot, {'year': year_slider})
+    out = interactive_output(update_plot, {"year": year_slider})
 
     # Display
     display(control_box)
@@ -410,13 +427,9 @@ def plot_flow_composition(
     # Initial plot
     update_plot(year_slider.value)
 
-    return fig
-
 
 def validate_flow_compositions(
-    mfa_system_results,
-    tolerance: float = 1.0,
-    verbose: bool = True
+    mfa_system_results, tolerance: float = 1.0, verbose: bool = True
 ) -> Dict[str, List[Tuple[str, int, float]]]:
     """
     Validate all flow compositions across all years.
@@ -451,25 +464,29 @@ def validate_flow_compositions(
     ...     print("Flows exceeding 100%:", issues['over_100'])
     """
     flows = mfa_system_results.FlowDict
-    years = mfa_system_results.IndexTable.Classification['Time'].Items
+    years = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = [e.lower() for e in mfa_system_results.Elements]
 
     # Get element hierarchy info
     # NOTE: _element_hierarchy is a BioDYM extension (stored by system_setup.py)
-    element_hierarchy = getattr(mfa_system_results, '_element_hierarchy', {})
+    element_hierarchy = getattr(mfa_system_results, "_element_hierarchy", {})
 
     # Build composition structure respecting hierarchy (same as plot function)
     elements_with_children = set()
     leaf_elements = []
 
     for e in element_items:
-        if e == 'material':
+        if e == "material":
             continue
 
         has_children = False
         if element_hierarchy:
             for elem_id, elem_info in element_hierarchy.items():
-                parent_name = elem_info.get('parent', '').lower() if elem_info.get('parent') else None
+                parent_name = (
+                    elem_info.get("parent", "").lower()
+                    if elem_info.get("parent")
+                    else None
+                )
                 if parent_name == e.lower():
                     has_children = True
                     break
@@ -482,7 +499,7 @@ def validate_flow_compositions(
     # Build display elements list
     composable_elements = []
     for e in element_items:
-        if e == 'material':
+        if e == "material":
             continue
         if e in elements_with_children:
             composable_elements.append(f"remaining_{e}")
@@ -497,16 +514,16 @@ def validate_flow_compositions(
         for year_idx, year in enumerate(years):
             values = flow.Values[year_idx, :]
 
-            material_idx = element_items.index('material')
+            material_idx = element_items.index("material")
             total_mass = values[material_idx]
 
             if total_mass > 1e-10:
                 # Calculate total percentage using hierarchy-aware logic
                 total_pct = 0
                 for display_elem in composable_elements:
-                    if display_elem.startswith('remaining_'):
+                    if display_elem.startswith("remaining_"):
                         # Calculate remaining portion
-                        parent_elem = display_elem.replace('remaining_', '')
+                        parent_elem = display_elem.replace("remaining_", "")
                         parent_idx = element_items.index(parent_elem)
                         parent_val = values[parent_idx]
 
@@ -514,20 +531,24 @@ def validate_flow_compositions(
                         children_sum = 0
                         if element_hierarchy:
                             for elem_id, elem_info in element_hierarchy.items():
-                                elem_parent = elem_info.get('parent', '').lower() if elem_info.get('parent') else None
+                                elem_parent = (
+                                    elem_info.get("parent", "").lower()
+                                    if elem_info.get("parent")
+                                    else None
+                                )
                                 if elem_parent == parent_elem.lower():
-                                    child_name = elem_info['name'].lower()
+                                    child_name = elem_info["name"].lower()
                                     if child_name in element_items:
                                         child_idx = element_items.index(child_name)
                                         children_sum += values[child_idx]
 
                         remaining_val = parent_val - children_sum
-                        total_pct += (remaining_val / total_mass * 100)
+                        total_pct += remaining_val / total_mass * 100
                     else:
                         # Regular element
                         elem_idx = element_items.index(display_elem)
                         elem_val = values[elem_idx]
-                        total_pct += (elem_val / total_mass * 100)
+                        total_pct += elem_val / total_mass * 100
 
                 # Check validation
                 if total_pct > 100.0 + tolerance:
@@ -543,7 +564,9 @@ def validate_flow_compositions(
         print("FLOW COMPOSITION VALIDATION REPORT")
         print("=" * 80)
         print(f"Tolerance: ±{tolerance}%")
-        print(f"Total flow-year combinations checked: {valid_count + len(over_100) + len(under_100)}")
+        print(
+            f"Total flow-year combinations checked: {valid_count + len(over_100) + len(under_100)}"
+        )
         print(f"✅ Valid (within tolerance): {valid_count}")
         print(f"⚠️ Exceeding 100%: {len(over_100)}")
         print(f"⚠️ Below 100%: {len(under_100)}")
@@ -552,7 +575,9 @@ def validate_flow_compositions(
             print("\n" + "=" * 80)
             print("FLOWS EXCEEDING 100% (Data Quality Issue)")
             print("=" * 80)
-            for flow_name, year, total_pct in sorted(over_100, key=lambda x: x[2], reverse=True)[:10]:
+            for flow_name, year, total_pct in sorted(
+                over_100, key=lambda x: x[2], reverse=True
+            )[:10]:
                 print(f"  {flow_name:40s} | Year {year} | {total_pct:6.2f}%")
             if len(over_100) > 10:
                 print(f"  ... and {len(over_100) - 10} more")
@@ -561,15 +586,13 @@ def validate_flow_compositions(
             print("\n" + "=" * 80)
             print("FLOWS BELOW 100% (Missing Material)")
             print("=" * 80)
-            for flow_name, year, total_pct in sorted(under_100, key=lambda x: x[2])[:10]:
+            for flow_name, year, total_pct in sorted(under_100, key=lambda x: x[2])[
+                :10
+            ]:
                 print(f"  {flow_name:40s} | Year {year} | {total_pct:6.2f}%")
             if len(under_100) > 10:
                 print(f"  ... and {len(under_100) - 10} more")
 
         print("\n" + "=" * 80)
 
-    return {
-        'over_100': over_100,
-        'under_100': under_100,
-        'valid_count': valid_count
-    }
+    return {"over_100": over_100, "under_100": under_100, "valid_count": valid_count}

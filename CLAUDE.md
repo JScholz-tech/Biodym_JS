@@ -19,6 +19,20 @@ Key capabilities:
 
 ## Recent Progress
 
+### Workflow Reorganization (2025-11-17) - ✅ COMPLETE
+Improved workflow structure and organization:
+- **Flow Composition moved to validation** (Section 2.5): Now part of Chapter 2 (Calculation & Mass Balance) to emphasize its role in model completeness validation
+- **Section numbering fixed**: Chapter 2 sections now sequential (2.1 → 2.2 → 2.3 → 2.4 → 2.5)
+- **Duplicates removed**: Flow composition plotting streamlined to single instance
+- **Working with .py file**: Use `00_BioDYM_Workflow.py` for edits (jupytext syncs with .ipynb)
+
+**Chapter 2 structure** (Calculation & Mass Balance):
+- 2.1 Model Initialization & Calculation
+- 2.2 Data Validation Summary
+- 2.3 Mass Balance Verification
+- 2.4 System Flow Diagram (Graphviz)
+- 2.5 Flow Composition Validation ← NEW: Validates element composition completeness
+
 ### Element-Agnostic Architecture (2025-10-31) - ✅ COMPLETE
 BioDYM now supports **any element set** through flexible configuration:
 - Generic E# column format (E1, E2, E3, E4) maps to any elements
@@ -67,6 +81,16 @@ uv run jupyter lab
 **Command-line interface**:
 ```bash
 uv run python 02_src/main_cli.py --input my_analysis.xlsx
+```
+
+**Working with Jupytext** (recommended for version control):
+```bash
+# Edit the .py file (00_BioDYM_Workflow.py) for better version control
+# Sync changes to .ipynb file:
+jupytext --sync 00_BioDYM_Workflow.ipynb
+
+# Or let Jupyter auto-sync when opening the notebook
+# The .py file is the source of truth for code edits
 ```
 
 ### Testing
@@ -475,6 +499,6 @@ For planned features and development roadmap, see **ROADMAP.md**:
 
 ---
 
-**Last Updated**: 2025-11-04
-**CLAUDE.md Version**: 3.0 (Condensed & Reorganized)
+**Last Updated**: 2025-11-17
+**CLAUDE.md Version**: 3.1 (Workflow Reorganization)
 **BioDYM Status**: Pre-publication preparation

@@ -9,11 +9,8 @@ functions (DSM, FOMP) in the correct sequence until the system converges.
 
 import numpy as np
 import copy
-import sys
-import os
 
 
-import ODYM_Classes as msc
 
 # Import other engine components
 from . import dsm_model
@@ -64,14 +61,14 @@ def calculate_final_balances(mfa_system):
             stock_s.Values = new_s_values
 
     print("--> Stock balance calculation finished.")
-    
+
     # Phase 1a: Add ODYM validation
     try:
         mfa_system.Consistency_Check()
         print("✅ Balance validation passed")
     except Exception as e:
         print(f"⚠️ Balance validation warning: {e}")
-    
+
     return mfa_system
 
 
@@ -98,11 +95,13 @@ def process_initial_stocks(mfa_system):
         The MFA system, potentially modified by the initial stock engine.
     """
     print("--> Processing initial stock outflows...")
-    
+
     # Check if initial stock configurations were loaded
-    if hasattr(mfa_system, 'initial_stock_outflows') and mfa_system.initial_stock_outflows:
-        from . import initial_stock_engine
-        
+    if (
+        hasattr(mfa_system, "initial_stock_outflows")
+        and mfa_system.initial_stock_outflows
+    ):
+
         # Get initial stock configurations (we need to reload them)
         # This is a temporary solution - in the future, we should store the configs in mfa_system
         print("  -> Initial stock outflows already processed during setup")
@@ -138,12 +137,21 @@ def enhanced_input_validation(input_flows, dsm_processes):
     # Check if the sum of all values in all input flows is greater than zero.
     # This is a more robust check than np.any() for each flow, as it
     # correctly handles cases where a flow is valid but has a 0 value.
-    total_inflow_sum = sum(np.sum(f.Values) for f in input_flows if f.Values is not None)
+    total_inflow_sum = sum(
+        np.sum(f.Values) for f in input_flows if f.Values is not None
+    )
 
     return total_inflow_sum > 0
 
 
-def _calculate_tc_driven_flows(mfa_system, special_processes, process_logic_map, flow_tc_map, dsm_processes, config=None):
+def _calculate_tc_driven_flows(
+    mfa_system,
+    special_processes,
+    process_logic_map,
+    flow_tc_map,
+    dsm_processes,
+    config=None,
+):
     """Calculates all flows that are driven by transfer coefficients (TCs).
 
     This function iterates through all flows in the system, identifies those
@@ -170,7 +178,7 @@ def _calculate_tc_driven_flows(mfa_system, special_processes, process_logic_map,
     """
     something_changed = False
     for flow in mfa_system.FlowDict.values():
-        if flow.P_Start in special_processes or hasattr(flow, '_fomp_protected'):
+        if flow.P_Start in special_processes or hasattr(flow, "_fomp_protected"):
             continue
 
         process_logic = process_logic_map.get(flow.P_Start)
@@ -179,7 +187,9 @@ def _calculate_tc_driven_flows(mfa_system, special_processes, process_logic_map,
         if not process_logic or not tc_ids:
             continue
 
-        input_flows = [f for f in mfa_system.FlowDict.values() if f.P_End == flow.P_Start]
+        input_flows = [
+            f for f in mfa_system.FlowDict.values() if f.P_End == flow.P_Start
+        ]
         if not enhanced_input_validation(input_flows, dsm_processes):
             continue
 
@@ -190,16 +200,20 @@ def _calculate_tc_driven_flows(mfa_system, special_processes, process_logic_map,
         # Get element indices dynamically
         elements = mfa_system.Elements
         mat_idx = 0  # Material is always first
-        other_elements = elements[1:]  # All other elements (WC, DM, CC or Fe, Cu, Al, etc.)
+        other_elements = elements[
+            1:
+        ]  # All other elements (WC, DM, CC or Fe, Cu, Al, etc.)
         elem_indices = {elem: idx for idx, elem in enumerate(elements)}
 
-        if process_logic in ['Splitter', 'Transformer']:
-            if process_logic == 'Splitter':
+        if process_logic in ["Splitter", "Transformer"]:
+            if process_logic == "Splitter":
                 # Splitter: Preserves composition (element fractions stay the same)
-                param_name = tc_ids.get('material')
+                param_name = tc_ids.get("material")
                 if param_name and param_name in mfa_system.ParameterDict:
                     tc_value = mfa_system.ParameterDict[param_name].Values
-                    outflow_vector[:, mat_idx] = total_inflow_vector[:, mat_idx] * tc_value
+                    outflow_vector[:, mat_idx] = (
+                        total_inflow_vector[:, mat_idx] * tc_value
+                    )
 
                     # Preserve composition for all elements
                     inflow_material = total_inflow_vector[:, mat_idx]
@@ -212,30 +226,36 @@ def _calculate_tc_driven_flows(mfa_system, special_processes, process_logic_map,
                             total_inflow_vector[:, elem_idx],
                             inflow_material,
                             out=np.zeros_like(inflow_material),
-                            where=inflow_material != 0
+                            where=inflow_material != 0,
                         )
 
                         # Apply fraction to outflow material
-                        outflow_vector[:, elem_idx] = outflow_vector[:, mat_idx] * element_fraction
+                        outflow_vector[:, elem_idx] = (
+                            outflow_vector[:, mat_idx] * element_fraction
+                        )
 
-            elif process_logic == 'Transformer':
+            elif process_logic == "Transformer":
                 # Transformer: Changes composition (apply TCs to each element independently)
                 for element in other_elements:
                     elem_idx = elem_indices[element]
 
                     # Look for element-specific TC, fallback to material TC
-                    param_name = tc_ids.get(element, tc_ids.get('material'))
+                    param_name = tc_ids.get(element, tc_ids.get("material"))
 
                     if param_name and param_name in mfa_system.ParameterDict:
                         tc_value = mfa_system.ParameterDict[param_name].Values
-                        outflow_vector[:, elem_idx] = total_inflow_vector[:, elem_idx] * tc_value
+                        outflow_vector[:, elem_idx] = (
+                            total_inflow_vector[:, elem_idx] * tc_value
+                        )
                     else:
                         # No TC found, assume passthrough (no change)
                         outflow_vector[:, elem_idx] = total_inflow_vector[:, elem_idx]
 
                 # Recalculate total material as sum of TOP-LEVEL elements only
                 # (excludes hierarchical elements like CC which is % of DM, not material)
-                element_hierarchy = getattr(config, 'Element_Hierarchy', {}) if config else {}
+                element_hierarchy = (
+                    getattr(config, "Element_Hierarchy", {}) if config else {}
+                )
 
                 if element_hierarchy:
                     # Only sum elements with parent='material' or no parent
@@ -244,13 +264,13 @@ def _calculate_tc_driven_flows(mfa_system, special_processes, process_logic_map,
                         # Find element info in hierarchy
                         elem_info = None
                         for eid, info in element_hierarchy.items():
-                            if info['name'] == elem:
+                            if info["name"] == elem:
                                 elem_info = info
                                 break
 
                         # Sum only if it's a top-level element
-                        parent = elem_info.get('parent') if elem_info else None
-                        if not parent or parent == 'material':
+                        parent = elem_info.get("parent") if elem_info else None
+                        if not parent or parent == "material":
                             elem_idx = elem_indices[elem]
                             top_level_sum += outflow_vector[:, elem_idx]
 
@@ -263,6 +283,7 @@ def _calculate_tc_driven_flows(mfa_system, special_processes, process_logic_map,
             if not np.allclose(old_values, flow.Values):
                 something_changed = True
     return something_changed
+
 
 def _calculate_dsm_flows(mfa_system, dsm_processes, dsm_params, iteration):
     """Calculates all stocks and flows for Dynamic Stock Model (DSM) processes.
@@ -291,20 +312,27 @@ def _calculate_dsm_flows(mfa_system, dsm_processes, dsm_params, iteration):
     something_changed = False
     dsm_details = {}
     for process_id in dsm_processes:
-        inflows_to_dsm = [f for f in mfa_system.FlowDict.values() if f.P_End == process_id]
+        inflows_to_dsm = [
+            f for f in mfa_system.FlowDict.values() if f.P_End == process_id
+        ]
         total_inflow_sum = sum(np.sum(f.Values) for f in inflows_to_dsm)
 
         inflow_names = [f.Name for f in inflows_to_dsm]
         is_ready = total_inflow_sum > 0
-        print(f"[DSM DEBUG] Iteration {iteration}: Process {process_id}, Inflows: {inflow_names}, Total Inflow Sum: {total_inflow_sum:.2f}, Ready: {is_ready}")
+        print(
+            f"[DSM DEBUG] Iteration {iteration}: Process {process_id}, Inflows: {inflow_names}, Total Inflow Sum: {total_inflow_sum:.2f}, Ready: {is_ready}"
+        )
 
         if not is_ready:
             continue
 
-        outflow_flow_name = next((f.Name for f in mfa_system.FlowDict.values() if f.P_Start == process_id), None)
+        outflow_flow_name = next(
+            (f.Name for f in mfa_system.FlowDict.values() if f.P_Start == process_id),
+            None,
+        )
         if not outflow_flow_name:
             continue
-        
+
         old_out_values = mfa_system.FlowDict[outflow_flow_name].Values.copy()
 
         mfa_system, dsm_details_single_run = dsm_model.calculate_dynamic_stock(
@@ -312,9 +340,12 @@ def _calculate_dsm_flows(mfa_system, dsm_processes, dsm_params, iteration):
         )
         dsm_details.update(dsm_details_single_run)
 
-        if not np.allclose(old_out_values, mfa_system.FlowDict[outflow_flow_name].Values):
+        if not np.allclose(
+            old_out_values, mfa_system.FlowDict[outflow_flow_name].Values
+        ):
             something_changed = True
     return something_changed, dsm_details
+
 
 def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
     """Calculates all stocks and flows for First-Order Mass Pool (FOMP) processes.
@@ -338,63 +369,108 @@ def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
         True if any flow values were changed during the calculation, False otherwise.
     """
     # Check if required elements exist for FOMP
-    required_elements = ['DM', 'CC']
+    required_elements = ["DM", "CC"]
     missing_elements = [e for e in required_elements if e not in mfa_system.Elements]
 
     if missing_elements:
-        print(f"⚠️  FOMP calculation skipped: Missing required elements {missing_elements}")
-        print(f"   FOMP requires 'DM' (dry matter) and 'CC' (carbon content) for organic decomposition")
+        print(
+            f"⚠️  FOMP calculation skipped: Missing required elements {missing_elements}"
+        )
+        print(
+            "   FOMP requires 'DM' (dry matter) and 'CC' (carbon content) for organic decomposition"
+        )
         print(f"   Available elements: {mfa_system.Elements}")
-        print(f"   Tip: For non-organic systems (e.g., metals), disable FOMP in configuration")
+        print(
+            "   Tip: For non-organic systems (e.g., metals), disable FOMP in configuration"
+        )
         return False  # No changes made
 
     something_changed = False
     for process_id in fomp_processes:
-        inflows_to_fomp = [f for f in mfa_system.FlowDict.values() if f.P_End == process_id]
-        if not (inflows_to_fomp and all(np.any(f.Values != 0) for f in inflows_to_fomp)):
+        inflows_to_fomp = [
+            f for f in mfa_system.FlowDict.values() if f.P_End == process_id
+        ]
+        if not (
+            inflows_to_fomp and all(np.any(f.Values != 0) for f in inflows_to_fomp)
+        ):
             continue
 
-        fomp_outflows = [f for f in mfa_system.FlowDict.values() if f.P_Start == process_id and hasattr(f, '_fomp_protected')]
+        fomp_outflows = [
+            f
+            for f in mfa_system.FlowDict.values()
+            if f.P_Start == process_id and hasattr(f, "_fomp_protected")
+        ]
         old_fomp_out_values = {f.Name: f.Values.copy() for f in fomp_outflows}
 
         total_inflow_values = sum(f.Values for f in inflows_to_fomp)
 
         # Element indices (already validated above)
-        material_idx = mfa_system.Elements.index('material')
-        dm_idx = mfa_system.Elements.index('DM')
-        cc_idx = mfa_system.Elements.index('CC')
-        wc_idx = mfa_system.Elements.index('WC') if 'WC' in mfa_system.Elements else None
-        
-        dm_fraction = np.divide(total_inflow_values[:, dm_idx], total_inflow_values[:, material_idx], out=np.zeros_like(total_inflow_values[:, dm_idx]), where=total_inflow_values[:, material_idx] != 0)
-        cc_fraction = np.divide(total_inflow_values[:, cc_idx], total_inflow_values[:, material_idx], out=np.zeros_like(total_inflow_values[:, cc_idx]), where=total_inflow_values[:, material_idx] != 0)
+        material_idx = mfa_system.Elements.index("material")
+        dm_idx = mfa_system.Elements.index("DM")
+        cc_idx = mfa_system.Elements.index("CC")
+        wc_idx = (
+            mfa_system.Elements.index("WC") if "WC" in mfa_system.Elements else None
+        )
+
+        dm_fraction = np.divide(
+            total_inflow_values[:, dm_idx],
+            total_inflow_values[:, material_idx],
+            out=np.zeros_like(total_inflow_values[:, dm_idx]),
+            where=total_inflow_values[:, material_idx] != 0,
+        )
+        cc_fraction = np.divide(
+            total_inflow_values[:, cc_idx],
+            total_inflow_values[:, material_idx],
+            out=np.zeros_like(total_inflow_values[:, cc_idx]),
+            where=total_inflow_values[:, material_idx] != 0,
+        )
 
         print(f"   FOMP Process {process_id} - Input Flow Composition:")
-        print(f"     DM fraction: {np.mean(dm_fraction[dm_fraction > 0]):.3f} (range: {np.min(dm_fraction):.3f} - {np.max(dm_fraction):.3f})")
-        print(f"     CC fraction: {np.mean(cc_fraction[cc_fraction > 0]):.3f} (range: {np.min(cc_fraction):.3f} - {np.max(cc_fraction):.3f})")
+        print(
+            f"     DM fraction: {np.mean(dm_fraction[dm_fraction > 0]):.3f} (range: {np.min(dm_fraction):.3f} - {np.max(dm_fraction):.3f})"
+        )
+        print(
+            f"     CC fraction: {np.mean(cc_fraction[cc_fraction > 0]):.3f} (range: {np.min(cc_fraction):.3f} - {np.max(cc_fraction):.3f})"
+        )
 
         # Build composition dictionary
-        composition = {'DM': dm_fraction, 'CC': cc_fraction}
+        composition = {"DM": dm_fraction, "CC": cc_fraction}
 
         # Add WC if available
         if wc_idx is not None:
-            wc_fraction = np.divide(total_inflow_values[:, wc_idx], total_inflow_values[:, material_idx], out=np.zeros_like(total_inflow_values[:, wc_idx]), where=total_inflow_values[:, material_idx] != 0)
-            composition['WC'] = wc_fraction
-            print(f"     WC fraction: {np.mean(wc_fraction[wc_fraction > 0]):.3f} (range: {np.min(wc_fraction):.3f} - {np.max(wc_fraction):.3f})")
+            wc_fraction = np.divide(
+                total_inflow_values[:, wc_idx],
+                total_inflow_values[:, material_idx],
+                out=np.zeros_like(total_inflow_values[:, wc_idx]),
+                where=total_inflow_values[:, material_idx] != 0,
+            )
+            composition["WC"] = wc_fraction
+            print(
+                f"     WC fraction: {np.mean(wc_fraction[wc_fraction > 0]):.3f} (range: {np.min(wc_fraction):.3f} - {np.max(wc_fraction):.3f})"
+            )
 
-        mfa_system = fomp_model.calculate_fomp(mfa_system, {process_id: fomp_params[process_id]}, composition)
+        mfa_system = fomp_model.calculate_fomp(
+            mfa_system, {process_id: fomp_params[process_id]}, composition
+        )
 
         for out_flow in fomp_outflows:
-            if out_flow.Name in old_fomp_out_values and not np.allclose(old_fomp_out_values[out_flow.Name], out_flow.Values):
+            if out_flow.Name in old_fomp_out_values and not np.allclose(
+                old_fomp_out_values[out_flow.Name], out_flow.Values
+            ):
                 something_changed = True
                 break
     return something_changed
 
+
 def run_mfa_calculation(
-
-    mfa_system_setup, dsm_params, fomp_params, config, flow_tc_map, process_logic_map, tc_updates=None
-
+    mfa_system_setup,
+    dsm_params,
+    fomp_params,
+    config,
+    flow_tc_map,
+    process_logic_map,
+    tc_updates=None,
 ):
-
     """This function is the iterative solver for the MFA system.
 
 
@@ -474,20 +550,34 @@ def run_mfa_calculation(
         pass_changes = []
 
         # --- 1. TC-driven, DSM, and FOMP flows ---
-        tc_changed = _calculate_tc_driven_flows(mfa_system, special_processes, process_logic_map, flow_tc_map, dsm_processes, config)
+        tc_changed = _calculate_tc_driven_flows(
+            mfa_system,
+            special_processes,
+            process_logic_map,
+            flow_tc_map,
+            dsm_processes,
+            config,
+        )
         pass_changes.append(tc_changed)
-        
+
         # --- 1.5. Update Initial Stock Flows ---
         from . import initial_stock_engine
-        mfa_system = initial_stock_engine.update_initial_stock_flows_during_solver(mfa_system)
+
+        mfa_system = initial_stock_engine.update_initial_stock_flows_during_solver(
+            mfa_system
+        )
 
         if config.RUN_DSM_CALCULATION:
-            dsm_changed, dsm_run_details = _calculate_dsm_flows(mfa_system, dsm_processes, dsm_params, i)
+            dsm_changed, dsm_run_details = _calculate_dsm_flows(
+                mfa_system, dsm_processes, dsm_params, i
+            )
             dsm_details.update(dsm_run_details)
             pass_changes.append(dsm_changed)
 
         if config.RUN_FOMP_CALCULATION:
-            fomp_changed = _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params)
+            fomp_changed = _calculate_fomp_flows(
+                mfa_system, fomp_processes, fomp_params
+            )
             pass_changes.append(fomp_changed)
 
         # --- 4. Convergence Check ---
@@ -495,11 +585,13 @@ def run_mfa_calculation(
             print(f"--> System converged after {i + 1} iterations.")
             break
     else:
-        print(f"⚠️ WARNING: System did not converge after {max_iterations} iterations. Results may be unstable.")
+        print(
+            f"⚠️ WARNING: System did not converge after {max_iterations} iterations. Results may be unstable."
+        )
 
     # --- Final balance calculation ---
     mfa_system = calculate_final_balances(mfa_system)
-    
+
     # Phase 1a: Add ODYM validation after complete calculation
     try:
         mfa_system.Consistency_Check()

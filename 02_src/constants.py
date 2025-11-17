@@ -6,68 +6,70 @@ This module defines standard icons and constants used throughout BioDYM
 for consistent user feedback and visual communication.
 """
 
+
 class Icons:
     """Standard emoji icons for consistent user feedback across BioDYM"""
-    
+
     # Status Indicators
-    SUCCESS = "✅"      # Success / Complete
-    ERROR = "❌"        # Error / Failed
-    WARNING = "⚠️"     # Warning
-    INFO = "ℹ️"        # Information
+    SUCCESS = "✅"  # Success / Complete
+    ERROR = "❌"  # Error / Failed
+    WARNING = "⚠️"  # Warning
+    INFO = "ℹ️"  # Information
     PROCESSING = "⚙️"  # Processing / Working
-    
+
     # File Operations
-    FILE = "📁"        # File operations
-    FOLDER = "📂"      # Folder / Directory
-    
+    FILE = "📁"  # File operations
+    FOLDER = "📂"  # Folder / Directory
+
     # Workflow Stages
-    CALCULATION = "🧮" # Calculation / Computation
+    CALCULATION = "🧮"  # Calculation / Computation
     VISUALIZATION = "📊"  # Visualization / Chart
-    EXPORT = "💾"     # Export / Save
-    IMPORT = "📥"     # Import / Load
-    
+    EXPORT = "💾"  # Export / Save
+    IMPORT = "📥"  # Import / Load
+
     # Analysis Types
-    MFA = "🔄"         # Material Flow Analysis
-    DSM = "🏗️"        # Dynamic Stock Model
-    FOMP = "🌱"        # First-Order Mineralization Process
-    MONTE_CARLO = "🎲" # Monte Carlo Simulation
-    SCENARIO = "🎭"   # Scenario Analysis
-    
+    MFA = "🔄"  # Material Flow Analysis
+    DSM = "🏗️"  # Dynamic Stock Model
+    FOMP = "🌱"  # First-Order Mineralization Process
+    MONTE_CARLO = "🎲"  # Monte Carlo Simulation
+    SCENARIO = "🎭"  # Scenario Analysis
+
     # System Components
     CONFIGURATION = "⚙️"  # Configuration / Settings
-    DATA_LOADING = "📥"   # Data Loading
-    VALIDATION = "⚖️"    # Validation / Mass Balance
-    SYSTEM = "🔧"        # System / Setup
-    
+    DATA_LOADING = "📥"  # Data Loading
+    VALIDATION = "⚖️"  # Validation / Mass Balance
+    SYSTEM = "🔧"  # System / Setup
+
     # Time & Elements
-    TIME = "📅"       # Time / Date
-    ELEMENT = "🧪"    # Element / Chemical
-    
+    TIME = "📅"  # Time / Date
+    ELEMENT = "🧪"  # Element / Chemical
+
     # Visualizations
-    SANKEY = "🌊"     # Flow / Sankey Diagram
+    SANKEY = "🌊"  # Flow / Sankey Diagram
     BAR_CHART = "📈"  # Bar Chart / Stock
-    PROCESS = "🏭"    # Process / Factory
-    
+    PROCESS = "🏭"  # Process / Factory
+
     # Actions
-    CREATING = "🎯"   # Creating / Generating
-    RUNNING = "🚀"    # Running / Execution
-    LOADING = "📥"    # Loading
-    SAVING = "💾"     # Saving
+    CREATING = "🎯"  # Creating / Generating
+    RUNNING = "🚀"  # Running / Execution
+    LOADING = "📥"  # Loading
+    SAVING = "💾"  # Saving
     ANALYZING = "🔍"  # Analyzing / Searching
-    
+
     # Categories
-    SECTION = "█"     # Section marker
+    SECTION = "█"  # Section marker
     SUBSECTION = "─"  # Subsection marker
-    ARROW = "→"       # Direction / Flow
-    
+    ARROW = "→"  # Direction / Flow
+
     # Progress
-    START = "▶️"      # Start / Play
-    STOP = "⏹️"      # Stop
-    TIMER = "⏱️"      # Timer / Duration
+    START = "▶️"  # Start / Play
+    STOP = "⏹️"  # Stop
+    TIMER = "⏱️"  # Timer / Duration
 
 
 class StatusLevel:
     """Message status levels for logging"""
+
     INFO = "INFO"
     SUCCESS = "SUCCESS"
     WARNING = "WARNING"
@@ -77,35 +79,36 @@ class StatusLevel:
 
 class Colors:
     """ANSI color codes for terminal output (optional)"""
-    RESET = '\033[0m'
-    BOLD = '\033[1m'
-    
+
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+
     # Status colors
-    SUCCESS = '\033[92m'  # Green
-    WARNING = '\033[93m'  # Yellow
-    ERROR = '\033[91m'    # Red
-    INFO = '\033[94m'     # Blue
-    
+    SUCCESS = "\033[92m"  # Green
+    WARNING = "\033[93m"  # Yellow
+    ERROR = "\033[91m"  # Red
+    INFO = "\033[94m"  # Blue
+
     # Text colors
-    BLACK = '\033[30m'
-    RED = '\033[31m'
-    GREEN = '\033[32m'
-    YELLOW = '\033[33m'
-    BLUE = '\033[34m'
-    MAGENTA = '\033[35m'
-    CYAN = '\033[36m'
-    WHITE = '\033[37m'
+    BLACK = "\033[30m"
+    RED = "\033[31m"
+    GREEN = "\033[32m"
+    YELLOW = "\033[33m"
+    BLUE = "\033[34m"
+    MAGENTA = "\033[35m"
+    CYAN = "\033[36m"
+    WHITE = "\033[37m"
 
 
 # Standard messages formats
 def format_header(title: str, level: int = 1, char: str = "=") -> str:
     """Format a section header
-    
+
     Args:
         title: Header text
         level: Header level (1-3)
         char: Character to use for separator
-    
+
     Returns:
         Formatted header string
     """
@@ -116,12 +119,12 @@ def format_header(title: str, level: int = 1, char: str = "=") -> str:
 
 def format_step(icon: str, step: str, message: str) -> str:
     """Format a workflow step message
-    
+
     Args:
         icon: Icon to display
         step: Step identifier (e.g., "1.1", "2.3")
         message: Step description
-    
+
     Returns:
         Formatted step string
     """
@@ -150,11 +153,11 @@ def format_info(message: str) -> str:
 
 def format_file_path(path: str, action: str = "Loading") -> str:
     """Format a file path with highlighting
-    
+
     Args:
         path: File path
         action: Action being performed on file
-    
+
     Returns:
         Formatted file path string
     """
@@ -206,5 +209,4 @@ Actions:
 
 Categories:
   {ARROW} - Direction / Flow
-""".format(**{k: v for k, v in Icons.__dict__.items() if not k.startswith('_')})
-
+""".format(**{k: v for k, v in Icons.__dict__.items() if not k.startswith("_")})
