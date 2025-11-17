@@ -166,16 +166,8 @@ def _prepare_sankey_data(
         "pad": node_pad,
         "thickness": node_thickness,
         "line": {"color": "black", "width": 0.5},
-        "font": {
-            "size": sankey_config.FONT_SIZE_LABELS,
-            "color": sankey_config.FONT_COLOR_LABELS,
-            "family": FONT_FAMILY,
-        },
     }
-
-    # Apply bold font weight if configured (Plotly doesn't support weight directly, use HTML)
-    if sankey_config.FONT_WEIGHT_LABELS == "bold":
-        node_dict["font"]["weight"] = "bold"
+    # Note: Font styling is applied at layout level, not on individual nodes
 
     # Prepare link data
     if not flows_data:
@@ -516,7 +508,15 @@ def plot_interactive_sankey(
 
     # Display (matches enhanced_sankey: VBox with controls and figure)
     display(VBox([ui, fig]))
-    out.update()
+
+    # Initial draw - explicitly trigger update with default values
+    update_sankey(
+        year_slider.value,
+        element_dropdown.value,
+        process_selector.value,
+        flow_selector.value,
+        threshold_slider.value,
+    )
 
 
 def plot_element_multiplot_sankey(
