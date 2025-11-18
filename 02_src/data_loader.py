@@ -1351,7 +1351,7 @@ def load_scenario_definitions(excel_data):
     return scenario_definitions
 
 
-def load_initial_stock_parameters(excel_data):
+def load_initial_stock_parameters(excel_data, elements=None):
     """Loads initial stock parameters by delegating to the initial stock engine.
 
     This function acts as a wrapper to ensure consistency, calling the
@@ -1362,6 +1362,9 @@ def load_initial_stock_parameters(excel_data):
     ----------
     excel_data : dict
         Dictionary of DataFrames from the loaded Excel file.
+    elements : list of str, optional
+        List of element names (e.g., ['material', 'WC', 'DM', 'CC']).
+        If None, defaults to ['material', 'WC', 'DM', 'CC'].
 
     Returns
     -------
@@ -1371,4 +1374,4 @@ def load_initial_stock_parameters(excel_data):
     # Import here to avoid circular imports
     from engine import initial_stock_engine
 
-    return initial_stock_engine.load_initial_stock_parameters(excel_data)
+    return initial_stock_engine.load_initial_stock_parameters(excel_data, elements)

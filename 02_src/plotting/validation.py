@@ -97,6 +97,7 @@ def plot_optimized_mass_balance_error(
             outflow_sums[flow.P_Start] += flow_value
 
         errors = []
+        process_labels = []
         for p in mfa_system_results.ProcessList:
             in_val = inflow_sums.get(p.ID, 0)
             out_val = outflow_sums.get(p.ID, 0)
@@ -106,8 +107,23 @@ def plot_optimized_mass_balance_error(
                 ds_val.Values[year_index, element_index] if ds_val is not None else 0
             )
 
+            # Detect Input/Output processes (system boundaries)
+            # Input process: no inflows, has outflows (material source)
+            # Output process: has inflows, no outflows (material sink)
+            is_input_process = (in_val == 0) and (out_val > 0) and (ds_sum == 0)
+            is_output_process = (in_val > 0) and (out_val == 0) and (ds_sum == 0)
+
+            # Calculate error
             error = in_val - out_val - ds_sum
-            errors.append(error)
+
+            # Exclude Input/Output processes from error calculation
+            # (they are system boundaries, not mass-conserving processes)
+            if is_input_process or is_output_process:
+                errors.append(0)  # Set error to zero for display
+                process_labels.append(f"{p.Name}*")  # Mark with asterisk
+            else:
+                errors.append(error)
+                process_labels.append(p.Name)
 
         # Use dynamic element color for all bars
         element_color = color_manager.get_element_color(element.lower())
@@ -117,7 +133,7 @@ def plot_optimized_mass_balance_error(
             fig.data = []  # Clear previous data
             fig.add_trace(
                 go.Bar(
-                    x=process_names,
+                    x=process_labels,
                     y=errors,
                     marker_color=colors,
                     marker_line=dict(color=BIOYM_COLORS["dark"], width=1),
@@ -141,8 +157,21 @@ def plot_optimized_mass_balance_error(
                     y0=0,
                     y1=0,
                     x0=-0.5,
-                    x1=len(process_names) - 0.5,
+                    x1=len(process_labels) - 0.5,
                     line=dict(color=BIOYM_COLORS["dark"], width=2, dash="dash"),
+                )
+            ]
+            # Add annotation about Input/Output processes
+            layout_config["annotations"] = [
+                dict(
+                    text="* Input/Output processes (system boundaries) - excluded from error calculation",
+                    xref="paper",
+                    yref="paper",
+                    x=0.5,
+                    y=-0.15,
+                    showarrow=False,
+                    font=dict(size=10, color=BIOYM_COLORS["neutral"]),
+                    xanchor="center",
                 )
             ]
             fig.update_layout(layout_config)
@@ -295,12 +324,34 @@ def plot_total_mass_balance_error(
     manual_balance_matrix = total_inflows - total_outflows - total_ds
 
     # Calculate total errors per element and process
+    # Also detect Input/Output processes to exclude them
     total_errors = {element: [] for element in element_items}
+    process_labels = []
+
     for p_idx, p in enumerate(mfa_system_results.ProcessList):
+        # Check if this is an Input or Output process (system boundary)
+        # Average over time and elements to detect pattern
+        avg_inflow = np.mean(total_inflows[:, p_idx, :])
+        avg_outflow = np.mean(total_outflows[:, p_idx, :])
+        avg_ds = np.mean(total_ds[:, p_idx, :])
+
+        is_input_process = (avg_inflow == 0) and (avg_outflow > 0) and (abs(avg_ds) < 1e-10)
+        is_output_process = (avg_inflow > 0) and (avg_outflow == 0) and (abs(avg_ds) < 1e-10)
+
+        # Add label with marker for Input/Output processes
+        if is_input_process or is_output_process:
+            process_labels.append(f"{p.Name}*")
+        else:
+            process_labels.append(p.Name)
+
         for e_idx, element in enumerate(element_items):
-            total_error_for_element = np.sum(
-                np.abs(manual_balance_matrix[:, p_idx, e_idx])
-            )
+            # Exclude Input/Output processes from error calculation
+            if is_input_process or is_output_process:
+                total_error_for_element = 0  # Set to zero for system boundaries
+            else:
+                total_error_for_element = np.sum(
+                    np.abs(manual_balance_matrix[:, p_idx, e_idx])
+                )
             total_errors[element].append(total_error_for_element)
 
     fig = go.Figure()
@@ -312,7 +363,7 @@ def plot_total_mass_balance_error(
         fig.add_trace(
             go.Bar(
                 name=element.upper(),
-                x=process_names,
+                x=process_labels,
                 y=errors,
                 marker_color=element_color,
                 marker_line=dict(color=BIOYM_COLORS["dark"], width=1),
@@ -343,6 +394,19 @@ def plot_total_mass_balance_error(
         "x": 1,
     }
     layout_config["xaxis"]["tickangle"] = -45
+    # Add annotation about Input/Output processes
+    layout_config["annotations"] = [
+        dict(
+            text="* Input/Output processes (system boundaries) - excluded from error calculation",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=-0.15,
+            showarrow=False,
+            font=dict(size=10, color=BIOYM_COLORS["neutral"]),
+            xanchor="center",
+        )
+    ]
 
     fig.update_layout(layout_config)
 

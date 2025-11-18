@@ -212,6 +212,18 @@ def load_and_define_processes(mfa_system, input_data, data_loader, debug_mode=Fa
 
     data_loader.validate_input_data(all_excel_data, debug_mode=debug_mode)
 
+    # Check which processes have initial stock configurations
+    # This is needed to automatically create stocks for these processes
+    initial_stock_process_ids = set()
+    if "2_4_Initial_Stock" in all_excel_data:
+        initial_stock_df = all_excel_data["2_4_Initial_Stock"]
+        if not initial_stock_df.empty and "Process_ID" in initial_stock_df.columns:
+            initial_stock_process_ids = set(
+                initial_stock_df["Process_ID"].dropna().astype(int).unique()
+            )
+            if debug_mode and initial_stock_process_ids:
+                print(f"   ✓ Found initial stock definitions for processes: {sorted(initial_stock_process_ids)}")
+
     process_definitions = all_excel_data["2_1_Definition_Processes"]
     for _, row in process_definitions.iterrows():
         if pd.notna(row["Process_Name"]):
@@ -232,6 +244,13 @@ def load_and_define_processes(mfa_system, input_data, data_loader, debug_mode=Fa
             if "Stock_Configuration" in row and pd.notna(row["Stock_Configuration"]):
                 stock_config = str(row["Stock_Configuration"]).strip()
                 should_create_stock = stock_config == "Stock"
+
+            # IMPORTANT: If process has initial stock, it MUST have stock objects
+            # Override should_create_stock if initial stock is defined
+            if process_id in initial_stock_process_ids:
+                if not should_create_stock:
+                    print(f"   → Process {process_id} has initial stock - automatically creating stock objects")
+                should_create_stock = True
 
             if should_create_stock:
                 mfa_system.StockDict[f"dS_{process_id}"] = msc.Stock(
@@ -450,7 +469,10 @@ def _apply_initial_stock(mfa_system, all_excel_data):
     all_excel_data : dict
         Dictionary of all data read from Excel.
     """
-    initial_stock_configs = data_loader.load_initial_stock_parameters(all_excel_data)
+    # Load initial stock parameters, passing the elements list from the system
+    initial_stock_configs = data_loader.load_initial_stock_parameters(
+        all_excel_data, elements=mfa_system.Elements
+    )
     if initial_stock_configs:
         from engine import initial_stock_engine
 

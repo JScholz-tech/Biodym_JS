@@ -10,22 +10,105 @@ This is a BioDYM extension to the ODYM framework.
 """
 
 import numpy as np
+import pandas as pd
 
 
 import ODYM_Classes as msc
 
 
-def load_initial_stock_parameters(excel_data):
+def _build_initial_stock_element_column_map(elements, initial_stock_df):
+    """
+    Dynamically builds column name mapping for initial stock element compositions.
+
+    This follows the same E1-E6 naming convention as flows, looking for columns in this order:
+    1. New format: IS_E{id}_Fraction[%]           (e.g., IS_E2_Fraction[%])
+    2. New with label: IS_E{id}_[%]({element})    (e.g., IS_E2_[%](WC))
+    3. New simple: IS_E{id}[%] or IS_E{id}_[%]    (e.g., IS_E2[%])
+    4. Standard: IS_{element}[%]                  (e.g., IS_WC[%])
+    5. Legacy: fallback patterns
+
+    Parameters
+    ----------
+    elements : list of str
+        List of element names (e.g., ['material', 'WC', 'DM', 'CC'])
+    initial_stock_df : pd.DataFrame
+        DataFrame with initial stock parameters to check available parameter types
+
+    Returns
+    -------
+    dict
+        Mapping from element name to parameter type name
+        e.g., {'WC': 'IS_E2_[%](WC)', 'DM': 'IS_E3_[%](DM)', 'CC': 'IS_E4_[%](CC)'}
+    """
+    param_type_map = {}
+
+    # Get unique parameter types from the dataframe
+    if 'IS_Parameter_type' in initial_stock_df.columns:
+        available_params = initial_stock_df['IS_Parameter_type'].unique().tolist()
+    else:
+        available_params = []
+
+    for elem_idx, element in enumerate(elements):
+        if element == "material":
+            continue  # Material quantity has its own parameter: IS_material_quantity[UoM]
+
+        # Element ID for E{id} format (1-based in Excel, 0-based in Python)
+        element_id = elem_idx + 1
+
+        # Try new format with "Fraction": IS_E2_Fraction[%]
+        e_format_fraction = f"IS_E{element_id}_Fraction[%]"
+        if e_format_fraction in available_params:
+            param_type_map[element] = e_format_fraction
+            continue
+
+        # Try new E{id} format with element name in parentheses: IS_E2_[%](WC)
+        e_format_with_name = f"IS_E{element_id}_[%]({element})"
+        if e_format_with_name in available_params:
+            param_type_map[element] = e_format_with_name
+            continue
+
+        # Try new E{id} format without parentheses: IS_E2[%]
+        e_format_simple = f"IS_E{element_id}[%]"
+        if e_format_simple in available_params:
+            param_type_map[element] = e_format_simple
+            continue
+
+        # Try new E{id} format with underscore and brackets: IS_E2_[%]
+        e_format_underscore = f"IS_E{element_id}_[%]"
+        if e_format_underscore in available_params:
+            param_type_map[element] = e_format_underscore
+            continue
+
+        # Fallback: Try standard naming: IS_{element}[%]
+        standard_name = f"IS_{element}[%]"
+        if standard_name in available_params:
+            param_type_map[element] = standard_name
+            continue
+
+        # No match found - will be handled later with warning
+        param_type_map[element] = None
+
+    return param_type_map
+
+
+def load_initial_stock_parameters(excel_data, elements=None):
     """Loads and parses initial stock configurations from the Excel file.
 
     This function reads the '2_4_Initial_Stock' sheet, which is expected
     to be in a long-table format. It groups parameters by Process_ID and
     parses them into a structured dictionary for each process.
 
+    Now supports modular E1-E6 element naming convention, matching the system
+    used for flows. Element compositions can be specified using E{id} format
+    (e.g., IS_E2_[%](WC)) or legacy format (e.g., IS_WC[%]).
+
     Parameters
     ----------
     excel_data : dict
         A dictionary of DataFrames, where keys are sheet names.
+    elements : list of str, optional
+        List of element names (e.g., ['material', 'WC', 'DM', 'CC']).
+        If None, defaults to ['material', 'WC', 'DM', 'CC'].
 
     Returns
     -------
@@ -33,6 +116,11 @@ def load_initial_stock_parameters(excel_data):
         A dictionary where keys are process IDs and values are the parsed
         initial stock configuration dictionaries for that process.
     """
+    # Default to legacy elements if not provided
+    if elements is None:
+        elements = ['material', 'WC', 'DM', 'CC']
+        print("  -> INFO: No elements list provided to initial stock loader, using default: ['material', 'WC', 'DM', 'CC']")
+
     sheet_name = "2_4_Initial_Stock"
     print(f"--> Loading initial stock parameters from sheet '{sheet_name}'...")
 
@@ -62,6 +150,37 @@ def load_initial_stock_parameters(excel_data):
     df = df.dropna(subset=["Process_ID", "IS_Parameter_type", "IS_Parameter_Value"])
     df["Process_ID"] = df["Process_ID"].astype(int)
 
+    # IMPORTANT: Handle European decimal separator (comma) in parameter values
+    # Convert IS_Parameter_Value to numeric, replacing commas with dots if needed
+    def safe_float_conversion(value):
+        """Safely convert value to float, handling comma as decimal separator.
+
+        Returns None if conversion fails (e.g., for flow names like 'F_1_2').
+        """
+        if pd.isna(value):
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        # If string, try to convert to float
+        if isinstance(value, str):
+            try:
+                # Replace comma with dot for European decimal notation
+                return float(value.replace(',', '.'))
+            except ValueError:
+                # Not a numeric value (e.g., flow name "F_1_2")
+                return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+
+    # Apply conversion to ensure all numeric values are properly read
+    df["IS_Parameter_Value_Numeric"] = df["IS_Parameter_Value"].apply(safe_float_conversion)
+
+    # Build element-to-parameter mapping (E1-E6 system)
+    element_param_map = _build_initial_stock_element_column_map(elements, df)
+    print(f"  -> Element parameter mapping: {element_param_map}")
+
     initial_stock_configs = {}
 
     # Group by Process_ID
@@ -70,53 +189,59 @@ def load_initial_stock_parameters(excel_data):
             "process_id": process_id,
             "initial_stock_values": {},
             "outflow_configs": [],
+            "elements": elements,  # Store elements list for later use
         }
 
         # Process each parameter
         for _, row in group.iterrows():
             param_name = str(row["IS_Parameter_type"]).strip()
-            param_value = row["IS_Parameter_Value"]
+            param_value_raw = row["IS_Parameter_Value"]  # Keep original for flow names
+            param_value = row.get("IS_Parameter_Value_Numeric")  # Use numeric conversion for values
             unit = row.get("Unit", "")
             destination_process = row.get("Destination_Process", None)
             destination_flow = row.get("Destination_Flow", None)
             notes = row.get("Notes", "")
 
-            # Handle initial stock composition parameters
-            if param_name in [
-                "IS_material_quantity[UoM]",
-                "IS_WC[%]",
-                "IS_DM[%]",
-                "IS_CC[%]",
-            ]:
-                # Map to standard names
-                if param_name == "IS_material_quantity[UoM]":
+            # Handle material quantity (always required)
+            if param_name == "IS_material_quantity[UoM]":
+                if param_value is not None:
                     config["initial_stock_values"]["Initial_Stock_material"] = float(
                         param_value
                     )
-                elif param_name == "IS_WC[%]":
-                    config["initial_stock_values"]["Initial_Stock_WC[%]"] = float(
-                        param_value
-                    )
-                elif param_name == "IS_DM[%]":
-                    config["initial_stock_values"]["Initial_Stock_DM[%]"] = float(
-                        param_value
-                    )
-                elif param_name == "IS_CC[%]":
-                    config["initial_stock_values"]["Initial_Stock_CC[%]"] = float(
-                        param_value
-                    )
+                else:
+                    print(f"    WARNING: Process {process_id} has non-numeric material quantity: {param_value_raw}")
+                continue
+
+            # Handle element composition parameters using dynamic mapping
+            handled = False
+            for element, mapped_param in element_param_map.items():
+                if mapped_param and param_name == mapped_param:
+                    if param_value is not None:
+                        config["initial_stock_values"][f"Initial_Stock_{element}[%]"] = float(
+                            param_value
+                        )
+                    else:
+                        print(f"    WARNING: Process {process_id} has non-numeric {element} value: {param_value_raw}")
+                    handled = True
+                    break
+
+            if handled:
+                continue
 
             # Handle consumption rate
             elif param_name == "Annual_Consumption_Rate[UoM/year]":
-                outflow_config = {
-                    "parameter_name": "Annual_Consumption_Rate",
-                    "parameter_value": float(param_value),
-                    "unit": unit,
-                    "destination_process": None,  # Will be set by outflow parameters
-                    "destination_flow": None,
-                    "notes": notes,
-                }
-                config["outflow_configs"].append(outflow_config)
+                if param_value is not None:
+                    outflow_config = {
+                        "parameter_name": "Annual_Consumption_Rate",
+                        "parameter_value": float(param_value),
+                        "unit": unit,
+                        "destination_process": destination_process,  # From row data
+                        "destination_flow": destination_flow,  # From row data
+                        "notes": notes,
+                    }
+                    config["outflow_configs"].append(outflow_config)
+                else:
+                    print(f"    WARNING: Process {process_id} has non-numeric consumption rate: {param_value_raw}")
 
             # Handle outflow destinations and splits
             elif param_name.startswith("IS_Outflow_") and not param_name.endswith(
@@ -129,16 +254,29 @@ def load_initial_stock_parameters(excel_data):
                 # Find corresponding TC value
                 tc_row = group[group["IS_Parameter_type"] == tc_param_name]
                 if not tc_row.empty:
-                    tc_value = float(tc_row["IS_Parameter_Value"].iloc[0])
+                    tc_value_numeric = tc_row["IS_Parameter_Value_Numeric"].iloc[0]
+                    if tc_value_numeric is None:
+                        print(f"    WARNING: Process {process_id} has non-numeric TC value for {tc_param_name}")
+                        continue
+                    tc_value = float(tc_value_numeric)
 
                     # Only process if this is a flow name (not a TC value)
-                    if isinstance(param_value, str) and param_value.startswith("F_"):
+                    if isinstance(param_value_raw, str) and str(param_value_raw).startswith("F_"):
+                        # Extract destination process from flow name (e.g., "F_1_2" -> destination = 2)
+                        flow_parts = str(param_value_raw).split("_")
+                        extracted_destination = None
+                        if len(flow_parts) >= 3:
+                            try:
+                                extracted_destination = int(flow_parts[2])
+                            except (ValueError, IndexError):
+                                print(f"    WARNING: Could not parse destination process from flow name '{param_value_raw}'")
+
                         outflow_config = {
                             "parameter_name": "Outflow_Split[%]",
                             "parameter_value": tc_value * 100,  # Convert to percentage
                             "unit": "%",
-                            "destination_process": None,  # Will be determined from flow name
-                            "destination_flow": str(param_value),
+                            "destination_process": extracted_destination,
+                            "destination_flow": str(param_value_raw),
                             "notes": f"Outflow {outflow_num}",
                         }
                         config["outflow_configs"].append(outflow_config)
@@ -229,8 +367,9 @@ def apply_initial_stock_values(mfa_system, initial_stock_configs):
             )
             continue
 
-        # Calculate initial stock values
-        initial_values = _calculate_initial_stock_values(config["initial_stock_values"])
+        # Calculate initial stock values using the elements list stored in config
+        elements = config.get("elements", ["material", "WC", "DM", "CC"])
+        initial_values = _calculate_initial_stock_values(config["initial_stock_values"], elements)
 
         # Set initial stock values (first year only)
         stock_s.Values[0, :] = initial_values
@@ -243,35 +382,45 @@ def apply_initial_stock_values(mfa_system, initial_stock_configs):
     return mfa_system
 
 
-def _calculate_initial_stock_values(stock_values):
+def _calculate_initial_stock_values(stock_values, elements):
     """Calculates the elemental composition of an initial stock.
 
-    Based on the material quantity and content percentages, this function
-    returns a vector with the calculated mass for each element.
+    Based on the material quantity and content fractions, this function
+    returns a vector with the calculated mass for each element. Now supports
+    dynamic element lists.
+
+    Element fractions should be entered as decimals (0-1 range), not percentages.
+    For example: 0.7 for 70% water content, not 70.
 
     Parameters
     ----------
     stock_values : dict
         A dictionary of initial stock parameter values for one process,
-        e.g., {"Initial_Stock_material": 100, "Initial_Stock_WC[%]": 10}.
+        e.g., {"Initial_Stock_material": 100, "Initial_Stock_WC[%]": 0.7}.
+    elements : list of str
+        List of element names (e.g., ['material', 'WC', 'DM', 'CC']).
 
     Returns
     -------
     np.ndarray
-        A 1D NumPy array representing the initial stock vector for all elements.
+        A 1D NumPy array representing the initial stock vector for all elements,
+        in the same order as the elements list.
     """
-    # Default values
+    # Initialize result array
+    result = np.zeros(len(elements))
+
+    # Material is always first element
     material = stock_values.get("Initial_Stock_material", 0.0)
-    wc_pct = stock_values.get("Initial_Stock_WC[%]", 0.0) / 100.0
-    dm_pct = stock_values.get("Initial_Stock_DM[%]", 100.0) / 100.0
-    cc_pct = stock_values.get("Initial_Stock_CC[%]", 0.0) / 100.0
+    result[0] = material
 
-    # Calculate elemental compositions
-    wc_amount = material * wc_pct
-    dm_amount = material * dm_pct
-    cc_amount = material * cc_pct
+    # Calculate composition for other elements
+    # NOTE: Element values are expected as FRACTIONS (0-1), not percentages (0-100)
+    for idx, element in enumerate(elements[1:], start=1):
+        # Get fraction for this element (default 0.0)
+        element_fraction = stock_values.get(f"Initial_Stock_{element}[%]", 0.0)
+        result[idx] = material * element_fraction
 
-    return np.array([material, wc_amount, dm_amount, cc_amount])
+    return result
 
 
 def process_initial_stock_outflows(mfa_system, initial_stock_configs):
@@ -376,6 +525,19 @@ def _create_outflow_flows(mfa_system, process_id, outflow_configs, initial_stock
     if not split_configs:
         # No splits - create single outflow to first destination
         destination_process = consumption_rate_config["destination_process"]
+        destination_flow = consumption_rate_config.get("destination_flow")
+
+        # If destination_process is None, try to extract from destination_flow
+        if destination_process is None and destination_flow:
+            if isinstance(destination_flow, str) and destination_flow.startswith("F_"):
+                flow_parts = destination_flow.split("_")
+                if len(flow_parts) >= 3:
+                    try:
+                        destination_process = int(flow_parts[2])
+                        print(f"    -> Extracted destination process {destination_process} from flow name '{destination_flow}'")
+                    except (ValueError, IndexError):
+                        pass
+
         if destination_process is not None:
             flow_name = f"F_{process_id}_{destination_process}_stock"
             flow = _create_single_outflow_flow(
@@ -388,6 +550,8 @@ def _create_outflow_flows(mfa_system, process_id, outflow_configs, initial_stock
             )
             if flow:
                 outflow_flows.append(flow)
+        else:
+            print(f"    WARNING: No valid destination found for Process {process_id} consumption rate")
     else:
         # Multiple splits - create multiple outflows
         total_split = sum(oc["parameter_value"] for oc in split_configs)
@@ -395,6 +559,18 @@ def _create_outflow_flows(mfa_system, process_id, outflow_configs, initial_stock
         for split_config in split_configs:
             split_pct = split_config["parameter_value"]
             destination_process = split_config["destination_process"]
+            destination_flow = split_config.get("destination_flow")
+
+            # If destination_process is None, try to extract from destination_flow
+            if destination_process is None and destination_flow:
+                if isinstance(destination_flow, str) and destination_flow.startswith("F_"):
+                    flow_parts = destination_flow.split("_")
+                    if len(flow_parts) >= 3:
+                        try:
+                            destination_process = int(flow_parts[2])
+                            print(f"    -> Extracted destination process {destination_process} from split flow name '{destination_flow}'")
+                        except (ValueError, IndexError):
+                            pass
 
             if destination_process is not None:
                 # Calculate split fraction
@@ -414,6 +590,8 @@ def _create_outflow_flows(mfa_system, process_id, outflow_configs, initial_stock
                 )
                 if flow:
                     outflow_flows.append(flow)
+            else:
+                print(f"    WARNING: Could not determine destination for outflow split from Process {process_id}")
 
     return outflow_flows
 
