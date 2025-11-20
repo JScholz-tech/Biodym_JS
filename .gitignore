@@ -58,10 +58,10 @@ exports/
 03_studies/*/*.xlsx
 03_studies/*/Sankey*
 
-# Large Excel files (keep only examples)
+# Study-specific input files (keep only template)
 01_data/01_input/*.xlsx
-!01_data/01_input/250625_Template_CS0.xlsx
-!01_data/01_input/250922_CS1_Wheat_Straw.xlsx
+01_data/01_input/*.xlsm
+!01_data/01_input/template/
 
 # Temporary/lock files created by Windows/Excel (hex names like EC231400, 8494D220)
 01_data/01_input/[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]
