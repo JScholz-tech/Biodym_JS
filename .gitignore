@@ -30,6 +30,7 @@ venv/
 *.bak
 *.swp
 *~
+nul
 
 # Backup files
 *_backup_*.py
@@ -56,10 +57,6 @@ exports/
 03_studies/*/*.png
 03_studies/*/*.xlsx
 03_studies/*/Sankey*
-
-# Output directory - ignore all generated files
-01_data/02_output/
-!01_data/02_output/.gitkeep
 
 # Large Excel files (keep only examples)
 01_data/01_input/*.xlsx

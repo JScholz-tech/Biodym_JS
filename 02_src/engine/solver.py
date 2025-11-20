@@ -184,7 +184,10 @@ def _calculate_tc_driven_flows(
         process_logic = process_logic_map.get(flow.P_Start)
         tc_ids = flow_tc_map.get(flow.Name)
 
-        if not process_logic or not tc_ids:
+        # Pass-through processes don't need TCs, so allow them even without tc_ids
+        if not process_logic:
+            continue
+        if not tc_ids and process_logic != "Pass-through":
             continue
 
         input_flows = [
@@ -205,7 +208,7 @@ def _calculate_tc_driven_flows(
         ]  # All other elements (WC, DM, CC or Fe, Cu, Al, etc.)
         elem_indices = {elem: idx for idx, elem in enumerate(elements)}
 
-        if process_logic in ["Splitter", "Transformer"]:
+        if process_logic in ["Splitter", "Transformer", "Pass-through"]:
             if process_logic == "Splitter":
                 # Splitter: Preserves composition (element fractions stay the same)
                 param_name = tc_ids.get("material")
@@ -233,6 +236,10 @@ def _calculate_tc_driven_flows(
                         outflow_vector[:, elem_idx] = (
                             outflow_vector[:, mat_idx] * element_fraction
                         )
+
+            elif process_logic == "Pass-through":
+                # Pass-through: Copy total inflow directly to outflow (no transformation)
+                outflow_vector = total_inflow_vector.copy()
 
             elif process_logic == "Transformer":
                 # Transformer: Changes composition (apply TCs to each element independently)
