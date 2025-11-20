@@ -33,6 +33,23 @@ BioDYM now supports **any element set** through flexible configuration:
 - Traditional Sankey updated to wide format (2200×350)
 - Element multiplot attempted but needs rework (future enhancement)
 
+### Pass-through Process Logic & Template Organization (2025-11-20) - ✅ COMPLETE
+**Pass-through Implementation**:
+- Added Pass-through process logic to solver (simple flow pass-through without transformation)
+- Updated data_loader.py to skip TCs for Pass-through processes
+- Works with TC_Configuration="No TC" setting
+
+**Input Process Stock Capabilities**:
+- Verified Input processes can have stocks with incoming flows
+- Stock creation is process-type agnostic (any process with Stock_Configuration="Stock")
+- Enables modeling of boundary stocks (e.g., atmosphere carbon accumulation, environment water)
+
+**Repository Organization**:
+- Created `01_data/01_input/template/` folder for clean template distribution
+- Updated .gitignore to exclude study-specific input files from version control
+- Only template file tracked: `251108_BioDYM_ODYM_Template_Empty_Without_Visualisation_Settings.xlsm`
+- Keeps repository publication-ready while preserving user study files locally
+
 ## Documentation Structure
 
 BioDYM documentation is split across multiple files for better organization:
@@ -182,7 +199,11 @@ param = msc.Parameter(Name="TC_2", Values=array, Indices="t")
 
 ## Excel Input File Structure
 
-The Excel file (`01_data/01_input/*.xlsx` or `*.xlsm`) defines the entire MFA system:
+The Excel file (`01_data/01_input/*.xlsx` or `*.xlsm`) defines the entire MFA system.
+
+**Template Location**: `01_data/01_input/template/251108_BioDYM_ODYM_Template_Empty_Without_Visualisation_Settings.xlsm`
+
+**Sheet Structure**:
 
 **Core configuration**:
 - `0_Configuration` - Time range, elements, analysis options
@@ -324,10 +345,15 @@ Common icons: SUCCESS ✅, ERROR ❌, WARNING ⚠️, CALCULATION 🧮, VISUALIZ
 ### Process Logic Types
 
 Defined in `2_1_Definition_Processes` sheet:
+- **Input**: Boundary process receiving flows from outside system (data-loaded, no TCs)
+- **Output**: Boundary process sending flows outside system (data-loaded, requires stock)
 - **Splitter**: Splits incoming flow to multiple outputs (TC-driven)
 - **Transformer**: Transforms material composition (TC-driven)
+- **Pass-through**: Passes flows unchanged (no transformation, no TCs required)
 - **DSM**: Dynamic Stock Model (age-cohort tracking)
 - **FOMP**: First-Order Mineralization Process (organic decomposition)
+
+**Important**: Input/Output processes should use Process_Logic="Input"/"Output", NOT "Splitter". Using Splitter for boundary processes will cause incorrect composition calculations.
 
 ### Elements Tracking
 
@@ -371,9 +397,15 @@ Since BioDYM is being prepared for publication as an open-source tool, follow th
 
 **Never commit**:
 - Temporary files (.tmp, ~$*.xlsx)
+- Study-specific input files (automatically ignored by .gitignore)
 - Large data files > 10 MB
 - Personal configuration files
 - `.pyc` files or `__pycache__` directories
+
+**Input File Organization**:
+- Template file in `01_data/01_input/template/` is tracked
+- All study-specific .xlsx and .xlsm files in `01_data/01_input/` are ignored
+- Users can work on their studies locally without affecting git
 
 **Commit message format**:
 ```
@@ -416,7 +448,8 @@ plotting.plot_optimized_mass_balance_error(mfa_results_baseline)
 ### Key File Locations
 
 - **Main workflow**: `00_BioDYM_Workflow.ipynb`
-- **Input data**: `01_data/01_input/*.xlsx`
+- **Input template**: `01_data/01_input/template/251108_BioDYM_ODYM_Template_Empty_Without_Visualisation_Settings.xlsm`
+- **Input data**: `01_data/01_input/*.xlsx` (study files - not tracked in git)
 - **Engine**: `02_src/engine/solver.py`
 - **System setup**: `02_src/system_setup.py`
 - **Data loading**: `02_src/data_loader.py`
@@ -458,6 +491,8 @@ Recent focus areas:
 - ✅ Sankey visualization updates (2025-11-03)
 - ✅ Standardized icon system for output
 - ✅ Documentation reorganization for performance
+- ✅ Pass-through process logic (2025-11-20)
+- ✅ Template organization and git cleanup (2025-11-20)
 
 When committing:
 - Use descriptive messages with type prefix
@@ -475,6 +510,6 @@ For planned features and development roadmap, see **ROADMAP.md**:
 
 ---
 
-**Last Updated**: 2025-11-04
-**CLAUDE.md Version**: 3.0 (Condensed & Reorganized)
+**Last Updated**: 2025-11-20
+**CLAUDE.md Version**: 3.1 (Pass-through Logic & Template Organization)
 **BioDYM Status**: Pre-publication preparation
