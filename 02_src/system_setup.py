@@ -222,7 +222,9 @@ def load_and_define_processes(mfa_system, input_data, data_loader, debug_mode=Fa
                 initial_stock_df["Process_ID"].dropna().astype(int).unique()
             )
             if debug_mode and initial_stock_process_ids:
-                print(f"   ✓ Found initial stock definitions for processes: {sorted(initial_stock_process_ids)}")
+                print(
+                    f"   ✓ Found initial stock definitions for processes: {sorted(initial_stock_process_ids)}"
+                )
 
     process_definitions = all_excel_data["2_1_Definition_Processes"]
     for _, row in process_definitions.iterrows():
@@ -249,7 +251,9 @@ def load_and_define_processes(mfa_system, input_data, data_loader, debug_mode=Fa
             # Override should_create_stock if initial stock is defined
             if process_id in initial_stock_process_ids:
                 if not should_create_stock:
-                    print(f"   → Process {process_id} has initial stock - automatically creating stock objects")
+                    print(
+                        f"   → Process {process_id} has initial stock - automatically creating stock objects"
+                    )
                 should_create_stock = True
 
             if should_create_stock:

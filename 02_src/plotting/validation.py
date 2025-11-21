@@ -335,8 +335,12 @@ def plot_total_mass_balance_error(
         avg_outflow = np.mean(total_outflows[:, p_idx, :])
         avg_ds = np.mean(total_ds[:, p_idx, :])
 
-        is_input_process = (avg_inflow == 0) and (avg_outflow > 0) and (abs(avg_ds) < 1e-10)
-        is_output_process = (avg_inflow > 0) and (avg_outflow == 0) and (abs(avg_ds) < 1e-10)
+        is_input_process = (
+            (avg_inflow == 0) and (avg_outflow > 0) and (abs(avg_ds) < 1e-10)
+        )
+        is_output_process = (
+            (avg_inflow > 0) and (avg_outflow == 0) and (abs(avg_ds) < 1e-10)
+        )
 
         # Add label with marker for Input/Output processes
         if is_input_process or is_output_process:

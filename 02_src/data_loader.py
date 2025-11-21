@@ -10,6 +10,7 @@ UPDATED: Added column name mapping to handle naming convention changes.
 """
 
 import pandas as pd
+from copy import deepcopy
 
 # Import ODYM classes only when needed
 try:
@@ -754,9 +755,7 @@ def load_dsm_parameters(excel_data, debug_mode=False):
     dsm_df = df_dsm[df_dsm["Process_ID"].isin(dsm_process_ids)].copy()
     if dsm_df.empty:
         if debug_mode:
-            print(
-                "--> INFO: No DSM parameter data found for identified DSM processes."
-            )
+            print("--> INFO: No DSM parameter data found for identified DSM processes.")
         return {}
 
     dsm_df = dsm_df.dropna(subset=["Process_ID"])
@@ -1241,7 +1240,7 @@ def apply_fomp_uncertainty_updates(fomp_params, uncertainty_updates):
     dict
         A new dictionary of FOMP parameters with the uncertainty updates applied.
     """
-    updated_fomp_params = copy.deepcopy(fomp_params)
+    updated_fomp_params = deepcopy(fomp_params)
 
     for param_name, sampled_value in uncertainty_updates.items():
         # Check if this is a process-specific FOMP parameter (starts with 'P' and contains '_decay_')

@@ -43,8 +43,8 @@ def _build_initial_stock_element_column_map(elements, initial_stock_df):
     param_type_map = {}
 
     # Get unique parameter types from the dataframe
-    if 'IS_Parameter_type' in initial_stock_df.columns:
-        available_params = initial_stock_df['IS_Parameter_type'].unique().tolist()
+    if "IS_Parameter_type" in initial_stock_df.columns:
+        available_params = initial_stock_df["IS_Parameter_type"].unique().tolist()
     else:
         available_params = []
 
@@ -118,8 +118,10 @@ def load_initial_stock_parameters(excel_data, elements=None):
     """
     # Default to legacy elements if not provided
     if elements is None:
-        elements = ['material', 'WC', 'DM', 'CC']
-        print("  -> INFO: No elements list provided to initial stock loader, using default: ['material', 'WC', 'DM', 'CC']")
+        elements = ["material", "WC", "DM", "CC"]
+        print(
+            "  -> INFO: No elements list provided to initial stock loader, using default: ['material', 'WC', 'DM', 'CC']"
+        )
 
     sheet_name = "2_4_Initial_Stock"
     print(f"--> Loading initial stock parameters from sheet '{sheet_name}'...")
@@ -165,7 +167,7 @@ def load_initial_stock_parameters(excel_data, elements=None):
         if isinstance(value, str):
             try:
                 # Replace comma with dot for European decimal notation
-                return float(value.replace(',', '.'))
+                return float(value.replace(",", "."))
             except ValueError:
                 # Not a numeric value (e.g., flow name "F_1_2")
                 return None
@@ -175,7 +177,9 @@ def load_initial_stock_parameters(excel_data, elements=None):
             return None
 
     # Apply conversion to ensure all numeric values are properly read
-    df["IS_Parameter_Value_Numeric"] = df["IS_Parameter_Value"].apply(safe_float_conversion)
+    df["IS_Parameter_Value_Numeric"] = df["IS_Parameter_Value"].apply(
+        safe_float_conversion
+    )
 
     # Build element-to-parameter mapping (E1-E6 system)
     element_param_map = _build_initial_stock_element_column_map(elements, df)
@@ -196,7 +200,9 @@ def load_initial_stock_parameters(excel_data, elements=None):
         for _, row in group.iterrows():
             param_name = str(row["IS_Parameter_type"]).strip()
             param_value_raw = row["IS_Parameter_Value"]  # Keep original for flow names
-            param_value = row.get("IS_Parameter_Value_Numeric")  # Use numeric conversion for values
+            param_value = row.get(
+                "IS_Parameter_Value_Numeric"
+            )  # Use numeric conversion for values
             unit = row.get("Unit", "")
             destination_process = row.get("Destination_Process", None)
             destination_flow = row.get("Destination_Flow", None)
@@ -209,7 +215,9 @@ def load_initial_stock_parameters(excel_data, elements=None):
                         param_value
                     )
                 else:
-                    print(f"    WARNING: Process {process_id} has non-numeric material quantity: {param_value_raw}")
+                    print(
+                        f"    WARNING: Process {process_id} has non-numeric material quantity: {param_value_raw}"
+                    )
                 continue
 
             # Handle element composition parameters using dynamic mapping
@@ -217,11 +225,13 @@ def load_initial_stock_parameters(excel_data, elements=None):
             for element, mapped_param in element_param_map.items():
                 if mapped_param and param_name == mapped_param:
                     if param_value is not None:
-                        config["initial_stock_values"][f"Initial_Stock_{element}[%]"] = float(
-                            param_value
-                        )
+                        config["initial_stock_values"][
+                            f"Initial_Stock_{element}[%]"
+                        ] = float(param_value)
                     else:
-                        print(f"    WARNING: Process {process_id} has non-numeric {element} value: {param_value_raw}")
+                        print(
+                            f"    WARNING: Process {process_id} has non-numeric {element} value: {param_value_raw}"
+                        )
                     handled = True
                     break
 
@@ -241,7 +251,9 @@ def load_initial_stock_parameters(excel_data, elements=None):
                     }
                     config["outflow_configs"].append(outflow_config)
                 else:
-                    print(f"    WARNING: Process {process_id} has non-numeric consumption rate: {param_value_raw}")
+                    print(
+                        f"    WARNING: Process {process_id} has non-numeric consumption rate: {param_value_raw}"
+                    )
 
             # Handle outflow destinations and splits
             elif param_name.startswith("IS_Outflow_") and not param_name.endswith(
@@ -256,12 +268,16 @@ def load_initial_stock_parameters(excel_data, elements=None):
                 if not tc_row.empty:
                     tc_value_numeric = tc_row["IS_Parameter_Value_Numeric"].iloc[0]
                     if tc_value_numeric is None:
-                        print(f"    WARNING: Process {process_id} has non-numeric TC value for {tc_param_name}")
+                        print(
+                            f"    WARNING: Process {process_id} has non-numeric TC value for {tc_param_name}"
+                        )
                         continue
                     tc_value = float(tc_value_numeric)
 
                     # Only process if this is a flow name (not a TC value)
-                    if isinstance(param_value_raw, str) and str(param_value_raw).startswith("F_"):
+                    if isinstance(param_value_raw, str) and str(
+                        param_value_raw
+                    ).startswith("F_"):
                         # Extract destination process from flow name (e.g., "F_1_2" -> destination = 2)
                         flow_parts = str(param_value_raw).split("_")
                         extracted_destination = None
@@ -269,7 +285,9 @@ def load_initial_stock_parameters(excel_data, elements=None):
                             try:
                                 extracted_destination = int(flow_parts[2])
                             except (ValueError, IndexError):
-                                print(f"    WARNING: Could not parse destination process from flow name '{param_value_raw}'")
+                                print(
+                                    f"    WARNING: Could not parse destination process from flow name '{param_value_raw}'"
+                                )
 
                         outflow_config = {
                             "parameter_name": "Outflow_Split[%]",
@@ -369,7 +387,9 @@ def apply_initial_stock_values(mfa_system, initial_stock_configs):
 
         # Calculate initial stock values using the elements list stored in config
         elements = config.get("elements", ["material", "WC", "DM", "CC"])
-        initial_values = _calculate_initial_stock_values(config["initial_stock_values"], elements)
+        initial_values = _calculate_initial_stock_values(
+            config["initial_stock_values"], elements
+        )
 
         # Set initial stock values (first year only)
         stock_s.Values[0, :] = initial_values
@@ -534,7 +554,9 @@ def _create_outflow_flows(mfa_system, process_id, outflow_configs, initial_stock
                 if len(flow_parts) >= 3:
                     try:
                         destination_process = int(flow_parts[2])
-                        print(f"    -> Extracted destination process {destination_process} from flow name '{destination_flow}'")
+                        print(
+                            f"    -> Extracted destination process {destination_process} from flow name '{destination_flow}'"
+                        )
                     except (ValueError, IndexError):
                         pass
 
@@ -551,7 +573,9 @@ def _create_outflow_flows(mfa_system, process_id, outflow_configs, initial_stock
             if flow:
                 outflow_flows.append(flow)
         else:
-            print(f"    WARNING: No valid destination found for Process {process_id} consumption rate")
+            print(
+                f"    WARNING: No valid destination found for Process {process_id} consumption rate"
+            )
     else:
         # Multiple splits - create multiple outflows
         total_split = sum(oc["parameter_value"] for oc in split_configs)
@@ -563,12 +587,16 @@ def _create_outflow_flows(mfa_system, process_id, outflow_configs, initial_stock
 
             # If destination_process is None, try to extract from destination_flow
             if destination_process is None and destination_flow:
-                if isinstance(destination_flow, str) and destination_flow.startswith("F_"):
+                if isinstance(destination_flow, str) and destination_flow.startswith(
+                    "F_"
+                ):
                     flow_parts = destination_flow.split("_")
                     if len(flow_parts) >= 3:
                         try:
                             destination_process = int(flow_parts[2])
-                            print(f"    -> Extracted destination process {destination_process} from split flow name '{destination_flow}'")
+                            print(
+                                f"    -> Extracted destination process {destination_process} from split flow name '{destination_flow}'"
+                            )
                         except (ValueError, IndexError):
                             pass
 
@@ -591,7 +619,9 @@ def _create_outflow_flows(mfa_system, process_id, outflow_configs, initial_stock
                 if flow:
                     outflow_flows.append(flow)
             else:
-                print(f"    WARNING: Could not determine destination for outflow split from Process {process_id}")
+                print(
+                    f"    WARNING: Could not determine destination for outflow split from Process {process_id}"
+                )
 
     return outflow_flows
 

@@ -119,9 +119,7 @@ def load_config_from_excel(excel_file_path):
             elif elements[0] != "material":
                 elements.remove("material")
                 elements.insert(0, "material")
-                print(
-                    "[WARNING] 'material' element moved to first position (required)"
-                )
+                print("[WARNING] 'material' element moved to first position (required)")
 
             config_dict["Elements"] = ",".join(elements)
             config_dict["Element_Hierarchy"] = (

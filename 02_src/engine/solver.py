@@ -11,7 +11,6 @@ import numpy as np
 import copy
 
 
-
 # Import other engine components
 from . import dsm_model
 from . import fomp_model
@@ -101,7 +100,6 @@ def process_initial_stocks(mfa_system):
         hasattr(mfa_system, "initial_stock_outflows")
         and mfa_system.initial_stock_outflows
     ):
-
         # Get initial stock configurations (we need to reload them)
         # This is a temporary solution - in the future, we should store the configs in mfa_system
         print("  -> Initial stock outflows already processed during setup")
