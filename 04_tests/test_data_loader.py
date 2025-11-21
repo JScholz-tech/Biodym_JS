@@ -21,22 +21,20 @@ def test_validate_input_data_success():
     # 1. ARRANGE: Create a mock dictionary that has the correct structure.
     correct_data = {
         "1_1_Definition_Flows": pd.DataFrame(
-            columns=["Flow_ID", "Name(EN)", "Process_ID_O", "Process_ID_I"]
+            columns=["Flow_ID", "Flow_Name", "Flow_Output_Process_ID", "Input_Process_ID", "Flow_E1_Fraction[%]"]
         ),
-        "1_2_Data_Flows": pd.DataFrame(columns=["Flow_ID", "Year_Flow", "Flow_Py"]),
+        "1_2_Data_Flows": pd.DataFrame(columns=["Flow_ID", "Flow_Data_Year", "E1_value"]),
         "2_1_Definition_Processes": pd.DataFrame(
-            columns=["ID", "Name(EN)", "Process_Logic"]
+            columns=["ID", "Process_Name", "Process_Logic", "TC_Configuration", "Stock_Configuration"]
         ),
-        "2_3_Process_TCs": pd.DataFrame(
-            columns=["Flow_ID", "Process_ID", "TC_material_ID", "TC_Value_material"]
+        "2_2_static_TCs": pd.DataFrame(
+            columns=["Flow_ID", "Process_ID", "E1_TC_ID", "E1_TC_Value[%]"]
         ),
-        "2_5_Initial_Stock": pd.DataFrame(
+        "2_4_Initial_Stock": pd.DataFrame(
             columns=[
                 "Process_ID",
-                "Initial_Stock_material",
-                "Initial_Stock_WC[%]",
-                "Initial_Stock_DM[%]",
-                "Initial_Stock_CC[%]",
+                "IS_Parameter_type",
+                "IS_Parameter_Value",
             ]
         ),
     }
@@ -53,7 +51,7 @@ def test_validate_input_data_missing_sheet():
     # 1. ARRANGE: Create a mock dictionary that is missing a required sheet.
     incorrect_data = {
         "1_1_Definition_Flows": pd.DataFrame(
-            columns=["Flow_ID", "Name(EN)", "Process_ID_O", "Process_ID_I"]
+            columns=["Flow_ID", "Flow_Name", "Flow_Output_Process_ID", "Input_Process_ID", "Flow_E1_Fraction[%]"]
         )
     }
 
@@ -81,19 +79,34 @@ def test_load_dsm_parameters_parsing():
         "Category_Name": ["Category A", "Category B", "Category C"],
     }
     mock_df = pd.DataFrame(dsm_data)
-    mock_excel_data = {"3_1_Definition_DSM": mock_df}
+
+    # Add process definitions to identify DSM processes
+    process_data = {
+        "Process_ID": [6, 7],
+        "Process_Name": ["Process 6", "Process 7"],
+        "Process_Logic": ["DSM", "DSM"],
+    }
+    process_df = pd.DataFrame(process_data)
+
+    mock_excel_data = {
+        "3_1_Definition_DSM": mock_df,
+        "2_1_Definition_Processes": process_df,
+    }
 
     # Define the exact dictionary structure we expect as output.
+    # Note: Type is now a list, and parameter_based flag is included
     expected_result = {
         6: {
-            "inflow_split": [0.8, 0.2],
-            "lifetimes": {"Type": "Normal", "Mean": [20, 5], "StdDev": [2, 0.5]},
             "category_names": ["Category A", "Category B"],
+            "inflow_split": [0.8, 0.2],
+            "lifetimes": {"Type": ["Normal", "Normal"], "Mean": [20, 5], "StdDev": [2.0, 0.5]},
+            "parameter_based": False,
         },
         7: {
-            "inflow_split": [1.0],
-            "lifetimes": {"Type": "Lognormal", "Mean": [50], "StdDev": [10]},
             "category_names": ["Category C"],
+            "inflow_split": [1.0],
+            "lifetimes": {"Type": ["Lognormal"], "Mean": [50], "StdDev": [10.0]},
+            "parameter_based": False,
         },
     }
 

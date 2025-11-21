@@ -129,9 +129,10 @@ class TestGoldenDataset:
             # 2. Process Definitions
             processes_data = {
                 "ID": [0, 1, 2],
-                "Name(EN)": ["Atmosphere", "Environment", "Lithosphere"],
-                "Stock?": ["No", "Yes", "No"],
-                "Initial_Stock?": ["No", "No", "No"],
+                "Process_Name": ["Atmosphere", "Environment", "Lithosphere"],
+                "Process_Logic": ["Pass-through", "Pass-through", "Pass-through"],
+                "TC_Configuration": ["No TC", "No TC", "No TC"],
+                "Stock_Configuration": ["No Stock", "Stock", "No Stock"],
                 "Process_Type": ["Input", "Treatment", "Output"],
             }
             processes_df = pd.DataFrame(processes_data)
@@ -140,12 +141,11 @@ class TestGoldenDataset:
             # 3. Flow Definitions (simplified - no recycling)
             flows_data = {
                 "Flow_ID": ["F_00_01", "F_01_02"],
-                "Name(EN)": ["Input Flow", "Processing Flow"],
-                "Process_ID_O": [0, 1],
-                "Process_ID_I": [1, 2],
-                "WC": [0.5, np.nan],
-                "DM": [0.5, np.nan],
-                "CC": [0.2, np.nan],
+                "Flow_Name": ["Input Flow", "Processing Flow"],
+                "Flow_Output_Process_ID": [0, 1],
+                "Input_Process_ID": [1, 2],
+                "Flow_E2_Fraction[%]": [0.5, np.nan],
+                "Flow_E3_Fraction[%]": [0.2, np.nan],
             }
             flows_df = pd.DataFrame(flows_data)
             flows_df.to_excel(writer, sheet_name="1_1_Definition_Flows", index=False)
@@ -154,35 +154,33 @@ class TestGoldenDataset:
             years = list(range(2025, 2031))
             flow_timeseries_data = {
                 "Flow_ID": ["F_00_01"] * len(years),
-                "Year_Flow": years,
-                "Flow_Py": [100] * len(years),  # Constant input
+                "Flow_Data_Year": years,
+                "E1_value": [100] * len(years),  # Constant input
             }
             flow_ts_df = pd.DataFrame(flow_timeseries_data)
             flow_ts_df.to_excel(writer, sheet_name="1_2_Data_Flows", index=False)
 
             # 5. Transfer Coefficients (not needed for DSM process)
             tc_data = {
-                "TC_ID": [],
-                "TC_Value": [],
+                "E1_TC_ID": [],
+                "E1_TC_Value[%]": [],
             }
             tc_df = pd.DataFrame(tc_data)
-            tc_df.to_excel(writer, sheet_name="2_3_Process_TCs", index=False)
+            tc_df.to_excel(writer, sheet_name="2_2_static_TCs", index=False)
 
             # 6. Initial Stock Values (empty)
             stock_data = {
-                "Process_ID": [], 
-                "Initial_Stock_material": [],
-                "Initial_Stock_WC[%]": [],
-                "Initial_Stock_DM[%]": [],
-                "Initial_Stock_CC[%]": []
+                "Process_ID": [],
+                "IS_Parameter_type": [],
+                "IS_Parameter_Value": [],
             }
             stock_df = pd.DataFrame(stock_data)
             stock_df.to_excel(writer, sheet_name="2_4_Initial_Stock", index=False)
 
             # 7. Dynamic TCs (empty)
-            dynamic_tc_data = {"TC_ID": [], "Year": [], "Value": []}
+            dynamic_tc_data = {"E1_TC_ID": [], "Year": [], "E1_TC_Value[%]": []}
             dynamic_tc_df = pd.DataFrame(dynamic_tc_data)
-            dynamic_tc_df.to_excel(writer, sheet_name="2_5_dynamic_tcs", index=False)
+            dynamic_tc_df.to_excel(writer, sheet_name="2_3_dynamic_TCs", index=False)
 
             # 8. DSM Parameters
             dsm_data = {

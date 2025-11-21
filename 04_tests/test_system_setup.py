@@ -17,13 +17,11 @@ import numpy as np
 try:
     import ODYM_Classes as msc
 except ImportError:
-    # Get the absolute path to the project's root directory (biodym_mfa_tool)
+    # Get the absolute path to the project's root directory
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    # Get the parent directory of the project root to find the 'framework' folder
-    project_root_parent = os.path.dirname(project_root)
-    # Construct the path to the ODYM modules
+    # Construct the path to the ODYM modules (framework is inside the project at 06_framework/)
     odym_path = os.path.join(
-        project_root_parent, "framework", "ODYM-master_20241127", "odym", "modules"
+        project_root, "06_framework", "ODYM-master_20241127", "odym", "modules"
     )
     sys.path.insert(0, odym_path)
     import ODYM_Classes as msc
@@ -105,27 +103,27 @@ def test_define_flows_and_parameters_logic():
     mock_flow_def = pd.DataFrame(
         {
             "Flow_ID": ["F_00_01", "F_01_02"],
-            "Name(EN)": ["Primary Input", "Transfer"],
-            "Process_ID_O": [0, 1],
-            "Process_ID_I": [1, 2],
-            "WC": [0.5, np.nan],  # 50% water content for the input flow
-            "CC": [0.2, np.nan],  # 20% carbon content for the input flow
+            "Flow_Name": ["Primary Input", "Transfer"],
+            "Flow_Output_Process_ID": [0, 1],
+            "Input_Process_ID": [1, 2],
+            "Flow_E2_Fraction[%]": [0.5, np.nan],  # E2 = WC: 50% water content for the input flow
+            "Flow_E4_Fraction[%]": [0.2, np.nan],  # E4 = CC: 20% carbon content for the input flow
         }
     )
     mock_flow_data = pd.DataFrame(
         {
             "Flow_ID": ["F_00_01", "F_00_01"],
-            "Year_Flow": [2020, 2021],
-            "Flow_Py": [100, 110],  # Material flow over time
+            "Flow_Data_Year": [2020, 2021],
+            "E1_value": [100, 110],  # Material flow over time
         }
     )
     mock_excel_data = {
         "1_1_Definition_Flows": mock_flow_def,
         "1_2_Data_Flows": mock_flow_data,
         # Add the process definitions sheet, which the function needs to check for initial stocks.
-        "2_1_Definition_Processes": pd.DataFrame(columns=["ID", "Initial_Stock?", "Process_Logic"]),
-        "2_5_dynamic_tcs": pd.DataFrame(
-            columns=["TC_ID", "Year", "Value"]
+        "2_1_Definition_Processes": pd.DataFrame(columns=["ID", "TC_Configuration", "Stock_Configuration", "Process_Logic"]),
+        "2_3_dynamic_TCs": pd.DataFrame(
+            columns=["Flow_ID", "E1_TC_ID", "Year", "E1_TC_Value[%]"]
         ),  # Empty but present
     }
 
@@ -225,9 +223,10 @@ def test_load_and_define_processes(mocker):
     mock_process_def = pd.DataFrame(
         {
             "ID": [0, 1, 2],
-            "Name(EN)": ["Environment", "Process A", "Process B (with stock)"],
-            "Stock?": ["No", "No", "Yes"],
-            "Initial_Stock?": ["No", "No", "No"],
+            "Process_Name": ["Environment", "Process A", "Process B (with stock)"],
+            "Process_Logic": ["Pass-through", "Pass-through", "Pass-through"],
+            "TC_Configuration": ["No TC", "No TC", "No TC"],
+            "Stock_Configuration": ["No Stock", "No Stock", "Stock"],
         }
     )
     mock_excel_data = {"2_1_Definition_Processes": mock_process_def}
