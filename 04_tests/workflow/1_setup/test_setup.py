@@ -232,7 +232,7 @@ def test_load_and_define_processes(mocker):
     mock_excel_data = {"2_1_Definition_Processes": mock_process_def}
 
     # Use the mocker to replace external calls
-    mocker.patch("pandas.read_excel", return_value=mock_excel_data)
+    mocker.patch("utils.safe_read_excel", return_value=mock_excel_data)
     mocker.patch(
         "data_loader.validate_input_data", return_value=None
     )  # Assume validation works

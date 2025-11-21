@@ -15,9 +15,9 @@ try:
     import ODYM_Classes as msc  # type: ignore
 except ImportError:
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    project_root_parent = os.path.dirname(project_root)
+    # Framework is inside the project at 06_framework/
     odym_path = os.path.join(
-        project_root_parent, "framework", "ODYM-master_20241127", "odym", "modules"
+        project_root, "06_framework", "ODYM-master_20241127", "odym", "modules"
     )
     sys.path.insert(0, odym_path)
     import ODYM_Classes as msc  # type: ignore
@@ -57,8 +57,10 @@ def test_calculate_dynamic_stock_fixed_lifetime():
     # Define DSM parameters for a fixed 5-year lifetime
     dsm_params = {
         1: {
-            "lifetimes": {"Type": "Fixed", "Mean": [5]},
+            "lifetimes": {"Type": ["Fixed"], "Mean": [5], "StdDev": [0]},
             "inflow_split": [1.0],  # Only one category
+            "category_names": ["Category_1"],
+            "parameter_based": False,
         }
     }
 
