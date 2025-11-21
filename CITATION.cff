@@ -1,0 +1,42 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "BioDYM: Material Flow Analysis for Bio-based Systems"
+version: 1.0.0
+date-released: 2025-11-21
+url: "https://github.com/JScholz-tech/Biodym_JS"
+repository-code: "https://github.com/JScholz-tech/Biodym_JS"
+license: MIT
+authors:
+  - family-names: "Scholz"
+    given-names: "Johannes"
+    email: "johannes.scholz@tu-berlin.de"
+    affiliation: "TU Berlin - Chair of Circular Economy and Recycling Technology"
+    orcid: "https://orcid.org/0000-0000-0000-0000"  # Replace with actual ORCID if available
+keywords:
+  - material flow analysis
+  - MFA
+  - ODYM
+  - bio-based materials
+  - circular economy
+  - dynamic stock model
+  - waste management
+  - sustainability
+abstract: >-
+  BioDYM is a comprehensive Material Flow Analysis (MFA) tool designed for
+  analyzing bio-based material systems. Built on the ODYM framework, it tracks
+  material flows, stocks, and transformations through time with special features
+  for organic waste management and biomass cascading. The tool supports dynamic
+  stock modeling (DSM), first-order mineralization processes (FOMP), Monte Carlo
+  uncertainty analysis, and multi-element tracking.
+references:
+  - type: software
+    title: "ODYM: Open Dynamic Material Systems Model"
+    authors:
+      - family-names: "Pauliuk"
+        given-names: "Stefan"
+      - family-names: "Heeren"
+        given-names: "Niko"
+    year: 2020
+    url: "https://github.com/IndEcol/ODYM"
+    doi: "10.1111/jiec.12952"

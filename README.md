@@ -1,6 +1,9 @@
 # BioDYM - Material Flow Analysis for Bio-based Systems
 
-> **🚀 Beta Publication Version** - This branch contains the clean, publication-ready version of BioDYM
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://img.shields.io/badge/tests-35%2F36%20passing-brightgreen)](04_tests/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
 BioDYM is a comprehensive Material Flow Analysis (MFA) tool designed for analyzing bio-based material systems. Built on the [ODYM framework](https://github.com/IndEcol/ODYM), it tracks material flows, stocks, and transformations through time with special features for organic waste management and biomass cascading.
 
@@ -310,7 +313,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-*Last updated: January 2025 | Version: 1.0*
+*Last updated: November 2025 | Version: 1.0.0*
 
 ## BioDYM Extension: Stock-Outflow Transfer Coefficients (TCs)
 
