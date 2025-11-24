@@ -490,7 +490,9 @@ if DEBUG_MODE or True:  # Always run this check for now
 
     significant_errors = []
 
-    for process_id, process in mfa_results_baseline.ProcessDict.items():
+    # Get process list (ODYM uses ProcessList, not ProcessDict)
+    for process in mfa_results_baseline.ProcessList:
+        process_id = process.ID
         # Get inflows and outflows
         inflows = [
             f for f in mfa_results_baseline.FlowDict.values() if f.P_End == process_id
@@ -511,8 +513,12 @@ if DEBUG_MODE or True:  # Always run this check for now
             f.Values[:, elem_idx] for f in outflows if f.Values is not None
         )
 
-        # Check for stock
-        stock = mfa_results_baseline.StockDict.get(process_id)
+        # Check for stock (ODYM stores stocks in ProcessList)
+        stock = None
+        for s in mfa_results_baseline.StockList:
+            if s.P_Res == process_id:
+                stock = s
+                break
         stock_change = np.zeros(len(time_vector))
         if stock and stock.Values is not None:
             if len(stock.Values.shape) > 1:
