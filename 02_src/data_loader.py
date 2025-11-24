@@ -10,6 +10,7 @@ UPDATED: Added column name mapping to handle naming convention changes.
 """
 
 import pandas as pd
+import numpy as np
 from copy import deepcopy
 
 # Import ODYM classes only when needed
@@ -466,6 +467,163 @@ def validate_unified_configuration(excel_data):
     print("--> Unified configuration validation completed.")
 
 
+def normalize_dynamic_tcs_by_process(tc_params, all_excel_data, elements, debug_mode=False):
+    """Normalize dynamic TCs so they sum to 100% for each process at each time step.
+
+    When multiple dynamic TCs are interpolated independently for a splitter process,
+    they may not sum to exactly 100% at every time step, causing mass balance errors.
+    This function identifies TCs belonging to the same process and normalizes them
+    proportionally to ensure they sum to 1.0 (100%) at each time step.
+
+    Parameters
+    ----------
+    tc_params : dict
+        Dictionary of ODYM Parameter objects (TC values), keyed by parameter name.
+    all_excel_data : dict
+        Dictionary of DataFrames from the loaded Excel file.
+    elements : list of str
+        List of element names being tracked in the model.
+    debug_mode : bool, optional
+        If True, print detailed normalization progress. Default is False.
+
+    Returns
+    -------
+    dict
+        Dictionary of normalized TC parameters.
+
+    Notes
+    -----
+    This function implements the same normalization logic as the Monte Carlo
+    simulation's `normalize_tcs_for_process()` function, but applies it to
+    dynamic TCs after interpolation to prevent mass balance errors.
+
+    See Also
+    --------
+    02_src/engine/mc_simulation.py : normalize_tcs_for_process
+    05_docs/development/DYNAMIC_TC_MASS_BALANCE_BUG.md : Bug documentation
+    """
+    static_tc_defs = all_excel_data.get("2_2_static_TCs")
+    if static_tc_defs is None or static_tc_defs.empty:
+        return tc_params
+
+    # Detect TC column format
+    tc_format = "new" if "E1_TC_ID" in static_tc_defs.columns else "old"
+
+    # Group TCs by process and element
+    # Structure: {process_id: {element: [tc_names]}}
+    process_element_tcs = {}
+
+    for _, row in static_tc_defs.iterrows():
+        process_id = row.get("Process_ID")
+        if pd.isna(process_id):
+            continue
+
+        process_id = int(process_id)
+
+        # Extract TC names for each element
+        for elem_idx, element in enumerate(elements):
+            if tc_format == "new":
+                element_id = elem_idx + 1
+                tc_id_col = f"E{element_id}_TC_ID"
+            else:
+                tc_id_col = f"TC_{element}_ID"
+
+            if tc_id_col in row.index and pd.notna(row[tc_id_col]):
+                tc_name = row[tc_id_col]
+
+                if tc_name in tc_params:
+                    if process_id not in process_element_tcs:
+                        process_element_tcs[process_id] = {}
+                    if element not in process_element_tcs[process_id]:
+                        process_element_tcs[process_id][element] = []
+
+                    if tc_name not in process_element_tcs[process_id][element]:
+                        process_element_tcs[process_id][element].append(tc_name)
+
+    # Normalize TCs for each process and element
+    normalization_count = 0
+
+    for process_id, element_tcs in process_element_tcs.items():
+        for element, tc_names in element_tcs.items():
+            if len(tc_names) <= 1:
+                continue  # Single TC doesn't need normalization
+
+            # Check if any TC is time-varying (has array values)
+            has_dynamic = any(
+                isinstance(tc_params[tc].Values, np.ndarray)
+                for tc in tc_names
+                if tc in tc_params
+            )
+
+            if not has_dynamic:
+                continue  # Static TCs don't need time-based normalization
+
+            # Get TC values (convert scalars to arrays if needed)
+            tc_values = {}
+            max_len = 1
+
+            for tc_name in tc_names:
+                if tc_name not in tc_params:
+                    continue
+
+                val = tc_params[tc_name].Values
+                if isinstance(val, np.ndarray):
+                    tc_values[tc_name] = val.copy()  # Copy to avoid modifying original
+                    max_len = max(max_len, len(val))
+                else:
+                    # Static TC - will be broadcast
+                    tc_values[tc_name] = float(val)
+
+            if not tc_values:
+                continue
+
+            # Convert scalars to arrays
+            for tc_name in tc_values:
+                if not isinstance(tc_values[tc_name], np.ndarray):
+                    tc_values[tc_name] = np.full(max_len, tc_values[tc_name])
+
+            # Calculate sum at each time step
+            tc_sum = np.zeros(max_len)
+            for tc_name in tc_values:
+                tc_sum += tc_values[tc_name]
+
+            # Check for large deviations (more than 5%)
+            max_deviation = np.max(np.abs(tc_sum - 1.0))
+            if max_deviation > 0.05:
+                print(
+                    f"   ⚠️  WARNING: Process {process_id}, element {element}: "
+                    f"TCs sum to {tc_sum.min()*100:.1f}%-{tc_sum.max()*100:.1f}% (not 100%)"
+                )
+                print(f"      → Normalizing {len(tc_names)} TCs to ensure mass balance...")
+
+            # Normalize (avoid division by zero)
+            for tc_name in tc_values:
+                normalized = np.divide(
+                    tc_values[tc_name],
+                    tc_sum,
+                    out=np.ones_like(tc_values[tc_name]) / len(tc_values),
+                    where=tc_sum != 0,
+                )
+
+                # Update parameter
+                tc_params[tc_name].Values = normalized
+
+            normalization_count += 1
+
+            if debug_mode:
+                print(
+                    f"   → Normalized {len(tc_names)} TCs for process {process_id}, "
+                    f"element {element} (max deviation: {max_deviation*100:.2f}%)"
+                )
+
+    if normalization_count > 0 and not debug_mode:
+        print(
+            f"   ✓ Normalized dynamic TCs for {normalization_count} process-element combinations"
+        )
+
+    return tc_params
+
+
 def load_tc_parameters(all_excel_data, elements, time_vector, debug_mode=False):
     """Loads and constructs all transfer coefficient (TC) parameters.
 
@@ -677,6 +835,13 @@ def load_tc_parameters(all_excel_data, elements, time_vector, debug_mode=False):
                     print(
                         f"    -> Loaded dynamic TC: {param_name} ({len(tc_points)} data points -> {len(ts_interpolated)} time steps)"
                     )
+
+    # Normalize dynamic TCs to ensure they sum to 100% per process/element
+    # This prevents mass balance errors when TCs are interpolated independently
+    if len(tc_params) > 0 and dynamic_processes:
+        tc_params = normalize_dynamic_tcs_by_process(
+            tc_params, all_excel_data, elements, debug_mode
+        )
 
     # Always print summary (not just debug mode)
     if len(tc_params) > 0:
