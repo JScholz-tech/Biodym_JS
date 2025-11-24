@@ -1144,6 +1144,22 @@ def _parse_parameter_based_dsm(process_data):
     # Convert output_flow_ids to sorted list
     output_flow_ids = sorted(list(output_flow_ids))
 
+    # Validate DSM lifetime parameters and warn about potential issues
+    process_id = process_data["Process_ID"].iloc[0]
+    for i, (mean, stddev, cat_name) in enumerate(
+        zip(lifetime_means, lifetime_stddevs, category_names)
+    ):
+        # Check for large standard deviation (> 80% of mean)
+        if mean > 0 and stddev > 0.8 * mean:
+            print(
+                f"   ⚠️  WARNING: DSM Process {process_id}, Category '{cat_name}': "
+                f"StdDev ({stddev:.2f}) > 80% of Mean ({mean:.2f})"
+            )
+            print(
+                f"      → Large standard deviation may cause negative lifetimes in normal distribution"
+            )
+            print(f"      → Consider reducing StdDev to max {0.8 * mean:.2f} years")
+
     return {
         "inflow_split": inflow_splits,
         "lifetimes": {
@@ -1178,14 +1194,35 @@ def _parse_category_based_dsm(process_data):
     if "Category_ID" in process_data.columns:
         process_data = process_data.sort_values(by="Category_ID")
 
+    # Extract lifetime data for validation
+    lifetime_means = list(process_data["Lifetime_Mean"])
+    lifetime_stddevs = list(process_data["Lifetime_StdDev"])
+    category_names = list(process_data["Category_Name"])
+
+    # Validate DSM lifetime parameters and warn about potential issues
+    process_id = process_data["Process_ID"].iloc[0]
+    for i, (mean, stddev, cat_name) in enumerate(
+        zip(lifetime_means, lifetime_stddevs, category_names)
+    ):
+        # Check for large standard deviation (> 80% of mean)
+        if mean > 0 and stddev > 0.8 * mean:
+            print(
+                f"   ⚠️  WARNING: DSM Process {process_id}, Category '{cat_name}': "
+                f"StdDev ({stddev:.2f}) > 80% of Mean ({mean:.2f})"
+            )
+            print(
+                f"      → Large standard deviation may cause negative lifetimes in normal distribution"
+            )
+            print(f"      → Consider reducing StdDev to max {0.8 * mean:.2f} years")
+
     return {
         "inflow_split": list(process_data["Inflow_Split_[%]"]),
         "lifetimes": {
             "Type": list(process_data["Lifetime_Type"]),
-            "Mean": list(process_data["Lifetime_Mean"]),
-            "StdDev": list(process_data["Lifetime_StdDev"]),
+            "Mean": lifetime_means,
+            "StdDev": lifetime_stddevs,
         },
-        "category_names": list(process_data["Category_Name"]),
+        "category_names": category_names,
         "parameter_based": False,  # Flag to indicate this is category-based format
     }
 

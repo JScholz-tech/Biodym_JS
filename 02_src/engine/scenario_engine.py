@@ -313,17 +313,13 @@ def export_scenario_results(
 
     try:
         import os
-        from datetime import datetime
 
         # Create output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
 
-        # Generate timestamp for filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        # Export each scenario result
+        # Export each scenario result (overwrites existing files)
         for scenario_name, scenario_result in all_scenario_results.items():
-            filename = f"{output_dir}/scenario_{scenario_name}_{timestamp}.xlsx"
+            filename = f"{output_dir}/scenario_{scenario_name}.xlsx"
 
             # Use the existing export function
             from utils import export_results_to_excel

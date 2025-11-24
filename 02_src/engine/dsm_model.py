@@ -290,6 +290,43 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config):
 
     total_stock_from_inflows = sum([np.sum(s) for s in stock_from_inflows_by_cat])
     print(f"Total stock accumulated from inflows: {total_stock_from_inflows}")
+
+    # Check for negative stocks in calculated results
+    has_negative_stock = False
+    for cat_idx, stock_array in enumerate(stock_from_inflows_by_cat):
+        negative_indices = np.where(stock_array < 0)[0]
+        if len(negative_indices) > 0:
+            has_negative_stock = True
+            cat_name = params.get("category_names", [f"Category_{cat_idx + 1}"])[
+                cat_idx
+            ]
+            print(
+                f"   ⚠️  WARNING: Negative stock detected in Process {process_id}, Category '{cat_name}'"
+            )
+            print(f"      → {len(negative_indices)} time steps with negative values")
+            print(
+                f"      → Min value: {stock_array.min():.6f} at year {time_vector[np.argmin(stock_array)]}"
+            )
+            print(
+                f"      → This may indicate issues with lifetime distribution or inflow data"
+            )
+
+    # Check decaying initial stock for negative values
+    if np.any(decaying_stock_ts < 0):
+        negative_indices = np.where(decaying_stock_ts[:, 0] < 0)[0]
+        if len(negative_indices) > 0:
+            has_negative_stock = True
+            print(
+                f"   ⚠️  WARNING: Negative decaying initial stock in Process {process_id}"
+            )
+            print(f"      → {len(negative_indices)} time steps with negative values")
+            print(
+                f"      → Min value: {decaying_stock_ts[:, 0].min():.6f} at year {time_vector[np.argmin(decaying_stock_ts[:, 0])]}"
+            )
+
+    if not has_negative_stock:
+        print(f"✅ No negative stocks detected")
+
     print(f"=== END DSM DEBUG for Process {process_id} ===\n")
 
     # Phase 1a: Add ODYM validation after DSM calculation
