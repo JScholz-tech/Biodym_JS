@@ -19,6 +19,45 @@ Key capabilities:
 
 ## Recent Progress
 
+### Validation System Rebuild & DSM Warnings (2025-11-25) - ✅ COMPLETE
+**Comprehensive validation system and user guidance improvements**
+
+**Validation System Rebuild:**
+- Complete rebuild of Excel template validation (7_1_Comments_Validation)
+- 69 INPUT column entries with structured descriptions (PURPOSE/ACTION/EXAMPLE/NOTE)
+- Pattern-based handling for element columns (E#_* applies to E1-E6)
+- VBA macro system for comment management:
+  - `Add_Column_Comments_Macro.bas` - Apply comments from CSV
+  - `Remove_All_Comments.bas` - Clean comments for testing
+- Comprehensive documentation:
+  - `generate_validation.py` - Python script to generate validation data
+  - `HOW_TO_ADD_COMMENTS.md` - Step-by-step usage instructions
+  - `VALIDATION_REBUILD_SUMMARY.md` - Complete technical documentation
+  - `BioDYM_README_UPDATED.txt` - Updated README with v1.0 features
+
+**DSM Lifetime Validation:**
+- Added validation warnings in `data_loader.py` for DSM parameters:
+  - Warns when StdDev > 80% of mean lifetime (potential negative lifetimes)
+  - Provides actionable recommendations
+- Added negative stock detection in `dsm_model.py`:
+  - Warns when DSM calculations produce negative stocks
+  - Reports time steps and minimum values
+  - Helps diagnose lifetime distribution or inflow data issues
+
+**Workflow Improvements:**
+- Removed enhanced Sankey visualization from `00_BioDYM_Workflow.py`
+- Fixed scenario export to overwrite files instead of creating timestamps (`scenario_engine.py`)
+- Prevents folder spam, maintains clean output directory
+
+**Template Documentation Updates:**
+- BioDYM_README updated with v1.0 features
+- Corrected version (1.0) and date (2024-11-24)
+- Added Pass-through Process_Logic documentation (7 process types)
+- New sections: Common Mistakes, Recent Updates, Getting Help
+- Complete troubleshooting guide with validation warnings
+
+**Git commit:** 313bc53 (11 files, 2872 insertions, 242 deletions)
+
 ### v1.0.0 Publication Preparation (2025-11-21) - ✅ COMPLETE
 **Major Milestone: BioDYM is now publication-ready!**
 
@@ -237,7 +276,16 @@ param = msc.Parameter(Name="TC_2", Values=array, Indices="t")
 
 The Excel file (`01_data/01_input/*.xlsx` or `*.xlsm`) defines the entire MFA system.
 
-**Template Location**: `01_data/01_input/template/251108_BioDYM_ODYM_Template_Empty_Without_Visualisation_Settings.xlsm`
+**Template Location**: `01_data/01_input/template/251124_BioDYM_ODYM_Template_Empty.xlsm`
+
+**Validation System Files** (in template folder):
+- `7_1_Comments_Validation_NEW.csv` - Structured validation data (69 INPUT columns)
+- `Add_Column_Comments_Macro.bas` - VBA macro to apply comments
+- `Remove_All_Comments.bas` - VBA macro to clean comments
+- `generate_validation.py` - Python script to generate validation data
+- `HOW_TO_ADD_COMMENTS.md` - Usage instructions
+- `VALIDATION_REBUILD_SUMMARY.md` - Technical documentation
+- `BioDYM_README_UPDATED.txt` - Complete user guide for Excel template
 
 **Sheet Structure**:
 
@@ -258,10 +306,17 @@ The Excel file (`01_data/01_input/*.xlsx` or `*.xlsm`) defines the entire MFA sy
 - `4_1_Uncertainty_Parameters` - Monte Carlo uncertainty definitions
 - `5_1_Scenario_Manager` - Scenario definitions
 
+**Reference Management (NEW in v1.0)**:
+- `6_1_Reference_Manager` - Central database for data source documentation
+
 **Visualization**:
-- `6_1_Visualization_Processes` - Process visualization settings
-- `6_2_Visualization_Flows` - Flow visualization settings
-- `6_3_Layout_Configuration` - Sankey diagram layouts
+- `6_1_Visualization_Processes` - Process visualization settings (optional)
+- `6_2_Visualization_Flows` - Flow visualization settings (optional)
+- `6_3_Layout_Configuration` - Sankey diagram layouts (optional)
+
+**Validation and Documentation (NEW in v1.0)**:
+- `7_1_Comments_Validation` - Column descriptions and validation rules
+- `7_2_Codelists` - Reference lists for dropdown options
 
 ## Workflow and Data Flow
 
@@ -546,6 +601,6 @@ For planned features and development roadmap, see **ROADMAP.md**:
 
 ---
 
-**Last Updated**: 2025-11-20
-**CLAUDE.md Version**: 3.1 (Pass-through Logic & Template Organization)
+**Last Updated**: 2025-11-25
+**CLAUDE.md Version**: 3.2 (Validation System Rebuild & DSM Warnings)
 **BioDYM Status**: Pre-publication preparation
