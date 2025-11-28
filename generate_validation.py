@@ -656,24 +656,54 @@ Multiple rows with same name define one scenario.
 
 EXAMPLE: Increased_Recycling_Policy''')
 
+add_entry('5_1_Scenario_Manager', 'ID', 'Input', 'Optional',
+'''Process ID for parameter modification (LEGACY - use P##_ prefix instead)
+
+PURPOSE: Legacy method to specify process ID (deprecated in favor of P##_ prefix)
+
+ACTION: RECOMMENDED: Use P##_ prefix in Parameter_Name instead (e.g., P06_DSM_...)
+LEGACY: Enter Process_ID from 2_1_Definition_Processes
+
+EXAMPLE: Leave blank and use P06_DSM_Lifetime_Mean_Cat_1 instead
+
+NOTE: This column is now optional. Use P##_ prefix in parameter names.''')
+
 add_entry('5_1_Scenario_Manager', 'Parameter_Type', 'Config', 'Yes',
 '''Type of parameter to modify
 
 PURPOSE: Categorizes parameter
 
 ACTION: Select from dropdown (see codelist):
-TC, Flow, DSM, FOMP
+TC, Flow, DSM, FOMP, Initial Stock (IS)
 
-EXAMPLE: TC''')
+EXAMPLE: DSM
+
+NOTE: DSM, FOMP, and IS require Process ID via P##_ prefix (e.g., P06_DSM_...)''')
 
 add_entry('5_1_Scenario_Manager', 'Parameter_Name', 'Input', 'Yes',
 '''Parameter to modify
 
 PURPOSE: Identifies specific parameter
 
-ACTION: Enter exact parameter name from other sheets
+ACTION: Enter parameter name with P##_ prefix for process-specific modifications.
+Format by Parameter_Type:
+- TC: TC parameter name (e.g., TC_Recycling_Rate)
+- Flow: Flow ID (e.g., F_01_Timber_Harvest)
+- DSM: P##_DSM_Parameter_Cat_# (e.g., P06_DSM_Lifetime_Mean_Cat_1)
+- FOMP: P##_ParameterName (e.g., P04_decay_k1)
+- IS: P##_IS_Parameter (e.g., P02_IS_material_quantity)
 
-EXAMPLE: TC_Recycling_Rate''')
+EXAMPLES:
+- TC_Recycling_Rate (for TC modification)
+- F_01_Timber_Harvest (for Flow modification)
+- P06_DSM_Lifetime_Mean_Cat_1 (increase Process 6 category 1 lifetime)
+- P06_DSM_Lifetime_StdDev_Cat_1 (change Process 6 category 1 variability)
+- P06_DSM_Inflow_Split_Cat_2 (change Process 6 category 2 inflow split)
+- P04_decay_k1 (Labile pool) (modify Process 4 FOMP decay rate)
+- P02_IS_material_quantity (modify Process 2 initial stock quantity)
+- P02_IS_E2_[%](WC) (modify Process 2 initial stock water content)
+
+NOTE: P## format uses two-digit process ID (e.g., P06 for Process 6, P04 for Process 4)''')
 
 add_entry('5_1_Scenario_Manager', 'Modification_Type', 'Config', 'Yes',
 '''How to modify parameter

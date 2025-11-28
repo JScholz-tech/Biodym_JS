@@ -973,23 +973,76 @@ def define_flows_and_parameters(mfa_system, all_excel_data, debug_mode=False):
     return mfa_system, all_excel_data, flow_tc_map, process_logic_map
 
 
-def apply_scenario(mfa_system, scenario_definitions, selected_scenario_name):
+def apply_scenario(
+    mfa_system,
+    scenario_definitions,
+    selected_scenario_name,
+    dsm_params=None,
+    fomp_params=None,
+    initial_stock_configs=None,
+):
     """
     Applies the modifications for a selected scenario to the MFA system object.
     Now supports year-specific modifications using start_year and end_year.
+    Extended to support DSM, FOMP, and Initial Stock parameter modifications.
 
     Args:
         mfa_system (odym.MFAsystem): The configured MFA system object.
         scenario_definitions (dict): All available scenario rules from the Excel file.
         selected_scenario_name (str): The name of the scenario to apply.
+        dsm_params (dict, optional): DSM parameter configuration dictionary.
+        fomp_params (dict, optional): FOMP parameter configuration dictionary.
+        initial_stock_configs (dict, optional): Initial stock configuration dictionary.
 
     Returns:
-        odym.MFAsystem: The MFA system with scenario modifications applied.
+        tuple: (mfa_system, dsm_params, fomp_params, initial_stock_configs) with modifications applied.
     """
+    import copy
+
+    # Create deep copies to avoid modifying originals
+    dsm_params = copy.deepcopy(dsm_params) if dsm_params else {}
+    fomp_params = copy.deepcopy(fomp_params) if fomp_params else {}
+    initial_stock_configs = (
+        copy.deepcopy(initial_stock_configs) if initial_stock_configs else {}
+    )
+
     modifications = scenario_definitions.get(selected_scenario_name, [])
 
     for mod in modifications:
         param_name = mod["Parameter_Name"]
+
+        # Auto-detect Parameter_Type from parameter name if not explicitly provided
+        param_type = mod.get("Parameter_Type", "").strip()
+        if not param_type:
+            # Auto-detect based on parameter name patterns
+            if "_DSM_" in param_name:
+                param_type = "DSM"
+            elif param_name.startswith("F_"):
+                param_type = "Flow"
+            elif param_name.startswith("TC_"):
+                param_type = "TC"
+            elif "_IS_" in param_name or param_name.startswith("P") and "IS_" in param_name:
+                param_type = "IS"
+            elif "decay_k" in param_name or "Inflow_fraction" in param_name:
+                param_type = "FOMP"
+            else:
+                # Default to TC if no clear pattern (backwards compatibility)
+                param_type = "TC"
+
+        # Extract Process ID from parameter name (format: P##_...)
+        # Prefer P##_ prefix extraction over ID column
+        process_id = None
+        if param_name.startswith("P") and "_" in param_name:
+            # New format: P##_ prefix in parameter name
+            try:
+                process_id_str = param_name.split("_")[0][1:]  # Extract ## from P##
+                process_id = int(process_id_str)
+            except (ValueError, IndexError):
+                pass  # Not a valid P##_ format
+
+        # Fall back to ID column if no prefix found (backwards compatibility)
+        if process_id is None:
+            process_id = mod.get("ID", None)
 
         # Validate and clean operation field
         operation_raw = mod["Operation"]
@@ -1024,10 +1077,194 @@ def apply_scenario(mfa_system, scenario_definitions, selected_scenario_name):
             year_range_str = " (all years)"
 
         print(
-            f"    -> Applying: {param_name} | Operation: {operation} | Value: {value}{year_range_str}"
+            f"    -> Applying: {param_name} | Type: {param_type} | Operation: {operation} | Value: {value}{year_range_str}"
         )
 
-        if param_name.startswith("F_") and param_name in mfa_system.FlowDict:
+        # Handle DSM parameter modifications
+        if param_type == "DSM":
+            if process_id is None:
+                print(
+                    f"       WARNING: DSM modification requires Process ID (use P##_ prefix). Skipping '{param_name}'."
+                )
+                continue
+
+            process_id = int(process_id)
+            if process_id not in dsm_params:
+                print(
+                    f"       WARNING: Process {process_id} not found in DSM parameters. Skipping."
+                )
+                continue
+
+            # Strip P##_ prefix if present (e.g., "P06_DSM_Lifetime_Mean_Cat_1" -> "DSM_Lifetime_Mean_Cat_1")
+            param_name_clean = param_name
+            if param_name.startswith("P") and "_" in param_name:
+                param_name_clean = "_".join(param_name.split("_")[1:])
+
+            # Remove [%] from parameter name if present (e.g., "DSM_Inflow_Split_[%]_Cat_1" -> "DSM_Inflow_Split_Cat_1")
+            param_name_clean = param_name_clean.replace("_[%]", "").replace("[%]", "")
+
+            # Parse DSM parameter name (e.g., "DSM_Lifetime_Mean_Cat_1" or "DSM_Inflow_Split_Cat_1")
+            if "_Cat_" in param_name_clean:
+                parts = param_name_clean.split("_Cat_")
+                param_base = parts[0]  # e.g., "DSM_Lifetime_Mean"
+                category_idx = int(parts[1]) - 1  # Convert to 0-based index
+
+                # Map parameter to DSM structure
+                if param_base == "DSM_Lifetime_Mean":
+                    _apply_operation(
+                        dsm_params[process_id]["lifetimes"]["Mean"],
+                        category_idx,
+                        operation,
+                        value,
+                    )
+                elif param_base == "DSM_Lifetime_StdDev":
+                    _apply_operation(
+                        dsm_params[process_id]["lifetimes"]["StdDev"],
+                        category_idx,
+                        operation,
+                        value,
+                    )
+                elif param_base == "DSM_Inflow_Split":
+                    _apply_operation(
+                        dsm_params[process_id]["inflow_split"],
+                        category_idx,
+                        operation,
+                        value,
+                    )
+                elif param_base.startswith("DSM_Output_") and param_base.endswith(
+                    "_Split"
+                ):
+                    # Extract output number (e.g., "DSM_Output_1_Split_Cat_2" -> output 0, cat 1)
+                    output_num = int(param_base.split("_")[2]) - 1
+                    if category_idx < len(dsm_params[process_id]["output_splits"]):
+                        if output_num < len(
+                            dsm_params[process_id]["output_splits"][category_idx]
+                        ):
+                            _apply_operation(
+                                dsm_params[process_id]["output_splits"][category_idx],
+                                output_num,
+                                operation,
+                                value,
+                            )
+                else:
+                    print(
+                        f"       WARNING: Unknown DSM parameter type '{param_base}'. Skipping."
+                    )
+            else:
+                print(
+                    f"       WARNING: DSM parameter '{param_name}' does not follow expected naming convention (P##_DSM_..._Cat_#). Skipping."
+                )
+
+        # Handle FOMP parameter modifications
+        elif param_type == "FOMP":
+            if process_id is None:
+                print(
+                    f"       WARNING: FOMP modification requires Process ID (use P##_ prefix). Skipping '{param_name}'."
+                )
+                continue
+
+            process_id = int(process_id)
+            if process_id not in fomp_params:
+                print(
+                    f"       WARNING: Process {process_id} not found in FOMP parameters. Skipping."
+                )
+                continue
+
+            # Strip P##_ prefix if present (e.g., "P04_decay_k1" -> "decay_k1")
+            param_name_clean = param_name
+            if param_name.startswith("P") and "_" in param_name:
+                param_name_clean = "_".join(param_name.split("_")[1:])
+
+            # Find matching parameter in FOMP params (case-insensitive partial match)
+            matched_key = None
+            for key in fomp_params[process_id].keys():
+                if param_name_clean.lower() in key.lower():
+                    matched_key = key
+                    break
+
+            if matched_key:
+                old_value = fomp_params[process_id][matched_key]
+                if operation == "replace":
+                    fomp_params[process_id][matched_key] = value
+                elif operation == "multiply":
+                    fomp_params[process_id][matched_key] = old_value * value
+                elif operation == "add":
+                    fomp_params[process_id][matched_key] = old_value + value
+                print(
+                    f"       -> Modified FOMP parameter '{matched_key}': {old_value} -> {fomp_params[process_id][matched_key]}"
+                )
+            else:
+                print(
+                    f"       WARNING: FOMP parameter '{param_name}' not found in Process {process_id}. Skipping."
+                )
+
+        # Handle Initial Stock parameter modifications
+        elif param_type == "Initial Stock" or param_type == "IS":
+            if process_id is None:
+                print(
+                    f"       WARNING: Initial Stock modification requires Process ID (use P##_ prefix). Skipping '{param_name}'."
+                )
+                continue
+
+            process_id = int(process_id)
+            if process_id not in initial_stock_configs:
+                print(
+                    f"       WARNING: Process {process_id} not found in Initial Stock configs. Skipping."
+                )
+                continue
+
+            # Strip P##_ prefix if present (e.g., "P02_IS_material_quantity" -> "IS_material_quantity")
+            param_name_clean = param_name
+            if param_name.startswith("P") and "_" in param_name:
+                param_name_clean = "_".join(param_name.split("_")[1:])
+
+            # Map parameter name to internal structure
+            param_mapping = {
+                "IS_material_quantity[UoM]": "Initial_Stock_material",
+                "IS_material_quantity": "Initial_Stock_material",
+                "IS_E2_[%](WC)": "Initial_Stock_WC[%]",
+                "IS_WC[%]": "Initial_Stock_WC[%]",
+                "IS_E3_[%](DM)": "Initial_Stock_DM[%]",
+                "IS_DM[%]": "Initial_Stock_DM[%]",
+                "IS_E4_[%](CC)": "Initial_Stock_CC[%]",
+                "IS_CC[%]": "Initial_Stock_CC[%]",
+            }
+
+            internal_param_name = param_mapping.get(param_name_clean, None)
+            if internal_param_name is None:
+                print(
+                    f"       WARNING: Unknown Initial Stock parameter '{param_name_clean}'. Skipping."
+                )
+                continue
+
+            if internal_param_name in initial_stock_configs[process_id][
+                "initial_stock_values"
+            ]:
+                old_value = initial_stock_configs[process_id]["initial_stock_values"][
+                    internal_param_name
+                ]
+                if operation == "replace":
+                    initial_stock_configs[process_id]["initial_stock_values"][
+                        internal_param_name
+                    ] = value
+                elif operation == "multiply":
+                    initial_stock_configs[process_id]["initial_stock_values"][
+                        internal_param_name
+                    ] = (old_value * value)
+                elif operation == "add":
+                    initial_stock_configs[process_id]["initial_stock_values"][
+                        internal_param_name
+                    ] = (old_value + value)
+                print(
+                    f"       -> Modified IS parameter '{internal_param_name}': {old_value} -> {initial_stock_configs[process_id]['initial_stock_values'][internal_param_name]}"
+                )
+            else:
+                print(
+                    f"       WARNING: Initial Stock parameter '{internal_param_name}' not found in Process {process_id}. Skipping."
+                )
+
+        # Handle Flow modifications (existing logic)
+        elif param_name.startswith("F_") and param_name in mfa_system.FlowDict:
             flow_obj = mfa_system.FlowDict[param_name]
 
             # Get time indices for year range
@@ -1107,7 +1344,33 @@ def apply_scenario(mfa_system, scenario_definitions, selected_scenario_name):
                 flow.Values[:, i_elem] = flow.Values[:, 0] * content_value
 
     print("\n✅ Scenario modifications applied successfully.")
-    return mfa_system
+    return mfa_system, dsm_params, fomp_params, initial_stock_configs
+
+
+def _apply_operation(target_list, index, operation, value):
+    """Helper function to apply an operation to a list element.
+
+    Args:
+        target_list: The list containing the value to modify
+        index: The index of the element to modify
+        operation: Operation to perform ('replace', 'multiply', 'add')
+        value: The value to use in the operation
+    """
+    if index >= len(target_list):
+        print(
+            f"       WARNING: Index {index} out of range for list of length {len(target_list)}. Skipping."
+        )
+        return
+
+    old_value = target_list[index]
+    if operation == "replace":
+        target_list[index] = value
+    elif operation == "multiply":
+        target_list[index] = old_value * value
+    elif operation == "add":
+        target_list[index] = old_value + value
+
+    print(f"       -> Modified list[{index}]: {old_value} -> {target_list[index]}")
 
 
 def _get_time_indices_for_year_range(mfa_system, start_year, end_year):

@@ -84,6 +84,118 @@ def validate_mc_parameters(mc_params_df, mfa_system):
     return validated_params, warnings
 
 
+def apply_dsm_parameter_updates(dsm_params, sampled_params):
+    """Applies Monte Carlo sampled parameter values to DSM processes.
+
+    Parameters
+    ----------
+    dsm_params : dict
+        The original DSM parameters dictionary, keyed by process ID.
+    sampled_params : dict
+        A dictionary of parameter values sampled for a single MC iteration.
+
+    Returns
+    -------
+    dict
+        An updated copy of the DSM parameters dictionary with sampled values applied.
+    """
+    updated_dsm_params = copy.deepcopy(dsm_params)
+
+    for param_name, sampled_value in sampled_params.items():
+        # Check if this is a DSM parameter (contains _DSM_)
+        if "_DSM_" not in param_name:
+            continue
+
+        try:
+            # Extract process ID from parameter name (e.g., "P08_DSM_Lifetime_Mean_Cat_1" -> 8)
+            if not param_name.startswith("P"):
+                continue
+
+            process_id = int(param_name.split("_")[0][1:])  # Extract ## from P##
+
+            if process_id not in updated_dsm_params:
+                print(
+                    f"⚠️ WARNING: Process {process_id} not found in DSM parameters for {param_name}"
+                )
+                continue
+
+            # Remove P##_ prefix and [%] if present
+            param_name_clean = "_".join(param_name.split("_")[1:])
+            param_name_clean = param_name_clean.replace("_[%]", "").replace("[%]", "")
+
+            # Parse DSM parameter name (e.g., "DSM_Lifetime_Mean_Cat_1")
+            if "_Cat_" not in param_name_clean:
+                print(
+                    f"⚠️ WARNING: DSM parameter '{param_name}' does not follow expected naming convention (P##_DSM_..._Cat_#)"
+                )
+                continue
+
+            parts = param_name_clean.split("_Cat_")
+            param_base = parts[0]  # e.g., "DSM_Lifetime_Mean"
+            category_idx = int(parts[1]) - 1  # Convert to 0-based index
+
+            # Map parameter to DSM structure and apply sampled value
+            if param_base == "DSM_Lifetime_Mean":
+                if category_idx < len(updated_dsm_params[process_id]["lifetimes"]["Mean"]):
+                    old_value = updated_dsm_params[process_id]["lifetimes"]["Mean"][
+                        category_idx
+                    ]
+                    updated_dsm_params[process_id]["lifetimes"]["Mean"][
+                        category_idx
+                    ] = sampled_value
+                    print(
+                        f"   Applied MC sample: {param_name} = {sampled_value:.4f} (was {old_value:.4f})"
+                    )
+            elif param_base == "DSM_Lifetime_StdDev":
+                if category_idx < len(updated_dsm_params[process_id]["lifetimes"]["StdDev"]):
+                    old_value = updated_dsm_params[process_id]["lifetimes"]["StdDev"][
+                        category_idx
+                    ]
+                    updated_dsm_params[process_id]["lifetimes"]["StdDev"][
+                        category_idx
+                    ] = sampled_value
+                    print(
+                        f"   Applied MC sample: {param_name} = {sampled_value:.4f} (was {old_value:.4f})"
+                    )
+            elif param_base == "DSM_Inflow_Split":
+                if category_idx < len(updated_dsm_params[process_id]["inflow_split"]):
+                    old_value = updated_dsm_params[process_id]["inflow_split"][
+                        category_idx
+                    ]
+                    updated_dsm_params[process_id]["inflow_split"][
+                        category_idx
+                    ] = sampled_value
+                    print(
+                        f"   Applied MC sample: {param_name} = {sampled_value:.4f} (was {old_value:.4f})"
+                    )
+
+                    # Note: Inflow splits should sum to 1.0 - normalization may be needed
+                    # This could be added as a post-processing step if required
+
+            elif param_base.startswith("DSM_Output_") and param_base.endswith("_Split"):
+                # Extract output number (e.g., "DSM_Output_1_Split_Cat_2" -> output 0, cat 1)
+                output_num = int(param_base.split("_")[2]) - 1
+                if category_idx < len(updated_dsm_params[process_id]["output_splits"]):
+                    if output_num < len(
+                        updated_dsm_params[process_id]["output_splits"][category_idx]
+                    ):
+                        old_value = updated_dsm_params[process_id]["output_splits"][
+                            category_idx
+                        ][output_num]
+                        updated_dsm_params[process_id]["output_splits"][category_idx][
+                            output_num
+                        ] = sampled_value
+                        print(
+                            f"   Applied MC sample: {param_name} = {sampled_value:.4f} (was {old_value:.4f})"
+                        )
+
+        except (ValueError, IndexError) as e:
+            print(f"⚠️ WARNING: Could not parse DSM parameter name: {param_name} - {e}")
+            continue
+
+    return updated_dsm_params
+
+
 def apply_fomp_parameter_updates(fomp_params, sampled_params):
     """Applies Monte Carlo sampled parameter values to FOMP processes.
 
@@ -204,6 +316,7 @@ def _run_single_mc_iteration(
     iteration_num,
     mfa_system_setup,
     uncertainty_params,
+    dsm_params,
     fomp_params,
     config,
     flow_tc_map,
@@ -223,6 +336,8 @@ def _run_single_mc_iteration(
         A clean, configured MFA system to use as a base.
     uncertainty_params : dict
         The dictionary of uncertainty definitions.
+    dsm_params : dict
+        Configuration dictionary for DSM processes.
     fomp_params : dict
         Configuration dictionary for FOMP processes.
     config : object
@@ -243,7 +358,10 @@ def _run_single_mc_iteration(
     sampled_params = sample_parameters(uncertainty_params)
     tc_updates = sampled_params.copy()
 
-    # --- 3b. Apply FOMP parameter updates ---
+    # --- 3b. Apply DSM parameter updates ---
+    updated_dsm_params = apply_dsm_parameter_updates(dsm_params, sampled_params)
+
+    # --- 3c. Apply FOMP parameter updates ---
     updated_fomp_params = apply_fomp_parameter_updates(fomp_params, sampled_params)
 
     # --- 3c. Propagate Splitter Uncertainty ---
@@ -261,7 +379,7 @@ def _run_single_mc_iteration(
     # --- 3d. Run Solver ---
     mfa_system_run, _ = solver.run_mfa_calculation(
         mfa_system_setup,
-        {},  # dsm_params are not used in MC, can be empty
+        updated_dsm_params,  # Use updated DSM parameters from MC sampling
         updated_fomp_params,  # Use updated FOMP parameters
         config,
         flow_tc_map=flow_tc_map,
@@ -362,6 +480,7 @@ def run_mc_simulation(
             i + 1,
             mfa_system_setup,
             uncertainty_params,
+            dsm_params,  # Pass DSM parameters for MC sampling
             fomp_params,
             config,
             flow_tc_map,

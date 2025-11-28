@@ -23,6 +23,7 @@ def run_scenario_analysis(
     fomp_params,
     flow_tc_map,
     process_logic_map,
+    initial_stock_configs=None,
 ) -> Tuple[Dict, Dict]:
     """Orchestrates the entire scenario analysis process.
 
@@ -91,6 +92,7 @@ def run_scenario_analysis(
             fomp_params=fomp_params,
             flow_tc_map=flow_tc_map,
             process_logic_map=process_logic_map,
+            initial_stock_configs=initial_stock_configs,
         )
 
         if scenario_result is not None:
@@ -150,6 +152,7 @@ def _run_single_scenario(
     fomp_params: Dict,
     flow_tc_map: Dict,
     process_logic_map: Dict,
+    initial_stock_configs: Optional[Dict] = None,
 ) -> Optional[object]:
     """Runs the MFA calculation for a single, specified scenario.
 
@@ -195,21 +198,31 @@ def _run_single_scenario(
     # Create a deep copy of the configured system for this scenario
     mfa_system_scenario = copy.deepcopy(mfa_system_configured)
 
-    # Apply scenario modifications
-    mfa_system_scenario = system_setup.apply_scenario(
-        mfa_system_scenario, scenario_definitions, scenario_name
+    # Apply scenario modifications (now returns modified parameters too)
+    (
+        mfa_system_scenario,
+        dsm_params_scenario,
+        fomp_params_scenario,
+        initial_stock_configs_scenario,
+    ) = system_setup.apply_scenario(
+        mfa_system_scenario,
+        scenario_definitions,
+        scenario_name,
+        dsm_params=dsm_params,
+        fomp_params=fomp_params,
+        initial_stock_configs=initial_stock_configs,
     )
 
     # Create scenario-specific config (disable Monte Carlo for scenarios)
     scenario_config_obj = copy.deepcopy(config_obj)
     scenario_config_obj.RUN_MONTE_CARLO = False
 
-    # Run the calculation for this scenario
+    # Run the calculation for this scenario (using scenario-modified parameters)
     try:
         mfa_results_scenario, _ = solver.run_mfa_calculation(
             mfa_system_scenario,
-            dsm_params,
-            fomp_params,
+            dsm_params_scenario,
+            fomp_params_scenario,
             scenario_config_obj,
             flow_tc_map=flow_tc_map,
             process_logic_map=process_logic_map,
