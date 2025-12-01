@@ -14,6 +14,7 @@ import copy
 # Import other engine components
 from . import dsm_model
 from . import fomp_model
+from .element_utils import recalculate_hierarchical_elements
 
 
 def calculate_final_balances(mfa_system):
@@ -235,6 +236,15 @@ def _calculate_tc_driven_flows(
                             outflow_vector[:, mat_idx] * element_fraction
                         )
 
+                    # FIX: Recalculate hierarchical elements based on their parent
+                    # This ensures elements like CC (% of DM) are correctly recalculated
+                    # after DM changes, rather than being calculated as % of material
+                    element_hierarchy = getattr(mfa_system, "_element_hierarchy", {})
+                    if element_hierarchy:
+                        outflow_vector = recalculate_hierarchical_elements(
+                            outflow_vector, elements, element_hierarchy, mfa_system
+                        )
+
             elif process_logic == "Pass-through":
                 # Pass-through: Copy total inflow directly to outflow (no transformation)
                 outflow_vector = total_inflow_vector.copy()
@@ -256,12 +266,23 @@ def _calculate_tc_driven_flows(
                         # No TC found, assume passthrough (no change)
                         outflow_vector[:, elem_idx] = total_inflow_vector[:, elem_idx]
 
-                # Recalculate total material as sum of TOP-LEVEL elements only
-                # (excludes hierarchical elements like CC which is % of DM, not material)
+                # Get element hierarchy (try config first, then mfa_system)
                 element_hierarchy = (
                     getattr(config, "Element_Hierarchy", {}) if config else {}
                 )
+                if not element_hierarchy:
+                    element_hierarchy = getattr(mfa_system, "_element_hierarchy", {})
 
+                # FIX: Recalculate hierarchical elements based on their parent
+                # This must happen BEFORE summing material, so hierarchical elements
+                # are correct when we sum top-level elements
+                if element_hierarchy:
+                    outflow_vector = recalculate_hierarchical_elements(
+                        outflow_vector, elements, element_hierarchy, mfa_system
+                    )
+
+                # Recalculate total material as sum of TOP-LEVEL elements only
+                # (excludes hierarchical elements like CC which is % of DM, not material)
                 if element_hierarchy:
                     # Only sum elements with parent='material' or no parent
                     top_level_sum = np.zeros(len(total_inflow_vector))

@@ -9,6 +9,7 @@ structure of the stock and a lifetime distribution.
 
 import numpy as np
 import dynamic_stock_model as dsm
+from .element_utils import recalculate_hierarchical_elements
 
 
 def _calculate_outflow_from_inflows(total_inflow_values, params, time_vector):
@@ -191,19 +192,49 @@ def _distribute_and_assign_outflows(
     # Assign final values to MFA system flows
     num_elements = len(mfa_system.Elements)
     num_years = len(mfa_system.IndexTable.Classification["Time"].Items)
+    elements = mfa_system.Elements
+
     for flow_idx, outflow_flow in enumerate(outflow_flows):
         total_material_flow = final_outflows[flow_idx]
         mfa_system.FlowDict[outflow_flow.Name].Values[:, 0] = total_material_flow
+
         # Apply element composition from total inflow
+        # CRITICAL FIX: Forward-fill fractions when input stops to preserve composition
         for elem_idx in range(1, num_elements):
+            # Calculate fractions for all years
             factor = np.divide(
                 total_inflow_values[:, elem_idx],
                 total_inflow_values[:, 0],
                 out=np.zeros(num_years),
                 where=total_inflow_values[:, 0] != 0,
             )
+
+            # Forward-fill: Use last valid fraction when input is zero
+            # This preserves the composition even after inputs stop
+            last_valid_factor = 0.0
+            for t in range(num_years):
+                if total_inflow_values[t, 0] > 0:
+                    # Update last valid fraction when we have input
+                    last_valid_factor = factor[t]
+                else:
+                    # Use last valid fraction when input is zero
+                    factor[t] = last_valid_factor
+
             mfa_system.FlowDict[outflow_flow.Name].Values[:, elem_idx] = (
                 total_material_flow * factor
+            )
+
+        # FIX: Recalculate hierarchical elements based on their parent
+        # This ensures CC stays proportional to DM even when both are declining
+        element_hierarchy = getattr(mfa_system, "_element_hierarchy", {})
+        if element_hierarchy:
+            mfa_system.FlowDict[outflow_flow.Name].Values = (
+                recalculate_hierarchical_elements(
+                    mfa_system.FlowDict[outflow_flow.Name].Values,
+                    elements,
+                    element_hierarchy,
+                    mfa_system,
+                )
             )
 
     print("\n--- Final Results Summary ---")
