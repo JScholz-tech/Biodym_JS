@@ -31,6 +31,8 @@ venv/
 *.swp
 *~
 nul
+*.dtmp
+.$*
 
 # Backup files
 *_backup_*.py
