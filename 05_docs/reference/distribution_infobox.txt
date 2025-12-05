@@ -1,0 +1,92 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                    DISTRIBUTION FUNCTIONS IN BioDYM                           ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  1. DSM LIFETIME DISTRIBUTIONS (Sheet: 3_1_Definition_DSM)                   ║
+║  ───────────────────────────────────────────────────────────────────────     ║
+║  Column: Lifetime_Type (or DSM_Lifetime_Type_Cat_#)                          ║
+║                                                                               ║
+║  Distribution    Parameters Required           Use Case                      ║
+║  ────────────────────────────────────────────────────────────────────────    ║
+║  Fixed           • Mean (years)                Exact known lifetime          ║
+║                                                                               ║
+║  Normal          • Mean (years)                Symmetric variation           ║
+║                  • StdDev (years)              ⚠️ StdDev < 80% of Mean       ║
+║                                                                               ║
+║  FoldedNormal    • Mean (years)                Symmetric, no negatives       ║
+║                  • StdDev (years)              (safer than Normal)           ║
+║                                                                               ║
+║  LogNormal       • Mean (years)                Right-skewed (some last       ║
+║                  • StdDev (years)              much longer than average)     ║
+║                                                                               ║
+║  Weibull         • Mean (years)                Wear-out or early failure     ║
+║                  • Shape (dimensionless)       patterns                       ║
+║                                                                               ║
+║  ───────────────────────────────────────────────────────────────────────     ║
+║  2. MONTE CARLO UNCERTAINTY (Sheet: 4_1_Uncertainty_Parameters)              ║
+║  ───────────────────────────────────────────────────────────────────────     ║
+║  Column: Distribution_Type                                                   ║
+║                                                                               ║
+║  Distribution    Parameters Required           Use Case                      ║
+║  ────────────────────────────────────────────────────────────────────────    ║
+║  normal          • Mean                        Symmetric uncertainty         ║
+║                  • StdDev                      + optional: Min, Max (bounds) ║
+║                                                                               ║
+║  uniform         • Min                         Any value in range            ║
+║                  • Max                         equally likely                ║
+║                                                                               ║
+║  triangular      • Min                         Expert estimate with          ║
+║                  • Mode (most likely)          most likely value             ║
+║                  • Max                                                        ║
+║                                                                               ║
+║  lognormal       • Mean                        Always positive,              ║
+║                  • StdDev                      right-skewed values           ║
+║                  + optional: Min, Max                                        ║
+║                                                                               ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║  IMPORTANT NOTES:                                                             ║
+║  • Case-insensitive: "Normal", "normal", "NORMAL" all work                   ║
+║  • DSM Normal: Keep StdDev below 80% of Mean to avoid negative lifetimes     ║
+║  • Monte Carlo: Always set Min/Max bounds for fractions (0.0 to 1.0)         ║
+║  • Use FoldedNormal instead of Normal when StdDev is large                   ║
+║  • LogNormal is ideal for rates, decay constants, and transfer coefficients  ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+QUICK DECISION GUIDE:
+═════════════════════
+
+DSM - Which lifetime distribution?
+-----------------------------------
+→ Fixed           : Known exact lifetime (e.g., 20-year lease contract)
+→ Normal          : Symmetric spread, moderate variation (StdDev < 80% Mean)
+→ FoldedNormal    : Symmetric spread, large variation (safer than Normal)
+→ LogNormal       : Some products last much longer (e.g., electronics)
+→ Weibull         : Infant mortality or wear-out patterns
+
+Monte Carlo - Which uncertainty distribution?
+----------------------------------------------
+→ normal          : Well-measured parameter with known mean and variation
+→ uniform         : Only know min/max range, no preferred value
+→ triangular      : Expert judgment with min/most likely/max
+→ lognormal       : Positive-only values with right skew (rates, ratios)
+
+EXAMPLES:
+═════════
+
+Example 1 - Building lifetime (DSM):
+  Lifetime_Type = Normal
+  Lifetime_Mean = 80
+  Lifetime_StdDev = 12
+
+Example 2 - Uncertain recycling rate (Monte Carlo):
+  Distribution_Type = normal
+  Mean = 0.35
+  StdDev = 0.10
+  Min = 0.0
+  Max = 1.0
+
+Example 3 - Expert estimate for future demand (Monte Carlo):
+  Distribution_Type = triangular
+  Min = 1000
+  Mode = 1500
+  Max = 2500
