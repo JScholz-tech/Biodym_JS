@@ -426,6 +426,7 @@ def _populate_primary_flow_data(mfa_system, flow_data, debug_mode=False):
     """Populates flows with primary data from the '1_2_Data_Flows' sheet.
 
     Supports both old format (Flow_Material) and new E# format (E1_value).
+    Automatically interpolates flow data to fill gaps in the time series.
 
     Parameters
     ----------
@@ -452,13 +453,51 @@ def _populate_primary_flow_data(mfa_system, flow_data, debug_mode=False):
             "Expected either 'Flow_Material' (old format) or 'E1_value' (new format)"
         )
 
+    # Get the full time vector from the model
+    time_vector = mfa_system.IndexTable.Classification["Time"].Items
+    interpolation_count = 0
+
     for flow_id, flow_obj in mfa_system.FlowDict.items():
         if flow_id in flow_data["Flow_ID"].values:
             flow_time_series = flow_data[flow_data["Flow_ID"] == flow_id]
-            if len(flow_time_series) == len(
-                mfa_system.IndexTable.Classification["Time"].Items
-            ):
+
+            # Check if we have complete data or need interpolation
+            if len(flow_time_series) == len(time_vector):
+                # Complete data - use directly
                 flow_obj.Values[:, 0] = np.array(flow_time_series[material_col]).ravel()
+            else:
+                # Incomplete data - interpolate to fill gaps
+                # Create a pandas Series indexed by year
+                available_years = flow_time_series["Flow_Data_Year"].values
+                available_values = flow_time_series[material_col].values
+
+                ts = pd.Series(available_values, index=available_years)
+
+                # Reindex to full time vector and interpolate
+                ts_full = ts.reindex(time_vector)
+                ts_interpolated = ts_full.interpolate(
+                    method="linear", limit_direction="both"
+                )
+
+                # Handle edge cases where interpolation might fail
+                if ts_interpolated.isna().any():
+                    ts_interpolated = ts_interpolated.ffill().bfill()
+
+                # Apply interpolated values
+                flow_obj.Values[:, 0] = ts_interpolated.to_numpy()
+
+                interpolation_count += 1
+                if debug_mode:
+                    print(
+                        f"    -> Interpolated flow {flow_id}: "
+                        f"{len(flow_time_series)} data points -> {len(time_vector)} time steps"
+                    )
+
+    if interpolation_count > 0:
+        print(
+            f"   ✓ Interpolated {interpolation_count} flow(s) to fill time series gaps"
+        )
+
     if debug_mode:
         print("--> Populated data for primary input flows.")
 
