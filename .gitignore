@@ -46,6 +46,14 @@ biodym_mfa_tool/
 studies/
 Writing project/
 
+# Case studies (keep only 1 and 2)
+03_studies/BA_Reifen/
+03_studies/Biodym Modular/
+03_studies/case_study_bachelor_thesis/
+03_studies/Eichkamp/
+03_studies/rye_straw_cascading_treatment_system/
+03_studies/publication_plotting_example.py
+
 # AI assistance and utility scripts (not part of core project)
 07_AI_Coding_Assistance/
 scripts/
