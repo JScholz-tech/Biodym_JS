@@ -61,7 +61,7 @@ def export_figure(
     size: Optional[Union[str, Tuple[float, float]]] = None,
     dpi: Optional[int] = None,
     output_dir: Optional[str] = None,
-    timestamp: bool = True,
+    timestamp: bool = False,
     overwrite: bool = False,
     verbose: bool = True,
 ) -> List[str]:
@@ -100,7 +100,7 @@ def export_figure(
         Defaults to None
     timestamp : bool, optional
         If True, adds timestamp to filename (YYYYMMDD_HHMMSS)
-        Defaults to True
+        Defaults to False
     overwrite : bool, optional
         If True, overwrites existing files. If False, adds number suffix
         Defaults to False
