@@ -1,0 +1,243 @@
+# -*- coding: utf-8 -*-
+"""
+Age Cohort Utilities for Initial Stock Distribution.
+
+This module provides functions to generate age-cohort distributions for
+initial stocks in Dynamic Stock Models (DSM).
+"""
+
+import numpy as np
+
+
+def generate_age_cohorts(
+    total_stock, distribution_type, max_age, decay_constant=None
+):
+    """Generate age-cohort distribution for initial stock.
+
+    This function distributes a total initial stock quantity across different
+    age cohorts according to the specified distribution type.
+
+    Parameters
+    ----------
+    total_stock : float
+        Total quantity of initial stock to distribute across ages.
+    distribution_type : str
+        Type of age distribution:
+        - "uniform": Equal amounts at each age
+        - "exponential": Exponentially decreasing with age (more recent items)
+    max_age : int
+        Maximum age of items in the initial stock (in years).
+    decay_constant : float, optional
+        Decay constant for exponential distribution (in years).
+        If None, defaults to max_age/3.
+        Only used when distribution_type = "exponential".
+
+    Returns
+    -------
+    np.ndarray
+        1D array of length max_age containing the stock quantity at each age.
+        Index 0 = age 0-1 years, Index 1 = age 1-2 years, etc.
+
+    Raises
+    ------
+    ValueError
+        If distribution_type is not "uniform" or "exponential".
+        If total_stock <= 0.
+        If max_age <= 0.
+
+    Examples
+    --------
+    >>> # Uniform distribution: 100 Mg over 10 years
+    >>> cohorts = generate_age_cohorts(100, "uniform", 10)
+    >>> cohorts
+    array([10., 10., 10., 10., 10., 10., 10., 10., 10., 10.])
+
+    >>> # Exponential distribution: more recent items
+    >>> cohorts = generate_age_cohorts(100, "exponential", 10, decay_constant=3)
+    >>> cohorts[0] > cohorts[9]  # More young items than old
+    True
+    """
+    # Validation
+    if total_stock <= 0:
+        raise ValueError(f"total_stock must be positive, got {total_stock}")
+    if max_age <= 0:
+        raise ValueError(f"max_age must be positive, got {max_age}")
+
+    distribution_type = distribution_type.lower()
+
+    if distribution_type == "uniform":
+        # Equal amount at each age
+        cohorts = np.ones(max_age) * (total_stock / max_age)
+
+    elif distribution_type == "exponential":
+        # Exponentially distributed ages (more recent ages have more stock)
+        if decay_constant is None:
+            decay_constant = max_age / 3
+
+        if decay_constant <= 0:
+            raise ValueError(f"decay_constant must be positive, got {decay_constant}")
+
+        # Generate weights using exponential decay
+        ages = np.arange(max_age)
+        weights = np.exp(-ages / decay_constant)
+
+        # Normalize weights to sum to 1
+        weights = weights / weights.sum()
+
+        # Distribute total stock according to weights
+        cohorts = total_stock * weights
+
+    else:
+        raise ValueError(
+            f"Unknown distribution type: '{distribution_type}'. "
+            f"Must be 'uniform' or 'exponential'."
+        )
+
+    return cohorts
+
+
+def apply_element_composition_to_cohorts(cohorts, element_fractions):
+    """Apply element composition to age cohorts.
+
+    Takes age cohorts (material only) and applies element fractions to create
+    a full cohort matrix with all elements.
+
+    Parameters
+    ----------
+    cohorts : np.ndarray
+        1D array of material quantities by age cohort (length = max_age).
+    element_fractions : np.ndarray
+        1D array of element fractions (length = num_elements).
+        element_fractions[0] should be 1.0 (material itself).
+        element_fractions[1:] are the fractions of each element in the material.
+
+    Returns
+    -------
+    np.ndarray
+        2D array of shape (max_age, num_elements) where:
+        - cohorts[:, 0] = material quantities by age
+        - cohorts[:, i] = element i quantities by age
+
+    Examples
+    --------
+    >>> cohorts = np.array([10, 10, 10])  # 3 age cohorts, 10 Mg each
+    >>> fractions = np.array([1.0, 0.6, 0.4, 0.18])  # Material, WC, DM, CC
+    >>> cohort_matrix = apply_element_composition_to_cohorts(cohorts, fractions)
+    >>> cohort_matrix.shape
+    (3, 4)
+    >>> cohort_matrix[:, 0]  # Material
+    array([10., 10., 10.])
+    >>> cohort_matrix[:, 3]  # Carbon (18% of material)
+    array([1.8, 1.8, 1.8])
+    """
+    max_age = len(cohorts)
+    num_elements = len(element_fractions)
+
+    # Initialize cohort matrix
+    cohort_matrix = np.zeros((max_age, num_elements))
+
+    # Material column (element 0)
+    cohort_matrix[:, 0] = cohorts
+
+    # Element columns (elements 1+)
+    for elem_idx in range(1, num_elements):
+        cohort_matrix[:, elem_idx] = cohorts * element_fractions[elem_idx]
+
+    return cohort_matrix
+
+
+def validate_age_cohort_parameters(config, process_id):
+    """Validate age cohort parameters from initial stock configuration.
+
+    Parameters
+    ----------
+    config : dict
+        Initial stock configuration dictionary for a process.
+        Should contain:
+        - "initial_stock_values" dict with element fractions
+        - Cohort parameters if applicable
+    process_id : int
+        Process ID for error messages.
+
+    Returns
+    -------
+    dict or None
+        Dictionary with validated parameters:
+        {
+            "total_stock": float,
+            "distribution_type": str,
+            "max_age": int,
+            "decay_constant": float or None,
+            "element_fractions": np.ndarray
+        }
+        Returns None if validation fails.
+
+    Raises
+    ------
+    ValueError
+        If required parameters are missing or invalid.
+    """
+    stock_values = config.get("initial_stock_values", {})
+
+    # Check for required material quantity
+    total_stock = stock_values.get("Initial_Stock_material", 0.0)
+    if total_stock <= 0:
+        raise ValueError(
+            f"Process {process_id}: Initial stock material quantity must be positive, got {total_stock}"
+        )
+
+    # Check for cohort-specific parameters
+    distribution_type = config.get("cohort_age_distribution_type")
+    max_age = config.get("cohort_max_age")
+
+    if distribution_type is None or max_age is None:
+        raise ValueError(
+            f"Process {process_id}: Missing required cohort parameters. "
+            f"Need 'Cohort_Age_Distribution_Type' and 'Cohort_Max_Age[years]'."
+        )
+
+    # Validate distribution type
+    distribution_type = str(distribution_type).lower()
+    if distribution_type not in ["uniform", "exponential"]:
+        raise ValueError(
+            f"Process {process_id}: Invalid age distribution type '{distribution_type}'. "
+            f"Must be 'uniform' or 'exponential'."
+        )
+
+    # Validate max age
+    try:
+        max_age = int(max_age)
+        if max_age <= 0:
+            raise ValueError("max_age must be positive")
+    except (ValueError, TypeError) as e:
+        raise ValueError(
+            f"Process {process_id}: Invalid max_age '{max_age}'. Must be a positive integer."
+        ) from e
+
+    # Get decay constant (optional)
+    decay_constant = config.get("cohort_decay_constant")
+    if decay_constant is not None:
+        try:
+            decay_constant = float(decay_constant)
+        except (ValueError, TypeError):
+            print(
+                f"  -> WARNING: Invalid decay_constant for Process {process_id}, using default (max_age/3)"
+            )
+            decay_constant = None
+
+    # Build element fractions array from config
+    elements = config.get("elements", ["material", "WC", "DM", "CC"])
+    element_fractions = np.zeros(len(elements))
+    element_fractions[0] = 1.0  # Material itself
+
+    for idx, element in enumerate(elements[1:], start=1):
+        fraction_key = f"Initial_Stock_{element}[%]"
+        element_fractions[idx] = stock_values.get(fraction_key, 0.0)
+
+    return {
+        "total_stock": total_stock,
+        "distribution_type": distribution_type,
+        "max_age": max_age,
+        "decay_constant": decay_constant,
+        "element_fractions": element_fractions,
+    }

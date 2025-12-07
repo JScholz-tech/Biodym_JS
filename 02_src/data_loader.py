@@ -445,10 +445,16 @@ def validate_unified_configuration(excel_data):
             process_logic = str(row.get("Process_Logic", "")).strip()
             stock_config = str(row.get("Stock_Configuration", "")).strip()
 
-            # DSM processes should have Stock
-            if process_logic == "DSM" and stock_config != "Stock":
+            # DSM processes should have Stock or DSM initial stock variants
+            valid_dsm_stock_configs = [
+                "Stock",
+                "Stock_with_InitialStock_Cohort",
+                "Stock_with_InitialStock_Decay",
+            ]
+            if process_logic == "DSM" and stock_config not in valid_dsm_stock_configs:
                 stock_issues.append(
-                    f"Process {process_id}: DSM with {stock_config} Stock_Configuration (should be Stock)"
+                    f"Process {process_id}: DSM with invalid Stock_Configuration '{stock_config}' "
+                    f"(should be one of: {', '.join(valid_dsm_stock_configs)})"
                 )
 
             # Output processes should have Stock
@@ -941,6 +947,13 @@ def load_dsm_parameters(excel_data, debug_mode=False):
             # Fall back to old category-based format
             dsm_params[process_id] = _parse_category_based_dsm(process_data)
 
+        # Add Stock_Configuration to DSM params for initial stock handling
+        if main_sheet_name in excel_data:
+            process_row = main_df[main_df["Process_ID"] == process_id]
+            if not process_row.empty:
+                stock_config = str(process_row.iloc[0].get("Stock_Configuration", "Stock")).strip()
+                dsm_params[process_id]["stock_configuration"] = stock_config
+
     if debug_mode:
         print(
             f"--> Successfully loaded configurations for {len(dsm_params)} DSM process(es)."
@@ -981,7 +994,15 @@ def load_stock_parameters(excel_data):
         return {}
 
     # Get stock configuration from Stock_Configuration column
-    stock_processes = main_df[main_df["Stock_Configuration"] == "Stock"]
+    # Include all stock types: Stock and DSM initial stock variants
+    stock_configs_with_stock = [
+        "Stock",
+        "Stock_with_InitialStock_Cohort",
+        "Stock_with_InitialStock_Decay",
+    ]
+    stock_processes = main_df[
+        main_df["Stock_Configuration"].isin(stock_configs_with_stock)
+    ]
     stock_process_ids = stock_processes["Process_ID"].dropna().astype(int).tolist()
 
     print(

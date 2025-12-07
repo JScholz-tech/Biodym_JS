@@ -125,6 +125,91 @@ def _calculate_outflow_from_initial_stock(
     return decaying_stock_ts, outflow_from_initial_stock_ts
 
 
+def _calculate_outflow_from_initial_stock_cohort(
+    initial_stock_config, params, num_years, num_elements, time_vector
+):
+    """Calculate outflow from initial stock using age-cohort method (ODYM).
+
+    This function uses ODYM's compute_evolution_initialstock method to properly
+    track initial stock cohorts with the same survival function as new inflows.
+    This ensures mathematical consistency.
+
+    Parameters
+    ----------
+    initial_stock_config : dict
+        Configuration from initial_stock_engine containing:
+        - cohort_age_distribution_type: "uniform" or "exponential"
+        - cohort_max_age: maximum age in years
+        - cohort_decay_constant: optional decay constant for exponential
+        - initial_stock_values: element fractions
+        - elements: list of element names
+    params : dict
+        DSM parameters containing lifetime distributions.
+    num_years : int
+        Number of time steps.
+    num_elements : int
+        Number of elements tracked.
+    time_vector : np.ndarray
+        Time vector for the simulation.
+
+    Returns
+    -------
+    tuple
+        (stock_ts, outflow_ts) - Time series of stock and outflow with all elements
+    """
+    from odym.modules.dynamic_stock_model import DynamicStockModel
+    from .age_cohort_utils import (
+        generate_age_cohorts,
+        apply_element_composition_to_cohorts,
+        validate_age_cohort_parameters,
+    )
+
+    # Validate and extract cohort parameters
+    cohort_params = validate_age_cohort_parameters(initial_stock_config, "DSM_Cohort")
+
+    # Generate age cohorts for material only
+    material_cohorts = generate_age_cohorts(
+        total_stock=cohort_params["total_stock"],
+        distribution_type=cohort_params["distribution_type"],
+        max_age=cohort_params["max_age"],
+        decay_constant=cohort_params["decay_constant"],
+    )
+
+    # Apply element composition to all cohorts
+    initial_stock_cohort_matrix = apply_element_composition_to_cohorts(
+        material_cohorts, cohort_params["element_fractions"]
+    )
+
+    # Initialize output arrays
+    stock_ts = np.zeros((num_years, num_elements))
+    outflow_ts = np.zeros((num_years, num_elements))
+
+    # Process each element separately (ODYM handles one element at a time)
+    for elem_idx in range(num_elements):
+        # Create ODYM DSM for this element
+        dsm = DynamicStockModel(t=time_vector, lt=params.get("lifetimes", {}))
+
+        # Initial stock for this element (age cohorts)
+        initial_stock_elem = initial_stock_cohort_matrix[:, elem_idx]
+
+        # Compute evolution using ODYM method
+        max_age = cohort_params["max_age"]
+        s_c = dsm.compute_evolution_initialstock(
+            InitialStock=initial_stock_elem, SwitchTime=max_age
+        )
+
+        # Compute outflow cohorts
+        dsm.compute_o_c_from_s_c()
+
+        # Sum across cohorts to get total stock and outflow
+        if hasattr(dsm, "s"):
+            stock_ts[:, elem_idx] = dsm.s
+        if hasattr(dsm, "o"):
+            outflow_ts[:, elem_idx] = dsm.o
+
+    return stock_ts, outflow_ts
+
+
 def _distribute_and_assign_outflows(
     mfa_system,
     process_id,
@@ -133,12 +218,17 @@ def _distribute_and_assign_outflows(
     outflow_from_initial_stock_ts,
     params,
     total_inflow_values,
+    initial_stock_vector,
 ):
     """Distributes and assigns all calculated outflows back to the MFA system.
 
     This function combines the outflows generated from new inflows and from the
     initial stock, splits them according to the defined output splits, and updates
     the corresponding flow objects in the main MFA system.
+
+    CRITICAL FIX: Composition preservation - outflows from initial stock maintain
+    their original element composition, while outflows from new inflows use the
+    composition of those inflows. This prevents "transmutation" of elements.
 
     Parameters
     ----------
@@ -151,17 +241,20 @@ def _distribute_and_assign_outflows(
     outflow_from_inflows_by_cat : list
         List of outflow arrays for each category from new inflows.
     outflow_from_initial_stock_ts : np.ndarray
-        Time series of the outflow from the initial stock.
+        Time series of the outflow from the initial stock (all elements).
     params : dict
         The DSM parameter configuration for the process.
     total_inflow_values : np.ndarray
         A 2D array of total inflow values, used to calculate outflow composition.
+    initial_stock_vector : np.ndarray
+        1D array of initial stock values by element, used to preserve composition.
     """
     output_splits = params.get("output_splits", [])
-    final_outflows = [
-        np.zeros(len(mfa_system.IndexTable.Classification["Time"].Items))
-        for _ in outflow_flows
-    ]
+    num_years = len(mfa_system.IndexTable.Classification["Time"].Items)
+
+    # Track material flows separately to preserve composition
+    final_outflows_from_inflows = [np.zeros(num_years) for _ in outflow_flows]
+    final_outflows_from_initial = [np.zeros(num_years) for _ in outflow_flows]
 
     # Distribute outflow from new inflows
     for cat_idx, cat_outflow in enumerate(outflow_from_inflows_by_cat):
@@ -177,32 +270,41 @@ def _distribute_and_assign_outflows(
                 for s in cat_splits
             ]
             for flow_idx, split_frac in enumerate(norm_splits):
-                if flow_idx < len(final_outflows):
-                    final_outflows[flow_idx] += cat_outflow * split_frac
+                if flow_idx < len(final_outflows_from_inflows):
+                    final_outflows_from_inflows[flow_idx] += cat_outflow * split_frac
 
     # Distribute outflow from initial stock
     outflow_from_initial_stock_material = outflow_from_initial_stock_ts[:, 0]
     if np.sum(outflow_from_initial_stock_material) > 0 and len(outflow_flows) > 0:
         equal_split_frac = 1.0 / len(outflow_flows)
-        for flow_idx in range(len(final_outflows)):
-            final_outflows[flow_idx] += (
+        for flow_idx in range(len(final_outflows_from_initial)):
+            final_outflows_from_initial[flow_idx] = (
                 outflow_from_initial_stock_material * equal_split_frac
             )
 
     # Assign final values to MFA system flows
     num_elements = len(mfa_system.Elements)
-    num_years = len(mfa_system.IndexTable.Classification["Time"].Items)
     elements = mfa_system.Elements
 
+    # Calculate element fractions for initial stock (preserve original composition)
+    initial_stock_fractions = np.zeros(num_elements)
+    if initial_stock_vector[0] > 0:
+        initial_stock_fractions = initial_stock_vector / initial_stock_vector[0]
+    else:
+        initial_stock_fractions[0] = 1.0  # Material fraction is always 1
+
     for flow_idx, outflow_flow in enumerate(outflow_flows):
-        total_material_flow = final_outflows[flow_idx]
+        # Combine material flows
+        total_material_flow = (
+            final_outflows_from_inflows[flow_idx] + final_outflows_from_initial[flow_idx]
+        )
         mfa_system.FlowDict[outflow_flow.Name].Values[:, 0] = total_material_flow
 
-        # Apply element composition from total inflow
-        # CRITICAL FIX: Forward-fill fractions when input stops to preserve composition
+        # Apply element composition separately for each source
+        # This prevents "transmutation" - each source maintains its composition
         for elem_idx in range(1, num_elements):
-            # Calculate fractions for all years
-            factor = np.divide(
+            # Calculate inflow composition with forward-fill
+            inflow_factor = np.divide(
                 total_inflow_values[:, elem_idx],
                 total_inflow_values[:, 0],
                 out=np.zeros(num_years),
@@ -210,18 +312,26 @@ def _distribute_and_assign_outflows(
             )
 
             # Forward-fill: Use last valid fraction when input is zero
-            # This preserves the composition even after inputs stop
             last_valid_factor = 0.0
             for t in range(num_years):
                 if total_inflow_values[t, 0] > 0:
-                    # Update last valid fraction when we have input
-                    last_valid_factor = factor[t]
+                    last_valid_factor = inflow_factor[t]
                 else:
-                    # Use last valid fraction when input is zero
-                    factor[t] = last_valid_factor
+                    inflow_factor[t] = last_valid_factor
 
+            # Apply composition from inflows to inflow-sourced outflows
+            outflow_from_inflows_elem = (
+                final_outflows_from_inflows[flow_idx] * inflow_factor
+            )
+
+            # Apply original composition from initial stock to initial-stock-sourced outflows
+            outflow_from_initial_elem = (
+                final_outflows_from_initial[flow_idx] * initial_stock_fractions[elem_idx]
+            )
+
+            # Combine both sources
             mfa_system.FlowDict[outflow_flow.Name].Values[:, elem_idx] = (
-                total_material_flow * factor
+                outflow_from_inflows_elem + outflow_from_initial_elem
             )
 
         # FIX: Recalculate hierarchical elements based on their parent
@@ -245,16 +355,24 @@ def _distribute_and_assign_outflows(
     print(
         f"Total outflow from initial stock: {np.sum(outflow_from_initial_stock_material)}"
     )
-    print(f"Total outflow material: {np.sum([np.sum(f) for f in final_outflows])}")
+    total_material_combined = np.sum(
+        [np.sum(final_outflows_from_inflows[i] + final_outflows_from_initial[i])
+         for i in range(len(outflow_flows))]
+    )
+    print(f"Total outflow material (combined): {total_material_combined}")
 
 
-def calculate_dynamic_stock(mfa_system, dsm_params_config):
+def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs=None):
     """Calculates stock and outflow for a single Dynamic Stock Model (DSM) process.
 
     This function orchestrates the DSM calculation for one process. It separates
     the calculation into two main parts: the outflow resulting from new inflows
     and the outflow from the decay of any initial stock. It then assigns the
     combined outflows back to the appropriate flow objects in the MFA system.
+
+    The function supports two modes for initial stock handling:
+    - Stock_with_InitialStock_Decay: Simple exponential decay
+    - Stock_with_InitialStock_Cohort: ODYM age-cohort method (rigorous)
 
     Parameters
     ----------
@@ -263,6 +381,9 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config):
     dsm_params_config : dict
         A dictionary containing the configuration for the single DSM process
         to be calculated. Example: `{6: {'inflow_split': ...}}`
+    initial_stock_configs : dict, optional
+        Dictionary of initial stock configurations, keyed by process ID.
+        Required for Stock_with_InitialStock_Cohort mode.
 
     Returns
     -------
@@ -299,14 +420,48 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config):
     stock_from_inflows_by_cat, outflow_from_inflows_by_cat = (
         _calculate_outflow_from_inflows(total_inflow_values, params, time_vector)
     )
-    decaying_stock_ts, outflow_from_initial_stock_ts = (
-        _calculate_outflow_from_initial_stock(
-            initial_stock_vector,
-            params.get("lifetimes", {}).get("Mean", []),
-            num_years,
-            num_elements,
+
+    # Route to appropriate initial stock calculation method
+    stock_configuration = params.get("stock_configuration", "Stock")
+
+    if stock_configuration == "Stock_with_InitialStock_Cohort":
+        # Use rigorous ODYM age-cohort method
+        print(f"  -> Using ODYM age-cohort method for initial stock")
+
+        # Retrieve initial_stock_configs from MFA system or parameter
+        if initial_stock_configs is None:
+            # Get from MFA system (stored in system_setup._apply_initial_stock)
+            initial_stock_configs_resolved = getattr(
+                mfa_system, "_process_initial_stock_configs", {}
+            )
+        else:
+            initial_stock_configs_resolved = initial_stock_configs
+
+        if process_id not in initial_stock_configs_resolved:
+            raise ValueError(
+                f"Process {process_id}: Stock_with_InitialStock_Cohort requires "
+                f"initial stock configuration in 2_4_Initial_Stock sheet"
+            )
+
+        initial_stock_config = initial_stock_configs_resolved[process_id]
+        decaying_stock_ts, outflow_from_initial_stock_ts = (
+            _calculate_outflow_from_initial_stock_cohort(
+                initial_stock_config, params, num_years, num_elements, time_vector
+            )
         )
-    )
+    else:
+        # Use simple exponential decay method (Stock_with_InitialStock_Decay or Stock)
+        if stock_configuration == "Stock_with_InitialStock_Decay":
+            print(f"  -> Using exponential decay method for initial stock")
+
+        decaying_stock_ts, outflow_from_initial_stock_ts = (
+            _calculate_outflow_from_initial_stock(
+                initial_stock_vector,
+                params.get("lifetimes", {}).get("Mean", []),
+                num_years,
+                num_elements,
+            )
+        )
 
     # --- Assign values and prepare results ---
     _distribute_and_assign_outflows(
@@ -317,6 +472,7 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config):
         outflow_from_initial_stock_ts,
         params,
         total_inflow_values,
+        initial_stock_vector,
     )
 
     total_stock_from_inflows = sum([np.sum(s) for s in stock_from_inflows_by_cat])

@@ -255,6 +255,28 @@ def load_initial_stock_parameters(excel_data, elements=None):
                         f"    WARNING: Process {process_id} has non-numeric consumption rate: {param_value_raw}"
                     )
 
+            # Handle cohort age distribution type
+            elif param_name == "Cohort_Age_Distribution_Type":
+                config["cohort_age_distribution_type"] = str(param_value_raw).strip()
+
+            # Handle cohort max age
+            elif param_name == "Cohort_Max_Age[years]":
+                if param_value is not None:
+                    config["cohort_max_age"] = int(param_value)
+                else:
+                    print(
+                        f"    WARNING: Process {process_id} has non-numeric max age: {param_value_raw}"
+                    )
+
+            # Handle cohort decay constant (optional)
+            elif param_name == "Cohort_Decay_Constant[years]":
+                if param_value is not None:
+                    config["cohort_decay_constant"] = float(param_value)
+                else:
+                    print(
+                        f"    WARNING: Process {process_id} has non-numeric decay constant: {param_value_raw}"
+                    )
+
             # Handle outflow destinations and splits
             elif param_name.startswith("IS_Outflow_") and not param_name.endswith(
                 "_TC_"

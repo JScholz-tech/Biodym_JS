@@ -526,6 +526,9 @@ def _apply_initial_stock(mfa_system, all_excel_data):
             mfa_system, initial_stock_configs
         )
 
+        # Store initial_stock_configs on MFA system for later use by DSM Cohort mode
+        mfa_system._process_initial_stock_configs = initial_stock_configs
+
 
 def _define_content_parameters(mfa_system, content_definitions):
     """Defines content parameters (e.g., water content, metal fractions) for each flow.

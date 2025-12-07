@@ -1,0 +1,144 @@
+# DISTRIBUTION GUIDES FOR EXCEL TEMPLATE
+# Copy each section into the corresponding Excel sheet
+
+================================================================================
+TABLE 1: INITIAL STOCK PARAMETERS
+Sheet: 2_4_Initial_Stock
+================================================================================
+
+Process_ID	IS_Parameter_type	Description	Required_For	Example_Value	Notes
+	BASIC PARAMETERS - Required for ALL initial stocks
+3	Basic_Material_Quantity[UoM]	Total quantity of initial stock	All modes	100	In mass units (Mg, kg, etc.)
+3	Basic_E2_Fraction[%]	Fraction of Element 2 (e.g., Water Content)	Optional	0.60	60% water content
+3	Basic_E3_Fraction[%]	Fraction of Element 3 (e.g., Dry Matter)	Optional	0.40	40% dry matter
+3	Basic_E4_Fraction[%]	Fraction of Element 4 (e.g., Carbon Content)	Optional	0.18	18% carbon
+3	Basic_E5_Fraction[%]	Fraction of Element 5	Optional	0.02	2% nitrogen
+3	Basic_E6_Fraction[%]	Fraction of Element 6	Optional	0.00	Custom element
+
+	SPLITTER PARAMETERS - Only for Process_Logic = "Splitter"
+3	Splitter_Annual_Consumption_Rate[1/year]	Fraction of stock consumed per year	Splitters only	0.10	10% per year decay
+3	Splitter_Outflow_1_FlowID	Name of destination flow	Splitters only	F_3_4	Flow to Process 4
+3	Splitter_Outflow_1_Split[%]	Percentage going to this outflow	Splitters only	0.70	70% to this flow
+3	Splitter_Outflow_2_FlowID	Second destination flow	Optional	F_3_5	Flow to Process 5
+3	Splitter_Outflow_2_Split[%]	Percentage to second outflow	Optional	0.30	30% to this flow
+3	Splitter_Outflow_3_FlowID	Third destination flow	Optional	-	-
+3	Splitter_Outflow_3_Split[%]	Percentage to third outflow	Optional	-	Must sum to 100%
+3	Splitter_Outflow_4_FlowID	Fourth destination flow	Optional	-	-
+3	Splitter_Outflow_4_Split[%]	Percentage to fourth outflow	Optional	-	-
+
+	COHORT PARAMETERS - Only for Stock_Configuration = "Stock_with_InitialStock_Cohort"
+4	Cohort_Age_Distribution_Type	How ages are distributed in initial stock	Cohort mode	uniform	Options: uniform or exponential
+4	Cohort_Max_Age[years]	Maximum age of items in initial stock	Cohort mode	50	Buildings up to 50 years old
+4	Cohort_Decay_Constant[years]	For exponential distribution (optional)	Optional	15	Default = Max_Age/3
+
+USAGE GUIDE:
+
+Stock_Configuration = "Stock"
+→ No initial stock parameters needed
+
+Stock_Configuration = "Stock_with_InitialStock_Decay" + Process_Logic = "Splitter"
+→ Use: Basic_* + Splitter_*
+
+Stock_Configuration = "Stock_with_InitialStock_Decay" + Process_Logic = "DSM"
+→ Use: Basic_* only (DSM uses lifetime and output_splits from 3_1_Definition_DSM)
+
+Stock_Configuration = "Stock_with_InitialStock_Cohort" + Process_Logic = "DSM"
+→ Use: Basic_* + Cohort_* (DSM uses lifetime and output_splits from 3_1_Definition_DSM)
+
+
+================================================================================
+TABLE 2: DSM LIFETIME DISTRIBUTIONS
+Sheet: 3_1_Definition_DSM
+================================================================================
+
+Distribution_Type	Parameters_Required	Description	When_To_Use	Example	StdDev_Warning
+Fixed	DSM_Lifetime_Mean	All items leave at EXACTLY the specified age (no variation)	Items with regulated lifetimes, safety equipment with expiry dates, strict replacement schedules	Fire extinguishers (10 years fixed), Light bulbs (5000 hours)	N/A - No variation
+Normal	DSM_Lifetime_Mean, DSM_Lifetime_StdDev	Bell curve distribution - most items leave near mean, some earlier/later	Products with typical wear-out, building components, consumer goods	Vehicles (mean=15, std=3), Appliances (mean=12, std=2)	⚠ If StdDev > 80% of Mean, too much variation!
+LogNormal	DSM_Lifetime_Mean, DSM_Lifetime_StdDev	Skewed distribution with long tail to right - many early failures, some last very long	Electronics with infant mortality, machinery with maintenance variability	Industrial equipment (mean=10, std=5)	✓ Cannot produce negative ages
+FoldedNormal	DSM_Lifetime_Mean, DSM_Lifetime_StdDev	Normal distribution "folded" at zero - ensures no negative ages	When Normal is appropriate but want to avoid negative artifacts	Short-lived products, packaging materials	✓ Similar to Normal but cleaner
+Weibull	DSM_Lifetime_Scale, DSM_Lifetime_Shape	Very flexible - can model bathtub curve, infant mortality, or wear-out	Complex failure patterns, mechanical systems, empirical failure data	Building facades (Scale=12, Shape=2.5 for wear-out)	Shape<1: early failures, Shape=1: constant, Shape>1: wear-out
+
+DECISION TREE:
+
+1. Fixed age requirement (legal/safety)? → Use Fixed
+2. Typical lifetime with symmetric variation? → Use Normal or FoldedNormal
+3. Early failures + long survivors (skewed)? → Use LogNormal
+4. Complex failure patterns? → Use Weibull
+5. Not sure? → Use Normal (most common in literature)
+
+PARAMETER GUIDELINES:
+
+Normal/FoldedNormal:
+• Typical StdDev = 10-30% of Mean
+• Example: Mean=10, StdDev=2 → 95% leave between 6-14 years
+• ⚠ If StdDev > 0.8×Mean → unrealistic variation
+
+Weibull Shape interpretation:
+• Shape = 1.0 → Constant failure rate
+• Shape = 2.0 → Moderate wear-out
+• Shape = 3.5 → Strong wear-out
+
+
+================================================================================
+TABLE 3: MONTE CARLO UNCERTAINTY DISTRIBUTIONS
+Sheet: 4_1_Uncertainty_Parameters (or MC sheet)
+================================================================================
+
+Distribution_Type	Parameters_Required	Description	When_To_Use	Example	Parameter_Guidelines
+uniform	min, max	All values between min and max equally likely (rectangular)	Complete uncertainty, only know range, expert "at least/at most"	Waste composition: min=0.10, max=0.30	Use when no preference for middle values
+triangular	min, mode, max	Triangle-shaped - most likely at mode, tapering to min/max	Expert estimates with "best guess", three-point estimates	Carbon: min=0.40, mode=0.45, max=0.50	Mode can be anywhere between min/max
+normal	mean, std	Bell curve - 68% within ±1std, 95% within ±2std	Measurement data, normally distributed errors	Lab measurements: mean=100, std=5	⚠ Can sample negative if std too large!
+lognormal	mean, std	Skewed bell curve - cannot be negative, long tail right	Positive-only parameters (prices, rates), multiplicative uncertainties	Material costs: mean=100, std=20	Always positive, median < mean
+
+ACTUAL IMPLEMENTATION NOTES:
+✗ Beta distribution - NOT CURRENTLY IMPLEMENTED
+✗ TruncatedNormal - NOT CURRENTLY IMPLEMENTED
+
+DECISION TREE:
+
+1. Measured data with standard deviation? → Use normal
+2. Only know range (min/max)?
+   - With "best guess" → Use triangular
+   - Without best guess → Use uniform
+3. Always positive with potential outliers? → Use lognormal
+4. Not sure? → Use triangular (simplest for experts)
+
+PARAMETER GUIDELINES:
+
+Uniform:
+• Most conservative (widest uncertainty)
+• Use for "absolute bounds"
+
+Triangular:
+• Min = pessimistic, Mode = most likely, Max = optimistic
+• Mode doesn't need to be centered
+
+Normal:
+• If coefficient of variation (std/mean) > 0.3, consider lognormal
+• ⚠ Can produce negatives if mean < 3×std
+
+RULE OF THUMB:
+• Low uncertainty (±5-10%): normal or triangular with narrow range
+• Medium uncertainty (±20-30%): triangular or normal
+• High uncertainty (±50%+): uniform or lognormal
+
+
+================================================================================
+IMPLEMENTATION STATUS
+================================================================================
+
+DSM LIFETIME DISTRIBUTIONS (from ODYM):
+✓ Fixed
+✓ Normal
+✓ FoldedNormal
+✓ LogNormal
+✓ Weibull
+
+MONTE CARLO UNCERTAINTY DISTRIBUTIONS (from utils.py):
+✓ uniform
+✓ triangular
+✓ normal
+✓ lognormal
+✗ beta (NOT implemented - remove from documentation)
+✗ truncatednormal (NOT implemented - remove from documentation)
+
