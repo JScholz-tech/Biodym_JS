@@ -311,7 +311,7 @@ def _calculate_tc_driven_flows(
     return something_changed
 
 
-def _calculate_dsm_flows(mfa_system, dsm_processes, dsm_params, iteration):
+def _calculate_dsm_flows(mfa_system, dsm_processes, dsm_params, iteration, flow_tc_map=None):
     """Calculates all stocks and flows for Dynamic Stock Model (DSM) processes.
 
     For each DSM process with valid inputs, this function calls the core DSM
@@ -327,6 +327,8 @@ def _calculate_dsm_flows(mfa_system, dsm_processes, dsm_params, iteration):
         The configuration parameters for all DSM processes.
     iteration : int
         The current solver iteration number, used for debug printing.
+    flow_tc_map : dict, optional
+        Map from flow names to TC parameter names.
 
     Returns
     -------
@@ -335,6 +337,8 @@ def _calculate_dsm_flows(mfa_system, dsm_processes, dsm_params, iteration):
         - something_changed (bool): True if any flow values were changed.
         - dsm_details (dict): Detailed results from the DSM calculation.
     """
+    if flow_tc_map is None:
+        flow_tc_map = {}
     something_changed = False
     dsm_details = {}
     for process_id in dsm_processes:
@@ -362,7 +366,7 @@ def _calculate_dsm_flows(mfa_system, dsm_processes, dsm_params, iteration):
         old_out_values = mfa_system.FlowDict[outflow_flow_name].Values.copy()
 
         mfa_system, dsm_details_single_run = dsm_model.calculate_dynamic_stock(
-            mfa_system, {process_id: dsm_params[process_id]}
+            mfa_system, {process_id: dsm_params[process_id]}, flow_tc_map=flow_tc_map
         )
         dsm_details.update(dsm_details_single_run)
 
@@ -595,7 +599,7 @@ def run_mfa_calculation(
 
         if config.RUN_DSM_CALCULATION:
             dsm_changed, dsm_run_details = _calculate_dsm_flows(
-                mfa_system, dsm_processes, dsm_params, i
+                mfa_system, dsm_processes, dsm_params, i, flow_tc_map
             )
             dsm_details.update(dsm_run_details)
             pass_changes.append(dsm_changed)

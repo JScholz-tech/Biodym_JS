@@ -417,12 +417,6 @@ def validate_unified_configuration(excel_data):
             process_logic = str(row.get("Process_Logic", "")).strip()
             tc_config = str(row.get("TC_Configuration", "")).strip()
 
-            # DSM processes should have Static TC_Configuration
-            if process_logic == "DSM" and tc_config != "Static":
-                tc_issues.append(
-                    f"Process {process_id}: DSM with {tc_config} TC_Configuration (should be Static)"
-                )
-
             # Input/Output processes should have Static TC_Configuration
             if process_logic in ["Input", "Output"] and tc_config != "Static":
                 tc_issues.append(

@@ -219,16 +219,22 @@ def _distribute_and_assign_outflows(
     params,
     total_inflow_values,
     initial_stock_vector,
+    flow_tc_map,
 ):
     """Distributes and assigns all calculated outflows back to the MFA system.
 
     This function combines the outflows generated from new inflows and from the
-    initial stock, splits them according to the defined output splits, and updates
+    initial stock, splits them according to TCs (transfer coefficients), and updates
     the corresponding flow objects in the main MFA system.
 
     CRITICAL FIX: Composition preservation - outflows from initial stock maintain
     their original element composition, while outflows from new inflows use the
     composition of those inflows. This prevents "transmutation" of elements.
+
+    NEW: Uses standard TC system instead of DSM-specific output_splits. This enables:
+    - Dynamic (time-varying) output splits
+    - Unified configuration with other process types
+    - Monte Carlo uncertainty sampling of splits
 
     Parameters
     ----------
@@ -248,38 +254,53 @@ def _distribute_and_assign_outflows(
         A 2D array of total inflow values, used to calculate outflow composition.
     initial_stock_vector : np.ndarray
         1D array of initial stock values by element, used to preserve composition.
+    flow_tc_map : dict
+        Map from flow names to TC parameter names.
     """
-    output_splits = params.get("output_splits", [])
+    # Get TCs for each outflow (replaces output_splits)
+    # Each outflow flow should have a TC defined in flow_tc_map
     num_years = len(mfa_system.IndexTable.Classification["Time"].Items)
 
     # Track material flows separately to preserve composition
     final_outflows_from_inflows = [np.zeros(num_years) for _ in outflow_flows]
     final_outflows_from_initial = [np.zeros(num_years) for _ in outflow_flows]
 
-    # Distribute outflow from new inflows
-    for cat_idx, cat_outflow in enumerate(outflow_from_inflows_by_cat):
-        if cat_idx < len(output_splits):
-            cat_splits = output_splits[cat_idx]
-            cat_split_sum = sum(cat_splits)
-            norm_splits = [
-                s / cat_split_sum
-                if cat_split_sum > 0
-                else 1 / len(cat_splits)
-                if len(cat_splits) > 0
-                else 0
-                for s in cat_splits
-            ]
-            for flow_idx, split_frac in enumerate(norm_splits):
-                if flow_idx < len(final_outflows_from_inflows):
-                    final_outflows_from_inflows[flow_idx] += cat_outflow * split_frac
+    # Get TC values for each outflow
+    tc_values = []
+    for flow in outflow_flows:
+        tc_ids = flow_tc_map.get(flow.Name, {})
+        tc_param_name = tc_ids.get("material")
 
-    # Distribute outflow from initial stock
+        if tc_param_name and tc_param_name in mfa_system.ParameterDict:
+            tc_value = mfa_system.ParameterDict[tc_param_name].Values
+            # Handle both scalar and array TCs
+            if isinstance(tc_value, (int, float)):
+                tc_value = np.full(num_years, tc_value)
+            tc_values.append(tc_value)
+        else:
+            # No TC defined - equal split among all flows
+            print(f"  -> Warning: No TC defined for DSM outflow {flow.Name}, using equal split")
+            tc_values.append(np.full(num_years, 1.0 / len(outflow_flows)))
+
+    # Normalize TCs at each time step (handles dynamic TCs that may sum > 1)
+    tc_array = np.array(tc_values)  # Shape: (num_flows, num_years)
+    tc_sums = tc_array.sum(axis=0)  # Sum across flows for each year
+
+    # Avoid division by zero
+    tc_sums = np.where(tc_sums == 0, 1.0, tc_sums)
+    normalized_tcs = tc_array / tc_sums  # Normalize each year
+
+    # Distribute outflow from new inflows using normalized TCs
+    for cat_idx, cat_outflow in enumerate(outflow_from_inflows_by_cat):
+        for flow_idx in range(len(outflow_flows)):
+            final_outflows_from_inflows[flow_idx] += cat_outflow * normalized_tcs[flow_idx]
+
+    # Distribute outflow from initial stock using normalized TCs
     outflow_from_initial_stock_material = outflow_from_initial_stock_ts[:, 0]
-    if np.sum(outflow_from_initial_stock_material) > 0 and len(outflow_flows) > 0:
-        equal_split_frac = 1.0 / len(outflow_flows)
-        for flow_idx in range(len(final_outflows_from_initial)):
+    if np.sum(outflow_from_initial_stock_material) > 0:
+        for flow_idx in range(len(outflow_flows)):
             final_outflows_from_initial[flow_idx] = (
-                outflow_from_initial_stock_material * equal_split_frac
+                outflow_from_initial_stock_material * normalized_tcs[flow_idx]
             )
 
     # Assign final values to MFA system flows
@@ -362,7 +383,7 @@ def _distribute_and_assign_outflows(
     print(f"Total outflow material (combined): {total_material_combined}")
 
 
-def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs=None):
+def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs=None, flow_tc_map=None):
     """Calculates stock and outflow for a single Dynamic Stock Model (DSM) process.
 
     This function orchestrates the DSM calculation for one process. It separates
@@ -374,6 +395,9 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
     - Stock_with_InitialStock_Decay: Simple exponential decay
     - Stock_with_InitialStock_Cohort: ODYM age-cohort method (rigorous)
 
+    DSM outflows are now controlled via the standard TC (Transfer Coefficient) system,
+    enabling dynamic (time-varying) splits and unified configuration.
+
     Parameters
     ----------
     mfa_system : odym.MFAsystem
@@ -384,6 +408,8 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
     initial_stock_configs : dict, optional
         Dictionary of initial stock configurations, keyed by process ID.
         Required for Stock_with_InitialStock_Cohort mode.
+    flow_tc_map : dict, optional
+        Map from flow names to TC parameter names. If None, uses equal splits.
 
     Returns
     -------
@@ -392,6 +418,8 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
         - mfa_system (odym.MFAsystem): The modified MFA system object.
         - dsm_details_results (dict): Detailed results for plotting.
     """
+    if flow_tc_map is None:
+        flow_tc_map = {}
     time_vector = np.array(mfa_system.IndexTable.Classification["Time"].Items)
     num_years, num_elements = len(time_vector), len(mfa_system.Elements)
 
@@ -473,6 +501,7 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
         params,
         total_inflow_values,
         initial_stock_vector,
+        flow_tc_map,
     )
 
     total_stock_from_inflows = sum([np.sum(s) for s in stock_from_inflows_by_cat])
