@@ -85,6 +85,7 @@ def test_load_dsm_parameters_parsing():
         "Process_ID": [6, 7],
         "Process_Name": ["Process 6", "Process 7"],
         "Process_Logic": ["DSM", "DSM"],
+        "Stock_Configuration": ["Stock", "Stock"],
     }
     process_df = pd.DataFrame(process_data)
 
@@ -94,19 +95,21 @@ def test_load_dsm_parameters_parsing():
     }
 
     # Define the exact dictionary structure we expect as output.
-    # Note: Type is now a list, and parameter_based flag is included
+    # Note: Type is now a list, parameter_based flag and stock_configuration are included
     expected_result = {
         6: {
             "category_names": ["Category A", "Category B"],
             "inflow_split": [0.8, 0.2],
             "lifetimes": {"Type": ["Normal", "Normal"], "Mean": [20, 5], "StdDev": [2.0, 0.5]},
             "parameter_based": False,
+            "stock_configuration": "Stock",
         },
         7: {
             "category_names": ["Category C"],
             "inflow_split": [1.0],
             "lifetimes": {"Type": ["Lognormal"], "Mean": [50], "StdDev": [10.0]},
             "parameter_based": False,
+            "stock_configuration": "Stock",
         },
     }
 
@@ -114,6 +117,8 @@ def test_load_dsm_parameters_parsing():
     actual_result = load_dsm_parameters(mock_excel_data)
 
     # 3. ASSERT: Check if the actual result is identical to our expected result.
+    # Convert numpy int64 keys to regular ints for comparison
+    actual_result = {int(k): v for k, v in actual_result.items()}
     assert actual_result == expected_result
 
 

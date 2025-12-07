@@ -19,8 +19,25 @@ try:
 
     ODYM_AVAILABLE = True
 except ImportError:
-    ODYM_AVAILABLE = False
-    msc = None
+    # Try to add ODYM path and import again
+    import os
+    import sys
+
+    try:
+        # Try to locate ODYM in the project structure
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(current_dir)
+        odym_path = os.path.join(
+            project_root, "06_framework", "ODYM-master_20241127", "odym", "modules"
+        )
+        if os.path.exists(odym_path) and odym_path not in sys.path:
+            sys.path.insert(0, odym_path)
+        import ODYM_Classes as msc
+
+        ODYM_AVAILABLE = True
+    except ImportError:
+        ODYM_AVAILABLE = False
+        msc = None
 
 
 # Column name mapping for backward compatibility and naming convention updates

@@ -18,14 +18,17 @@ import os
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(project_root, "02_src"))
 
-# Add ODYM to path
-odym_path = os.path.join(
-    project_root, "06_framework", "ODYM-master_20241127", "odym", "modules"
-)
-if odym_path not in sys.path:
-    sys.path.insert(0, odym_path)
+# Add ODYM to path with try-except for robustness
+try:
+    import ODYM_Classes as msc  # type: ignore
+except ImportError:
+    odym_path = os.path.join(
+        project_root, "06_framework", "ODYM-master_20241127", "odym", "modules"
+    )
+    if odym_path not in sys.path:
+        sys.path.insert(0, odym_path)
+    import ODYM_Classes as msc  # type: ignore
 
-import ODYM_Classes as msc
 from data_loader import normalize_dynamic_tcs_by_process, load_tc_parameters
 
 
