@@ -504,6 +504,19 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
         flow_tc_map,
     )
 
+    # Assign stock values back to MFA system
+    # Stock = sum of all category stocks + decaying initial stock
+    total_stock_ts = sum(stock_from_inflows_by_cat) + decaying_stock_ts[:, 0]
+    mfa_system.StockDict[f"S_{process_id}"].Values[:, 0] = total_stock_ts
+
+    # For other elements, combine proportionally
+    for elem_idx in range(1, num_elements):
+        elem_stock = sum([s for s in stock_from_inflows_by_cat]) * (
+            total_inflow_values[:, elem_idx] / (total_inflow_values[:, 0] + 1e-10)
+        )
+        elem_stock += decaying_stock_ts[:, elem_idx]
+        mfa_system.StockDict[f"S_{process_id}"].Values[:, elem_idx] = elem_stock
+
     total_stock_from_inflows = sum([np.sum(s) for s in stock_from_inflows_by_cat])
     print(f"Total stock accumulated from inflows: {total_stock_from_inflows}")
 
@@ -517,7 +530,7 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
                 cat_idx
             ]
             print(
-                f"   ⚠️  WARNING: Negative stock detected in Process {process_id}, Category '{cat_name}'"
+                f"   WARNING: Negative stock detected in Process {process_id}, Category '{cat_name}'"
             )
             print(f"      → {len(negative_indices)} time steps with negative values")
             print(
@@ -533,7 +546,7 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
         if len(negative_indices) > 0:
             has_negative_stock = True
             print(
-                f"   ⚠️  WARNING: Negative decaying initial stock in Process {process_id}"
+                f"   WARNING: Negative decaying initial stock in Process {process_id}"
             )
             print(f"      → {len(negative_indices)} time steps with negative values")
             print(
@@ -541,16 +554,16 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
             )
 
     if not has_negative_stock:
-        print(f"✅ No negative stocks detected")
+        print(f"OK: No negative stocks detected")
 
     print(f"=== END DSM DEBUG for Process {process_id} ===\n")
 
     # Phase 1a: Add ODYM validation after DSM calculation
     try:
         mfa_system.Consistency_Check()
-        print(f"✅ DSM validation passed for process {process_id}")
+        print(f"OK: DSM validation passed for process {process_id}")
     except Exception as e:
-        print(f"⚠️ DSM validation warning for process {process_id}: {e}")
+        print(f"WARNING: DSM validation warning for process {process_id}: {e}")
 
     dsm_details_results = {
         process_id: {

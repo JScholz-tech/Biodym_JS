@@ -27,7 +27,6 @@ import system_setup
 from engine import dsm_model
 
 
-@pytest.mark.skip(reason="Known issue: Fixed lifetime DSM calculation needs review. Normal lifetime test passes. To fix in v1.1.")
 def test_calculate_dynamic_stock_fixed_lifetime():
     """
     Tests the DSM calculation with a simple fixed lifetime.
@@ -132,7 +131,36 @@ def test_calculate_dynamic_stock_normal_lifetime():
 
     # 3. ASSERT
     actual_outflow = mfa_system_result.FlowDict["F_1_2"].Values
-    # TODO: Investigate why DSM implementation produces different results
-    # Using relaxed tolerances for now to allow other tests to pass
-    # The implementation may use a different lifetime distribution calculation method
-    np.testing.assert_allclose(actual_outflow, expected_outflow, rtol=1.0, atol=1.0)
+
+    # NOTE: This test previously used rtol=1.0 (100% tolerance) which is unacceptable.
+    # The discrepancy arises because the manual calculation above doesn't account for
+    # ODYM's handling of negative ages in the Normal distribution (see ODYM source line 284-286).
+    # ODYM allocates outflow contributions from negative ages to year zero to preserve mass balance.
+    #
+    # Instead of trying to replicate ODYM's exact internal logic, we verify that:
+    # 1. Mass balance is preserved (total inflow = total stock + total outflow)
+    # 2. Outflows are non-negative
+    # 3. The pattern roughly matches expectations (peak around mean lifetime)
+
+    # Mass balance check (for each time step: stock_change = inflow - outflow)
+    stock_values = mfa_system_result.StockDict["S_1"].Values[:, 0]
+    for t in range(1, len(inflow_values)):
+        stock_change = stock_values[t] - stock_values[t-1]
+        expected_change = inflow_values[t, 0] - actual_outflow[t, 0]
+        balance_error = abs(stock_change - expected_change)
+        assert balance_error < 0.01, f"Mass balance error at year {t}: {balance_error}"
+
+    # Also check: final stock + cumulative outflow = cumulative inflow
+    final_stock = stock_values[-1]
+    cumulative_outflow = actual_outflow.sum()
+    cumulative_inflow = inflow_values.sum()
+    mass_balance_error = abs(final_stock + cumulative_outflow - cumulative_inflow)
+    assert mass_balance_error < 0.01, f"Cumulative mass balance error: {mass_balance_error}"
+
+    # Non-negativity check
+    assert np.all(actual_outflow >= 0), "Outflows should be non-negative"
+
+    # Peak should occur in later years (mean lifetime=5, but inflows are increasing)
+    # With increasing inflows (1,2,3...10), peak outflow occurs when largest cohorts age out
+    peak_year = np.argmax(actual_outflow)
+    assert peak_year >= 4, f"Peak outflow at year {peak_year}, should be >= 4 (mean lifetime is 5)"
