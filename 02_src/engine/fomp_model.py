@@ -167,7 +167,17 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
         "cc_dm": cc_fraction_mean / dm_fraction_mean if dm_fraction_mean != 0 else 0.0,
     }
 
-    # Initial stocks for FOMP are always zero by definition in this model
+    # LIMITATION: Initial stocks for FOMP are currently set to zero
+    # This is appropriate for systems where carbon sequestration starts from time zero
+    # (e.g., new agricultural land, fresh compost systems).
+    #
+    # For systems with existing soil organic carbon or legacy landfills, initial stocks
+    # would need to be specified. Future versions could support this via the
+    # 2_4_Initial_Stock sheet, similar to DSM processes.
+    #
+    # Scientific justification: For the case studies in the accompanying paper
+    # (wheat straw, wood products), the FOMP models carbon sequestration in fresh
+    # applications where initial carbon stocks are negligible or part of the baseline.
     initial_stock_labile = 0.0
     initial_stock_recalcitrant = 0.0
 
