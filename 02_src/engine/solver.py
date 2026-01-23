@@ -17,24 +17,40 @@ from . import fomp_model
 from .element_utils import recalculate_hierarchical_elements
 
 
-def calculate_final_balances(mfa_system):
+def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None):
     """Calculates the final stock changes (dS) and absolute stocks (S).
 
     This is the final accounting step of the calculation, performed after the
     iterative solver has converged. It correctly respects any initial stocks
     set during the system setup.
 
+    NOTE: DSM processes already have their stocks fully calculated by the DSM model,
+    so they are skipped to avoid double-counting. FOMP processes DO need stock
+    calculation here (they only calculate flows, not stocks).
+
     Parameters
     ----------
     mfa_system : odym.MFAsystem
         The MFA system object with all flows calculated.
+    dsm_processes : set, optional
+        Set of process IDs that are DSM processes (already have stocks calculated).
+    fomp_processes : set, optional
+        Set of process IDs that are FOMP processes (NOT used - kept for backwards compatibility).
 
     Returns
     -------
     odym.MFAsystem
         The MFA system object with final stock values updated.
     """
-    print("--> Calculating final stock balances for ALL processes...")
+    if dsm_processes is None:
+        dsm_processes = set()
+    if fomp_processes is None:
+        fomp_processes = set()
+
+    # Only skip DSM processes - FOMP processes need stock calculation from mass balance
+    special_processes = dsm_processes
+
+    print("--> Calculating final stock balances for non-DSM processes...")
 
     for pid in {p.ID for p in mfa_system.ProcessList}:
         if f"S_{pid}" in mfa_system.StockDict:
@@ -54,10 +70,16 @@ def calculate_final_balances(mfa_system):
             dS_values = total_inflows - total_outflows
             stock_ds.Values = dS_values
 
+            # Skip stock recalculation for DSM processes - they already have their stocks calculated
+            # FOMP processes are NOT skipped - they only calculate flows, not stocks
+            if pid in special_processes:
+                print(f"  -> Skipping stock recalculation for Process {pid} (DSM)")
+                continue
+
             initial_stock_vector = stock_s.Values[0, :].copy()
-            new_s_values = np.cumsum(
-                np.vstack([initial_stock_vector, dS_values[:-1, :]]), axis=0
-            )
+            # S[t] = initial_stock + cumulative_sum(dS[0:t+1])
+            # This ensures S[0] includes dS[0], not just initial_stock
+            new_s_values = initial_stock_vector + np.cumsum(dS_values, axis=0)
             stock_s.Values = new_s_values
 
     print("--> Stock balance calculation finished.")
@@ -620,7 +642,7 @@ def run_mfa_calculation(
         )
 
     # --- Final balance calculation ---
-    mfa_system = calculate_final_balances(mfa_system)
+    mfa_system = calculate_final_balances(mfa_system, dsm_processes, fomp_processes)
 
     # Phase 1a: Add ODYM validation after complete calculation
     try:

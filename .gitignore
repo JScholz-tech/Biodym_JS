@@ -1,29 +1,46 @@
+# =============================================================================
+# BioDYM .gitignore - Clean Repository for Publication
+# =============================================================================
+
+# -----------------------------------------------------------------------------
 # Python
+# -----------------------------------------------------------------------------
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 *$py.class
+.pytest_cache/
+.ruff_cache/
 
+# -----------------------------------------------------------------------------
 # Virtual Environments
+# -----------------------------------------------------------------------------
 .env
 .venv
 env/
 venv/
 
+# -----------------------------------------------------------------------------
 # IDE / Editor
+# -----------------------------------------------------------------------------
 .vscode/
 .idea/
 .project
 .classpath
 .claude/
 
-# Notebooks
+# -----------------------------------------------------------------------------
+# Jupyter Notebooks
+# -----------------------------------------------------------------------------
 .ipynb_checkpoints/
 
-# Temporary Files
+# -----------------------------------------------------------------------------
+# Temporary Files (Windows/Office/Editor)
+# -----------------------------------------------------------------------------
 ~$*.xlsx
 ~$*.xlsm
+~$*.xltm
 ~$*.docx
 ~$*.pptx
 *.tmp
@@ -34,21 +51,50 @@ nul
 *.dtmp
 .$*
 
-# Backup files
+# -----------------------------------------------------------------------------
+# Backup and Conflict Files
+# -----------------------------------------------------------------------------
 *_backup_*.py
 *_conflict_backup.py
-
-# Conflicted copies (Nextcloud, Dropbox, etc.)
+*(restored)*
 *(*conflicted copy*).*
 *(*Conflicted copy*).*
 
-# Archive and duplicate directories
+# -----------------------------------------------------------------------------
+# Root Level - Excluded Directories
+# -----------------------------------------------------------------------------
+# Archive and old duplicates
 Archive/
-biodym_mfa_tool/
-studies/
+basic_examples/
+docs/
+
+# AI assistance (development notes, not for publication)
+07_AI_Coding_Assistance/
+
+# Writing project (private publication materials)
 Writing project/
 
-# Case studies (keep only 1 and 2)
+# -----------------------------------------------------------------------------
+# 01_data - Input Files (only template is tracked)
+# -----------------------------------------------------------------------------
+# User input files (everyone creates their own)
+01_data/01_input/*.xlsx
+01_data/01_input/*.xlsm
+01_data/01_input/*.xltm
+!01_data/01_input/template/
+
+# Temporary hex-named lock files
+01_data/01_input/[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]
+
+# -----------------------------------------------------------------------------
+# 01_data - Output Files (all generated, not tracked)
+# -----------------------------------------------------------------------------
+01_data/02_output/
+
+# -----------------------------------------------------------------------------
+# 03_studies - Case Studies
+# -----------------------------------------------------------------------------
+# Old/experimental case studies (not for publication)
 03_studies/BA_Reifen/
 03_studies/Biodym Modular/
 03_studies/case_study_bachelor_thesis/
@@ -56,26 +102,7 @@ Writing project/
 03_studies/rye_straw_cascading_treatment_system/
 03_studies/publication_plotting_example.py
 
-# AI assistance and utility scripts (not part of core project)
-07_AI_Coding_Assistance/
-scripts/
-
-# Generated output files
-exports/
-
-# Case study output files (generated plots, analysis results)
+# Generated output files in case studies
 03_studies/*/*.png
 03_studies/*/*.xlsx
 03_studies/*/Sankey*
-
-# Study-specific input files (keep only template)
-01_data/01_input/*.xlsx
-01_data/01_input/*.xlsm
-!01_data/01_input/template/
-
-# Temporary/lock files created by Windows/Excel (hex names like EC231400, 8494D220)
-01_data/01_input/[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]
-
-# Scenario files
-scenarios/*.xlsx
-scenarios/*.json

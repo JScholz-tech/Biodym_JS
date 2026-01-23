@@ -428,9 +428,21 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
 
     print(f"=== DSM DEBUG for Process {process_id} ===")
     stock_s = mfa_system.StockDict.get(f"S_{process_id}")
-    initial_stock_vector = (
-        stock_s.Values[0, :].copy() if stock_s is not None else np.zeros(num_elements)
-    )
+
+    # Check stock configuration FIRST to determine if we should use initial stock
+    stock_configuration = params.get("stock_configuration", "Stock")
+
+    # Only read initial stock from StockDict if configuration requires it
+    if stock_configuration in ["Stock_with_InitialStock_Decay", "Stock_with_InitialStock_Cohort"]:
+        initial_stock_vector = (
+            stock_s.Values[0, :].copy() if stock_s is not None else np.zeros(num_elements)
+        )
+        print(f"  -> Stock_Configuration: {stock_configuration} - Reading initial stock from system")
+        print(f"  -> Initial stock material: {initial_stock_vector[0]:.1f} Mg")
+    else:
+        # Stock_Configuration = "Stock" means zero initial stock
+        initial_stock_vector = np.zeros(num_elements)
+        print(f"  -> Stock_Configuration: {stock_configuration} - Using ZERO initial stock")
 
     inflows = [f.Values for f in mfa_system.FlowDict.values() if f.P_End == process_id]
     total_inflow_values = (
@@ -450,7 +462,6 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
     )
 
     # Route to appropriate initial stock calculation method
-    stock_configuration = params.get("stock_configuration", "Stock")
 
     if stock_configuration == "Stock_with_InitialStock_Cohort":
         # Use rigorous ODYM age-cohort method

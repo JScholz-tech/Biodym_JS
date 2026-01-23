@@ -70,28 +70,47 @@ def _wrap_label_text(text, max_chars):
     if len(text) <= max_chars:
         return text
 
-    # Wrap at word boundaries
-    words = text.split()
+    # Wrap at word boundaries (including underscores and hyphens)
+    # Split on spaces, underscores, and hyphens while preserving the separators
+    import re
+    # Split but keep the separators
+    parts = re.split(r'(\s+|_|-)', text)
+    # Filter out empty strings
+    parts = [p for p in parts if p]
+
     lines = []
     current_line = []
     current_length = 0
 
-    for word in words:
-        word_length = len(word)
-        # +1 for space
-        if current_length + word_length + (1 if current_line else 0) <= max_chars:
-            current_line.append(word)
-            current_length += word_length + (1 if current_line else 0)
+    for part in parts:
+        part_length = len(part)
+
+        # Check if adding this part would exceed max_chars
+        if current_length + part_length <= max_chars:
+            current_line.append(part)
+            current_length += part_length
         else:
-            # Start new line
+            # Start new line if current line is not empty
             if current_line:
-                lines.append(" ".join(current_line))
-            current_line = [word]
-            current_length = word_length
+                lines.append("".join(current_line))
+                current_line = []
+                current_length = 0
+
+            # If the part itself is longer than max_chars, add it anyway
+            # (better to have one long line than break in the middle of a word)
+            if part_length > max_chars:
+                if current_line:
+                    lines.append("".join(current_line))
+                    current_line = []
+                    current_length = 0
+                lines.append(part)
+            else:
+                current_line.append(part)
+                current_length = part_length
 
     # Add last line
     if current_line:
-        lines.append(" ".join(current_line))
+        lines.append("".join(current_line))
 
     return "<br>".join(lines)
 
@@ -352,7 +371,13 @@ def plot_interactive_sankey(
     """
     # Extract data from MFA system
     all_process_names = [p.Name for p in mfa_system_results.ProcessList]
-    all_flow_names = [f.Name for f in mfa_system_results.FlowDict.values()]
+
+    # Get flow descriptions if available, otherwise use Flow IDs
+    flow_descriptions = getattr(mfa_system_results, "_flow_descriptions", {})
+    all_flow_names = [
+        flow_descriptions.get(f.Name, f.Name)
+        for f in mfa_system_results.FlowDict.values()
+    ]
     all_flows = list(mfa_system_results.FlowDict.values())
     time_items = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = mfa_system_results.Elements
@@ -389,10 +414,18 @@ def plot_interactive_sankey(
         element_index = element_items.index(element)
 
         # Filter flows
+        # Create mapping from descriptive names back to Flow IDs
+        flows_to_show_ids = set()
+        for flow_id, desc_name in flow_descriptions.items():
+            if desc_name in flows_to_show:
+                flows_to_show_ids.add(flow_id)
+        # Also add any Flow IDs that are directly in flows_to_show (backward compatibility)
+        flows_to_show_ids.update(flows_to_show)
+
         flows_data = []
         for flow in all_flows:
             if (
-                flow.Name in flows_to_show
+                flow.Name in flows_to_show_ids
                 and flow.P_Start in process_id_set
                 and flow.P_End in process_id_set
             ):
@@ -422,7 +455,17 @@ def plot_interactive_sankey(
             fig.data[0].link = link_dict
 
             # Update layout
-            title_text = f"BioDYM Material Flow Analysis - {element.title()} ({year})"
+            # Format element name according to config
+            if sankey_config.TITLE_ELEMENT_FORMAT == "upper":
+                formatted_element = element.upper()
+            elif sankey_config.TITLE_ELEMENT_FORMAT == "lower":
+                formatted_element = element.lower()
+            else:  # "title" is default
+                formatted_element = element.title()
+
+            title_text = sankey_config.TITLE_TEMPLATE.format(
+                element=formatted_element, year=year
+            )
             layout_config = {
                 "title": {
                     "text": title_text,
@@ -559,7 +602,13 @@ def plot_element_multiplot_sankey(
     """
     # Extract data
     all_process_names = [p.Name for p in mfa_system_results.ProcessList]
-    all_flow_names = [f.Name for f in mfa_system_results.FlowDict.values()]
+
+    # Get flow descriptions if available, otherwise use Flow IDs
+    flow_descriptions = getattr(mfa_system_results, "_flow_descriptions", {})
+    all_flow_names = [
+        flow_descriptions.get(f.Name, f.Name)
+        for f in mfa_system_results.FlowDict.values()
+    ]
     all_flows = list(mfa_system_results.FlowDict.values())
     time_items = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = mfa_system_results.Elements
@@ -586,10 +635,22 @@ def plot_element_multiplot_sankey(
         fig = go.FigureWidget(data=[go.Sankey(node={}, link={})])
 
         # Build layout config
+        # Format element name according to config
+        if sankey_config.SUBPLOT_ELEMENT_FORMAT == "upper":
+            formatted_elem = elem.upper()
+        elif sankey_config.SUBPLOT_ELEMENT_FORMAT == "lower":
+            formatted_elem = elem.lower()
+        else:  # "title" is default
+            formatted_elem = elem.title()
+
+        subplot_title = sankey_config.SUBPLOT_TITLE_TEMPLATE.format(
+            element=formatted_elem
+        )
+
         layout_config = dict(
             height=subplot_height,
             width=subplot_width,
-            title_text=f"{elem.upper()}",
+            title_text=subplot_title,
             font=dict(
                 family=FONT_FAMILY,
                 size=sankey_config.FONT_SIZE_LABELS,
@@ -648,6 +709,14 @@ def plot_element_multiplot_sankey(
         process_id_set = set(process_ids)
         year_index = time_items.index(year)
 
+        # Create mapping from descriptive names back to Flow IDs
+        flows_to_show_ids = set()
+        for flow_id, desc_name in flow_descriptions.items():
+            if desc_name in flows_to_show:
+                flows_to_show_ids.add(flow_id)
+        # Also add any Flow IDs that are directly in flows_to_show (backward compatibility)
+        flows_to_show_ids.update(flows_to_show)
+
         # Update each figure
         for fig_idx, element in enumerate(elements_to_plot):
             element_index = element_items.index(element)
@@ -656,7 +725,7 @@ def plot_element_multiplot_sankey(
             flows_data = []
             for flow in all_flows:
                 if (
-                    flow.Name in flows_to_show
+                    flow.Name in flows_to_show_ids
                     and flow.P_Start in process_id_set
                     and flow.P_End in process_id_set
                 ):

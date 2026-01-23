@@ -19,15 +19,29 @@ NODE_SPACING = 20  # Padding between nodes in pixels
 NODE_THICKNESS = 50  # Node thickness in pixels
 NODE_LABEL_WRAP = True  # Enable automatic line breaks for long labels
 NODE_LABEL_MAX_CHARS = (
-    20  # Maximum characters per line before wrapping (0 = no wrapping)
+    15  # Maximum characters per line before wrapping (0 = no wrapping)
 )
 
 # Font Settings
-FONT_SIZE_TITLE = 24  # Title font size in points
-FONT_SIZE_LABELS = 32  # Node label font size in points
+FONT_SIZE_TITLE = 40  # Title font size in points
+FONT_SIZE_LABELS = 25  # Node label font size in points
 FONT_SIZE_SUBPLOT = 16  # Subplot title font size in points
 FONT_COLOR_LABELS = "black"  # Node label text color (e.g., "black", "#333333", "white")
 FONT_WEIGHT_LABELS = "normal"  # Node label font weight: "normal", "bold"
+
+# Title Settings
+# Main title template - Use {element} for element name, {year} for year
+# Example: "Wood Material Flows - {element} ({year})"
+TITLE_TEMPLATE = "bioDYM -  Case Study 1: Wheat Straw - Element: {element} Year: {year}"
+# Element formatting in main title: "title" (Material), "upper" (MATERIAL), "lower" (material)
+TITLE_ELEMENT_FORMAT = "upper"
+
+# Subplot title template for multi-element diagrams
+# Use {element} as placeholder for element name
+# Example: "{element} Flows" or "Element: {element}"
+SUBPLOT_TITLE_TEMPLATE = "{element}"
+# Element formatting in subplot titles: "upper" (MATERIAL), "title" (Material), "lower" (material)
+SUBPLOT_ELEMENT_FORMAT = "upper"
 
 # Grid Settings (Vertical Reference Lines for Process Stages)
 ENABLE_GRID = True  # Enable/disable grid

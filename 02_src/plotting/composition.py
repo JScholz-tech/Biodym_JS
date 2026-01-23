@@ -106,6 +106,9 @@ def plot_flow_composition(
     years = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = [e.lower() for e in mfa_system_results.Elements]
 
+    # Get flow descriptions for display (use descriptive names instead of IDs)
+    flow_descriptions = getattr(mfa_system_results, "_flow_descriptions", {})
+
     # Create color manager if not provided
     if color_manager is None:
         color_manager = ElementColorManager(element_items)
@@ -171,6 +174,39 @@ def plot_flow_composition(
     fig = go.FigureWidget()
     validation_output = HTML()
 
+    # Apply initial layout once (to prevent shrinking on updates)
+    initial_layout = get_publication_layout(
+        size="large",
+        show_grid=True,
+        custom_title="bioDYM - Flow Composition",
+        x_title="Composition (%)",
+        y_title="Flows",
+    )
+
+    # Customize for composition plot
+    initial_layout["barmode"] = "stack"
+    initial_layout["xaxis"]["range"] = [0, 105]  # Slightly over 100% to show errors
+    initial_layout["legend"] = {
+        "title": {"text": "Element", "font": {"size": 12}},
+        "font": {"size": 10},
+        "bgcolor": "rgba(255,255,255,0.9)",
+        "bordercolor": BIOYM_COLORS["neutral"],
+        "borderwidth": 1,
+        "orientation": "h",
+        "yanchor": "bottom",
+        "y": 1.1,
+        "xanchor": "right",
+        "x": 1,
+    }
+
+    # Increase top margin to prevent legend from overlapping with 100% line
+    if "margin" not in initial_layout:
+        initial_layout["margin"] = {}
+    initial_layout["margin"]["t"] = initial_layout["margin"].get("t", 100) + 40
+
+    # Apply initial layout to figure
+    fig.update_layout(initial_layout)
+
     def validate_composition(
         flow_name: str, percentages: Dict[str, float]
     ) -> Tuple[bool, str]:
@@ -199,7 +235,7 @@ def plot_flow_composition(
         element_percentages = {elem: [] for elem in composable_elements}
         validation_warnings = []
 
-        for flow_name, flow in flows.items():
+        for flow_id, flow in flows.items():
             values = flow.Values[year_index, :]
 
             # Get material (total mass) - always at index 0
@@ -207,7 +243,9 @@ def plot_flow_composition(
             total_mass = values[material_idx]
 
             if total_mass > 1e-10:  # Only include flows with mass
-                flow_names.append(flow_name)
+                # Use descriptive name if available, otherwise use Flow ID
+                display_name = flow_descriptions.get(flow_id, flow_id)
+                flow_names.append(display_name)
 
                 # Calculate percentages for each composable element
                 flow_percentages = {}
@@ -256,7 +294,7 @@ def plot_flow_composition(
                 # Validate composition
                 if show_validation_warnings:
                     is_valid, warning = validate_composition(
-                        flow_name, flow_percentages
+                        display_name, flow_percentages
                     )
                     if not is_valid:
                         validation_warnings.append(warning)
@@ -302,60 +340,32 @@ def plot_flow_composition(
                     )
                 )
 
-            # Apply publication layout
-            layout_config = get_publication_layout(
-                size="large",
-                show_grid=True,
-                custom_title=f"Flow Composition ({year})",
-                x_title="Composition (%)",
-                y_title="Flows",
+            # Only update dynamic elements (NOT height/width to prevent shrinking)
+            # Update title, shapes, and annotations only
+            fig.update_layout(
+                title=f"bioDYM - Flow Composition ({year})",
+                shapes=[
+                    dict(
+                        type="line",
+                        x0=100,
+                        x1=100,
+                        y0=-0.5,
+                        y1=len(flow_names) - 0.5,
+                        line=dict(color=BIOYM_COLORS["dark"], width=2, dash="dash"),
+                    )
+                ],
+                annotations=[
+                    dict(
+                        x=100,
+                        y=1.05,
+                        xref="x",
+                        yref="paper",
+                        text="100%",
+                        showarrow=False,
+                        font=dict(size=10, color=BIOYM_COLORS["dark"]),
+                    )
+                ],
             )
-
-            # Customize for composition plot
-            layout_config["barmode"] = "stack"
-            layout_config["xaxis"]["range"] = [
-                0,
-                105,
-            ]  # Slightly over 100% to show errors
-            layout_config["legend"] = {
-                "title": {"text": "Element", "font": {"size": 12}},
-                "font": {"size": 10},
-                "bgcolor": "rgba(255,255,255,0.9)",
-                "bordercolor": BIOYM_COLORS["neutral"],
-                "borderwidth": 1,
-                "orientation": "h",
-                "yanchor": "bottom",
-                "y": 1.02,
-                "xanchor": "right",
-                "x": 1,
-            }
-
-            # Add 100% reference line
-            layout_config["shapes"] = [
-                dict(
-                    type="line",
-                    x0=100,
-                    x1=100,
-                    y0=-0.5,
-                    y1=len(flow_names) - 0.5,
-                    line=dict(color=BIOYM_COLORS["dark"], width=2, dash="dash"),
-                )
-            ]
-
-            # Add annotation for 100% line
-            layout_config["annotations"] = [
-                dict(
-                    x=100,
-                    y=1.05,
-                    xref="x",
-                    yref="paper",
-                    text="100%",
-                    showarrow=False,
-                    font=dict(size=10, color=BIOYM_COLORS["dark"]),
-                )
-            ]
-
-            fig.update_layout(layout_config)
 
         # Update validation warnings display
         if show_validation_warnings and validation_warnings:
@@ -467,6 +477,9 @@ def validate_flow_compositions(
     years = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = [e.lower() for e in mfa_system_results.Elements]
 
+    # Get flow descriptions for display (use descriptive names instead of IDs)
+    flow_descriptions = getattr(mfa_system_results, "_flow_descriptions", {})
+
     # Get element hierarchy info
     # NOTE: _element_hierarchy is a BioDYM extension (stored by system_setup.py)
     element_hierarchy = getattr(mfa_system_results, "_element_hierarchy", {})
@@ -510,7 +523,10 @@ def validate_flow_compositions(
     under_100 = []
     valid_count = 0
 
-    for flow_name, flow in flows.items():
+    for flow_id, flow in flows.items():
+        # Use descriptive name if available, otherwise use Flow ID
+        display_name = flow_descriptions.get(flow_id, flow_id)
+
         for year_idx, year in enumerate(years):
             values = flow.Values[year_idx, :]
 
@@ -552,9 +568,9 @@ def validate_flow_compositions(
 
                 # Check validation
                 if total_pct > 100.0 + tolerance:
-                    over_100.append((flow_name, year, total_pct))
+                    over_100.append((display_name, year, total_pct))
                 elif total_pct < 100.0 - tolerance:
-                    under_100.append((flow_name, year, total_pct))
+                    under_100.append((display_name, year, total_pct))
                 else:
                     valid_count += 1
 

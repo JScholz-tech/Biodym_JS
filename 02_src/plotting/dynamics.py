@@ -310,18 +310,22 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
             category_names = details.get("category_names", [])
 
             initial_stock_element = initial_stock_ts[:, element_index]
-            fig.add_trace(
-                go.Scatter(
-                    x=time_items,
-                    y=initial_stock_element,
-                    mode="lines",
-                    name="Initial Stock (Decaying)",
-                    line=dict(color=colors["initial_stock"], width=0.5, dash="dash"),
-                    stackgroup="one",
-                    fill="tozeroy",
-                    hovertemplate="<b>Initial Stock</b><br>Year: %{x}<br>Mass: %{y:.2f} Mg<extra></extra>",
+
+            # Only add Initial Stock trace if there's actually any initial stock data
+            # (i.e., not all zeros - which means Stock_Configuration doesn't use initial stock)
+            if np.any(initial_stock_element > 1e-10):
+                fig.add_trace(
+                    go.Scatter(
+                        x=time_items,
+                        y=initial_stock_element,
+                        mode="lines",
+                        name="Initial Stock (Decaying)",
+                        line=dict(color=colors["initial_stock"], width=0.5, dash="dash"),
+                        stackgroup="one",
+                        fill="tozeroy",
+                        hovertemplate="<b>Initial Stock</b><br>Year: %{x}<br>Mass: %{y:.2f} Mg<extra></extra>",
+                    )
                 )
-            )
 
             for i, stock_ts_material in enumerate(inflow_stocks_material):
                 inflows = [
@@ -334,12 +338,21 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
                     if inflows
                     else np.zeros((len(time_items), len(element_items)))
                 )
-                inflow_comp_factor = np.divide(
-                    total_inflow_values[:, element_index],
-                    total_inflow_values[:, 0],
-                    out=np.zeros(len(time_items)),
-                    where=total_inflow_values[:, 0] != 0,
-                )
+
+                # Calculate composition factor from inflows
+                # IMPORTANT: Use forward-fill to maintain last known composition when inflow stops
+                inflow_comp_factor = np.zeros(len(time_items))
+                last_valid_factor = 0.0  # Default if no inflow ever occurs
+
+                for t in range(len(time_items)):
+                    if total_inflow_values[t, 0] != 0:
+                        # New inflow - calculate and store composition factor
+                        last_valid_factor = total_inflow_values[t, element_index] / total_inflow_values[t, 0]
+                        inflow_comp_factor[t] = last_valid_factor
+                    else:
+                        # No inflow - use last known composition (stock continues to decay)
+                        inflow_comp_factor[t] = last_valid_factor
+
                 stock_ts_element = stock_ts_material * inflow_comp_factor
                 category_display = category_names[i]
 

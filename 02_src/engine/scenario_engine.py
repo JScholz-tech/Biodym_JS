@@ -213,8 +213,12 @@ def _run_single_scenario(
         initial_stock_configs=initial_stock_configs,
     )
 
-    # Create scenario-specific config (disable Monte Carlo for scenarios)
+    # Create scenario-specific config
+    # Note: We keep RUN_MONTE_CARLO setting to allow both scenario and MC analysis
+    # to run in the same workflow (they operate independently on different systems)
     scenario_config_obj = copy.deepcopy(config_obj)
+    # Disable MC for individual scenario runs to avoid nested MC-in-scenario calculations
+    # MC will run separately on the baseline system if enabled
     scenario_config_obj.RUN_MONTE_CARLO = False
 
     # Run the calculation for this scenario (using scenario-modified parameters)
