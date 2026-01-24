@@ -220,8 +220,8 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
     )
 
     def export_plot():
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"dsm_process_dynamics_{timestamp}.png"
+        # Fixed filename - overwrites previous export
+        filename = "dsm_process_dynamics.png"
         export_dir = "exports/dsm_analysis"
         os.makedirs(export_dir, exist_ok=True)
         filepath = os.path.join(export_dir, filename)
@@ -400,8 +400,8 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
     )
 
     def export_plot():
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"dsm_stock_analysis_{timestamp}.png"
+        # Fixed filename - overwrites previous export
+        filename = "dsm_stock_analysis.png"
         export_dir = "exports/dsm_stock_details"
         os.makedirs(export_dir, exist_ok=True)
         filepath = os.path.join(export_dir, filename)
@@ -589,9 +589,8 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
     def export_plot():
         """Export the current plot with enhanced options"""
         try:
-            # Create export folder with timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            export_folder = f"exports/fomp_analysis/{timestamp}"
+            # Fixed export folder - no timestamp subdirectories
+            export_folder = "exports/fomp_analysis"
             os.makedirs(export_folder, exist_ok=True)
 
             # Generate filename with current parameters
@@ -601,10 +600,9 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
             filename = f"fomp_{current_process}_{current_element}.png"
             filepath = os.path.join(export_folder, filename)
 
-            # Export the plot
+            # Export the plot (overwrites previous export)
             fig.write_image(filepath, width=1200, height=600, scale=2)
             print(f"✅ FOMP analysis exported to: {filepath}")
-            print(f"📁 Export folder: {export_folder}")
 
         except Exception as e:
             print(f"❌ Export failed: {e}")

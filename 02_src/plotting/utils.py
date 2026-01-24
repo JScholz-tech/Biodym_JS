@@ -14,8 +14,8 @@ def plot_enhanced_export_options(fig, filename_prefix="plot"):
     """Provides interactive buttons for exporting a Plotly figure to various formats.
 
     This function generates a set of `ipywidgets` buttons that allow users to
-    export a given Plotly figure to PNG, PDF, SVG, or HTML formats. Each export
-    is timestamped and uses a customizable filename prefix.
+    export a given Plotly figure to PNG, PDF, SVG, or HTML formats. Uses fixed
+    filenames (overwrites previous exports).
 
     Parameters
     ----------
@@ -25,8 +25,6 @@ def plot_enhanced_export_options(fig, filename_prefix="plot"):
         A prefix for the exported filenames. Defaults to "plot".
     """
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
     # Create export buttons
     export_png_btn = Button(description="Export PNG")
     export_pdf_btn = Button(description="Export PDF")
@@ -34,22 +32,22 @@ def plot_enhanced_export_options(fig, filename_prefix="plot"):
     export_html_btn = Button(description="Export HTML")
 
     def export_png(b):
-        filename = f"{filename_prefix}_{timestamp}.png"
+        filename = f"{filename_prefix}.png"
         fig.write_image(filename, width=1200, height=800, scale=2)
         print(f"✅ Exported: {filename}")
 
     def export_pdf(b):
-        filename = f"{filename_prefix}_{timestamp}.pdf"
+        filename = f"{filename_prefix}.pdf"
         fig.write_image(filename, width=1200, height=800)
         print(f"✅ Exported: {filename}")
 
     def export_svg(b):
-        filename = f"{filename_prefix}_{timestamp}.svg"
+        filename = f"{filename_prefix}.svg"
         fig.write_image(filename, width=1200, height=800)
         print(f"✅ Exported: {filename}")
 
     def export_html(b):
-        filename = f"{filename_prefix}_{timestamp}.html"
+        filename = f"{filename_prefix}.html"
         fig.write_html(filename, include_plotlyjs=True)
         print(f"✅ Exported: {filename}")
 

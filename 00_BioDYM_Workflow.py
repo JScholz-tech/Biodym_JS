@@ -631,12 +631,9 @@ if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
 
             # --- Export MC Results ---
             print(f"\n{Icons.EXPORT} Exporting Monte Carlo results...")
-            from datetime import datetime
 
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            mc_output_path = (
-                f"01_data/02_output/mc_output/mc_results_detailed_{timestamp}.xlsx"
-            )
+            # Fixed filename - overwrites previous results
+            mc_output_path = "01_data/02_output/mc_output/mc_results_detailed.xlsx"
             try:
                 mc_results.to_excel(mc_output_path, index=False)
                 print(

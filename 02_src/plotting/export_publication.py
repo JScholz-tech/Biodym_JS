@@ -320,7 +320,7 @@ def export_for_paper(
         formats=["png", "pdf"],
         quality="publication",
         size=size,
-        timestamp=True,
+        timestamp=False,
         verbose=True,
     )
 
@@ -350,7 +350,7 @@ def export_for_presentation(fig: go.Figure, filename: str) -> List[str]:
         formats=["png", "html"],
         quality="web",
         size="slide",
-        timestamp=True,
+        timestamp=False,
         verbose=True,
     )
 

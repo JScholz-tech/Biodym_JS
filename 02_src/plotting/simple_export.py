@@ -15,7 +15,8 @@ def simple_export(fig, plot_name="plot", element=None, process=None):
     This function provides a straightforward way to save any Plotly figure
     as a PNG image. It automatically creates an 'exports' directory if it
     doesn't exist and generates a descriptive filename based on the plot type,
-    optional element, process, and a timestamp.
+    optional element, and process. Uses fixed filenames that overwrite previous
+    exports.
 
     Parameters
     ----------
@@ -48,15 +49,12 @@ def simple_export(fig, plot_name="plot", element=None, process=None):
         if not os.path.exists(export_dir):
             os.makedirs(export_dir)
 
-        # Generate simple filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
+        # Generate simple filename (fixed - no timestamp, overwrites previous)
         filename_parts = [plot_name]
         if element:
             filename_parts.append(element)
         if process:
             filename_parts.append(process)
-        filename_parts.append(timestamp)
 
         filename = "_".join(filename_parts) + ".png"
         filepath = os.path.join(export_dir, filename)

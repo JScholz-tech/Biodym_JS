@@ -426,7 +426,7 @@ def plot_total_mass_balance_error(
                 formats=["png", "pdf"],
                 quality="publication",
                 size="large",
-                timestamp=True,
+                timestamp=False,
             )
             print(f"\n✅ Figure exported: {', '.join(paths)}")
         except Exception as e:

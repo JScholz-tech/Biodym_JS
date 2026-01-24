@@ -501,7 +501,8 @@ def get_export_filename(plot_type, element=None, process=None, timestamp=None):
     """Generates a standardized filename for plot exports.
 
     This function creates a consistent, descriptive filename for an exported
-    plot based on its type, optional element and process names, and a timestamp.
+    plot based on its type, optional element and process names. Uses fixed
+    filenames that overwrite previous exports (no timestamp by default).
 
     Parameters
     ----------
@@ -512,18 +513,15 @@ def get_export_filename(plot_type, element=None, process=None, timestamp=None):
     process : str, optional
         The name of the process to include in the filename. Defaults to None.
     timestamp : str, optional
-        A custom timestamp (YYYYMMDD_HHMMSS). If None, the current time is
-        used. Defaults to None.
+        A custom timestamp (YYYYMMDD_HHMMSS). If provided, will be appended.
+        If None, no timestamp is added. Defaults to None.
 
     Returns
     -------
     str
         The generated standardized filename (e.g.,
-        'BioDYM_sankey_carbon_processA_20251016_143000').
+        'BioDYM_sankey_carbon_processA').
     """
-    if timestamp is None:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
     filename_parts = ["BioDYM", plot_type]
 
     if element:
@@ -531,7 +529,9 @@ def get_export_filename(plot_type, element=None, process=None, timestamp=None):
     if process:
         filename_parts.append(process)
 
-    filename_parts.append(timestamp)
+    # Only add timestamp if explicitly provided
+    if timestamp is not None:
+        filename_parts.append(timestamp)
 
     return "_".join(filename_parts)
 
