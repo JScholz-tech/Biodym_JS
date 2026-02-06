@@ -211,7 +211,10 @@ def plot_interactive_tornado(mc_results_df):
         print("No Monte Carlo results to plot.")
         return
 
-    output_vars = sorted([col for col in mc_results_df.columns if col.startswith("S_")])
+    output_vars = sorted([
+        col for col in mc_results_df.columns
+        if col.startswith("S_") and not col.endswith("_timeseries")
+    ])
     param_vars = sorted(
         [col for col in mc_results_df.columns if col.endswith("_sample")]
     )
@@ -552,7 +555,9 @@ def plot_interactive_mc_multiple_histograms(mc_results_df, mfa_system_results=No
             set(
                 f"{col.split('_')[0]}_{col.split('_')[1]}"
                 for col in mc_results_df.columns
-                if col.startswith("S_") and len(col.split("_")) >= 3
+                if col.startswith("S_")
+                and len(col.split("_")) >= 3
+                and not col.endswith("_timeseries")
             )
         )
     )
@@ -561,7 +566,9 @@ def plot_interactive_mc_multiple_histograms(mc_results_df, mfa_system_results=No
             set(
                 col.split("_")[2]
                 for col in mc_results_df.columns
-                if col.startswith("S_") and len(col.split("_")) >= 3
+                if col.startswith("S_")
+                and len(col.split("_")) >= 3
+                and not col.endswith("_timeseries")
             )
         )
     )
