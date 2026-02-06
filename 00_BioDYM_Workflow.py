@@ -604,6 +604,79 @@ else:
     print(f"{Icons.INFO} No scenarios were processed.")
 
 # ## 4.2 Monte Carlo Analysis
+
+# ### 4.2.1 MC Control Board: Parameter Overview
+
+print(format_header("MONTE CARLO CONTROL BOARD", level=2))
+
+if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
+    from reporting.mc_dashboard import build_parameter_overview_df
+
+    mc_params_df = input_data["4_1_Uncertainty_Parameters"]
+    param_overview = build_parameter_overview_df(mc_params_df)
+
+    n_iterations = getattr(config_obj, "MC_ITERATIONS", 100)
+    print(f"{Icons.MONTE_CARLO} Uncertainty Parameters: {len(param_overview)} defined")
+    print(f"   Iterations configured: {n_iterations}\n")
+
+    display(
+        param_overview.style.set_caption(
+            "Monte Carlo Uncertainty Parameter Definitions"
+        )
+        .set_table_styles(
+            [
+                {
+                    "selector": "caption",
+                    "props": [("font-weight", "bold"), ("font-size", "14px")],
+                },
+            ]
+        )
+        .hide(axis="index")
+    )
+else:
+    print(
+        f"{Icons.INFO} Monte Carlo analysis is disabled or no uncertainty parameters defined."
+    )
+
+# ### 4.2.2 MC Control Board: Validation Report
+
+if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
+    from reporting.mc_dashboard import generate_validation_report
+
+    mc_params_df = input_data["4_1_Uncertainty_Parameters"]
+
+    validation = generate_validation_report(
+        uncertainty_params,
+        mfa_system_configured,
+        dsm_params,
+        fomp_params,
+        mc_params_df,
+    )
+
+    print(f"\n{Icons.ANALYZING} Parameter-to-Model Mapping:")
+    display(
+        validation["mapping_df"]
+        .style.set_caption("Parameter Target Mapping")
+        .hide(axis="index")
+    )
+
+    if validation["warnings"]:
+        print(
+            f"\n{Icons.WARNING} Validation Warnings ({len(validation['warnings'])}):"
+        )
+        for w in validation["warnings"]:
+            print(f"   {w}")
+    else:
+        print(format_success("Validation passed - no warnings detected."))
+
+    print(
+        format_success(
+            f"MC setup validated: {validation['n_params']} parameters ready for simulation."
+        )
+    )
+
+# ### 4.2.3 Monte Carlo Simulation Run
+
 print(format_header("MONTE CARLO SIMULATION (BASELINE)", level=2))
 
 if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
@@ -649,19 +722,18 @@ if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
 
             print(f"\n{Icons.VISUALIZATION} Monte Carlo Analysis Visualizations:")
             print(
-                "   • Multiple Distribution Histograms: Interactively select and view histograms for multiple stocks."
+                "   - Multiple Distribution Histograms: Interactively select and view histograms for multiple stocks."
             )
             print(
-                "   • Sensitivity Tornado Plot: Identify which parameters most influence outcomes."
+                "   - Sensitivity Tornado Plot: Identify which parameters most influence outcomes."
             )
             print(
-                "   • Simulation Paths: Visualize the trajectories of all Monte Carlo runs."
+                "   - Simulation Paths: Visualize the trajectories of all Monte Carlo runs."
             )
             print(
-                "   • Stock Comparison: Compare distributions of several stocks in one plot."
+                "   - Stock Comparison: Compare distributions of several stocks in one plot."
             )
 
-            # This new function allows selecting multiple histograms, making the old single one redundant.
             plot_interactive_mc_multiple_histograms(mc_results, mfa_results_baseline)
 
             plot_interactive_tornado(mc_results)
@@ -676,6 +748,44 @@ if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
 else:
     print(
         f"{Icons.INFO} Monte Carlo analysis is disabled or no uncertainty parameters are defined. Skipping."
+    )
+
+# ### 4.2.4 MC Summary Statistics
+
+if (
+    config_obj.RUN_MONTE_CARLO
+    and "mc_results" in dir()
+    and mc_results is not None
+    and not mc_results.empty
+):
+    from reporting.mc_dashboard import compute_mc_summary_stats
+
+    print(format_header("MONTE CARLO SUMMARY STATISTICS", level=2))
+
+    mc_summary = compute_mc_summary_stats(mc_results, mfa_system_configured)
+
+    display(
+        mc_summary.style.format(
+            {
+                "Mean": "{:,.2f}",
+                "Std": "{:,.2f}",
+                "Median": "{:,.2f}",
+                "CI95_Lower": "{:,.2f}",
+                "CI95_Upper": "{:,.2f}",
+                "Min": "{:,.2f}",
+                "Max": "{:,.2f}",
+            }
+        )
+        .set_caption(
+            f"Stock Summary Statistics ({getattr(config_obj, 'MC_ITERATIONS', 100)} iterations)"
+        )
+        .hide(axis="index")
+    )
+
+    print(
+        format_success(
+            f"Summary statistics computed for {len(mc_summary)} stock-element combinations."
+        )
     )
 
 # # 5. Data Export

@@ -47,11 +47,20 @@ def validate_mc_parameters(mc_params_df, mfa_system):
         validated_params["Parameter_Name"].str.startswith("TC_", na=False)
     ]
 
+    # Extract process IDs from all TC params and check once per process
+    checked_processes = set()
     for _, row in tc_params.iterrows():
         tc_name = row["Parameter_Name"]
-        # Extract process ID from TC name (e.g., TC_05_06 -> process 5)
+        # Extract process ID from TC name
+        # Supports both formats: TC_05_06 -> process 5, TC_E2_11_00 -> process 11
         try:
-            process_id = int(tc_name.split("_")[1])
+            parts = tc_name.split("_")
+            if parts[1].startswith("E") and len(parts) >= 4:
+                # Element-specific format: TC_E2_11_00
+                process_id = int(parts[2])
+            else:
+                # Standard format: TC_05_06
+                process_id = int(parts[1])
 
             # Check if this process has dynamic TCs
             if process_id in dynamic_tc_processes:
@@ -59,24 +68,37 @@ def validate_mc_parameters(mc_params_df, mfa_system):
                     f"⚠️ WARNING: {tc_name} conflicts with dynamic TCs in process {process_id}"
                 )
 
-            # Check if this process has multiple outputs
-            process_flows = [
-                f for f in mfa_system.FlowDict.values() if f.P_Start == process_id
-            ]
-            if len(process_flows) > 1:
-                # Check if all TCs for this process are defined in MC
-                process_tcs = [
-                    p
-                    for p in tc_params["Parameter_Name"]
-                    if p.startswith(f"TC_{process_id}_")
+            # Check multi-output processes only once per process_id
+            if process_id not in checked_processes:
+                checked_processes.add(process_id)
+                process_flows = [
+                    f
+                    for f in mfa_system.FlowDict.values()
+                    if f.P_Start == process_id
                 ]
-                if len(process_tcs) < len(process_flows):
-                    missing_tcs = [
-                        f.Name for f in process_flows if f.Name not in process_tcs
-                    ]
-                    warnings.append(
-                        f"⚠️ WARNING: Process {process_id} has {len(process_flows)} outputs but only {len(process_tcs)} TCs in MC. Missing: {missing_tcs}"
-                    )
+                if len(process_flows) > 1:
+                    # Count TCs for this process (both standard and element-specific formats)
+                    process_tcs = set()
+                    for p in tc_params["Parameter_Name"]:
+                        p_parts = p.split("_")
+                        try:
+                            if p_parts[1].startswith("E") and len(p_parts) >= 4:
+                                if int(p_parts[2]) == process_id:
+                                    # Element-specific: extract destination to identify unique flows
+                                    process_tcs.add(f"F_{process_id}_{p_parts[3]}")
+                            elif int(p_parts[1]) == process_id:
+                                process_tcs.add(f"F_{p_parts[1]}_{p_parts[2]}")
+                        except (ValueError, IndexError):
+                            pass
+
+                    flow_names = {f.Name for f in process_flows}
+                    if process_tcs and not flow_names.issubset(process_tcs):
+                        missing = flow_names - process_tcs
+                        if missing:
+                            warnings.append(
+                                f"⚠️ WARNING: Process {process_id} has {len(process_flows)} outputs "
+                                f"but MC only covers flows {process_tcs}. Missing: {sorted(missing)}"
+                            )
 
         except (ValueError, IndexError):
             warnings.append(f"⚠️ WARNING: Could not parse process ID from {tc_name}")
@@ -143,9 +165,6 @@ def apply_dsm_parameter_updates(dsm_params, sampled_params):
                     updated_dsm_params[process_id]["lifetimes"]["Mean"][
                         category_idx
                     ] = sampled_value
-                    print(
-                        f"   Applied MC sample: {param_name} = {sampled_value:.4f} (was {old_value:.4f})"
-                    )
             elif param_base == "DSM_Lifetime_StdDev":
                 if category_idx < len(updated_dsm_params[process_id]["lifetimes"]["StdDev"]):
                     old_value = updated_dsm_params[process_id]["lifetimes"]["StdDev"][
@@ -154,9 +173,6 @@ def apply_dsm_parameter_updates(dsm_params, sampled_params):
                     updated_dsm_params[process_id]["lifetimes"]["StdDev"][
                         category_idx
                     ] = sampled_value
-                    print(
-                        f"   Applied MC sample: {param_name} = {sampled_value:.4f} (was {old_value:.4f})"
-                    )
             elif param_base == "DSM_Inflow_Split":
                 if category_idx < len(updated_dsm_params[process_id]["inflow_split"]):
                     old_value = updated_dsm_params[process_id]["inflow_split"][
@@ -165,9 +181,6 @@ def apply_dsm_parameter_updates(dsm_params, sampled_params):
                     updated_dsm_params[process_id]["inflow_split"][
                         category_idx
                     ] = sampled_value
-                    print(
-                        f"   Applied MC sample: {param_name} = {sampled_value:.4f} (was {old_value:.4f})"
-                    )
 
                     # Note: Inflow splits should sum to 1.0 - normalization may be needed
                     # This could be added as a post-processing step if required
@@ -185,9 +198,6 @@ def apply_dsm_parameter_updates(dsm_params, sampled_params):
                         updated_dsm_params[process_id]["output_splits"][category_idx][
                             output_num
                         ] = sampled_value
-                        print(
-                            f"   Applied MC sample: {param_name} = {sampled_value:.4f} (was {old_value:.4f})"
-                        )
 
         except (ValueError, IndexError) as e:
             print(f"⚠️ WARNING: Could not parse DSM parameter name: {param_name} - {e}")
@@ -214,8 +224,8 @@ def apply_fomp_parameter_updates(fomp_params, sampled_params):
     updated_fomp_params = copy.deepcopy(fomp_params)
 
     for param_name, sampled_value in sampled_params.items():
-        # Check if this is a FOMP parameter (starts with P and contains process info)
-        if param_name.startswith("P") and "_decay_" in param_name:
+        # Check if this is a FOMP parameter (starts with P and contains FOMP-specific keywords)
+        if param_name.startswith("P") and ("_decay_" in param_name or "_Inflow_fraction_f" in param_name):
             try:
                 # Extract process ID from parameter name (e.g., "P08_decay_k1 (Labile pool)" -> 8)
                 process_id = int(param_name[1:].split("_")[0])
@@ -226,9 +236,6 @@ def apply_fomp_parameter_updates(fomp_params, sampled_params):
                 # Apply the sampled value to the correct process and parameter
                 if process_id in updated_fomp_params:
                     updated_fomp_params[process_id][base_param_name] = sampled_value
-                    print(
-                        f"   Applied MC sample: {param_name} = {sampled_value:.4f} to Process {process_id}"
-                    )
                 else:
                     print(
                         f"⚠️ WARNING: Process {process_id} not found in FOMP parameters for {param_name}"
@@ -358,6 +365,11 @@ def _run_single_mc_iteration(
     sampled_params = sample_parameters(uncertainty_params)
     tc_updates = sampled_params.copy()
 
+    # Log all sampled values for this iteration
+    print(f"\n   --- Iteration {iteration_num} sampled values ---")
+    for param, value in sampled_params.items():
+        print(f"   {param} = {value:.6f}")
+
     # --- 3b. Apply DSM parameter updates ---
     updated_dsm_params = apply_dsm_parameter_updates(dsm_params, sampled_params)
 
@@ -402,6 +414,116 @@ def _run_single_mc_iteration(
     return iteration_results
 
 
+def generate_mc_setup_report(
+    uncertainty_params, mfa_system, dsm_params, fomp_params, mc_params_df
+):
+    """Generates a detailed report of the Monte Carlo simulation setup.
+
+    Parameters
+    ----------
+    uncertainty_params : dict
+        Dictionary of uncertainty definitions.
+    mfa_system : odym.MFAsystem
+        The MFA system to validate against.
+    dsm_params : dict
+        Configuration dictionary for DSM processes.
+    fomp_params : dict
+        Configuration dictionary for FOMP processes.
+    mc_params_df : pd.DataFrame
+        DataFrame of Monte Carlo parameters loaded from Excel.
+
+    Returns
+    -------
+    str
+        A formatted string containing the setup report.
+    """
+    report_lines = [
+        "_" * 80,
+        "MONTE CARLO SIMULATION SETUP REPORT".center(80),
+        "_" * 80,
+    ]
+
+    # 1. Uncertainty Parameter Summary
+    report_lines.append("\n1. UNCERTAINTY PARAMETERS LOADED:")
+    if not uncertainty_params:
+        report_lines.append("   No uncertainty parameters defined.")
+    else:
+        for name, definition in uncertainty_params.items():
+            dist = definition["distribution"]
+            if dist == "normal":
+                params = f"mean={definition['mean']}, std={definition['std']}"
+            elif dist == "uniform":
+                params = f"min={definition['min']}, max={definition['max']}"
+            elif dist == "triangular":
+                params = (
+                    f"min={definition['min']}, mode={definition['mode']}, max={definition['max']}"
+                )
+            else:
+                params = "unknown parameters"
+            report_lines.append(f"   - {name}: {dist.capitalize()}({params})")
+
+    # 2. Parameter-to-Model Mapping
+    report_lines.append("\n2. PARAMETER-TO-MODEL MAPPING:")
+    process_name_map = {p.ID: p.Name for p in mfa_system.ProcessList}
+
+    for name in uncertainty_params:
+        target = "Unknown"
+        if name.startswith("TC_"):
+            try:
+                parts = name.split("_")
+                if parts[1].startswith("E") and len(parts) >= 4:
+                    # Element-specific format: TC_E2_11_00
+                    element_id = parts[1]
+                    p_start, p_end = int(parts[2]), int(parts[3])
+                    start_name = process_name_map.get(p_start, f"ID {p_start}")
+                    end_name = process_name_map.get(p_end, f"ID {p_end}")
+                    target = f"Transfer Coefficient ({element_id}) for flow: {start_name} -> {end_name}"
+                else:
+                    # Standard format: TC_05_06
+                    p_start, p_end = int(parts[1]), int(parts[2])
+                    start_name = process_name_map.get(p_start, f"ID {p_start}")
+                    end_name = process_name_map.get(p_end, f"ID {p_end}")
+                    target = f"Transfer Coefficient for flow: {start_name} -> {end_name}"
+            except (ValueError, IndexError):
+                target = "Transfer Coefficient (could not parse process IDs)"
+        elif "_DSM_" in name:
+            try:
+                process_id = int(name.split("_")[0][1:])
+                proc_name = process_name_map.get(process_id, f"ID {process_id}")
+                if process_id in dsm_params:
+                    param_type = "_".join(name.split("_")[1:])
+                    target = f"DSM parameter '{param_type}' for Process {process_id} ('{proc_name}')"
+                else:
+                    target = f"DSM parameter for non-DSM Process {process_id} ('{proc_name}') - WILL BE IGNORED"
+            except (ValueError, IndexError):
+                target = "DSM parameter (could not parse process ID)"
+        elif name.startswith("P") and ("_decay_" in name or "_Inflow_fraction_f" in name):
+            try:
+                process_id = int(name[1:].split("_")[0])
+                proc_name = process_name_map.get(process_id, f"ID {process_id}")
+                if process_id in fomp_params:
+                    param_type = "_".join(name.split("_")[1:])
+                    target = f"FOMP parameter '{param_type}' for Process {process_id} ('{proc_name}')"
+                else:
+                    target = f"FOMP parameter for non-FOMP Process {process_id} ('{proc_name}') - WILL BE IGNORED"
+            except (ValueError, IndexError):
+                target = "FOMP parameter (could not parse process ID)"
+
+        report_lines.append(f"   - {name} -> {target}")
+
+    # 3. Validation and Warnings
+    report_lines.append("\n3. VALIDATION AND WARNINGS:")
+    _, warnings = validate_mc_parameters(mc_params_df, mfa_system)
+    if not warnings:
+        report_lines.append("   No validation warnings. ✅")
+    else:
+        for warning in warnings:
+            report_lines.append(f"   {warning}")
+
+    report_lines.append("_" * 80)
+    return "\n".join(report_lines)
+
+
 def run_mc_simulation(
     mfa_system_setup,
     input_data,
@@ -443,6 +565,8 @@ def run_mc_simulation(
     # --- 1. Configuration ---
     n_iterations = getattr(config, "MC_ITERATIONS", 100)
     uncertainty_params = data_loader.load_uncertainty_definitions(input_data)
+    mc_params_df = input_data.get("4_1_Uncertainty_Parameters", pd.DataFrame())
+
 
     if not uncertainty_params:
         print("\n[MC] No uncertainty parameters defined. Skipping simulation.")
