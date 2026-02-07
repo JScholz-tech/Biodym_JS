@@ -788,6 +788,41 @@ if (
         )
     )
 
+    # Mass balance check
+    from reporting.mc_dashboard import compute_mc_mass_balance_report
+
+    mb_report = compute_mc_mass_balance_report(mc_results)
+    if mb_report is not None:
+        print(format_header("MASS BALANCE CHECK", level=2))
+        print("System-level summary (across all elements):")
+        display(
+            mb_report["summary"]
+            .style.format(
+                {
+                    "Mean Abs. Error": "{:,.2f}",
+                    "Max Abs. Error": "{:,.2f}",
+                    "Mean Rel. Error (%)": "{:.4f}",
+                    "Max Rel. Error (%)": "{:.4f}",
+                    "Iterations with Error > 1%": "{:d}",
+                }
+            )
+            .hide(axis="index")
+        )
+        if not mb_report["per_element"].empty:
+            print("\nPer-element breakdown:")
+            display(
+                mb_report["per_element"]
+                .style.format(
+                    {
+                        "Mean Input": "{:,.2f}",
+                        "Mean Abs. Error": "{:,.2f}",
+                        "Max Abs. Error": "{:,.2f}",
+                        "Rel. Error (%)": "{:.4f}",
+                    }
+                )
+                .hide(axis="index")
+            )
+
 # # 5. Data Export
 
 print(format_header("EXPORTING BASELINE RESULTS"))

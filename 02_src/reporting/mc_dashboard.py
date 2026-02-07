@@ -202,3 +202,65 @@ def compute_mc_summary_stats(mc_results_df, mfa_system=None):
         )
 
     return pd.DataFrame(rows)
+
+
+def compute_mc_mass_balance_report(mc_results_df):
+    """Compute mass balance statistics across all MC iterations.
+
+    Parameters
+    ----------
+    mc_results_df : pd.DataFrame
+        Results DataFrame from run_mc_simulation(), expected to contain
+        ``mass_balance_error_abs`` and ``mass_balance_error_rel`` columns,
+        plus per-element columns ``mb_error_{element}`` and
+        ``mb_input_{element}``.
+
+    Returns
+    -------
+    dict
+        Keys:
+        - ``"summary"`` (pd.DataFrame): Single-row system-level summary.
+        - ``"per_element"`` (pd.DataFrame): Per-element breakdown with
+          mean error, mean input, and relative error.
+        Returns ``None`` if mass balance columns are not present.
+    """
+    if "mass_balance_error_abs" not in mc_results_df.columns:
+        return None
+
+    abs_err = mc_results_df["mass_balance_error_abs"]
+    rel_err = mc_results_df["mass_balance_error_rel"]
+
+    summary_df = pd.DataFrame([{
+        "Mean Abs. Error": abs_err.mean(),
+        "Max Abs. Error": abs_err.max(),
+        "Mean Rel. Error (%)": rel_err.mean() * 100,
+        "Max Rel. Error (%)": rel_err.max() * 100,
+        "Iterations with Error > 1%": int((rel_err > 0.01).sum()),
+    }])
+
+    # Per-element breakdown
+    element_cols = [
+        c.replace("mb_error_", "")
+        for c in mc_results_df.columns
+        if c.startswith("mb_error_")
+    ]
+
+    element_rows = []
+    for elem in element_cols:
+        err = mc_results_df[f"mb_error_{elem}"]
+        inp = mc_results_df[f"mb_input_{elem}"]
+        mean_input = inp.mean()
+        mean_abs_err = err.abs().mean()
+        rel_pct = (mean_abs_err / mean_input * 100) if mean_input > 0 else 0.0
+
+        element_rows.append({
+            "Element": elem,
+            "Mean Input": mean_input,
+            "Mean Abs. Error": mean_abs_err,
+            "Max Abs. Error": err.abs().max(),
+            "Rel. Error (%)": rel_pct,
+        })
+
+    element_df = pd.DataFrame(element_rows)
+
+    return {"summary": summary_df, "per_element": element_df}

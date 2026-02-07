@@ -30,11 +30,13 @@ def calculate_system_kpis(mfa_results, process_logic_map):
     years = mfa_results.IndexTable.Classification["Time"].Items
     elements = mfa_results.Elements
 
-    input_processes = {
-        pid for pid, logic in process_logic_map.items() if logic == "Input"
-    }
-    output_processes = {
-        pid for pid, logic in process_logic_map.items() if logic == "Output"
+    # Boundary processes are labeled "Input" and/or "Output".
+    # In many ODYM systems, the environment (process 0) is labeled "Input"
+    # and serves as both source and sink — flows FROM it are system inputs,
+    # flows TO it are system outputs.
+    boundary_processes = {
+        pid for pid, logic in process_logic_map.items()
+        if logic in ("Input", "Output")
     }
 
     all_kpi_data = []
@@ -42,25 +44,27 @@ def calculate_system_kpis(mfa_results, process_logic_map):
     for element_idx, element_name in enumerate(elements):
         kpi_data_per_element = []
         for i, year in enumerate(years):
-            # Total Input
+            # Total Input (flows FROM boundary processes into the system)
             total_input = sum(
                 f.Values[i, element_idx]
                 for f in mfa_results.FlowDict.values()
-                if f.P_Start in input_processes
+                if f.P_Start in boundary_processes
             )
 
-            # Total Output
+            # Total Output (flows TO boundary processes from the system)
             total_output = sum(
                 f.Values[i, element_idx]
                 for f in mfa_results.FlowDict.values()
-                if f.P_End in output_processes
+                if f.P_End in boundary_processes
             )
 
-            # Net Stock Change
+            # Net Stock Change (exclude boundary process stocks to avoid
+            # double-counting — their dS reflects input/output already measured)
             net_stock_change = sum(
                 s.Values[i, element_idx]
                 for s in mfa_results.StockDict.values()
                 if s.Name.startswith("dS_")
+                and int(s.Name.split("_")[1]) not in boundary_processes
             )
 
             # Mass Balance Error

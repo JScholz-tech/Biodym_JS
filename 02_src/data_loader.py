@@ -1439,11 +1439,25 @@ def load_uncertainty_definitions(excel_data, debug_mode=False):
             if pd.notna(row["Mean"]) and pd.notna(row["StdDev"]):
                 definition["mean"] = row["Mean"]
                 definition["std"] = row["StdDev"]
+                if pd.notna(row.get("Min")):
+                    definition["min"] = row["Min"]
+                if pd.notna(row.get("Max")):
+                    definition["max"] = row["Max"]
         elif dist_type == "triangular":
             if pd.notna(row["Min"]) and pd.notna(row["Mode"]) and pd.notna(row["Max"]):
                 definition["min"] = row["Min"]
                 definition["mode"] = row["Mode"]
                 definition["max"] = row["Max"]
+        elif dist_type == "lognormal":
+            if pd.notna(row["Mean"]) and pd.notna(row["StdDev"]):
+                definition["mean"] = row["Mean"]
+                definition["std"] = row["StdDev"]
+                if pd.notna(row.get("Min")):
+                    definition["min"] = row["Min"]
+                if pd.notna(row.get("Max")):
+                    definition["max"] = row["Max"]
+        else:
+            print(f"⚠️ WARNING: Unknown distribution type '{dist_type}' for parameter '{param_name}' — skipping.")
 
         if len(definition) > 1:
             uncertainty_params[param_name] = definition

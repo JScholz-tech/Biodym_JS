@@ -13,6 +13,7 @@ import os
 import shutil
 import tempfile
 from datetime import datetime
+from scipy.stats import truncnorm
 from pathlib import Path
 
 
@@ -165,7 +166,13 @@ def sample_parameters(uncertainty_params):
         max_val = param_def.get("max", None)
 
         if distribution == "normal":
-            value = np.random.normal(mean, std)
+            if min_val is not None or max_val is not None:
+                # Proper truncated normal — smooth distribution within bounds
+                a = (min_val - mean) / std if min_val is not None else -np.inf
+                b = (max_val - mean) / std if max_val is not None else np.inf
+                value = truncnorm.rvs(a, b, loc=mean, scale=std)
+            else:
+                value = np.random.normal(mean, std)
         elif distribution == "uniform":
             value = np.random.uniform(min_val, max_val)
         elif distribution == "triangular":
@@ -173,15 +180,13 @@ def sample_parameters(uncertainty_params):
             value = np.random.triangular(min_val, mode, max_val)
         elif distribution == "lognormal":
             value = np.random.lognormal(mean, std)
+            # Clip to bounds if specified (no closed-form truncated lognormal)
+            if min_val is not None:
+                value = max(value, min_val)
+            if max_val is not None:
+                value = min(value, max_val)
         else:
-            # Raise an error for unknown distributions
             raise ValueError(f"Unknown distribution type: {distribution}")
-
-        # Apply bounds if specified
-        if min_val is not None:
-            value = max(value, min_val)
-        if max_val is not None:
-            value = min(value, max_val)
 
         sampled_values[param_name] = value
 

@@ -123,6 +123,10 @@ def apply_dsm_parameter_updates(dsm_params, sampled_params):
     """
     updated_dsm_params = copy.deepcopy(dsm_params)
 
+    # Track which splits were modified so we can normalize them afterward
+    modified_inflow_splits = set()
+    modified_output_splits = set()  # (process_id, category_idx)
+
     for param_name, sampled_value in sampled_params.items():
         # Check if this is a DSM parameter (contains _DSM_)
         if "_DSM_" not in param_name:
@@ -159,31 +163,20 @@ def apply_dsm_parameter_updates(dsm_params, sampled_params):
             # Map parameter to DSM structure and apply sampled value
             if param_base == "DSM_Lifetime_Mean":
                 if category_idx < len(updated_dsm_params[process_id]["lifetimes"]["Mean"]):
-                    old_value = updated_dsm_params[process_id]["lifetimes"]["Mean"][
-                        category_idx
-                    ]
                     updated_dsm_params[process_id]["lifetimes"]["Mean"][
                         category_idx
                     ] = sampled_value
             elif param_base == "DSM_Lifetime_StdDev":
                 if category_idx < len(updated_dsm_params[process_id]["lifetimes"]["StdDev"]):
-                    old_value = updated_dsm_params[process_id]["lifetimes"]["StdDev"][
-                        category_idx
-                    ]
                     updated_dsm_params[process_id]["lifetimes"]["StdDev"][
                         category_idx
                     ] = sampled_value
             elif param_base == "DSM_Inflow_Split":
                 if category_idx < len(updated_dsm_params[process_id]["inflow_split"]):
-                    old_value = updated_dsm_params[process_id]["inflow_split"][
-                        category_idx
-                    ]
                     updated_dsm_params[process_id]["inflow_split"][
                         category_idx
                     ] = sampled_value
-
-                    # Note: Inflow splits should sum to 1.0 - normalization may be needed
-                    # This could be added as a post-processing step if required
+                    modified_inflow_splits.add(process_id)
 
             elif param_base.startswith("DSM_Output_") and param_base.endswith("_Split"):
                 # Extract output number (e.g., "DSM_Output_1_Split_Cat_2" -> output 0, cat 1)
@@ -192,16 +185,27 @@ def apply_dsm_parameter_updates(dsm_params, sampled_params):
                     if output_num < len(
                         updated_dsm_params[process_id]["output_splits"][category_idx]
                     ):
-                        old_value = updated_dsm_params[process_id]["output_splits"][
-                            category_idx
-                        ][output_num]
                         updated_dsm_params[process_id]["output_splits"][category_idx][
                             output_num
                         ] = sampled_value
+                        modified_output_splits.add((process_id, category_idx))
 
         except (ValueError, IndexError) as e:
             print(f"⚠️ WARNING: Could not parse DSM parameter name: {param_name} - {e}")
             continue
+
+    # Normalize modified splits so they sum to 1.0
+    for process_id in modified_inflow_splits:
+        splits = updated_dsm_params[process_id]["inflow_split"]
+        total = sum(splits)
+        if total > 0:
+            updated_dsm_params[process_id]["inflow_split"] = [s / total for s in splits]
+
+    for process_id, cat_idx in modified_output_splits:
+        splits = updated_dsm_params[process_id]["output_splits"][cat_idx]
+        total = sum(splits)
+        if total > 0:
+            updated_dsm_params[process_id]["output_splits"][cat_idx] = [s / total for s in splits]
 
     return updated_dsm_params
 
@@ -250,73 +254,69 @@ def apply_fomp_parameter_updates(fomp_params, sampled_params):
     return updated_fomp_params
 
 
-def normalize_tcs_for_process(mfa_system, process_id, varied_tc_name, varied_tc_value):
-    """Ensures all transfer coefficients (TCs) for a process sum to 1.0.
+def normalize_tc_updates(tc_updates, mfa_system):
+    """Normalizes sampled TC values so they sum to 1.0 per process and element.
 
-    When a single TC for a multi-output process is varied in a Monte Carlo
-    simulation, the other TCs for that process must be adjusted to maintain
-    a mass balance (i.e., they must all sum to 1.0). This function
-    normalizes the TCs to enforce this constraint.
+    When multiple TCs for the same process (and element) are varied independently
+    in a Monte Carlo iteration, their sampled values will generally not sum to 1.0.
+    This function groups TCs by (element, process_id), checks whether the group
+    covers all outgoing flows for that process, and if so normalizes proportionally.
 
     Parameters
     ----------
+    tc_updates : dict
+        Dictionary of parameter names to sampled values. Modified in-place.
+        Only entries starting with ``TC_`` are considered.
     mfa_system : odym.MFAsystem
-        The MFA system object.
-    process_id : int
-        The ID of the process whose TCs need to be normalized.
-    varied_tc_name : str
-        The name of the TC that was just varied by the MC sampler.
-    varied_tc_value : float
-        The new value for the varied TC.
+        The MFA system, used to count outgoing flows per process.
 
     Returns
     -------
     dict
-        A dictionary of all TC names for the process and their new, normalized values.
+        The same ``tc_updates`` dictionary with normalized TC values.
     """
-    # Get all flows for this process
-    process_flows = [f for f in mfa_system.FlowDict.values() if f.P_Start == process_id]
+    # Group TC entries by (element_prefix, process_id)
+    # TC_05_06      -> (None, 5)
+    # TC_E2_11_00   -> ("E2", 11)
+    tc_groups = {}
 
-    if len(process_flows) <= 1:
-        # Single output process - no normalization needed
-        return {varied_tc_name: varied_tc_value}
-
-    # Get current TC values
-    current_tcs = {}
-    for flow in process_flows:
-        if hasattr(flow, "TC"):
-            if isinstance(flow.TC, np.ndarray):
-                current_tcs[flow.Name] = flow.TC[0] if len(flow.TC) > 0 else 0.0
+    for tc_name, value in tc_updates.items():
+        if not tc_name.startswith("TC_"):
+            continue
+        parts = tc_name.split("_")
+        try:
+            if parts[1].startswith("E") and len(parts) >= 4:
+                elem_prefix = parts[1]
+                process_id = int(parts[2])
             else:
-                current_tcs[flow.Name] = float(flow.TC)
-        else:
-            current_tcs[flow.Name] = 0.0
+                elem_prefix = None
+                process_id = int(parts[1])
 
-    # Update the varied TC
-    current_tcs[varied_tc_name] = varied_tc_value
+            key = (elem_prefix, process_id)
+            if key not in tc_groups:
+                tc_groups[key] = {}
+            tc_groups[key][tc_name] = value
+        except (ValueError, IndexError):
+            continue
 
-    # Calculate normalization factor
-    total_tc = sum(current_tcs.values())
-    if total_tc > 0:
-        normalization_factor = 1.0 / total_tc
+    # Normalize each group if it covers all outgoing flows
+    for (elem_prefix, process_id), group in tc_groups.items():
+        if len(group) < 2:
+            continue  # Single TC — nothing to normalize
 
-        # Apply normalization to all TCs
-        normalized_tcs = {}
-        for flow in process_flows:
-            normalized_tcs[flow.Name] = current_tcs[flow.Name] * normalization_factor
-            # Update the flow's TC value
-            flow.TC = np.array([normalized_tcs[flow.Name]])
+        # Count outgoing flows for this process
+        n_outgoing = sum(
+            1 for f in mfa_system.FlowDict.values() if f.P_Start == process_id
+        )
 
-        return normalized_tcs
-    else:
-        # If total is 0, distribute equally
-        equal_tc = 1.0 / len(process_flows)
-        normalized_tcs = {}
-        for flow in process_flows:
-            normalized_tcs[flow.Name] = equal_tc
-            flow.TC = np.array([equal_tc])
+        if len(group) >= n_outgoing:
+            # All outgoing flows are covered — normalize to sum to 1.0
+            total = sum(group.values())
+            if total > 0:
+                for tc_name in group:
+                    tc_updates[tc_name] = group[tc_name] / total
 
-        return normalized_tcs
+    return tc_updates
 
 
 def _run_single_mc_iteration(
@@ -373,7 +373,7 @@ def _run_single_mc_iteration(
     # --- 3b. Apply DSM parameter updates ---
     updated_dsm_params = apply_dsm_parameter_updates(dsm_params, sampled_params)
 
-    # --- 3c. Apply FOMP parameter updates ---
+    # --- 3b2. Apply FOMP parameter updates ---
     updated_fomp_params = apply_fomp_parameter_updates(fomp_params, sampled_params)
 
     # --- 3c. Propagate Splitter Uncertainty ---
@@ -388,7 +388,10 @@ def _run_single_mc_iteration(
                 for sibling_tc in info["sibling_tcs"]:
                     tc_updates[sibling_tc] = sample_value
 
-    # --- 3d. Run Solver ---
+    # --- 3d. Normalize TCs per process to maintain mass balance ---
+    normalize_tc_updates(tc_updates, mfa_system_setup)
+
+    # --- 3e. Run Solver ---
     mfa_system_run, _ = solver.run_mfa_calculation(
         mfa_system_setup,
         updated_dsm_params,  # Use updated DSM parameters from MC sampling
@@ -399,7 +402,7 @@ def _run_single_mc_iteration(
         tc_updates=tc_updates,
     )
 
-    # --- 3e. Collect Results ---
+    # --- 3f. Collect Results ---
     iteration_results = {"iteration": iteration_num}
     for param, value in tc_updates.items():
         iteration_results[f"{param}_sample"] = value
@@ -410,6 +413,46 @@ def _run_single_mc_iteration(
             iteration_results[f"{stock.Name}_{element_name}_timeseries"] = stock.Values[
                 :, i_elem
             ].tolist()
+
+    # --- 3g. System-level mass balance check ---
+    # Boundary processes are labeled "Input" and/or "Output".
+    # In many ODYM systems, the environment (process 0) is labeled "Input"
+    # and serves as both source and sink — flows FROM it are system inputs,
+    # flows TO it are system outputs.
+    boundary_processes = {
+        pid for pid, logic in process_logic_map.items()
+        if logic in ("Input", "Output")
+    }
+
+    n_elements = len(mfa_system_run.Elements)
+    total_input = np.zeros(n_elements)
+    total_output = np.zeros(n_elements)
+    for flow in mfa_system_run.FlowDict.values():
+        if flow.P_Start in boundary_processes:
+            total_input += flow.Values.sum(axis=0)
+        if flow.P_End in boundary_processes:
+            total_output += flow.Values.sum(axis=0)
+
+    # Only count internal process stocks — boundary process stocks (dS_0, dS_1)
+    # would double-count the input/output already measured above.
+    net_stock_change = np.zeros(n_elements)
+    for stock in mfa_system_run.StockDict.values():
+        if stock.Name.startswith("dS_"):
+            pid = int(stock.Name.split("_")[1])
+            if pid not in boundary_processes:
+                net_stock_change += stock.Values.sum(axis=0)
+
+    mb_error = total_input - total_output - net_stock_change
+
+    # Store per-element errors for detailed reporting
+    for i_elem, element_name in enumerate(mfa_system_run.Elements):
+        iteration_results[f"mb_error_{element_name}"] = mb_error[i_elem]
+        iteration_results[f"mb_input_{element_name}"] = total_input[i_elem]
+
+    iteration_results["mass_balance_error_abs"] = np.abs(mb_error).sum()
+    iteration_results["mass_balance_error_rel"] = (
+        np.abs(mb_error).sum() / max(total_input.sum(), 1e-10)
+    )
 
     return iteration_results
 
@@ -458,6 +501,8 @@ def generate_mc_setup_report(
                 params = (
                     f"min={definition['min']}, mode={definition['mode']}, max={definition['max']}"
                 )
+            elif dist == "lognormal":
+                params = f"mean={definition['mean']}, std={definition['std']}"
             else:
                 params = "unknown parameters"
             report_lines.append(f"   - {name}: {dist.capitalize()}({params})")

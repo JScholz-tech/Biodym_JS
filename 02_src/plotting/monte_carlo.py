@@ -230,7 +230,9 @@ def plot_interactive_tornado(mc_results_df):
     def update_plot(change):
         """Callback to update the plot when the dropdown value changes."""
         output_var = output_dropdown.value
-        correlations = mc_results_df[param_vars].corrwith(mc_results_df[output_var])
+        with np.errstate(invalid='ignore'):
+            correlations = mc_results_df[param_vars].corrwith(mc_results_df[output_var])
+        correlations = correlations.dropna()
         sorted_correlations = correlations.abs().sort_values(ascending=True)
 
         with fig_widget.batch_update():
