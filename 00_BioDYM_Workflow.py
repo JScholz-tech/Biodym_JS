@@ -799,10 +799,10 @@ if (
             mb_report["summary"]
             .style.format(
                 {
-                    "Mean Abs. Error": "{:,.2f}",
-                    "Max Abs. Error": "{:,.2f}",
-                    "Mean Rel. Error (%)": "{:.4f}",
-                    "Max Rel. Error (%)": "{:.4f}",
+                    "Mean Abs. Error": "{:.2e}",
+                    "Max Abs. Error": "{:.2e}",
+                    "Mean Rel. Error (%)": "{:.2e}",
+                    "Max Rel. Error (%)": "{:.2e}",
                     "Iterations with Error > 1%": "{:d}",
                 }
             )
@@ -815,9 +815,9 @@ if (
                 .style.format(
                     {
                         "Mean Input": "{:,.2f}",
-                        "Mean Abs. Error": "{:,.2f}",
-                        "Max Abs. Error": "{:,.2f}",
-                        "Rel. Error (%)": "{:.4f}",
+                        "Mean Abs. Error": "{:.2e}",
+                        "Max Abs. Error": "{:.2e}",
+                        "Rel. Error (%)": "{:.2e}",
                     }
                 )
                 .hide(axis="index")

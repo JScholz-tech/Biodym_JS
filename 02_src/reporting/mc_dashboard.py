@@ -130,8 +130,8 @@ def generate_validation_report(
 
     mapping_df = pd.DataFrame(rows)
 
-    # Validation warnings
-    _, warnings = validate_mc_parameters(mc_params_df, mfa_system)
+    # Validation warnings (pass uncertainty_params for TC bounds checking)
+    _, warnings = validate_mc_parameters(mc_params_df, mfa_system, uncertainty_params)
 
     return {
         "mapping_df": mapping_df,

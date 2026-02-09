@@ -15,7 +15,7 @@ import data_loader
 from utils import sample_parameters
 
 
-def validate_mc_parameters(mc_params_df, mfa_system):
+def validate_mc_parameters(mc_params_df, mfa_system, uncertainty_params=None):
     """Validates Monte Carlo parameters to ensure mass balance and prevent conflicts.
 
     Parameters
@@ -24,6 +24,9 @@ def validate_mc_parameters(mc_params_df, mfa_system):
         DataFrame of Monte Carlo parameters loaded from Excel.
     mfa_system : odym.MFAsystem
         The MFA system to validate against.
+    uncertainty_params : dict, optional
+        Parsed uncertainty definitions (from load_uncertainty_definitions).
+        When provided, enables TC group bounds compatibility checks.
 
     Returns
     -------
@@ -102,6 +105,61 @@ def validate_mc_parameters(mc_params_df, mfa_system):
 
         except (ValueError, IndexError):
             warnings.append(f"⚠️ WARNING: Could not parse process ID from {tc_name}")
+
+    # --- TC group bounds compatibility check ---
+    if uncertainty_params:
+        tc_groups = _group_tc_params(uncertainty_params)
+
+        process_name_map = {p.ID: p.Name for p in mfa_system.ProcessList}
+
+        for (elem_prefix, process_id), group in tc_groups.items():
+            if len(group) < 2:
+                continue
+
+            proc_name = process_name_map.get(process_id, f"ID {process_id}")
+            elem_label = f" [{elem_prefix}]" if elem_prefix else ""
+
+            # Check if all TCs in this group have min/max bounds
+            bounds = {}
+            missing_bounds = []
+            for tc_name, defn in group.items():
+                tc_min = defn.get("min")
+                tc_max = defn.get("max")
+                if tc_min is not None and tc_max is not None:
+                    bounds[tc_name] = (tc_min, tc_max)
+                else:
+                    missing_bounds.append(tc_name)
+
+            if missing_bounds:
+                warnings.append(
+                    f"   TC group {proc_name}{elem_label}: "
+                    f"{', '.join(missing_bounds)} missing Min/Max bounds "
+                    f"-- rejection sampling disabled, using proportional normalization."
+                )
+                continue
+
+            # Check feasibility: sum(min) <= 1.0 and sum(max) >= 1.0
+            sum_min = sum(b[0] for b in bounds.values())
+            sum_max = sum(b[1] for b in bounds.values())
+
+            if sum_min > 1.0:
+                warnings.append(
+                    f"   INFEASIBLE: TC group {proc_name}{elem_label}: "
+                    f"sum(Min) = {sum_min:.4f} > 1.0 -- no valid combination exists. "
+                    f"Please widen the parameter ranges."
+                )
+            elif sum_max < 1.0:
+                warnings.append(
+                    f"   INFEASIBLE: TC group {proc_name}{elem_label}: "
+                    f"sum(Max) = {sum_max:.4f} < 1.0 -- no valid combination exists. "
+                    f"Please widen the parameter ranges."
+                )
+            else:
+                warnings.append(
+                    f"   TC group {proc_name}{elem_label}: bounds compatible "
+                    f"(sum min={sum_min:.3f}, sum max={sum_max:.3f}). "
+                    f"Rejection sampling enabled."
+                )
 
     return validated_params, warnings
 
@@ -254,13 +312,64 @@ def apply_fomp_parameter_updates(fomp_params, sampled_params):
     return updated_fomp_params
 
 
-def normalize_tc_updates(tc_updates, mfa_system):
+def _parse_tc_group_key(tc_name):
+    """Extracts (element_prefix, process_id) from a TC parameter name.
+
+    Parameters
+    ----------
+    tc_name : str
+        TC parameter name, e.g. ``TC_05_06`` or ``TC_E2_11_00``.
+
+    Returns
+    -------
+    tuple or None
+        ``(element_prefix, process_id)`` on success, ``None`` on parse failure.
+    """
+    parts = tc_name.split("_")
+    try:
+        if parts[1].startswith("E") and len(parts) >= 4:
+            return (parts[1], int(parts[2]))
+        else:
+            return (None, int(parts[1]))
+    except (ValueError, IndexError):
+        return None
+
+
+def _group_tc_params(uncertainty_params):
+    """Groups TC uncertainty definitions by (element_prefix, process_id).
+
+    Parameters
+    ----------
+    uncertainty_params : dict
+        Full uncertainty definitions dict (keys are parameter names).
+
+    Returns
+    -------
+    dict
+        ``{(elem_prefix, process_id): {tc_name: definition_dict, ...}, ...}``
+    """
+    tc_groups = {}
+    for tc_name, defn in uncertainty_params.items():
+        if not tc_name.startswith("TC_"):
+            continue
+        key = _parse_tc_group_key(tc_name)
+        if key is not None:
+            tc_groups.setdefault(key, {})[tc_name] = defn
+    return tc_groups
+
+
+def normalize_tc_updates(tc_updates, mfa_system, uncertainty_params=None,
+                         max_retries=100):
     """Normalizes sampled TC values so they sum to 1.0 per process and element.
 
-    When multiple TCs for the same process (and element) are varied independently
-    in a Monte Carlo iteration, their sampled values will generally not sum to 1.0.
-    This function groups TCs by (element, process_id), checks whether the group
-    covers all outgoing flows for that process, and if so normalizes proportionally.
+    When ``uncertainty_params`` is provided and **all** TCs in a group have
+    Min/Max bounds, this function uses *rejection sampling*: it normalizes the
+    sampled values and checks whether every normalized value still falls within
+    its defined [min, max] range. If not, it resamples from the original
+    distributions and tries again (up to ``max_retries`` attempts).
+
+    Falls back to simple proportional normalization when bounds are missing or
+    rejection sampling cannot find a valid combination.
 
     Parameters
     ----------
@@ -269,37 +378,27 @@ def normalize_tc_updates(tc_updates, mfa_system):
         Only entries starting with ``TC_`` are considered.
     mfa_system : odym.MFAsystem
         The MFA system, used to count outgoing flows per process.
+    uncertainty_params : dict, optional
+        Parsed uncertainty definitions. When provided, enables rejection
+        sampling for groups where all TCs have min/max bounds.
+    max_retries : int, optional
+        Maximum number of resample attempts before falling back to
+        proportional normalization. Default 100.
 
     Returns
     -------
     dict
         The same ``tc_updates`` dictionary with normalized TC values.
     """
-    # Group TC entries by (element_prefix, process_id)
-    # TC_05_06      -> (None, 5)
-    # TC_E2_11_00   -> ("E2", 11)
+    # Group TC entries from tc_updates by (element_prefix, process_id)
     tc_groups = {}
-
     for tc_name, value in tc_updates.items():
         if not tc_name.startswith("TC_"):
             continue
-        parts = tc_name.split("_")
-        try:
-            if parts[1].startswith("E") and len(parts) >= 4:
-                elem_prefix = parts[1]
-                process_id = int(parts[2])
-            else:
-                elem_prefix = None
-                process_id = int(parts[1])
+        key = _parse_tc_group_key(tc_name)
+        if key is not None:
+            tc_groups.setdefault(key, {})[tc_name] = value
 
-            key = (elem_prefix, process_id)
-            if key not in tc_groups:
-                tc_groups[key] = {}
-            tc_groups[key][tc_name] = value
-        except (ValueError, IndexError):
-            continue
-
-    # Normalize each group if it covers all outgoing flows
     for (elem_prefix, process_id), group in tc_groups.items():
         if len(group) < 2:
             continue  # Single TC — nothing to normalize
@@ -308,9 +407,71 @@ def normalize_tc_updates(tc_updates, mfa_system):
         n_outgoing = sum(
             1 for f in mfa_system.FlowDict.values() if f.P_Start == process_id
         )
+        if len(group) < n_outgoing:
+            continue  # Not all flows covered — skip normalization
 
-        if len(group) >= n_outgoing:
-            # All outgoing flows are covered — normalize to sum to 1.0
+        # Check if bounds are available for all TCs in this group
+        bounds = {}
+        if uncertainty_params:
+            all_have_bounds = True
+            for tc_name in group:
+                defn = uncertainty_params.get(tc_name, {})
+                tc_min = defn.get("min")
+                tc_max = defn.get("max")
+                if tc_min is not None and tc_max is not None:
+                    bounds[tc_name] = (tc_min, tc_max)
+                else:
+                    all_have_bounds = False
+                    break
+            if not all_have_bounds:
+                bounds = {}
+
+        if not bounds:
+            # No bounds available — proportional normalization only
+            total = sum(group.values())
+            if total > 0:
+                for tc_name in group:
+                    tc_updates[tc_name] = group[tc_name] / total
+            continue
+
+        # --- Rejection sampling with bounds ---
+        accepted = False
+        for attempt in range(max_retries):
+            if attempt == 0:
+                # First try: normalize the already-sampled values
+                candidate = dict(group)
+            else:
+                # Resample just the TCs in this group from their distributions
+                tc_subset = {
+                    tc_name: uncertainty_params[tc_name] for tc_name in group
+                }
+                candidate = sample_parameters(tc_subset)
+
+            total = sum(candidate.values())
+            if total <= 0:
+                continue
+            normalized = {k: v / total for k, v in candidate.items()}
+
+            # Check if all normalized values are within bounds
+            within_bounds = all(
+                bounds[tc_name][0] <= normalized[tc_name] <= bounds[tc_name][1]
+                for tc_name in normalized
+            )
+
+            if within_bounds:
+                accepted = True
+                for tc_name, value in normalized.items():
+                    tc_updates[tc_name] = value
+                break
+
+        if not accepted:
+            # Fallback to proportional normalization of original samples
+            elem_label = f" [{elem_prefix}]" if elem_prefix else ""
+            print(
+                f"   [MC] Rejection sampling failed after {max_retries} attempts "
+                f"for process {process_id}{elem_label}. "
+                f"Using proportional normalization (values may exceed defined bounds)."
+            )
             total = sum(group.values())
             if total > 0:
                 for tc_name in group:
@@ -365,11 +526,6 @@ def _run_single_mc_iteration(
     sampled_params = sample_parameters(uncertainty_params)
     tc_updates = sampled_params.copy()
 
-    # Log all sampled values for this iteration
-    print(f"\n   --- Iteration {iteration_num} sampled values ---")
-    for param, value in sampled_params.items():
-        print(f"   {param} = {value:.6f}")
-
     # --- 3b. Apply DSM parameter updates ---
     updated_dsm_params = apply_dsm_parameter_updates(dsm_params, sampled_params)
 
@@ -389,7 +545,22 @@ def _run_single_mc_iteration(
                     tc_updates[sibling_tc] = sample_value
 
     # --- 3d. Normalize TCs per process to maintain mass balance ---
-    normalize_tc_updates(tc_updates, mfa_system_setup)
+    # Pass uncertainty_params to enable rejection sampling with bounds checking
+    normalize_tc_updates(tc_updates, mfa_system_setup,
+                         uncertainty_params=uncertainty_params)
+
+    # Log sampled values for the first 3 iterations only (to verify without flooding)
+    if iteration_num <= 3:
+        print(f"\n   --- Iteration {iteration_num} sampled values (post-normalization) ---")
+        for param, value in sampled_params.items():
+            if param.startswith("TC_"):
+                normalized_val = tc_updates.get(param, value)
+                if abs(normalized_val - value) > 1e-8:
+                    print(f"   {param} = {value:.6f} -> {normalized_val:.6f} (normalized)")
+                else:
+                    print(f"   {param} = {value:.6f}")
+            else:
+                print(f"   {param} = {value:.6f}")
 
     # --- 3e. Run Solver ---
     mfa_system_run, _ = solver.run_mfa_calculation(
@@ -414,44 +585,68 @@ def _run_single_mc_iteration(
                 :, i_elem
             ].tolist()
 
-    # --- 3g. System-level mass balance check ---
-    # Boundary processes are labeled "Input" and/or "Output".
-    # In many ODYM systems, the environment (process 0) is labeled "Input"
-    # and serves as both source and sink — flows FROM it are system inputs,
-    # flows TO it are system outputs.
+    # --- 3g. Per-process mass balance check ---
+    # Uses S-based stock changes (S[t] - S[t-1]) instead of dS from StockDict.
+    # The solver's calculate_final_balances overwrites dS = inflow - outflow for
+    # every process, making any dS-based check tautologically zero.
+    # Using the actual S trajectory preserves the DSM model's independent stock
+    # calculation, enabling detection of real mass balance discrepancies.
     boundary_processes = {
         pid for pid, logic in process_logic_map.items()
         if logic in ("Input", "Output")
     }
 
     n_elements = len(mfa_system_run.Elements)
-    total_input = np.zeros(n_elements)
-    total_output = np.zeros(n_elements)
+    num_years = len(mfa_system_run.IndexTable.Classification["Time"].Items)
+
+    # Build per-process inflow/outflow sums (dict-based)
+    process_inflows = {}
+    process_outflows = {}
     for flow in mfa_system_run.FlowDict.values():
-        if flow.P_Start in boundary_processes:
-            total_input += flow.Values.sum(axis=0)
-        if flow.P_End in boundary_processes:
-            total_output += flow.Values.sum(axis=0)
+        if flow.P_End not in process_inflows:
+            process_inflows[flow.P_End] = np.zeros((num_years, n_elements))
+        process_inflows[flow.P_End] += flow.Values
+        if flow.P_Start not in process_outflows:
+            process_outflows[flow.P_Start] = np.zeros((num_years, n_elements))
+        process_outflows[flow.P_Start] += flow.Values
 
-    # Only count internal process stocks — boundary process stocks (dS_0, dS_1)
-    # would double-count the input/output already measured above.
-    net_stock_change = np.zeros(n_elements)
-    for stock in mfa_system_run.StockDict.values():
-        if stock.Name.startswith("dS_"):
-            pid = int(stock.Name.split("_")[1])
-            if pid not in boundary_processes:
-                net_stock_change += stock.Values.sum(axis=0)
+    # Track total system input (outflows from boundary processes = system inputs)
+    total_input = np.zeros(n_elements)
+    for pid in boundary_processes:
+        if pid in process_outflows:
+            total_input += process_outflows[pid].sum(axis=0)
 
-    mb_error = total_input - total_output - net_stock_change
+    # Per-process balance: error_p = inflow_p - outflow_p - delta_S_p
+    # where delta_S is derived from actual S values, not from solver-overwritten dS
+    total_abs_error = np.zeros(n_elements)
+    for p in mfa_system_run.ProcessList:
+        if p.ID in boundary_processes:
+            continue
+
+        inflow = process_inflows.get(p.ID, np.zeros((num_years, n_elements)))
+        outflow = process_outflows.get(p.ID, np.zeros((num_years, n_elements)))
+
+        # Derive stock change from actual S trajectory (not dS)
+        s_stock = mfa_system_run.StockDict.get(f"S_{p.ID}")
+        if s_stock is not None:
+            S = s_stock.Values  # (num_years, n_elements)
+            # delta_S[t] = S[t] - S[t-1], skipping year 0 (initial stock ambiguity)
+            delta_S_from_S = np.diff(S, axis=0)  # (num_years-1, n_elements)
+            process_error = inflow[1:] - outflow[1:] - delta_S_from_S
+        else:
+            # No stock entry: full check with delta_S = 0
+            process_error = inflow - outflow
+
+        total_abs_error += np.abs(process_error).sum(axis=0)
 
     # Store per-element errors for detailed reporting
     for i_elem, element_name in enumerate(mfa_system_run.Elements):
-        iteration_results[f"mb_error_{element_name}"] = mb_error[i_elem]
+        iteration_results[f"mb_error_{element_name}"] = total_abs_error[i_elem]
         iteration_results[f"mb_input_{element_name}"] = total_input[i_elem]
 
-    iteration_results["mass_balance_error_abs"] = np.abs(mb_error).sum()
+    iteration_results["mass_balance_error_abs"] = total_abs_error.sum()
     iteration_results["mass_balance_error_rel"] = (
-        np.abs(mb_error).sum() / max(total_input.sum(), 1e-10)
+        total_abs_error.sum() / max(total_input.sum(), 1e-10)
     )
 
     return iteration_results
@@ -558,7 +753,7 @@ def generate_mc_setup_report(
 
     # 3. Validation and Warnings
     report_lines.append("\n3. VALIDATION AND WARNINGS:")
-    _, warnings = validate_mc_parameters(mc_params_df, mfa_system)
+    _, warnings = validate_mc_parameters(mc_params_df, mfa_system, uncertainty_params)
     if not warnings:
         report_lines.append("   No validation warnings. ✅")
     else:
@@ -641,8 +836,11 @@ def run_mc_simulation(
     results_list = []
     print(f"[MC] Using {len(uncertainty_params)} validated parameters...")
 
+    # Scale progress reporting: ~20 progress updates total
+    progress_interval = max(1, n_iterations // 20)
+
     for i in range(n_iterations):
-        if (i + 1) % 10 == 0:
+        if (i + 1) % progress_interval == 0 or (i + 1) == n_iterations:
             print(f"  ... iteration {i + 1}/{n_iterations}")
 
         iteration_results = _run_single_mc_iteration(
