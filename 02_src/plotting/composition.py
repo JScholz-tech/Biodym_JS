@@ -362,7 +362,7 @@ def plot_flow_composition(
                         yref="paper",
                         text="100%",
                         showarrow=False,
-                        font=dict(size=10, color=BIOYM_COLORS["dark"]),
+                        font=dict(size=14, color=BIOYM_COLORS["dark"]),
                     )
                 ],
             )

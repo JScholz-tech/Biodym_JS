@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 from ipywidgets import Dropdown, VBox, SelectMultiple, HTML, HBox
 from IPython.display import display
 
-from .publication_style import (
+from .publication_style_simplified import (
     get_publication_layout,
     get_element_color,
     create_color_sequence,

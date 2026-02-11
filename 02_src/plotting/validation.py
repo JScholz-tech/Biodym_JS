@@ -170,7 +170,7 @@ def plot_optimized_mass_balance_error(
                     x=0.5,
                     y=-0.15,
                     showarrow=False,
-                    font=dict(size=10, color=BIOYM_COLORS["neutral"]),
+                    font=dict(size=14, color=BIOYM_COLORS["neutral"]),
                     xanchor="center",
                 )
             ]
@@ -386,8 +386,8 @@ def plot_total_mass_balance_error(
     )
     layout_config["barmode"] = "stack"
     layout_config["legend"] = {
-        "title": {"text": "Element", "font": {"size": 12}},
-        "font": {"size": 10},
+        "title": {"text": "Element", "font": {"size": 16}},
+        "font": {"size": 14},
         "bgcolor": "rgba(255,255,255,0.8)",
         "bordercolor": BIOYM_COLORS["neutral"],
         "borderwidth": 1,
@@ -407,7 +407,7 @@ def plot_total_mass_balance_error(
             x=0.5,
             y=-0.15,
             showarrow=False,
-            font=dict(size=10, color=BIOYM_COLORS["neutral"]),
+            font=dict(size=14, color=BIOYM_COLORS["neutral"]),
             xanchor="center",
         )
     ]

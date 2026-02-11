@@ -12,7 +12,7 @@ import plotly.express as px
 from ipywidgets import Dropdown, VBox, HBox
 from IPython.display import display
 
-from .publication_style import get_publication_layout, get_element_color, BIOYM_COLORS
+from .publication_style_simplified import get_publication_layout, get_element_color, BIOYM_COLORS
 
 
 def plot_interactive_mc_histogram(mc_results_df, mfa_system_results=None):
@@ -155,7 +155,7 @@ def plot_interactive_mc_histogram(mc_results_df, mfa_system_results=None):
                 yref="paper",
                 text=f"Mean: {mean_val:.2e}<br>Std: {std_val:.2e}",
                 showarrow=False,
-                font=dict(color=BIOYM_COLORS["dark"], size=11),
+                font=dict(color=BIOYM_COLORS["dark"], size=15),
                 bgcolor="rgba(255, 255, 255, 0.9)",
                 bordercolor=BIOYM_COLORS["dark"],
                 borderwidth=1,
@@ -649,7 +649,7 @@ def plot_interactive_mc_multiple_histograms(mc_results_df, mfa_system_results=No
             yref="paper",
             text=f"Mean: {mean_val:.2e}<br>Std: {std_val:.2e}",
             showarrow=False,
-            font=dict(color=BIOYM_COLORS["dark"], size=11),
+            font=dict(color=BIOYM_COLORS["dark"], size=15),
             bgcolor="rgba(255, 255, 255, 0.8)",
             bordercolor=BIOYM_COLORS["dark"],
             borderwidth=1,

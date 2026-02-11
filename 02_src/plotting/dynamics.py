@@ -177,7 +177,7 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
                     xref="paper",
                     yref="paper",
                     showarrow=False,
-                    font=dict(size=14),
+                    font=dict(size=18),
                 ),
                 dict(
                     text="Stock Evolution",
@@ -186,7 +186,7 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
                     xref="paper",
                     yref="paper",
                     showarrow=False,
-                    font=dict(size=14),
+                    font=dict(size=18),
                 ),
                 dict(
                     text="Output Flows",
@@ -195,7 +195,7 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
                     xref="paper",
                     yref="paper",
                     showarrow=False,
-                    font=dict(size=14),
+                    font=dict(size=18),
                 ),
             ]
         )

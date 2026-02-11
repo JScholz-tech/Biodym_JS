@@ -83,13 +83,13 @@ STATUS_COLORS = {
 # Font Settings
 FONT_FAMILY = "Arial, sans-serif"  # Professional, readable font
 FONT_SIZE = {
-    "title": 16,
-    "subtitle": 14,
-    "axis_title": 12,
-    "axis_labels": 10,
-    "legend": 10,
-    "annotation": 9,
-    "tick": 9,
+    "title": 20,
+    "subtitle": 18,
+    "axis_title": 16,
+    "axis_labels": 14,
+    "legend": 14,
+    "annotation": 13,
+    "tick": 13,
 }
 
 # =============================================================================

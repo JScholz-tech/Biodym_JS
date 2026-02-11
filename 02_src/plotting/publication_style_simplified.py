@@ -55,7 +55,7 @@ STOCK_COLORS = {
 
 # Font Settings
 FONT_FAMILY = "Arial, sans-serif"
-FONT_SIZE = {"title": 16, "axis_title": 12, "axis_labels": 10, "legend": 10, "tick": 9}
+FONT_SIZE = {"title": 20, "axis_title": 16, "axis_labels": 14, "legend": 14, "tick": 13}
 
 # Standard Figure Sizes (in pixels)
 FIGURE_SIZES = {
