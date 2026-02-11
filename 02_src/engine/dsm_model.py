@@ -520,11 +520,19 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
     total_stock_ts = sum(stock_from_inflows_by_cat) + decaying_stock_ts[:, 0]
     mfa_system.StockDict[f"S_{process_id}"].Values[:, 0] = total_stock_ts
 
-    # For other elements, combine proportionally
+    # For other elements, use cumulative inflow-weighted composition ratio.
+    # This ensures the stock composition reflects the average of all historical
+    # inflows, and remains stable when inflow stops (instead of dropping to zero).
+    cum_inflow_material = np.cumsum(total_inflow_values[:, 0])
     for elem_idx in range(1, num_elements):
-        elem_stock = sum([s for s in stock_from_inflows_by_cat]) * (
-            total_inflow_values[:, elem_idx] / (total_inflow_values[:, 0] + 1e-10)
+        cum_inflow_elem = np.cumsum(total_inflow_values[:, elem_idx])
+        elem_ratio = np.divide(
+            cum_inflow_elem,
+            cum_inflow_material,
+            out=np.zeros(num_years),
+            where=cum_inflow_material > 0,
         )
+        elem_stock = sum(stock_from_inflows_by_cat) * elem_ratio
         elem_stock += decaying_stock_ts[:, elem_idx]
         mfa_system.StockDict[f"S_{process_id}"].Values[:, elem_idx] = elem_stock
 
