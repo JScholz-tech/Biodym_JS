@@ -1,0 +1,156 @@
+\documentclass[11pt,a4paper,twoside]{report}
+
+% --- Geometry ---
+\usepackage[margin=2.5cm, bindingoffset=0.5cm, headheight=14pt]{geometry}
+
+% --- Encoding & Fonts ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+
+% --- Language ---
+\usepackage[english]{babel}
+
+% --- Colors ---
+\usepackage[table]{xcolor}
+\definecolor{biodym-blue}{HTML}{2E86AB}
+\definecolor{biodym-pink}{HTML}{A23B72}
+\definecolor{biodym-orange}{HTML}{F18F01}
+\definecolor{biodym-gray}{HTML}{6C757D}
+\definecolor{biodym-light}{HTML}{F8F9FA}
+\definecolor{code-bg}{HTML}{F5F5F5}
+\definecolor{tip-bg}{HTML}{E8F5E9}
+\definecolor{warn-bg}{HTML}{FFF8E1}
+\definecolor{note-bg}{HTML}{E3F2FD}
+
+% --- Graphics ---
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+
+% --- Tables ---
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+% --- Code Listings ---
+\usepackage{listings}
+\lstset{
+  backgroundcolor=\color{code-bg},
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  framerule=0.4pt,
+  rulecolor=\color{biodym-gray},
+  numbers=none,
+  tabsize=2,
+  showstringspaces=false,
+  captionpos=b,
+  aboveskip=8pt,
+  belowskip=8pt,
+}
+\lstdefinestyle{python}{
+  language=Python,
+  keywordstyle=\color{biodym-blue}\bfseries,
+  stringstyle=\color{biodym-pink},
+  commentstyle=\color{biodym-gray}\itshape,
+}
+\lstdefinestyle{excel}{
+  basicstyle=\ttfamily\small,
+  columns=flexible,
+}
+\lstdefinestyle{bash}{
+  language=bash,
+  keywordstyle=\color{biodym-blue},
+  morekeywords={uv,jupyter,python,pytest},
+}
+
+% --- Boxes (tips, warnings, notes) ---
+\usepackage[most]{tcolorbox}
+\newtcolorbox{tipbox}[1][]{
+  colback=tip-bg, colframe=green!60!black,
+  fonttitle=\bfseries, title=Tip, #1
+}
+\newtcolorbox{warnbox}[1][]{
+  colback=warn-bg, colframe=orange!80!black,
+  fonttitle=\bfseries, title=Warning, #1
+}
+\newtcolorbox{notebox}[1][]{
+  colback=note-bg, colframe=biodym-blue,
+  fonttitle=\bfseries, title=Note, #1
+}
+
+% --- Headers & Footers ---
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE]{\leftmark}
+\fancyhead[RO]{\rightmark}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% --- Hyperlinks ---
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=biodym-blue,
+  urlcolor=biodym-pink,
+  citecolor=biodym-blue,
+  pdftitle={BioDYM User Manual},
+  pdfauthor={BioDYM Development Team},
+  pdfsubject={Material Flow Analysis},
+}
+
+% --- Math ---
+\usepackage{amsmath}
+
+% --- Misc ---
+\usepackage{enumitem}
+\usepackage{parskip}
+
+% ============================================================================
+\begin{document}
+
+% --- Title Page ---
+\begin{titlepage}
+\centering
+\vspace*{3cm}
+{\Huge\bfseries\color{biodym-blue} BioDYM\\[0.3cm] User Manual\par}
+\vspace{1cm}
+{\Large Material Flow Analysis with Dynamic Stock\\and Decay Modeling\par}
+\vspace{2cm}
+{\large Version 1.0\par}
+\vspace{0.5cm}
+{\large February 2026\par}
+\vspace{3cm}
+{\normalsize Built on the ODYM Framework\par}
+\vfill
+{\small BioDYM Development Team}
+\end{titlepage}
+
+% --- Table of Contents ---
+\tableofcontents
+\clearpage
+
+% --- Chapters ---
+\include{chapters/01_introduction}
+\include{chapters/02_installation}
+\include{chapters/03_workflow}
+\include{chapters/04_excel}
+\include{chapters/05_calculation}
+\include{chapters/06_visualization}
+\include{chapters/07_dsm}
+\include{chapters/08_fomp}
+\include{chapters/09_montecarlo}
+\include{chapters/10_scenarios}
+\include{chapters/11_export}
+
+% --- Appendices ---
+\appendix
+\include{appendices/A_distributions}
+\include{appendices/B_excel_reference}
+\include{appendices/C_troubleshooting}
+
+\end{document}

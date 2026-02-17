@@ -1,0 +1,97 @@
+\chapter{Dynamic Stock Model (DSM)}
+\label{ch:dsm}
+
+\section{Concept}
+
+The Dynamic Stock Model tracks material that enters a process and remains in stock for a defined lifetime before leaving as outflow. It uses \emph{cohort-based tracking}: each year's inflow is a separate cohort that decays according to a lifetime distribution.
+
+\begin{equation}
+  S(t) = \sum_{\tau=0}^{t} I(\tau) \cdot \left[1 - F_{\text{CDF}}(t - \tau)\right]
+\end{equation}
+
+where $S(t)$ is the stock at time $t$, $I(\tau)$ is the inflow in year $\tau$, and $F_{\text{CDF}}$ is the cumulative distribution function of the lifetime.
+
+\section{Configuration (Sheet 3\_1)}
+
+DSM parameters are defined in the \texttt{3\_1\_Definition\_DSM} sheet using a key--value format:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llp{5.5cm}}
+\toprule
+\textbf{Parameter} & \textbf{Example} & \textbf{Description} \\
+\midrule
+\texttt{Process\_ID} & 7 & Process to apply DSM to \\
+\texttt{DSM\_Inflow\_Split\_Cat\_1} & 0.6 & 60\% of inflow to Category 1 \\
+\texttt{DSM\_Inflow\_Split\_Cat\_2} & 0.4 & 40\% of inflow to Category 2 \\
+\texttt{DSM\_Lifetime\_Type\_Cat\_1} & Normal & Distribution type for Cat. 1 \\
+\texttt{DSM\_Lifetime\_Mean\_Cat\_1} & 30 & Mean lifetime (years) \\
+\texttt{DSM\_Lifetime\_StdDev\_Cat\_1} & 5 & Standard deviation (years) \\
+\texttt{DSM\_Lifetime\_Type\_Cat\_2} & Weibull & Distribution type for Cat. 2 \\
+\texttt{DSM\_Lifetime\_Mean\_Cat\_2} & 50 & Mean lifetime (years) \\
+\texttt{DSM\_Lifetime\_Shape\_Cat\_2} & 2.5 & Weibull shape parameter \\
+\texttt{DSM\_Category\_Name\_Cat\_1} & Short-lived & Display name \\
+\texttt{DSM\_Category\_Name\_Cat\_2} & Long-lived & Display name \\
+\bottomrule
+\end{tabular}
+\caption{DSM parameter configuration.}
+\end{table}
+
+\section{Categories}
+
+DSM supports multiple categories per process. Each category receives a fraction of the total inflow (\texttt{Inflow\_Split}) and has its own lifetime distribution. This models heterogeneous products --- for example, construction wood split into short-lived (interior) and long-lived (structural) applications.
+
+\begin{notebox}
+The inflow splits must sum to 1.0 across all categories.
+\end{notebox}
+
+\section{Lifetime Distributions}
+
+Five distribution types are available:
+
+\subsection{Fixed}
+All items leave stock at exactly the mean lifetime. Parameters: \texttt{Mean}.
+
+\subsection{Normal}
+Symmetric bell curve around the mean. Parameters: \texttt{Mean}, \texttt{StdDev}.
+
+\begin{warnbox}
+If \texttt{StdDev} exceeds 80\% of \texttt{Mean}, some lifetimes become negative. Use \emph{FoldedNormal} instead.
+\end{warnbox}
+
+\subsection{FoldedNormal}
+Like Normal, but negative values are folded to positive. Eliminates the negative lifetime problem. Parameters: \texttt{Mean}, \texttt{StdDev}.
+
+\subsection{LogNormal}
+Right-skewed distribution where some items last much longer than average. Always positive. Parameters: \texttt{Mean}, \texttt{StdDev} (of the lognormal curve, not of $\ln$).
+
+\subsection{Weibull}
+Flexible distribution controlled by the \texttt{Shape} parameter:
+\begin{itemize}
+  \item Shape $< 1$: Decreasing failure rate (infant mortality)
+  \item Shape $= 1$: Constant failure rate (exponential decay)
+  \item Shape $> 1$: Increasing failure rate (wear-out failures)
+  \item Shape $\approx 3.6$: Approximates a normal distribution
+\end{itemize}
+Parameters: \texttt{Mean}, \texttt{Shape}.
+
+See Appendix~\ref{ch:distributions} for the complete mathematical reference.
+
+\section{DSM Outflow Distribution}
+
+Outflows from DSM processes are distributed to downstream flows using the standard TC system. This means DSM outflow splits can be:
+\begin{itemize}
+  \item Static (constant fractions)
+  \item Dynamic (time-varying, from \texttt{2\_3\_dynamic\_TCs})
+  \item Subject to Monte Carlo sampling
+\end{itemize}
+
+\section{Initial Stock}
+
+DSM processes can start with an existing stock that decays over time. Two methods are available:
+\begin{itemize}
+  \item \textbf{Exponential decay}: Simple decay based on mean lifetime
+  \item \textbf{ODYM age-cohort}: Rigorous method that reconstructs the age distribution of the initial stock
+\end{itemize}
+
+Configure via \texttt{Stock\_Configuration} in the process definition sheet.

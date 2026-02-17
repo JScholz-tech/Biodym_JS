@@ -1,0 +1,78 @@
+\chapter{First-Order Multi-Pool (FOMP)}
+\label{ch:fomp}
+
+\section{Concept}
+
+The First-Order Multi-Pool model simulates organic matter decomposition using two pools with different decay rates:
+
+\begin{itemize}
+  \item \textbf{Labile pool} --- Easily degradable fraction, fast decay ($k_{\text{labile}} \approx 0.1$--$1.0$/year)
+  \item \textbf{Recalcitrant pool} --- Resistant fraction, slow decay ($k_{\text{recalcitrant}} \approx 0.01$--$0.05$/year)
+\end{itemize}
+
+Each pool follows first-order kinetics:
+
+\begin{equation}
+  \frac{dS_i}{dt} = I_i(t) - k_i \cdot S_i(t)
+\end{equation}
+
+where $S_i$ is the stock in pool $i$, $I_i$ is the inflow to pool $i$, and $k_i$ is the decay rate constant.
+
+The analytical solution for each time step is:
+
+\begin{equation}
+  \text{Decay}_i(t) = S_i(t) \cdot \left(1 - e^{-k_i}\right)
+\end{equation}
+
+\section{Configuration (Sheet 3\_2)}
+
+FOMP parameters are defined in the \texttt{3\_2\_Definition\_FOMP} sheet:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llp{5.5cm}}
+\toprule
+\textbf{Parameter} & \textbf{Example} & \textbf{Description} \\
+\midrule
+\texttt{Process\_ID} & 4 & Process to apply FOMP to \\
+\texttt{f\_labile} & 0.7 & Fraction of inflow to labile pool \\
+\texttt{k\_labile} & 0.5 & Labile decay rate (1/year) \\
+\texttt{k\_recalcitrant} & 0.025 & Recalcitrant decay rate (1/year) \\
+\texttt{outflow\_id} & F\_04\_00\_CO2 & Carbon outflow (mineralization) \\
+\texttt{outflow\_id\_2} & F\_04\_00\_env & Environmental outflow (non-carbon) \\
+\bottomrule
+\end{tabular}
+\caption{FOMP parameter configuration.}
+\end{table}
+
+\begin{notebox}
+The recalcitrant fraction is automatically calculated as $f_{\text{recalcitrant}} = 1 - f_{\text{labile}}$.
+\end{notebox}
+
+\section{Element Handling}
+
+FOMP processes handle elements differently based on their nature:
+
+\begin{description}
+  \item[Carbon outflow] Contains the mineralized carbon mass. Elements: material~$=$~DM~$=$~CC~$=$~carbon mass.
+  \item[Environmental outflow] Contains the non-carbon dry matter and bypassed water. Elements calculated as:
+  \begin{itemize}
+    \item WC = water content of inflow (bypasses decay)
+    \item DM = non-carbon dry matter decay
+    \item CC = 0 (all carbon goes to carbon outflow)
+  \end{itemize}
+\end{description}
+
+\section{Use Cases}
+
+FOMP is appropriate for modeling:
+\begin{itemize}
+  \item Composting processes (labile fraction decays in weeks, recalcitrant in years)
+  \item Soil organic matter turnover
+  \item Anaerobic digestion (with adjusted rate constants)
+  \item Landfill degradation (very slow recalcitrant decay)
+\end{itemize}
+
+\begin{warnbox}
+FOMP uses a time-averaged CC/DM ratio as a constant for element calculations. This approximation can cause a small mass balance error ($\sim$2\%) for the CC element. This is a known modeling limitation, not a bug.
+\end{warnbox}

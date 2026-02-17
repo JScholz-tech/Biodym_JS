@@ -1,0 +1,77 @@
+\chapter{Scenario Analysis}
+\label{ch:scenarios}
+
+\section{Concept}
+
+The scenario engine allows comparing different ``what-if'' situations against a baseline. Each scenario defines a set of parameter modifications that are applied before re-running the solver. All scenarios share the same system structure --- only parameter values change.
+
+\section{Configuration (Sheet 5\_1)}
+
+Scenarios are defined in the \texttt{5\_1\_Scenario\_Definitions} sheet:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lllllll}
+\toprule
+\textbf{Scenario} & \textbf{Parameter} & \textbf{Type} & \textbf{Value} & \textbf{Start} & \textbf{End} \\
+\midrule
+Scenario\_A & TC\_05\_06 & multiply & 1.2 & 2030 & 2050 \\
+Scenario\_A & F\_00\_01 & add & 200 & 2025 & 2040 \\
+Scenario\_B & TC\_05\_06 & set & 0.9 & 2030 & 2050 \\
+\bottomrule
+\end{tabular}
+\caption{Scenario definition example.}
+\end{table}
+
+\subsection{Modification Types}
+
+\begin{description}
+  \item[set] Replace the parameter with a fixed value
+  \item[multiply] Multiply the current value by a factor
+  \item[add] Add a value to the current parameter
+\end{description}
+
+\subsection{Time Range}
+
+Each modification specifies a \texttt{Start\_Year} and \texttt{End\_Year}. The modification is only applied within this range. Outside the range, the baseline value is used.
+
+\section{Supported Parameters}
+
+The scenario engine auto-detects the parameter type from the naming pattern:
+
+\begin{itemize}
+  \item \textbf{Transfer coefficients} --- Names starting with \texttt{TC\_}
+  \item \textbf{Flow data} --- Names starting with \texttt{F\_}
+  \item \textbf{DSM parameters} --- Names containing \texttt{DSM\_}
+  \item \textbf{FOMP parameters} --- Names containing \texttt{FOMP\_}
+\end{itemize}
+
+\section{Running Scenarios}
+
+\begin{lstlisting}[style=python]
+all_scenario_results = run_all_scenarios(
+    mfa_system_configured=mfa_system,
+    scenario_definitions=scenario_definitions,
+    process_logic_map=process_logic_map,
+    flow_tc_map=flow_tc_map,
+    dsm_params_config=dsm_params,
+    fomp_params_config=fomp_params,
+)
+\end{lstlisting}
+
+Each scenario creates a deep copy of the baseline system, applies modifications, and re-runs the solver. Results are stored per scenario for comparison.
+
+\section{Comparison Plots}
+
+The scenario comparison visualization provides:
+\begin{itemize}
+  \item \textbf{Flow dynamics} --- Baseline vs.\ scenario flows over time
+  \item \textbf{Stock dynamics} --- Baseline vs.\ scenario stocks over time
+  \item Multi-scenario selection (compare 2+ scenarios simultaneously)
+  \item Element selector (view any tracked element)
+\end{itemize}
+
+\begin{tipbox}
+Use scenarios to evaluate policy options (e.g., increased recycling rates), technology changes (e.g., new processing efficiency), or demand projections (e.g., reduced input flows).
+\end{tipbox}

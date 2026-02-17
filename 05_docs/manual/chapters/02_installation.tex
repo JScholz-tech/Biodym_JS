@@ -1,0 +1,73 @@
+\chapter{Installation \& Setup}
+\label{ch:installation}
+
+\section{Requirements}
+
+\begin{itemize}
+  \item Python 3.13 or later
+  \item \texttt{uv} package manager (\url{https://docs.astral.sh/uv/})
+  \item Git (for cloning the repository)
+  \item Microsoft Excel or LibreOffice Calc (for editing input files)
+\end{itemize}
+
+\section{Installation}
+
+\begin{enumerate}
+  \item \textbf{Clone the repository:}
+\begin{lstlisting}[style=bash]
+git clone https://github.com/JScholz-tech/Biodym_JS.git
+cd Biodym_JS
+\end{lstlisting}
+
+  \item \textbf{Install dependencies with uv:}
+\begin{lstlisting}[style=bash]
+uv sync
+\end{lstlisting}
+
+This creates a virtual environment in \texttt{.venv/} and installs all dependencies from \texttt{pyproject.toml}.
+
+  \item \textbf{Verify the installation:}
+\begin{lstlisting}[style=bash]
+uv run python -m pytest 04_tests/ -v
+\end{lstlisting}
+
+All tests should pass. If any fail, check the Troubleshooting appendix (Appendix~\ref{ch:troubleshooting}).
+\end{enumerate}
+
+\section{Starting Jupyter}
+
+BioDYM is operated through a Jupyter notebook:
+
+\begin{lstlisting}[style=bash]
+uv run jupyter lab
+\end{lstlisting}
+
+Then open \texttt{00\_BioDYM\_Workflow.ipynb} in the browser. This is the main user interface.
+
+\begin{tipbox}
+The notebook is paired with a Python script \texttt{00\_BioDYM\_Workflow.py} via Jupytext. If you edit the \texttt{.py} file, synchronize with:
+\begin{lstlisting}[style=bash]
+jupytext --to notebook 00_BioDYM_Workflow.py
+\end{lstlisting}
+\end{tipbox}
+
+\section{Project Structure}
+
+\begin{lstlisting}
+bioDYM-CERT-edit-main/
+  00_BioDYM_Workflow.ipynb    Main notebook (user interface)
+  00_BioDYM_Workflow.py       Paired Python source (Jupytext)
+  01_data/
+    01_input/                 Excel input files
+    02_output/                Calculation results, exports
+  02_src/
+    engine/                   Solver, DSM, FOMP, MC engines
+    plotting/                 All visualization modules
+    system_setup.py           Model initialization
+    data_loader.py            Excel data loading
+    utils.py                  Export and helper functions
+  03_studies/                 Case study configurations
+  04_tests/                   Automated test suite
+  05_docs/                    Documentation
+  06_framework/               ODYM base framework
+\end{lstlisting}

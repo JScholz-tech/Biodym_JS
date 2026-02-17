@@ -1,0 +1,126 @@
+\chapter{Distribution Functions Reference}
+\label{ch:distributions}
+
+This appendix provides the mathematical details for all distribution functions used in BioDYM.
+
+\section{DSM Lifetime Distributions}
+
+These distributions define how long material stays in stock before outflow.
+
+\subsection{Fixed}
+
+All items leave at exactly the mean lifetime.
+
+\begin{equation}
+  f(t) = \delta(t - \mu) \qquad F(t) = \begin{cases} 0 & t < \mu \\ 1 & t \geq \mu \end{cases}
+\end{equation}
+
+Parameters: \texttt{Mean} ($\mu$).
+
+\subsection{Normal}
+
+\begin{equation}
+  f(t) = \frac{1}{\sigma\sqrt{2\pi}} \exp\left(-\frac{(t-\mu)^2}{2\sigma^2}\right)
+\end{equation}
+
+Parameters: \texttt{Mean} ($\mu$), \texttt{StdDev} ($\sigma$).
+
+Use when lifetime variation is symmetric. Warning: produces negative lifetimes when $\sigma > 0.8\mu$.
+
+\subsection{FoldedNormal}
+
+\begin{equation}
+  f(t) = \frac{1}{\sigma\sqrt{2\pi}} \left[\exp\left(-\frac{(t-\mu)^2}{2\sigma^2}\right) + \exp\left(-\frac{(t+\mu)^2}{2\sigma^2}\right)\right], \quad t \geq 0
+\end{equation}
+
+Parameters: \texttt{Mean} ($\mu$, before folding), \texttt{StdDev} ($\sigma$, before folding).
+
+Eliminates negative lifetimes by folding the left tail onto the positive domain.
+
+\subsection{LogNormal}
+
+\begin{equation}
+  f(t) = \frac{1}{t \cdot \sigma_{\ln} \sqrt{2\pi}} \exp\left(-\frac{(\ln t - \mu_{\ln})^2}{2\sigma_{\ln}^2}\right), \quad t > 0
+\end{equation}
+
+where $\mu_{\ln}$ and $\sigma_{\ln}$ are derived from the user-provided Mean and StdDev:
+
+\begin{equation}
+  \sigma_{\ln}^2 = \ln\left(1 + \frac{\sigma^2}{\mu^2}\right), \qquad
+  \mu_{\ln} = \ln(\mu) - \frac{\sigma_{\ln}^2}{2}
+\end{equation}
+
+Parameters: \texttt{Mean} ($\mu$), \texttt{StdDev} ($\sigma$) of the lognormal curve (not of $\ln t$).
+
+Right-skewed; always positive. Use for electronics, machinery, vehicles.
+
+\subsection{Weibull}
+
+\begin{equation}
+  f(t) = \frac{k}{\lambda}\left(\frac{t}{\lambda}\right)^{k-1} \exp\left(-\left(\frac{t}{\lambda}\right)^k\right), \quad t \geq 0
+\end{equation}
+
+where $\lambda$ (scale) is derived from the user-provided Mean:
+
+\begin{equation}
+  \lambda = \frac{\mu}{\Gamma(1 + 1/k)}
+\end{equation}
+
+Parameters: \texttt{Mean} ($\mu$), \texttt{Shape} ($k$).
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Shape ($k$)} & \textbf{Behavior} \\
+\midrule
+$k < 1$ & Decreasing failure rate (infant mortality) \\
+$k = 1$ & Constant failure rate (exponential) \\
+$k = 2$ & Linear increase (Rayleigh distribution) \\
+$k \approx 3.6$ & Approximates normal distribution \\
+$k > 5$ & Narrow, nearly fixed lifetime \\
+\bottomrule
+\end{tabular}
+\caption{Weibull shape parameter guide.}
+\end{table}
+
+\section{Monte Carlo Sampling Distributions}
+
+These distributions define uncertainty ranges for parameter sampling.
+
+\subsection{Normal (Bounded)}
+
+Samples from $\mathcal{N}(\mu, \sigma^2)$, optionally clipped to $[\text{Min}, \text{Max}]$.
+
+Parameters: \texttt{Mean}, \texttt{StdDev}. Optional: \texttt{Min}, \texttt{Max}.
+
+\subsection{Uniform}
+
+Samples uniformly from $[\text{Min}, \text{Max}]$:
+
+\begin{equation}
+  f(x) = \frac{1}{\text{Max} - \text{Min}}, \quad x \in [\text{Min}, \text{Max}]
+\end{equation}
+
+Parameters: \texttt{Min}, \texttt{Max}.
+
+\subsection{Triangular}
+
+Samples from a triangle with peak at Mode:
+
+\begin{equation}
+  f(x) = \begin{cases}
+    \frac{2(x - a)}{(b - a)(c - a)} & a \leq x \leq c \\[4pt]
+    \frac{2(b - x)}{(b - a)(b - c)} & c < x \leq b
+  \end{cases}
+\end{equation}
+
+where $a = \text{Min}$, $b = \text{Max}$, $c = \text{Mode}$.
+
+Parameters: \texttt{Min}, \texttt{Max}, \texttt{Mode}.
+
+\subsection{LogNormal (Bounded)}
+
+Samples from a lognormal distribution, optionally clipped. Same parameterization as the DSM LogNormal.
+
+Parameters: \texttt{Mean}, \texttt{StdDev}. Optional: \texttt{Min}, \texttt{Max}.

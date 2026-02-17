@@ -1,0 +1,59 @@
+\chapter{Results Export}
+\label{ch:export}
+
+\section{KPI Dashboard}
+
+The KPI dashboard exports key performance indicators to \texttt{01\_data/02\_output/kpi\_dashboard/system\_kpis.xlsx}:
+
+\begin{itemize}
+  \item Total system input (all elements)
+  \item Total system output (all elements)
+  \item Net stock change
+  \item Cumulative input/output totals
+  \item Per-process stock levels
+\end{itemize}
+
+\section{Results Excel Export}
+
+The full results are exported to \texttt{01\_data/02\_output/results\_scientific\_baseline.xlsx}:
+
+\begin{lstlisting}[style=python]
+export_results_to_excel(
+    mfa_system_results,
+    output_path="01_data/02_output/results_scientific_baseline.xlsx"
+)
+\end{lstlisting}
+
+The export contains:
+\begin{itemize}
+  \item \textbf{Flows sheet} --- All flow values for all elements over time
+  \item \textbf{Stocks sheet} --- Stock levels ($S$) and stock changes ($\Delta S$) per process
+  \item \textbf{Parameters sheet} --- All input parameters used in the calculation
+\end{itemize}
+
+\section{Composition Export}
+
+Element composition data is exported to \texttt{01\_data/02\_output/composition\_export/flow\_composition.xlsx}, containing the composition fractions (WC\%, DM\%, CC\%) for every flow at every time step.
+
+\section{Plot Export}
+
+Individual plots can be exported via the export button on each interactive widget, or programmatically:
+
+\begin{lstlisting}[style=python]
+# PNG at 300 DPI
+fig.write_image("plot.png", width=1200, height=800, scale=3)
+
+# PDF (vector)
+fig.write_image("plot.pdf", width=1200, height=800)
+
+# SVG (vector, editable)
+fig.write_image("plot.svg", width=1200, height=800)
+\end{lstlisting}
+
+\section{Monte Carlo Results}
+
+MC results are displayed in the notebook via interactive plots. Summary statistics (mean, std, CI) for each variable are accessible programmatically from the \texttt{mc\_results} dictionary.
+
+\section{Scenario Results}
+
+Scenario results are stored in the \texttt{all\_scenario\_results} dictionary, keyed by scenario name. Each entry contains a full solved MFA system that can be exported using the same \texttt{export\_results\_to\_excel} function.

@@ -1,0 +1,91 @@
+\chapter{The BioDYM Workflow}
+\label{ch:workflow}
+
+The BioDYM workflow is organized into four sequential steps, each corresponding to a section in the Jupyter notebook.
+
+\section{Overview}
+
+\begin{enumerate}
+  \item \textbf{Setup \& Data Loading} --- Load the Excel workbook, validate input data, initialize the MFA system
+  \item \textbf{Calculation \& Validation} --- Run the iterative solver, check mass balance, verify results
+  \item \textbf{Visualization} --- Explore results with interactive plots (Sankey, dynamics, stocks, composition)
+  \item \textbf{Export \& Advanced Analysis} --- Export results, run Monte Carlo simulation, run scenarios
+\end{enumerate}
+
+\section{Step 1: Setup \& Data Loading}
+
+The notebook begins by loading your Excel configuration file:
+
+\begin{lstlisting}[style=python]
+# Set path to your Excel input file
+input_file = "01_data/01_input/your_system.xlsm"
+
+# Load and validate
+model_scope = define_model_scope(input_file)
+mfa_system = initialize_mfa_system(model_scope)
+mfa_system = define_flows_and_parameters(mfa_system, input_file)
+\end{lstlisting}
+
+During loading, BioDYM:
+\begin{itemize}
+  \item Reads all Excel sheets and validates their structure
+  \item Creates Process, Flow, Stock, and Parameter objects
+  \item Interpolates time series data to fill gaps between defined years
+  \item Normalizes transfer coefficients so outflows sum to 100\% per process
+  \item Calculates element compositions from the defined fractions
+\end{itemize}
+
+\begin{notebox}
+If data points are only defined for certain years (e.g., 2020 and 2030), BioDYM automatically interpolates linearly for all intermediate years.
+\end{notebox}
+
+\section{Step 2: Calculation \& Validation}
+
+The MFA calculation uses an iterative solver:
+
+\begin{lstlisting}[style=python]
+mfa_system_results = run_mfa_calculation(mfa_system, ...)
+\end{lstlisting}
+
+The solver repeatedly passes through all processes until no flow values change between iterations (convergence). In each pass:
+\begin{enumerate}
+  \item For each flow, the solver checks if the source process has calculated inflows
+  \item If yes, it applies the appropriate process logic (Splitter, Transformer, DSM, FOMP)
+  \item Transfer coefficients determine how inflow is distributed to outflows
+  \item Final balances are calculated: $\Delta S = \text{inflow} - \text{outflow}$ for each process
+\end{enumerate}
+
+After calculation, the mass balance is displayed:
+
+\begin{lstlisting}
+Mass Balance Check (material):
+  Process 1 (Forestry):        Error = 0.00e+00
+  Process 2 (Processing):      Error = 0.00e+00
+  Process 3 (Use Phase):       Error = 2.13e-10
+\end{lstlisting}
+
+Errors below $10^{-6}$ are normal (floating-point precision). Larger errors indicate a configuration problem.
+
+\section{Step 3: Visualization}
+
+BioDYM provides interactive Plotly-based visualizations (see Chapter~\ref{ch:visualization} for details):
+
+\begin{itemize}
+  \item \textbf{Sankey diagram} --- Overview of all flows, filterable by element and year
+  \item \textbf{Process dynamics} --- Inflow, outflow, and stock change per process over time
+  \item \textbf{Flow dynamics} --- Time series of individual flows
+  \item \textbf{Stock analysis} --- Bar charts and time series of accumulated stocks
+  \item \textbf{Composition analysis} --- Element composition of flows and stocks
+  \item \textbf{DSM stock details} --- Per-category stock evolution for DSM processes
+\end{itemize}
+
+\section{Step 4: Export \& Advanced Analysis}
+
+Results can be exported and further analyzed:
+
+\begin{itemize}
+  \item \textbf{Excel export} --- All flows, stocks, and parameters to \texttt{.xlsx}
+  \item \textbf{KPI dashboard} --- Key performance indicators (total input, output, stock, recycling rates)
+  \item \textbf{Monte Carlo} --- Uncertainty analysis (Chapter~\ref{ch:montecarlo})
+  \item \textbf{Scenarios} --- Parameter comparison studies (Chapter~\ref{ch:scenarios})
+\end{itemize}

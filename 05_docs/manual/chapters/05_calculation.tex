@@ -1,0 +1,95 @@
+\chapter{Running the Calculation}
+\label{ch:calculation}
+
+\section{The Iterative Solver}
+
+BioDYM uses an iterative convergence solver. In each pass, it processes all flows in the system:
+
+\begin{enumerate}
+  \item Check if a flow's source process has calculated inflows available
+  \item If yes, apply the process logic (Splitter, Transformer, DSM, FOMP)
+  \item Compute outflow values using transfer coefficients
+  \item Repeat until no flow values change between passes
+\end{enumerate}
+
+This approach handles circular flows (recycling loops) naturally --- each pass propagates values further through the system until convergence.
+
+\begin{lstlisting}[style=python]
+mfa_system_results = run_mfa_calculation(
+    mfa_system,
+    dsm_params_config=dsm_params,      # Optional: DSM parameters
+    fomp_params_config=fomp_params,     # Optional: FOMP parameters
+    process_logic_map=process_logic_map,
+    flow_tc_map=flow_tc_map,
+    initial_stock_configs=initial_stock_configs,
+)
+\end{lstlisting}
+
+\section{Process Logic Details}
+
+\subsection{Splitter}
+
+Distributes the total inflow to outflows using transfer coefficients. All elements maintain their input composition:
+
+\begin{equation}
+  F_{\text{out},e} = F_{\text{in},e} \times \text{TC}_{\text{material}}
+\end{equation}
+
+where $e$ is the element index and TC is the material-level transfer coefficient.
+
+\subsection{Transformer}
+
+Like Splitter, but allows element-specific TCs. The composition of the outflow can differ from the inflow:
+
+\begin{equation}
+  F_{\text{out},e} = F_{\text{in},e} \times \text{TC}_{e}
+\end{equation}
+
+where $\text{TC}_e$ can be different for each element.
+
+\subsection{Pass-through}
+
+Passes all inflow directly to a single outflow without modification:
+
+\begin{equation}
+  F_{\text{out}} = F_{\text{in}}
+\end{equation}
+
+\section{Final Balances}
+
+After convergence, the solver calculates the stock change for every process:
+
+\begin{equation}
+  \Delta S_p = \sum F_{\text{in},p} - \sum F_{\text{out},p}
+\end{equation}
+
+For DSM processes, the stock $S$ is calculated by the DSM engine (cohort tracking), and the solver preserves it. For all other processes, $\Delta S$ is the algebraic residual.
+
+\section{Mass Balance Verification}
+
+After calculation, a mass balance check is displayed for each process and element:
+
+\begin{equation}
+  \text{Balance}_p = \sum F_{\text{in},p} - \sum F_{\text{out},p} - \Delta S_p
+\end{equation}
+
+This should be zero (or very close to zero, within floating-point tolerance $\sim 10^{-10}$) for every process.
+
+\begin{warnbox}
+If you see mass balance errors larger than $10^{-3}$~Mg, check your transfer coefficients and flow definitions. Common causes:
+\begin{itemize}
+  \item TCs not summing to 1.0 for a process
+  \item Missing outflows for a process with inflows
+  \item Incorrect element composition percentages
+\end{itemize}
+\end{warnbox}
+
+\section{Element Hierarchy Recalculation}
+
+After TC application, hierarchical elements are recalculated to maintain consistency. For example, if CC is defined as a percentage of DM, the solver ensures:
+
+\begin{equation}
+  \text{CC}_{\text{out}} = \text{DM}_{\text{out}} \times \frac{\text{CC}_{\text{in}}}{\text{DM}_{\text{in}}}
+\end{equation}
+
+This prevents ``transmutation'' of elements --- each flow maintains physically consistent composition.

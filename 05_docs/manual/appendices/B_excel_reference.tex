@@ -1,0 +1,104 @@
+\chapter{Excel Sheet Quick Reference}
+\label{ch:excel-ref}
+
+\section{Sheet Summary}
+
+\begin{longtable}{L{3.5cm}L{3cm}L{6.5cm}}
+\toprule
+\textbf{Sheet} & \textbf{Key Columns} & \textbf{Notes} \\
+\midrule
+\endhead
+
+\texttt{Configuration} &
+Start\_Year, End\_Year, Elements &
+Global settings. Elements as comma-separated list. \\
+\midrule
+
+\texttt{1\_1\_Definition\_Flows} &
+Flow\_ID, Source\_Process, Target\_Process, E1\_name, E1\_value &
+One row per flow. E-columns define composition fractions. \\
+\midrule
+
+\texttt{1\_2\_Data\_Flows} &
+Flow\_ID, Year, E1\_value, Unit &
+Input flow time series. Gaps interpolated linearly. \\
+\midrule
+
+\texttt{2\_1\_Definition\_Processes} &
+ID, Name, Process\_Logic, Stock\_Configuration &
+One row per process. Logic: Input, Splitter, Transformer, Pass-through, DSM, FOMP. \\
+\midrule
+
+\texttt{2\_2\_static\_TCs} &
+TC\_ID, Value, Unit &
+Constant TCs. Must sum to 1.0 per source process. \\
+\midrule
+
+\texttt{2\_3\_dynamic\_TCs} &
+TC\_ID, Year, Value &
+Time-varying TCs. Interpolated and normalized automatically. \\
+\midrule
+
+\texttt{2\_4\_Initial\_Stock} &
+Process\_ID, Parameter\_Name, Parameter\_Value &
+Key-value pairs: Initial\_Stock\_material, Initial\_Stock\_WC[\%], Annual\_Consumption\_Rate. \\
+\midrule
+
+\texttt{3\_1\_Definition\_DSM} &
+Process\_ID, Parameter, Value &
+Key-value pairs: Inflow\_Split, Lifetime\_Type/Mean/StdDev/Shape per category. \\
+\midrule
+
+\texttt{3\_2\_Definition\_FOMP} &
+Process\_ID, Parameter, Value &
+Key-value pairs: f\_labile, k\_labile, k\_recalcitrant, outflow\_id. \\
+\midrule
+
+\texttt{4\_1\_Uncertainty\_Parameters} &
+Parameter\_Name, Distribution\_Type, Mean, StdDev, Min, Max, Mode &
+MC distributions. Types: normal, uniform, triangular, lognormal. \\
+\midrule
+
+\texttt{5\_1\_Scenario\_Definitions} &
+Scenario\_Name, Parameter\_Name, Modification\_Type, Value, Start\_Year, End\_Year &
+Modification types: set, multiply, add. \\
+
+\bottomrule
+\end{longtable}
+
+\section{Naming Conventions}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lll}
+\toprule
+\textbf{Type} & \textbf{Pattern} & \textbf{Example} \\
+\midrule
+Flow & \texttt{F\_<src>\_<dst>} or \texttt{F\_<src>\_<dst>\_<name>} & \texttt{F\_01\_02}, \texttt{F\_05\_00\_CO2} \\
+TC (standard) & \texttt{TC\_<src>\_<dst>} & \texttt{TC\_05\_06} \\
+TC (element) & \texttt{TC\_E<idx>\_<src>\_<dst>} & \texttt{TC\_E2\_05\_06} \\
+Stock & \texttt{S\_<process>} & \texttt{S\_7} \\
+Stock change & \texttt{dS\_<process>} & \texttt{dS\_7} \\
+\bottomrule
+\end{tabular}
+\caption{Naming patterns for system objects.}
+\end{table}
+
+\section{Process Logic Behavior}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{L{2.5cm}L{2.5cm}L{2.5cm}L{4cm}}
+\toprule
+\textbf{Logic} & \textbf{TC Type} & \textbf{Composition} & \textbf{Use Case} \\
+\midrule
+Input & None & Set by data & System boundary \\
+Splitter & Material TC & Preserved & Distribution without transformation \\
+Transformer & Element TCs & Changed & Chemical/physical conversion \\
+Pass-through & None & Preserved & Direct connection \\
+DSM & Material TC & Preserved & Stock with lifetime tracking \\
+FOMP & Internal & Changed & Organic matter decay \\
+\bottomrule
+\end{tabular}
+\caption{Process logic comparison.}
+\end{table}

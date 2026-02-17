@@ -32,7 +32,7 @@ FONT_WEIGHT_LABELS = "normal"  # Node label font weight: "normal", "bold"
 # Title Settings
 # Main title template - Use {element} for element name, {year} for year
 # Example: "Wood Material Flows - {element} ({year})"
-TITLE_TEMPLATE = "bioDYM -  Case Study 1: Wheat Straw - Element: {element} Year: {year}"
+TITLE_TEMPLATE = "bioDYM -  Fallstudie: Kohlenstoffkreislauf Weizenstroh - Element: {element} Jahr: {year}"
 # Element formatting in main title: "title" (Material), "upper" (MATERIAL), "lower" (material)
 TITLE_ELEMENT_FORMAT = "upper"
 
