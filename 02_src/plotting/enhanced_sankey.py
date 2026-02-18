@@ -746,7 +746,6 @@ def plot_element_multiplot_sankey(
                 node_x = [node_positions.get(p.ID, 0.5) for p in filtered_processes]
                 node_y = None
                 current_pad, current_thickness = 15, 12
-                show_axes = False
             else:  # 'Custom' mode
                 arrangement = "fixed"
                 all_positions = calculate_element_specific_positions(
@@ -790,7 +789,6 @@ def plot_element_multiplot_sankey(
                 )
                 current_pad = int(12 * zoom_factor * node_scale_factor)
                 current_thickness = int(18 * zoom_factor * node_scale_factor)
-                show_axes = True
 
             node_colors = [
                 get_process_visualization(p.ID, p.Name, config).get(

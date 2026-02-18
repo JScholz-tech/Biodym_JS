@@ -6,7 +6,6 @@ Simple, clean export functionality that just works.
 """
 
 import os
-from datetime import datetime
 
 
 def simple_export(fig, plot_name="plot", element=None, process=None):

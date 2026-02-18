@@ -107,7 +107,7 @@ def plot_multi_scenario_comparison(
     def plot_comparison(metric, item, element, chart_type, selected_scenarios):
         with fig.batch_update():
             fig.data = []
-            # Phase 1b: Handle element safely
+            # Handle element safely
             if element not in elements:
                 print(
                     f"⚠️ Element '{element}' not found in system. Available: {elements}"
@@ -316,7 +316,7 @@ def plot_scenario_flow_dynamics(
     def plot_scenario_flows(selected_flows, element, selected_scenarios):
         with fig.batch_update():
             fig.data = []
-            # Phase 1b: Handle element safely
+            # Handle element safely
             if element not in elements:
                 print(
                     f"⚠️ Element '{element}' not found in system. Available: {elements}"
@@ -325,7 +325,7 @@ def plot_scenario_flow_dynamics(
             element_index = elements.index(element)
 
             # Get element color
-            element_color = get_element_color(element)
+            get_element_color(element)
 
             # Generate distinct colors for scenarios
             scenarios_to_plot = ["Baseline"] + list(selected_scenarios)
@@ -476,7 +476,7 @@ def plot_scenario_stock_dynamics(
     def plot_scenario_stocks(selected_stocks, element, selected_scenarios):
         with fig.batch_update():
             fig.data = []
-            # Phase 1b: Handle element safely
+            # Handle element safely
             if element not in elements:
                 print(
                     f"⚠️ Element '{element}' not found in system. Available: {elements}"

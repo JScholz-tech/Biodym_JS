@@ -91,7 +91,7 @@
 #
 # ### Support
 # - **Documentation**: `05_docs/` folder
-# - **Issues**: [GitHub Issues](https://github.com/your-repo/BioDYM/issues)
+# - **Issues**: [GitHub Issues](https://github.com/TUB-bioDYM/bioDYM/issues)
 #
 # ### 🔧 Debug Mode
 # Set `DEBUG_MODE = True` below to see detailed technical output during data loading and calculation.
@@ -114,10 +114,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
-import plotly.express as px
-from plotly.subplots import make_subplots
-from IPython.display import display, HTML, Markdown
-import copy
+from IPython.display import display
 
 # Suppress openpyxl data validation warnings (harmless, caused by Excel dropdown rules)
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
@@ -209,7 +206,6 @@ print(format_header("EXTRACTING CONFIGURATION FROM EXCEL"))
 
 # Load the full dataset once. This will be passed to functions that need it.
 # NOTE: Uses decimal=',' for European standard (comma as decimal separator)
-# See 05_docs/DECIMAL_SEPARATOR_GUIDE.md for details
 input_data = pd.read_excel(
     input_file,
     sheet_name=None,
@@ -483,6 +479,9 @@ export_path = "01_data/02_output/composition_export/flow_composition.xlsx"
 export_flow_composition(mfa_results_baseline, export_path)
 
 # # 3. Visualization
+#
+# **Note:** All plots in this section are interactive — use the dropdown menus and sliders to
+# explore different elements, years, and processes. Use the export buttons to save figures.
 
 print(format_header("VISUALIZATION (BASELINE)"))
 

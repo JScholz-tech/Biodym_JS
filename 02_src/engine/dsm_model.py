@@ -194,7 +194,7 @@ def _calculate_outflow_from_initial_stock_cohort(
 
         # Compute evolution using ODYM method
         max_age = cohort_params["max_age"]
-        s_c = dsm.compute_evolution_initialstock(
+        dsm.compute_evolution_initialstock(
             InitialStock=initial_stock_elem, SwitchTime=max_age
         )
 
@@ -465,7 +465,7 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
 
     if stock_configuration == "Stock_with_InitialStock_Cohort":
         # Use rigorous ODYM age-cohort method
-        print(f"  -> Using ODYM age-cohort method for initial stock")
+        print("  -> Using ODYM age-cohort method for initial stock")
 
         # Retrieve initial_stock_configs from MFA system or parameter
         if initial_stock_configs is None:
@@ -491,7 +491,7 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
     else:
         # Use simple exponential decay method (Stock_with_InitialStock_Decay or Stock)
         if stock_configuration == "Stock_with_InitialStock_Decay":
-            print(f"  -> Using exponential decay method for initial stock")
+            print("  -> Using exponential decay method for initial stock")
 
         decaying_stock_ts, outflow_from_initial_stock_ts = (
             _calculate_outflow_from_initial_stock(
@@ -556,7 +556,7 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
                 f"      → Min value: {stock_array.min():.6f} at year {time_vector[np.argmin(stock_array)]}"
             )
             print(
-                f"      → This may indicate issues with lifetime distribution or inflow data"
+                "      → This may indicate issues with lifetime distribution or inflow data"
             )
 
     # Check decaying initial stock for negative values
@@ -573,11 +573,11 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
             )
 
     if not has_negative_stock:
-        print(f"OK: No negative stocks detected")
+        print("OK: No negative stocks detected")
 
     print(f"=== END DSM DEBUG for Process {process_id} ===\n")
 
-    # Phase 1a: Add ODYM validation after DSM calculation
+    # ODYM validation after DSM calculation
     try:
         mfa_system.Consistency_Check()
         print(f"OK: DSM validation passed for process {process_id}")

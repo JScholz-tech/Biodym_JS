@@ -325,7 +325,6 @@ def generate_kpi_dashboard(mfa_results, process_logic_map, output_path):
         return
 
     unit = mfa_results.Unit or "Mg"
-    time_unit = "/a"
 
     print("\n" + "=" * 70)
     print("📊 BIODYM KPI DASHBOARD - COMPREHENSIVE SYSTEM OVERVIEW")
@@ -358,39 +357,39 @@ def generate_kpi_dashboard(mfa_results, process_logic_map, output_path):
         # Annual rates
         first_row = element_overview[element_overview["Metric_Category"] == "Annual_Rates_First_Year"].iloc[0]
         last_row = element_overview[element_overview["Metric_Category"] == "Annual_Rates_Last_Year"].iloc[0]
-        print(f"\n📊 ANNUAL RATES")
+        print("\n📊 ANNUAL RATES")
         print(f"  First Year ({int(first_row['Year'])}):  Input={first_row['Input_First']:>10,.0f}  Output={first_row['Output_First']:>10,.0f}  Throughput={first_row['Throughput_First']:>10,.0f} {unit}/a")
         print(f"  Last Year  ({int(last_row['Year'])}):  Input={last_row['Input_Last']:>10,.0f}  Output={last_row['Output_Last']:>10,.0f}  Throughput={last_row['Throughput_Last']:>10,.0f} {unit}/a")
 
         # Peak values
         peak_row = element_overview[element_overview["Metric_Category"] == "Peak_Values"].iloc[0]
-        print(f"\n📈 PEAK VALUES")
+        print("\n📈 PEAK VALUES")
         print(f"  ┌─ Peak Throughput: {peak_row['Throughput_Peak']:>15,.0f} {unit}/a (Year {int(peak_row['Throughput_Peak_Year'])})")
         print(f"  └─ Peak Stock:      {peak_row['Stock_Peak']:>15,.0f} {unit}   (Year {int(peak_row['Stock_Peak_Year'])})")
 
         # Averages
         avg_row = element_overview[element_overview["Metric_Category"] == "Averages"].iloc[0]
-        print(f"\n📉 AVERAGES")
+        print("\n📉 AVERAGES")
         print(f"  ┌─ Average Annual Throughput: {avg_row['Throughput_Average']:>15,.0f} {unit}/a")
         print(f"  ├─ Average Stock Level:       {avg_row['Stock_Average']:>15,.0f} {unit}")
         print(f"  └─ Average Residence Time:    {avg_row['Residence_Time_Years']:>15,.1f} years")
 
         # Growth rates
         growth_row = element_overview[element_overview["Metric_Category"] == "Growth_Rates"].iloc[0]
-        print(f"\n📈 GROWTH RATES (First → Last Year)")
+        print("\n📈 GROWTH RATES (First → Last Year)")
         print(f"  ┌─ Input Growth:      {growth_row['Input_Growth_Percent']:>8,.1f}%")
         print(f"  ├─ Output Growth:     {growth_row['Output_Growth_Percent']:>8,.1f}%")
         print(f"  └─ Throughput Growth: {growth_row['Throughput_Growth_Percent']:>8,.1f}%")
 
         # Current stock
         current_row = element_overview[element_overview["Metric_Category"] == "Current_Stock"].iloc[0]
-        print(f"\n📦 CURRENT STOCK (End of Period)")
+        print("\n📦 CURRENT STOCK (End of Period)")
         print(f"  └─ Total Stock: {current_row['Stock_Level']:>15,.0f} {unit}")
 
     # Display stock analysis summary
     if not stock_analysis_df.empty:
         print(f"\n{'=' * 70}")
-        print(f"📦 STOCK ANALYSIS BY PROCESS")
+        print("📦 STOCK ANALYSIS BY PROCESS")
         print(f"{'=' * 70}")
         for element_name in mfa_results.Elements:
             element_stocks = stock_analysis_df[stock_analysis_df["Element"] == element_name]
@@ -430,13 +429,13 @@ def generate_kpi_dashboard(mfa_results, process_logic_map, output_path):
                     element_data.to_excel(writer, sheet_name=sheet_name, index=False)
 
         print(f"\n{'=' * 70}")
-        print(f"✅ KPI DASHBOARD EXPORTED SUCCESSFULLY")
+        print("✅ KPI DASHBOARD EXPORTED SUCCESSFULLY")
         print(f"{'=' * 70}")
         print(f"📁 Location: {output_path}")
-        print(f"📊 Sheets created:")
-        print(f"   1. System_Overview      - Cumulative totals & key metrics")
-        print(f"   2. Stock_Analysis       - Per-process stock details")
-        print(f"   3. Timeseries_All_Elements - Year-by-year all elements")
+        print("📊 Sheets created:")
+        print("   1. System_Overview      - Cumulative totals & key metrics")
+        print("   2. Stock_Analysis       - Per-process stock details")
+        print("   3. Timeseries_All_Elements - Year-by-year all elements")
         for i, element_name in enumerate(mfa_results.Elements, start=4):
             print(f"   {i}. Timeseries_{element_name:<10} - Year-by-year {element_name}")
         print(f"{'=' * 70}")

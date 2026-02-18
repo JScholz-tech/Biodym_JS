@@ -35,7 +35,7 @@ def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None
     dsm_processes : set, optional
         Set of process IDs that are DSM processes (already have stocks calculated).
     fomp_processes : set, optional
-        Set of process IDs that are FOMP processes (NOT used - kept for backwards compatibility).
+        Unused. Kept for API compatibility.
 
     Returns
     -------
@@ -84,7 +84,6 @@ def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None
 
     print("--> Stock balance calculation finished.")
 
-    # Phase 1a: Add ODYM validation
     try:
         mfa_system.Consistency_Check()
         print("✅ Balance validation passed")
@@ -371,10 +370,6 @@ def _calculate_dsm_flows(mfa_system, dsm_processes, dsm_params, iteration, flow_
 
         inflow_names = [f.Name for f in inflows_to_dsm]
         is_ready = total_inflow_sum > 0
-        print(
-            f"[DSM DEBUG] Iteration {iteration}: Process {process_id}, Inflows: {inflow_names}, Total Inflow Sum: {total_inflow_sum:.2f}, Ready: {is_ready}"
-        )
-
         if not is_ready:
             continue
 
@@ -644,7 +639,7 @@ def run_mfa_calculation(
     # --- Final balance calculation ---
     mfa_system = calculate_final_balances(mfa_system, dsm_processes, fomp_processes)
 
-    # Phase 1a: Add ODYM validation after complete calculation
+    # ODYM validation after complete calculation
     try:
         mfa_system.Consistency_Check()
         print("✅ Final MFA system validation passed")

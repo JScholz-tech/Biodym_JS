@@ -6,7 +6,6 @@ This module defines essential styling standards for BioDYM plots,
 focusing on simplicity and consistency.
 """
 
-from datetime import datetime
 
 # =============================================================================
 # ESSENTIAL COLOR PALETTES

@@ -130,6 +130,7 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
         material_idx = mfa_system.Elements.index("material")
         dm_idx = mfa_system.Elements.index("DM")
         cc_idx = mfa_system.Elements.index("CC")
+        wc_idx = mfa_system.Elements.index("WC")
     except ValueError as e:
         raise ValueError(
             f"❌ FOMP Error: MFA system is missing a required element: {e}"
@@ -209,7 +210,6 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
     environmental_outflow_values[:, dm_idx] += outflow_env_mass
 
     # Part 2: The water from the INITIAL INPUT (Water Bypass)
-    wc_idx = mfa_system.Elements.index("WC")
     input_water_mass = total_inflow_values[:, wc_idx]
     environmental_outflow_values[:, material_idx] += input_water_mass
     environmental_outflow_values[:, wc_idx] += input_water_mass
@@ -228,7 +228,7 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
         f"   Total environmental output: {np.sum(fomp_results['outflow_environmental']):.2f}"
     )
 
-    # Phase 1a: Add ODYM validation after FOMP calculation
+    # ODYM validation after FOMP calculation
     try:
         mfa_system.Consistency_Check()
         print(f"✅ FOMP validation passed for process {process_id}")

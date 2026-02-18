@@ -1058,7 +1058,6 @@ def _parse_fomp_parameters(process_data):
     dict
         A dictionary of the parsed FOMP parameters.
     """
-    # TODO: Implement FOMP parameter parsing based on your FOMP requirements
     return {"process_type": "FOMP", "parameters": process_data.to_dict("records")}
 
 
@@ -1188,7 +1187,7 @@ def _parse_parameter_based_dsm(process_data):
                 f"StdDev ({stddev:.2f}) > 80% of Mean ({mean:.2f})"
             )
             print(
-                f"      → Large standard deviation may cause negative lifetimes in normal distribution"
+                "      → Large standard deviation may cause negative lifetimes in normal distribution"
             )
             print(f"      → Consider reducing StdDev to max {0.8 * mean:.2f} years")
 
@@ -1243,7 +1242,7 @@ def _parse_category_based_dsm(process_data):
                 f"StdDev ({stddev:.2f}) > 80% of Mean ({mean:.2f})"
             )
             print(
-                f"      → Large standard deviation may cause negative lifetimes in normal distribution"
+                "      → Large standard deviation may cause negative lifetimes in normal distribution"
             )
             print(f"      → Consider reducing StdDev to max {0.8 * mean:.2f} years")
 

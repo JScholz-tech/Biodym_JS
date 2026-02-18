@@ -202,7 +202,7 @@ def plot_graphviz_flow_chart_sankey_style(
 
         # Add flows as edges with improved labels
         for _, flow in filtered_flows.iterrows():
-            flow_id = str(flow["Flow_ID"]).strip()
+            str(flow["Flow_ID"]).strip()
             flow_name = str(flow["Flow_Name"]).strip()
             process_o = int(flow["Flow_Output_Process_ID"])
             process_i = int(flow["Input_Process_ID"])

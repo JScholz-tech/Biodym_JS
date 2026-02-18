@@ -69,7 +69,7 @@ def load_config_from_excel(excel_file_path):
 
                 config_dict[key] = value
 
-        # Phase 1b: Collect Elements from "Element_ID_X" keys with hierarchy support
+        # Collect Elements from "Element_ID_X" keys with hierarchy support
         element_structure = {}  # {element_id: {'name': str, 'parent': str or None}}
         elements = []
 
@@ -143,7 +143,7 @@ def load_config_from_excel(excel_file_path):
             config_dict["Element_Hierarchy"] = {}
             print(f"[WARNING] No elements found in config, using defaults: {elements}")
 
-        # Phase 1b: Collect Regions from "Region_ID_X" keys (supports both formats)
+        # Collect Regions from "Region_ID_X" keys (supports both formats)
         regions = []
         for key in list(config_dict.keys()):
             if key.startswith("Region_ID_") or "Region ID" in str(key):
@@ -156,7 +156,7 @@ def load_config_from_excel(excel_file_path):
             config_dict["Regions"] = ",".join(regions)
             print(f"[OK] Loaded {len(regions)} regions from configuration: {regions}")
 
-        # Phase 1b: Collect Goods from "Good_Type_X" keys (supports both formats)
+        # Collect Goods from "Good_Type_X" keys (supports both formats)
         goods = []
         for key in list(config_dict.keys()):
             if (
@@ -171,7 +171,7 @@ def load_config_from_excel(excel_file_path):
             config_dict["Goods"] = ",".join(goods)
             print(f"[OK] Loaded {len(goods)} goods from configuration: {goods}")
 
-        # Phase 1b: Collect Materials from "Material_ID_X" keys (supports both formats)
+        # Collect Materials from "Material_ID_X" keys (supports both formats)
         materials = []
         for key in list(config_dict.keys()):
             if key.startswith("Material_ID_") or "Material ID" in str(key):
@@ -186,7 +186,7 @@ def load_config_from_excel(excel_file_path):
                 f"[OK] Loaded {len(materials)} materials from configuration: {materials}"
             )
 
-        # Phase 1b: Collect Process Types from "Process_Type_X" keys (supports both formats)
+        # Collect Process Types from "Process_Type_X" keys (supports both formats)
         process_types = []
         for key in list(config_dict.keys()):
             if (

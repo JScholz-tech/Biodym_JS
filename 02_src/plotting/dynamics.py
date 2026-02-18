@@ -25,8 +25,6 @@ from .export_publication import export_figure
 from IPython.display import display
 from plotly.subplots import make_subplots
 import pandas as pd
-import os
-from datetime import datetime
 from typing import Optional
 
 
@@ -220,17 +218,14 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
     )
 
     def export_plot():
-        # Fixed filename - overwrites previous export
-        filename = "dsm_process_dynamics.png"
-        export_dir = "exports/dsm_analysis"
-        os.makedirs(export_dir, exist_ok=True)
-        filepath = os.path.join(export_dir, filename)
         try:
-            fig.write_image(filepath, width=1400, height=600, scale=2)
-            print(f"✅ Plot exported to: {filepath}")
+            paths = export_figure(
+                fig, "dsm_process_dynamics",
+                formats=["png", "pdf"], quality="publication", size="large", timestamp=False,
+            )
+            print(f"✅ Exported: {', '.join(paths)}")
         except Exception as e:
             print(f"⚠️ Export failed: {e}")
-            print("💡 Ensure 'kaleido' is available (uv sync)")
 
     export_button.on_click(lambda b: export_plot())
 
@@ -400,17 +395,14 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
     )
 
     def export_plot():
-        # Fixed filename - overwrites previous export
-        filename = "dsm_stock_analysis.png"
-        export_dir = "exports/dsm_stock_details"
-        os.makedirs(export_dir, exist_ok=True)
-        filepath = os.path.join(export_dir, filename)
         try:
-            fig.write_image(filepath, width=1200, height=800)
-            print(f"✅ Plot exported to: {filepath}")
+            paths = export_figure(
+                fig, "dsm_stock_analysis",
+                formats=["png", "pdf"], quality="publication", size="large", timestamp=False,
+            )
+            print(f"✅ Exported: {', '.join(paths)}")
         except Exception as e:
             print(f"⚠️ Export failed: {e}")
-            print("💡 Ensure 'kaleido' is available (uv sync)")
 
     export_button.on_click(lambda b: export_plot())
 
@@ -587,26 +579,18 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
             fig.update_layout(**layout_config)
 
     def export_plot():
-        """Export the current plot with enhanced options"""
+        """Export the current plot."""
         try:
-            # Fixed export folder - no timestamp subdirectories
-            export_folder = "exports/fomp_analysis"
-            os.makedirs(export_folder, exist_ok=True)
-
-            # Generate filename with current parameters
             current_process = process_dropdown.value
             current_element = element_dropdown.value
-
-            filename = f"fomp_{current_process}_{current_element}.png"
-            filepath = os.path.join(export_folder, filename)
-
-            # Export the plot (overwrites previous export)
-            fig.write_image(filepath, width=1200, height=600, scale=2)
-            print(f"✅ FOMP analysis exported to: {filepath}")
-
+            filename = f"fomp_{current_process}_{current_element}"
+            paths = export_figure(
+                fig, filename,
+                formats=["png", "pdf"], quality="publication", size="large", timestamp=False,
+            )
+            print(f"✅ Exported: {', '.join(paths)}")
         except Exception as e:
             print(f"❌ Export failed: {e}")
-            print("💡 Ensure 'kaleido' is available (uv sync)")
 
     # Create enhanced widgets
     process_dropdown = Dropdown(
@@ -1183,7 +1167,7 @@ def plot_process_dynamics(
     # Set up interaction manually to avoid double widget display
     from ipywidgets import interactive_output
 
-    out = interactive_output(
+    interactive_output(
         update_plot, {"process_name": process_dropdown, "element": element_dropdown}
     )
 
@@ -1380,7 +1364,8 @@ def plot_fomp_dynamics(mfa_system_results, fomp_params_config):
             for f in mfa_system_results.FlowDict.values()
             if f.P_End == pid
         )
-        stock_ts = mfa_system_results.StockDict.get(f"S_{pid}").Values[:, element_index]
+        stock_obj = mfa_system_results.StockDict.get(f"S_{pid}")
+        stock_ts = stock_obj.Values[:, element_index] if stock_obj is not None else np.zeros(len(time_axis))
         outflow_ts = sum(
             f.Values[:, element_index]
             for f in mfa_system_results.FlowDict.values()
@@ -1424,6 +1409,9 @@ def plot_fomp_dynamics(mfa_system_results, fomp_params_config):
     element_dropdown = Dropdown(
         options=element_items, value=element_items[0], description="Element:"
     )
+
+    interact(update_plot, process_name=process_dropdown, element=element_dropdown)
+    display(fig)
 
 
 def plot_flow_dynamics(
@@ -1506,7 +1494,7 @@ def plot_flow_dynamics(
             chart_type = go.Bar if show_as_bars else go.Scatter
 
             # Get element-specific color
-            element_color = color_manager.get_element_color(element.lower())
+            color_manager.get_element_color(element.lower())
 
             # Add a trace for each selected flow
             for i, descriptive_name in enumerate(flows_to_show):
@@ -1620,7 +1608,7 @@ def plot_flow_dynamics(
     # Set up interaction manually to avoid double widget display
     from ipywidgets import interactive_output
 
-    out = interactive_output(
+    interactive_output(
         update_plot,
         {
             "flows_to_show": flow_selector,

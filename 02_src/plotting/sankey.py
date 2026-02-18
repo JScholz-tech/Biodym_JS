@@ -541,7 +541,7 @@ def plot_interactive_sankey(
     )
 
     # Connect widgets
-    out = interactive(
+    interactive(
         update_sankey,
         year=year_slider,
         element=element_dropdown,
@@ -766,7 +766,7 @@ def plot_element_multiplot_sankey(
     )
 
     # Connect widgets
-    out = interactive(
+    interactive(
         update_all_sankeys,
         year=year_slider,
         processes_to_show=process_selector,

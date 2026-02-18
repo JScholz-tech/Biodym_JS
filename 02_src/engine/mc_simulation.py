@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -%-
+# -*- coding: utf-8 -*-
 """
 Monte Carlo Simulation Engine.
 
@@ -805,7 +805,7 @@ def run_mc_simulation(
     # --- 1. Configuration ---
     n_iterations = getattr(config, "MC_ITERATIONS", 100)
     uncertainty_params = data_loader.load_uncertainty_definitions(input_data)
-    mc_params_df = input_data.get("4_1_Uncertainty_Parameters", pd.DataFrame())
+    input_data.get("4_1_Uncertainty_Parameters", pd.DataFrame())
 
 
     if not uncertainty_params:

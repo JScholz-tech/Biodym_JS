@@ -7,7 +7,6 @@ and post-run summary statistics in the Jupyter notebook.
 """
 
 import pandas as pd
-import numpy as np
 
 from engine.mc_simulation import validate_mc_parameters
 

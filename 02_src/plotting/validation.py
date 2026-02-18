@@ -65,7 +65,6 @@ def plot_optimized_mass_balance_error(
     >>> color_mgr = ElementColorManager(elements, color_scheme='colorblind')
     >>> plot_optimized_mass_balance_error(mfa_results, color_manager=color_mgr)
     """
-    process_names = [p.Name for p in mfa_system_results.ProcessList]
     time_items = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = [e.lower() for e in mfa_system_results.Elements]
 
@@ -231,7 +230,7 @@ def plot_optimized_mass_balance_error(
     # Set up interaction manually to avoid double widget display
     from ipywidgets import interactive_output
 
-    out = interactive_output(
+    interactive_output(
         update_plot, {"year": year_slider, "element": element_dropdown}
     )
 

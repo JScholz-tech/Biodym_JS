@@ -92,7 +92,7 @@ def define_model_scope(
     index_letters = ["t", "e"]
     classifications = [model_classification["Time"], model_classification["Element"]]
 
-    # Phase 1b: Add Material if defined (for future use)
+    # Add Material if defined (for future use)
     # For now, Materials dimension is not used - Elements handle WC, DM, CC
     # This keeps compatibility with existing solver code
     if materials is not None and len(materials) > 0:
@@ -735,7 +735,7 @@ def _calculate_elemental_compositions(mfa_system, element_hierarchy=None):
                 flow.Values[:, elem_idx] = 0.0
                 continue
 
-            # Phase 5b: Determine parent element for hierarchical calculation
+            # Determine parent element for hierarchical calculation
             elem_info = hierarchy_map.get(element_name, {})
             parent_element = elem_info.get("parent", "material")
 
@@ -758,7 +758,7 @@ def _calculate_elemental_compositions(mfa_system, element_hierarchy=None):
             fraction = param.Values
             flow.Values[:, elem_idx] = parent_values * fraction
 
-        # Phase 5b: Validate only TOP-LEVEL elements sum to <= material mass
+        # Validate only TOP-LEVEL elements sum to <= material mass
         # Build list of top-level element indices
         top_level_indices = []
         for elem_idx, element_name in enumerate(elements):
@@ -931,7 +931,7 @@ def define_flows_and_parameters(mfa_system, all_excel_data, debug_mode=False):
         print(f"--> ERROR: Failed to initialize parameter values: {e}")
         raise
 
-    # Phase 5b: Load element hierarchy from config for hierarchical composition calculation
+    # Load element hierarchy from config for hierarchical composition calculation
     element_hierarchy = {}
     try:
         # Read configuration sheet to extract Element_Hierarchy

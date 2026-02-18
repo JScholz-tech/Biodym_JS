@@ -7,7 +7,6 @@ This file contains helper functions for the plotting modules.
 
 from ipywidgets import Button, HBox
 from IPython.display import display
-from datetime import datetime
 
 
 def plot_enhanced_export_options(fig, filename_prefix="plot"):

@@ -8,7 +8,6 @@ ensuring consistency, professional appearance, and print-readiness.
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from datetime import datetime
 
 # =============================================================================
 # COLOR PALETTES

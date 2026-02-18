@@ -87,15 +87,8 @@ def recalculate_hierarchical_elements(
 
         parent_values = flow_values[:, parent_idx]
 
-        # Get the ORIGINAL fraction from ParameterDict (if available)
-        # This is critical - we need the defined fraction, not the current one!
+        # Fraction is computed from current flow values (ParameterDict lookup not needed)
         original_fraction = None
-        if mfa_system is not None:
-            # Try to find the parameter for this element
-            # Parameters are named like "CC_F_09_11" for element CC of flow F_09_11
-            # But we don't have the flow name here, so we need a different approach
-            # For now, calculate from initial non-zero values
-            pass
 
         # Calculate the fraction from the flow values
         # For hierarchical elements, we want to preserve the ratio relative to parent

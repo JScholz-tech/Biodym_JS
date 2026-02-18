@@ -426,7 +426,7 @@ def plot_flow_composition(
     # Set up interaction manually to avoid double widget display
     from ipywidgets import interactive_output
 
-    out = interactive_output(update_plot, {"year": year_slider})
+    interactive_output(update_plot, {"year": year_slider})
 
     # Display
     display(control_box)
