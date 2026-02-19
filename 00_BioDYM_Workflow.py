@@ -586,6 +586,12 @@ all_scenario_results, scenario_definitions = scenario_engine.run_scenario_analys
     process_logic_map=process_logic_map,
 )
 
+# Mass balance verification for baseline and all scenarios
+print(format_header("SCENARIO MASS BALANCE VERIFICATION", level=2))
+scenario_engine.check_mass_balance(mfa_results_baseline, label="Baseline")
+for sc_name, sc_result in all_scenario_results.items():
+    scenario_engine.check_mass_balance(sc_result, label=sc_name)
+
 # Generate visualizations if scenarios were run
 if all_scenario_results:
     scenario_engine.generate_scenario_comparison_visualizations(
@@ -593,6 +599,16 @@ if all_scenario_results:
         all_scenario_results=all_scenario_results,
         scenario_definitions=scenario_definitions,
     )
+
+    # Mass balance error plots for each scenario
+    print(format_header("SCENARIO MASS BALANCE DETAILS", level=2))
+    for sc_name, sc_result in all_scenario_results.items():
+        print(f"\n{Icons.ARROW} Mass Balance Error: Scenario '{sc_name}'")
+        plotting.plot_total_mass_balance_error(
+            sc_result,
+            enable_export=True,
+            export_filename=f"mass_balance_scenario_{sc_name}",
+        )
 
     # Export scenario results
     scenario_engine.export_scenario_results(

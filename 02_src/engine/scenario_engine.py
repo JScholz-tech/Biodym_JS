@@ -7,6 +7,7 @@ parameter configurations, and generating comparative visualizations.
 """
 
 import copy
+import numpy as np
 import pandas as pd
 from typing import Dict, List, Optional, Tuple
 
@@ -233,6 +234,7 @@ def _run_single_scenario(
         )
 
         print(f"✅ Scenario '{scenario_name}' calculation completed successfully!")
+        check_mass_balance(mfa_results_scenario, label=scenario_name)
         return mfa_results_scenario
 
     except Exception as e:
@@ -351,6 +353,93 @@ def export_scenario_results(
 
     except Exception as e:
         print(f"❌ ERROR: Scenario export failed: {e}")
+
+
+def check_mass_balance(mfa_system_results, label: str = "System") -> pd.DataFrame:
+    """Checks mass balance for a solved MFA system and returns error summary.
+
+    Computes (inflows - outflows - dS) for each process and element over all
+    years, excluding system boundary processes. Returns a DataFrame with the
+    maximum absolute error per element.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object.
+    label : str, optional
+        Label for this check (e.g. scenario name). Defaults to "System".
+
+    Returns
+    -------
+    pd.DataFrame
+        Summary with columns: Element, Max_Abs_Error, Sum_Abs_Error, Status.
+    """
+    element_items = [e.lower() for e in mfa_system_results.Elements]
+    num_processes = len(mfa_system_results.ProcessList)
+    num_elements = len(element_items)
+    num_years = len(mfa_system_results.IndexTable.Classification["Time"].Items)
+
+    # Build inflow/outflow/dS matrices
+    total_inflows = np.zeros((num_years, num_processes, num_elements))
+    total_outflows = np.zeros((num_years, num_processes, num_elements))
+
+    for flow in mfa_system_results.FlowDict.values():
+        if flow.P_Start < num_processes and flow.P_End < num_processes:
+            total_inflows[:, flow.P_End, :] += flow.Values
+            total_outflows[:, flow.P_Start, :] += flow.Values
+
+    total_ds = np.zeros((num_years, num_processes, num_elements))
+    for p_idx, p in enumerate(mfa_system_results.ProcessList):
+        ds_stock = mfa_system_results.StockDict.get(f"dS_{p.ID}")
+        if ds_stock is not None:
+            total_ds[:, p_idx, :] = ds_stock.Values
+
+    balance_matrix = total_inflows - total_outflows - total_ds
+
+    # Identify boundary processes to exclude
+    boundary_mask = np.zeros(num_processes, dtype=bool)
+    for p_idx in range(num_processes):
+        avg_in = np.mean(total_inflows[:, p_idx, :])
+        avg_out = np.mean(total_outflows[:, p_idx, :])
+        avg_ds = np.mean(total_ds[:, p_idx, :])
+        is_boundary = (
+            ((avg_in == 0) and (avg_out > 0) and (abs(avg_ds) < 1e-10))
+            or ((avg_in > 0) and (avg_out == 0) and (abs(avg_ds) < 1e-10))
+        )
+        boundary_mask[p_idx] = is_boundary
+
+    # Compute errors excluding boundary processes
+    internal_balance = balance_matrix[:, ~boundary_mask, :]
+
+    summary_rows = []
+    all_pass = True
+    for e_idx, element in enumerate(element_items):
+        errors = internal_balance[:, :, e_idx]
+        max_abs = np.max(np.abs(errors))
+        sum_abs = np.sum(np.abs(errors))
+        # Tolerance: error < 1e-6 Mg is considered negligible
+        status = "PASS" if max_abs < 1e-6 else "WARN"
+        if status == "WARN":
+            all_pass = False
+        summary_rows.append({
+            "Element": element.upper(),
+            "Max_Abs_Error_Mg": max_abs,
+            "Sum_Abs_Error_Mg": sum_abs,
+            "Status": status,
+        })
+
+    df = pd.DataFrame(summary_rows)
+
+    # Print summary
+    if all_pass:
+        print(f"   ✅ Mass balance check [{label}]: PASSED (all elements < 1e-6 Mg)")
+    else:
+        print(f"   ⚠️ Mass balance check [{label}]:")
+        for _, row in df.iterrows():
+            marker = "✅" if row["Status"] == "PASS" else "⚠️"
+            print(f"      {marker} {row['Element']}: max error = {row['Max_Abs_Error_Mg']:.2e} Mg")
+
+    return df
 
 
 def get_scenario_summary(
