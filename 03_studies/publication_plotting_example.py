@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(project_root, 'src'))
 
 # Import BioDYM plotting modules
 import plotting
-from plotting.publication_style import (
+from plotting.publication_style_simplified import (
     get_publication_layout,
     get_element_color,
     get_process_color,

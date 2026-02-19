@@ -21,8 +21,20 @@ from typing import List, Dict, Optional, Tuple
 # COLOR PALETTES
 # =============================================================================
 
-# Default palette (bright, distinct colors)
+# Default palette — Okabe-Ito color-blind friendly (safe for all types of color vision)
 DEFAULT_ELEMENT_PALETTE = [
+    "#0173B2",  # Blue - material
+    "#56B4E9",  # Sky Blue - water
+    "#E69F00",  # Orange - dry matter
+    "#CC79A7",  # Pink - carbon
+    "#009E73",  # Teal - nitrogen
+    "#F0E442",  # Yellow - phosphorus
+    "#D55E00",  # Vermillion - additional
+    "#999999",  # Gray - additional
+]
+
+# Legacy palette (original bright colors, NOT colorblind-safe)
+LEGACY_ELEMENT_PALETTE = [
     "#00C851",  # Bright Green - material
     "#007BFF",  # Bright Blue - water
     "#FF8C00",  # Bright Orange - dry matter
@@ -31,19 +43,6 @@ DEFAULT_ELEMENT_PALETTE = [
     "#FFC107",  # Yellow - phosphorus
     "#00BCD4",  # Cyan - additional
     "#E91E63",  # Pink - additional
-]
-
-# Color-blind friendly palette (Okabe-Ito + extensions)
-# Works for Protanopia, Deuteranopia, Tritanopia
-COLORBLIND_ELEMENT_PALETTE = [
-    "#0173B2",  # Blue - material (replaces green)
-    "#56B4E9",  # Sky Blue - water
-    "#E69F00",  # Orange - dry matter
-    "#CC79A7",  # Pink - carbon (replaces red)
-    "#009E73",  # Teal - nitrogen
-    "#F0E442",  # Yellow - phosphorus
-    "#D55E00",  # Vermillion - additional
-    "#999999",  # Gray - additional
 ]
 
 # Grayscale palette (for black & white printing)
@@ -134,8 +133,8 @@ class ElementColorManager:
         """Get the base color palette based on color scheme."""
         if self._custom_palette:
             return self._custom_palette
-        elif self.color_scheme == "colorblind":
-            return COLORBLIND_ELEMENT_PALETTE
+        elif self.color_scheme == "legacy":
+            return LEGACY_ELEMENT_PALETTE
         elif self.color_scheme == "grayscale":
             return GRAYSCALE_ELEMENT_PALETTE
         else:
@@ -355,7 +354,7 @@ def get_element_color_legacy(element_name: str) -> str:
     """
     Legacy function for backward compatibility.
 
-    This function provides the old hardcoded colors for the default
+    Returns the OLD (non-colorblind-safe) hardcoded colors for the default
     biomass elements (material, wc, dm, cc).
 
     Parameters
@@ -371,6 +370,7 @@ def get_element_color_legacy(element_name: str) -> str:
     Notes
     -----
     DEPRECATED: Use ElementColorManager instead for new code.
+    The default palette is now Okabe-Ito (colorblind-safe).
     """
     legacy_colors = {
         "material": "#00C851",

@@ -19,7 +19,7 @@ from ipywidgets import (
     Layout,
     Button,
 )
-from .publication_style_simplified import get_publication_layout
+from .publication_style_simplified import get_publication_layout, FONT_SIZE
 from .dynamic_colors import ElementColorManager
 from .export_publication import export_figure
 from IPython.display import display
@@ -78,11 +78,21 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
         print("No DSM processes found in the system.")
         return
 
+    # Build process name lookup for descriptive flow/stock names
+    process_name_by_id = {p.ID: p.Name for p in mfa_system_results.ProcessList}
+
+    def _flow_display_name(flow):
+        """Create descriptive flow name: 'Source -> Destination'."""
+        src = process_name_by_id.get(flow.P_Start, f"P{flow.P_Start}")
+        dst = process_name_by_id.get(flow.P_End, f"P{flow.P_End}")
+        return f"{src} \u2192 {dst}"
+
     fig = go.FigureWidget(
         make_subplots(
             rows=1,
             cols=3,
             subplot_titles=("Input Flows", "Stock Evolution", "Output Flows"),
+            horizontal_spacing=0.08,
         )
     )
 
@@ -97,16 +107,17 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
         ]
         if input_flows:
             for i, flow in enumerate(input_flows):
+                display_name = _flow_display_name(flow)
                 fig.add_trace(
                     go.Scatter(
                         x=time_items,
                         y=flow.Values[:, element_index],
-                        name=flow.Name,
+                        name=display_name,
                         stackgroup="input",
                         fill="tonexty" if i > 0 else "tozeroy",
                         mode="lines",
                         line=dict(width=0.5),
-                        hovertemplate=f"<b>{flow.Name}</b><br>Year: %{{x}}<br>{element}: %{{y:.2e}} Mg<extra></extra>",
+                        hovertemplate=f"<b>{display_name}</b><br>Year: %{{x}}<br>{element}: %{{y:.2e}} Mg<extra></extra>",
                     ),
                     row=1,
                     col=1,
@@ -116,15 +127,15 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
         stock_name = f"S_{process_id}"
         if stock_name in mfa_system_results.StockDict:
             stock = mfa_system_results.StockDict[stock_name]
+            stock_display = process_name
             fig.add_trace(
                 go.Scatter(
                     x=time_items,
                     y=stock.Values[:, element_index],
-                    name=f"Stock: {stock_name}",
-                    mode="lines+markers",
-                    line=dict(width=3, color="#2E8B57"),
-                    marker=dict(size=4),
-                    hovertemplate=f"<b>{stock_name}</b><br>Year: %{{x}}<br>{element}: %{{y:.2e}} Mg<extra></extra>",
+                    name=f"Stock: {stock_display}",
+                    mode="lines",
+                    line=dict(width=3, color="#2E86AB"),
+                    hovertemplate=f"<b>Stock: {stock_display}</b><br>Year: %{{x}}<br>{element}: %{{y:.2e}} Mg<extra></extra>",
                 ),
                 row=1,
                 col=2,
@@ -136,16 +147,17 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
         ]
         if output_flows:
             for i, flow in enumerate(output_flows):
+                display_name = _flow_display_name(flow)
                 fig.add_trace(
                     go.Scatter(
                         x=time_items,
                         y=flow.Values[:, element_index],
-                        name=flow.Name,
+                        name=display_name,
                         stackgroup="output",
                         fill="tonexty" if i > 0 else "tozeroy",
                         mode="lines",
                         line=dict(width=0.5),
-                        hovertemplate=f"<b>{flow.Name}</b><br>Year: %{{x}}<br>{element}: %{{y:.2e}} Mg<extra></extra>",
+                        hovertemplate=f"<b>{display_name}</b><br>Year: %{{x}}<br>{element}: %{{y:.2e}} Mg<extra></extra>",
                     ),
                     row=1,
                     col=3,
@@ -157,6 +169,9 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
             show_grid=True,
             scientific_y=True,
         )
+        layout_config["width"] = 1400
+        layout_config["height"] = 500
+        layout_config["margin"] = {"t": 80, "b": 80, "l": 60, "r": 30}
 
         # Pop axis styles and apply them globally to all subplots
         xaxis_style = layout_config.pop("xaxis")
@@ -170,12 +185,12 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
             annotations=[
                 dict(
                     text="Input Flows",
-                    x=0.17,
+                    x=0.12,
                     y=1.05,
                     xref="paper",
                     yref="paper",
                     showarrow=False,
-                    font=dict(size=18),
+                    font=dict(size=FONT_SIZE["axis_title"]),
                 ),
                 dict(
                     text="Stock Evolution",
@@ -184,16 +199,16 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
                     xref="paper",
                     yref="paper",
                     showarrow=False,
-                    font=dict(size=18),
+                    font=dict(size=FONT_SIZE["axis_title"]),
                 ),
                 dict(
                     text="Output Flows",
-                    x=0.83,
+                    x=0.88,
                     y=1.05,
                     xref="paper",
                     yref="paper",
                     showarrow=False,
-                    font=dict(size=18),
+                    font=dict(size=FONT_SIZE["axis_title"]),
                 ),
             ]
         )
@@ -459,11 +474,11 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
     time_items = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = mfa_system_results.Elements
 
-    # Define consistent color scheme
+    # Define consistent color scheme (Okabe-Ito colorblind-safe)
     colors = {
-        "stock": "#2ca02c",  # Green for organic matter stock
-        "input": "#1f77b4",  # Blue for input
-        "output": "#d62728",  # Red for mineralization
+        "stock": "#0173B2",  # Blue for organic matter stock
+        "input": "#56B4E9",  # Sky blue for input
+        "output": "#CC79A7",  # Pink for mineralization
         "background": "#f9f9f9",  # Light background
     }
 
@@ -500,7 +515,7 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
                 go.Scatter(
                     x=time_items,
                     y=stock_values,
-                    mode="lines+markers",
+                    mode="lines",
                     name="Organic Matter Stock",
                     line=dict(color=colors["stock"], width=3),
                     marker=dict(size=4),
@@ -517,7 +532,7 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
                     go.Scatter(
                         x=time_items,
                         y=cumulative_inflow,
-                        mode="lines+markers",
+                        mode="lines",
                         name="Cumulative Input",
                         line=dict(color=colors["input"], width=2, dash="dash"),
                         marker=dict(size=3),
@@ -529,7 +544,7 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
                     go.Scatter(
                         x=time_items,
                         y=cumulative_outflow,
-                        mode="lines+markers",
+                        mode="lines",
                         name="Cumulative Mineralization",
                         line=dict(color=colors["output"], width=2, dash="dot"),
                         marker=dict(size=3),
@@ -542,7 +557,7 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
                     go.Scatter(
                         x=time_items,
                         y=inflow_ts,
-                        mode="lines+markers",
+                        mode="lines",
                         name="Annual Input",
                         line=dict(color=colors["input"], width=2, dash="dash"),
                         marker=dict(size=3),
@@ -554,7 +569,7 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
                     go.Scatter(
                         x=time_items,
                         y=outflow_ts,
-                        mode="lines+markers",
+                        mode="lines",
                         name="Annual Mineralization",
                         line=dict(color=colors["output"], width=2, dash="dot"),
                         marker=dict(size=3),
@@ -734,7 +749,7 @@ def plot_system_efficiency_metrics(mfa_system_results):
                     go.Scatter(
                         x=time_items,
                         y=recycling_rates,
-                        mode="lines+markers",
+                        mode="lines",
                         name="Recycling Rate (%)",
                         line=dict(color="#1f77b4", width=3),
                     )
@@ -783,9 +798,9 @@ def plot_system_efficiency_metrics(mfa_system_results):
                     go.Scatter(
                         x=time_items,
                         y=recovery_rates,
-                        mode="lines+markers",
+                        mode="lines",
                         name="Recovery Rate (%)",
-                        line=dict(color="#2ca02c", width=3),
+                        line=dict(color="#E69F00", width=3),
                     )
                 )
 
@@ -834,9 +849,9 @@ def plot_system_efficiency_metrics(mfa_system_results):
                     go.Scatter(
                         x=time_items,
                         y=efficiency_rates,
-                        mode="lines+markers",
+                        mode="lines",
                         name="Material Efficiency (%s)",
-                        line=dict(color="#d62728", width=3),
+                        line=dict(color="#CC79A7", width=3),
                     )
                 )
 
@@ -914,7 +929,7 @@ def plot_stock_overview(mfa_system_results, dsm_params=None, fomp_params=None):
             go.Scatter(
                 x=time_items,
                 y=total_stock,
-                mode="lines+markers",
+                mode="lines",
                 name=f"Total {element.upper()}",
                 line=dict(width=3),
                 marker=dict(size=4),
@@ -1003,7 +1018,11 @@ def plot_process_dynamics(
         color_manager = ElementColorManager(element_items)
 
     fig = go.FigureWidget(
-        make_subplots(rows=1, cols=3, subplot_titles=("Inflow", "Stock (S)", "Outflow"))
+        make_subplots(
+            rows=1, cols=3,
+            subplot_titles=("Inflow", "Stock (S)", "Outflow"),
+            horizontal_spacing=0.08,
+        )
     )
 
     def update_plot(process_name, element):
@@ -1068,7 +1087,7 @@ def plot_process_dynamics(
                 go.Scatter(
                     x=time_axis,
                     y=inflow_ts,
-                    mode="lines+markers",
+                    mode="lines",
                     name="Inflow",
                     line=dict(color=element_color, width=2),
                     marker=dict(size=4),
@@ -1080,7 +1099,7 @@ def plot_process_dynamics(
                 go.Scatter(
                     x=time_axis,
                     y=stock_ts,
-                    mode="lines+markers",
+                    mode="lines",
                     name="Stock",
                     line=dict(
                         color=color_manager.get_element_color(
@@ -1097,7 +1116,7 @@ def plot_process_dynamics(
                 go.Scatter(
                     x=time_axis,
                     y=outflow_ts,
-                    mode="lines+markers",
+                    mode="lines",
                     name="Outflow",
                     line=dict(color=element_color, width=2, dash="dash"),
                     marker=dict(size=4),
@@ -1110,6 +1129,9 @@ def plot_process_dynamics(
                 show_grid=True,
                 scientific_y=True,
             )
+            layout_config["width"] = 1400
+            layout_config["height"] = 500
+            layout_config["margin"] = {"t": 80, "b": 80, "l": 60, "r": 30}
             xaxis_style = layout_config.pop("xaxis")
             yaxis_style = layout_config.pop("yaxis")
             fig.update_layout(**layout_config)
@@ -1457,12 +1479,16 @@ def plot_flow_dynamics(
     """
 
     # Create options for the widgets with descriptive names
+    # Build process name lookup for "Source → Destination" style names
+    process_name_by_id = {p.ID: p.Name for p in mfa_system_results.ProcessList}
     flow_options = []
     flow_id_to_descriptive = {}
 
     for flow_id in sorted(mfa_system_results.FlowDict.keys()):
         flow_obj = mfa_system_results.FlowDict[flow_id]
-        descriptive_name = getattr(flow_obj, "DescriptiveName", flow_id)
+        src = process_name_by_id.get(flow_obj.P_Start, f"P{flow_obj.P_Start}")
+        dst = process_name_by_id.get(flow_obj.P_End, f"P{flow_obj.P_End}")
+        descriptive_name = f"{src} \u2192 {dst}"
         flow_options.append(descriptive_name)
         flow_id_to_descriptive[flow_id] = descriptive_name
 
@@ -1517,7 +1543,7 @@ def plot_flow_dynamics(
                         if not show_as_bars:
                             # Line mode: use element color with slight variations for multiple flows
                             trace_props.update(
-                                mode="lines+markers",
+                                mode="lines",
                                 line=dict(width=2),
                                 marker=dict(size=4),
                             )
@@ -1688,7 +1714,7 @@ def plot_stock_bar_chart(mfa_system, title="Stock Levels Over Time"):
 
             # Determine colors based on value (positive/negative)
             colors = [
-                "#2ca02c" if val >= 0 else "#d62728" for val in df_filtered["Value"]
+                "#0173B2" if val >= 0 else "#CC79A7" for val in df_filtered["Value"]
             ]
 
             fig.add_trace(
@@ -1807,29 +1833,36 @@ def plot_system_stock_composition(mfa_system_results, element=None):
                             chart_type(
                                 x=time_items,
                                 y=stock_values,
-                                mode="lines+markers",
+                                mode="lines",
                                 name=f"{process_name}",
                                 hovertemplate=f"<b>{process_name}</b><br>Year: %{{x}}<br>Stock: %{{y:.2e}} Mg<extra></extra>",
                             )
                         )
 
-            # Update axes with scientific notation (matching validation style)
-            fig.update_xaxes(title_text="Year", showgrid=True, gridwidth=1)
-            fig.update_yaxes(
-                title_text=f"Stock ({element.upper()}) [Mg]",
-                rangemode="tozero",
-                tickformat=".2e",
-                zeroline=True,
-                zerolinewidth=2,
-                showgrid=True,
-                gridwidth=1,
+            # Apply publication layout
+            layout_config = get_publication_layout(
+                custom_title=f"System Stock Composition: {element.upper()} Over Time",
+                x_title="Year",
+                y_title=f"Stock ({element.upper()}) [Mg]",
+                show_grid=True,
+                scientific_y=True,
+                size="large",
             )
-
-            # Set plot dimensions for better readability
-            fig.update_layout(
-                width=1600,  # Increased width for better visibility
-                height=600,  # Comfortable height
-            )
+            layout_config["width"] = 1600
+            layout_config["height"] = 600
+            layout_config["margin"] = {"t": 80, "b": 120, "l": 80, "r": 20}
+            layout_config["legend"] = {
+                "font": {"size": FONT_SIZE["legend"]},
+                "bgcolor": "rgba(255,255,255,0.85)",
+                "bordercolor": "#ccc",
+                "borderwidth": 1,
+                "orientation": "h",
+                "yanchor": "top",
+                "y": -0.18,
+                "xanchor": "center",
+                "x": 0.5,
+            }
+            fig.update_layout(**layout_config)
 
     # Create enhanced widgets
     element_dropdown = Dropdown(

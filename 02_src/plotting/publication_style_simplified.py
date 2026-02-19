@@ -18,16 +18,16 @@ BIOYM_COLORS = {
     "accent": "#F18F01",  # Orange - highlights
     "neutral": "#6C757D",  # Gray - neutral elements
     "light": "#F8F9FA",  # Light gray - backgrounds
-    "dark": "#212529",  # Dark gray - text
+    "dark": "#000000",  # Black - text (print-optimized)
     "stock": "#6F42C1",  # Purple - stock elements
 }
 
-# Element-Specific Colors (for BioDYM multi-element analysis)
+# Element-Specific Colors — Okabe-Ito colorblind-safe palette
 ELEMENT_COLORS = {
-    "material": "#00C851",  # Bright Green - main material flow
-    "wc": "#007BFF",  # Bright Blue - water content
-    "dm": "#FF8C00",  # Bright Orange - dry matter
-    "cc": "#FF4444",  # Bright Red - carbon content
+    "material": "#0173B2",  # Blue - main material flow
+    "wc": "#56B4E9",  # Sky Blue - water content
+    "dm": "#E69F00",  # Orange - dry matter
+    "cc": "#CC79A7",  # Pink - carbon content
 }
 
 # Process Type Colors (for BioDYM process logic)
@@ -39,13 +39,13 @@ PROCESS_COLORS = {
     "fomp": "#C73E1D",  # Red - First-Order Mineralization Process
 }
 
-# Stock Colors (for BioDYM stock visualization)
+# Stock Colors — muted Okabe-Ito variants for stock visualization
 STOCK_COLORS = {
     "default": "#6F42C1",  # Purple - default stock color
-    "material": "#00C851",  # Green - material stocks
-    "wc": "#007BFF",  # Blue - water content stocks
-    "dm": "#FF8C00",  # Orange - dry matter stocks
-    "cc": "#FF4444",  # Red - carbon content stocks
+    "material": "#015A8C",  # Dark Blue - material stocks
+    "wc": "#3D8AB8",  # Muted Sky Blue - water content stocks
+    "dm": "#B87D00",  # Dark Orange - dry matter stocks
+    "cc": "#A35E84",  # Muted Pink - carbon content stocks
 }
 
 # =============================================================================
@@ -54,7 +54,7 @@ STOCK_COLORS = {
 
 # Font Settings
 FONT_FAMILY = "Arial, sans-serif"
-FONT_SIZE = {"title": 20, "axis_title": 16, "axis_labels": 14, "legend": 14, "tick": 13}
+FONT_SIZE = {"title": 24, "axis_title": 20, "axis_labels": 18, "legend": 16, "tick": 16}
 
 # Standard Figure Sizes (in pixels)
 FIGURE_SIZES = {
@@ -79,6 +79,18 @@ GRID_STYLE = {"color": "#E5E5E5", "width": 1, "dash": "dot"}
 
 # Background Colors
 BACKGROUND_COLORS = {"white": "#FFFFFF", "light_gray": "#FAFAFA"}
+
+# =============================================================================
+# EXPORT SETTINGS
+# =============================================================================
+
+# High-resolution export settings
+EXPORT_SETTINGS = {
+    "png": {"width": 1200, "height": 900, "scale": 3, "format": "png"},
+    "pdf": {"width": 1200, "height": 900, "format": "pdf"},
+    "svg": {"width": 1200, "height": 900, "format": "svg"},
+    "print": {"width": 1200, "height": 900, "scale": 4, "format": "png"},
+}
 
 # =============================================================================
 # ESSENTIAL FUNCTIONS
@@ -246,7 +258,7 @@ def get_element_color(element_name):
     Returns
     -------
     str
-        The hexadecimal color code (e.g., '#00C851') for the given element.
+        The hexadecimal color code (e.g., '#0173B2') for the given element.
         If the element name is not found, it defaults to the primary BioDYM color.
     """
     return ELEMENT_COLORS.get(element_name.lower(), BIOYM_COLORS["primary"])

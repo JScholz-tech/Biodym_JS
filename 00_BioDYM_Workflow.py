@@ -488,6 +488,8 @@ print(format_header("VISUALIZATION (BASELINE)"))
 # ## 3.1 Sankey Diagrams
 
 # ### 3.1.1 Traditional Sankey (Auto-Layout)
+# *Sankey appearance settings (font sizes, node spacing, colors) can be customized in
+# [`02_src/plotting/sankey_config.py`](02_src/plotting/sankey_config.py).*
 print(f"\n{Icons.ARROW} Traditional Sankey Diagram (Auto-Layout)")
 print("   • Single element selection with dropdown")
 print("   • Automatic node positioning via topological sort")

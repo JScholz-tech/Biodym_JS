@@ -15,6 +15,7 @@ from .publication_style_simplified import (
     get_publication_layout,
     get_element_color,
     create_color_sequence,
+    FONT_SIZE,
 )
 
 # Line dash patterns for distinguishing scenarios
@@ -50,7 +51,7 @@ def _build_stock_name_map(mfa_system):
 def _publication_legend():
     """Return a compact publication legend config."""
     return {
-        "font": {"size": 12},
+        "font": {"size": FONT_SIZE["legend"]},
         "bgcolor": "rgba(255,255,255,0.85)",
         "bordercolor": "#ccc",
         "borderwidth": 1,
@@ -390,7 +391,7 @@ def plot_scenario_flow_dynamics(
                 y_title=f"Flow ({element.upper()}) [Mg]",
             )
             layout_config["height"] = 600
-            layout_config["margin"] = {"t": 60, "b": 120, "l": 80, "r": 20}
+            layout_config["margin"] = {"t": 80, "b": 120, "l": 80, "r": 20}
             layout_config["legend"] = _publication_legend()
             fig.update_layout(**layout_config)
 
@@ -514,7 +515,7 @@ def plot_scenario_stock_dynamics(
                 y_title=f"Stock ({element.upper()}) [Mg]",
             )
             layout_config["height"] = 600
-            layout_config["margin"] = {"t": 60, "b": 120, "l": 80, "r": 20}
+            layout_config["margin"] = {"t": 80, "b": 120, "l": 80, "r": 20}
             layout_config["legend"] = _publication_legend()
             fig.update_layout(**layout_config)
 

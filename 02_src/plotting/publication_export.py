@@ -10,7 +10,7 @@ import os
 from ipywidgets import Button, HBox, VBox, Dropdown, Text, HTML
 from IPython.display import display, clear_output
 from datetime import datetime
-from .publication_style import (
+from .publication_style_simplified import (
     get_publication_layout,
     get_export_filename,
     EXPORT_SETTINGS,

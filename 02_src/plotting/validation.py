@@ -396,7 +396,8 @@ def plot_total_mass_balance_error(
         "xanchor": "right",
         "x": 1,
     }
-    layout_config["xaxis"]["tickangle"] = -45
+    layout_config["xaxis"]["tickangle"] = -60
+    layout_config["margin"] = dict(l=100, r=50, t=100, b=200)
     # Add annotation about Input/Output processes
     layout_config["annotations"] = [
         dict(
@@ -404,7 +405,7 @@ def plot_total_mass_balance_error(
             xref="paper",
             yref="paper",
             x=0.5,
-            y=-0.15,
+            y=-0.35,
             showarrow=False,
             font=dict(size=14, color=BIOYM_COLORS["neutral"]),
             xanchor="center",
