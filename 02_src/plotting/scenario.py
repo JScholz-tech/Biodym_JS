@@ -17,6 +17,50 @@ from .publication_style_simplified import (
     create_color_sequence,
 )
 
+# Line dash patterns for distinguishing scenarios
+_SCENARIO_DASHES = ["solid", "dash", "dot", "dashdot", "longdash", "longdashdot"]
+
+
+def _build_flow_name_map(mfa_system):
+    """Build descriptive flow names from process names: 'ProcessA -> ProcessB'."""
+    process_name_by_id = {p.ID: p.Name for p in mfa_system.ProcessList}
+    flow_map = {}
+    for flow_id, flow_obj in mfa_system.FlowDict.items():
+        src = process_name_by_id.get(flow_obj.P_Start, f"P{flow_obj.P_Start}")
+        dst = process_name_by_id.get(flow_obj.P_End, f"P{flow_obj.P_End}")
+        flow_map[flow_id] = f"{src} \u2192 {dst}"
+    return flow_map
+
+
+def _build_stock_name_map(mfa_system):
+    """Build descriptive stock names from process names: 'ProcessName'."""
+    stock_map = {}
+    for stock_id in mfa_system.StockDict:
+        if stock_id.startswith("S_"):
+            pid = int(stock_id.split("_")[1])
+            for p in mfa_system.ProcessList:
+                if p.ID == pid:
+                    stock_map[stock_id] = p.Name
+                    break
+            if stock_id not in stock_map:
+                stock_map[stock_id] = f"Process {pid}"
+    return stock_map
+
+
+def _publication_legend():
+    """Return a compact publication legend config."""
+    return {
+        "font": {"size": 12},
+        "bgcolor": "rgba(255,255,255,0.85)",
+        "bordercolor": "#ccc",
+        "borderwidth": 1,
+        "orientation": "h",
+        "yanchor": "top",
+        "y": -0.18,
+        "xanchor": "center",
+        "x": 0.5,
+    }
+
 
 def plot_multi_scenario_comparison(
     baseline_results, all_scenario_results, scenario_definitions
@@ -55,33 +99,18 @@ def plot_multi_scenario_comparison(
     flows = list(baseline_results.FlowDict.keys())
     all_scenarios = list(all_scenario_results.keys())
 
-    # Create mapping from stock IDs to process names for better titles
-    stock_id_to_name = {}
-    for stock_id in stocks:
-        if stock_id.startswith("S_"):
-            process_id = int(stock_id.split("_")[1])
-            # Find process name from ProcessList
-            for process in baseline_results.ProcessList:
-                if process.ID == process_id:
-                    stock_id_to_name[stock_id] = f"{process.Name} (P{process_id})"
-                    break
-            if stock_id not in stock_id_to_name:
-                stock_id_to_name[stock_id] = f"Process {process_id}"
+    stock_name_map = _build_stock_name_map(baseline_results)
+    flow_name_map = _build_flow_name_map(baseline_results)
 
-    # Create mapping from flow IDs to flow names for better titles
-    flow_id_to_name = {}
-    for flow_id in flows:
-        flow_obj = baseline_results.FlowDict.get(flow_id)
-        if flow_obj and hasattr(flow_obj, "Name"):
-            flow_id_to_name[flow_id] = f"{flow_obj.Name} ({flow_id})"
-        else:
-            flow_id_to_name[flow_id] = flow_id
+    # Build dropdown options with descriptive names
+    stock_options = [(stock_name_map.get(sid, sid), sid) for sid in stocks]
+    flow_options = [(flow_name_map.get(fid, fid), fid) for fid in flows]
 
     # --- Widgets ---
     metric_dropdown = Dropdown(
         options=["Final Stock", "Total Flow"], description="Metric:"
     )
-    item_dropdown = Dropdown(options=stocks, description="Item:")
+    item_dropdown = Dropdown(options=stock_options, description="Item:")
     element_dropdown = Dropdown(options=elements, description="Element:")
     chart_type_dropdown = Dropdown(
         options=["Bar Chart", "Line Diagram"], description="Chart Type:"
@@ -96,9 +125,9 @@ def plot_multi_scenario_comparison(
 
     def update_item_options(change):
         if change.new == "Final Stock":
-            item_dropdown.options = stocks
+            item_dropdown.options = stock_options
         else:
-            item_dropdown.options = flows
+            item_dropdown.options = flow_options
 
     metric_dropdown.observe(update_item_options, names="value")
 
@@ -166,9 +195,9 @@ def plot_multi_scenario_comparison(
 
             # Get meaningful item name for title
             if metric == "Final Stock":
-                item_display_name = stock_id_to_name.get(item, item)
+                item_display_name = stock_name_map.get(item, item)
             else:
-                item_display_name = flow_id_to_name.get(item, item)
+                item_display_name = flow_name_map.get(item, item)
 
             # Use shiny element color
             element_color = get_element_color(element)
@@ -257,29 +286,17 @@ def plot_scenario_flow_dynamics(
 ):
     """Creates an interactive time-series plot showing flow dynamics for different scenarios.
 
-    This function visualizes the time-series evolution of selected flows,
-    comparing their dynamics across a baseline and multiple user-selected
-    scenarios. It allows for multi-flow and multi-scenario selection.
+    Color encodes the flow (descriptive names from process names), line style
+    encodes the scenario (solid = baseline, dashed variants = scenarios).
 
     Parameters
     ----------
     baseline_results : odym.MFAsystem
         The solved MFA system object representing the baseline scenario.
     all_scenario_results : dict
-        A dictionary where keys are scenario names (str) and values are the
-        corresponding solved `odym.MFAsystem` objects for each scenario.
+        A dictionary of solved MFA system objects keyed by scenario name.
     scenario_definitions : dict
-        A dictionary where keys are scenario names (str) and values are lists
-        of dictionaries, each describing a parameter change for that scenario.
-        (Note: This parameter is currently not directly used in the plot but
-        is kept for API consistency).
-
-    Notes
-    -----
-    The plot is interactive, allowing users to select multiple flows, the
-    element, and which scenarios to display. Each scenario's flow is plotted
-    as a distinct line, with the baseline clearly marked. Publication standards
-    are applied for styling.
+        Scenario parameter definitions (kept for API consistency).
     """
     if not all_scenario_results:
         print("No scenario results to compare.")
@@ -289,26 +306,18 @@ def plot_scenario_flow_dynamics(
     flows = list(baseline_results.FlowDict.keys())
     all_scenarios = list(all_scenario_results.keys())
     time_axis = baseline_results.IndexTable.Classification["Time"].Items
+    flow_name_map = _build_flow_name_map(baseline_results)
 
-    # Create mapping from flow IDs to flow names for better titles
-    flow_id_to_name = {}
-    for flow_id in flows:
-        flow_obj = baseline_results.FlowDict.get(flow_id)
-        if flow_obj and hasattr(flow_obj, "Name"):
-            flow_id_to_name[flow_id] = f"{flow_obj.Name} ({flow_id})"
-        else:
-            flow_id_to_name[flow_id] = flow_id
-
-    # --- Widgets ---
+    # Widgets — show descriptive names in selector
+    flow_display = {fid: flow_name_map.get(fid, fid) for fid in flows}
     flow_selector = SelectMultiple(
-        options=flows, value=flows[:3], description="Flows:", disabled=False
+        options=[(name, fid) for fid, name in flow_display.items()],
+        value=flows[:3],
+        description="Flows:",
     )
     element_dropdown = Dropdown(options=elements, description="Element:")
     scenario_selector = SelectMultiple(
-        options=all_scenarios,
-        value=all_scenarios,
-        description="Scenarios:",
-        disabled=False,
+        options=all_scenarios, value=all_scenarios, description="Scenarios:",
     )
 
     fig = go.FigureWidget()
@@ -316,78 +325,75 @@ def plot_scenario_flow_dynamics(
     def plot_scenario_flows(selected_flows, element, selected_scenarios):
         with fig.batch_update():
             fig.data = []
-            # Handle element safely
             if element not in elements:
-                print(
-                    f"⚠️ Element '{element}' not found in system. Available: {elements}"
-                )
                 return
             element_index = elements.index(element)
 
-            # Get element color
-            get_element_color(element)
+            # Color per flow, dash per scenario
+            flow_colors = create_color_sequence(len(selected_flows), palette="primary")
+            scenarios_with_baseline = ["Baseline"] + list(selected_scenarios)
 
-            # Generate distinct colors for scenarios
-            scenarios_to_plot = ["Baseline"] + list(selected_scenarios)
-            scenario_colors = create_color_sequence(
-                len(scenarios_to_plot), palette="primary"
-            )
-
-            # Plot each flow for each scenario
             for i, flow_id in enumerate(selected_flows):
                 flow_obj = baseline_results.FlowDict.get(flow_id)
                 if not flow_obj:
                     continue
+                color = flow_colors[i]
+                display_name = flow_name_map.get(flow_id, flow_id)
 
-                flow_name = flow_id_to_name.get(flow_id, flow_id)
+                for j, scenario_label in enumerate(scenarios_with_baseline):
+                    dash = _SCENARIO_DASHES[j % len(_SCENARIO_DASHES)]
+                    if scenario_label == "Baseline":
+                        values = flow_obj.Values[:, element_index]
+                    else:
+                        sc_flow = all_scenario_results[scenario_label].FlowDict.get(flow_id)
+                        if sc_flow is None:
+                            continue
+                        values = sc_flow.Values[:, element_index]
 
-                # Plot baseline
+                    # Show legend only for first scenario per flow (avoid duplicates)
+                    show_legend = (j == 0)
+                    fig.add_trace(
+                        go.Scatter(
+                            x=time_axis,
+                            y=values,
+                            mode="lines",
+                            name=display_name,
+                            legendgroup=flow_id,
+                            showlegend=show_legend,
+                            line=dict(color=color, width=2, dash=dash),
+                            hovertemplate=(
+                                f"<b>{display_name}</b> ({scenario_label})<br>"
+                                "Year: %{x}<br>Value: %{y:.2e} Mg<extra></extra>"
+                            ),
+                        )
+                    )
+
+            # Add invisible traces for scenario line-style legend
+            for j, scenario_label in enumerate(scenarios_with_baseline):
+                dash = _SCENARIO_DASHES[j % len(_SCENARIO_DASHES)]
                 fig.add_trace(
                     go.Scatter(
-                        x=time_axis,
-                        y=flow_obj.Values[:, element_index],
-                        mode="lines+markers",
-                        name=f"Baseline: {flow_name}",
-                        line=dict(color=scenario_colors[0], width=2),
-                        marker=dict(color=scenario_colors[0], size=4),
-                        opacity=0.8,
+                        x=[None], y=[None], mode="lines",
+                        name=scenario_label,
+                        legendgroup="__scenarios",
+                        line=dict(color="#333", width=2, dash=dash),
+                        showlegend=True,
                     )
                 )
 
-                # Plot scenarios
-                for j, scenario_name in enumerate(selected_scenarios):
-                    scenario_result = all_scenario_results[scenario_name]
-                    scenario_flow_obj = scenario_result.FlowDict.get(flow_id)
-
-                    if scenario_flow_obj:
-                        fig.add_trace(
-                            go.Scatter(
-                                x=time_axis,
-                                y=scenario_flow_obj.Values[:, element_index],
-                                mode="lines+markers",
-                                name=f"{scenario_name}: {flow_name}",
-                                line=dict(
-                                    color=scenario_colors[j + 1], width=2, dash="dash"
-                                ),
-                                marker=dict(color=scenario_colors[j + 1], size=4),
-                                opacity=0.8,
-                            )
-                        )
-
-            # Apply publication layout
             layout_config = get_publication_layout(
                 size="large",
                 show_grid=True,
                 scientific_y=True,
                 custom_title=f"Scenario Flow Dynamics: {element.upper()} Over Time",
                 x_title="Time (Years)",
-                y_title=f"Value ({element.upper()}) [Mg]",
+                y_title=f"Flow ({element.upper()}) [Mg]",
             )
             layout_config["height"] = 600
-            layout_config["showlegend"] = True
+            layout_config["margin"] = {"t": 60, "b": 120, "l": 80, "r": 20}
+            layout_config["legend"] = _publication_legend()
             fig.update_layout(**layout_config)
 
-    # Link widgets
     def update_plot():
         plot_scenario_flows(
             flow_selector.value, element_dropdown.value, scenario_selector.value
@@ -396,12 +402,8 @@ def plot_scenario_flow_dynamics(
     flow_selector.observe(lambda change: update_plot(), names="value")
     element_dropdown.observe(lambda change: update_plot(), names="value")
     scenario_selector.observe(lambda change: update_plot(), names="value")
-    # Export button click handler is automatically set by create_export_button
 
-    # Initial plot call
     update_plot()
-
-    # Display layout
     controls = HBox([flow_selector, element_dropdown, scenario_selector])
     display(VBox([controls, fig]))
 
@@ -409,31 +411,19 @@ def plot_scenario_flow_dynamics(
 def plot_scenario_stock_dynamics(
     baseline_results, all_scenario_results, scenario_definitions
 ):
-    """Creates an interactive time-series plot showing stock dynamics over time for different scenarios.
+    """Creates an interactive time-series plot showing stock dynamics for different scenarios.
 
-    This function visualizes the time-series evolution of selected stocks,
-    comparing their dynamics across a baseline and multiple user-selected
-    scenarios. It allows for multi-stock and multi-scenario selection.
+    Color encodes the stock (named after process), line style encodes the
+    scenario (solid = baseline, dashed variants = scenarios).
 
     Parameters
     ----------
     baseline_results : odym.MFAsystem
         The solved MFA system object representing the baseline scenario.
     all_scenario_results : dict
-        A dictionary where keys are scenario names (str) and values are the
-        corresponding solved `odym.MFAsystem` objects for each scenario.
+        A dictionary of solved MFA system objects keyed by scenario name.
     scenario_definitions : dict
-        A dictionary where keys are scenario names (str) and values are lists
-        of dictionaries, each describing a parameter change for that scenario.
-        (Note: This parameter is currently not directly used in the plot but
-        is kept for API consistency).
-
-    Notes
-    -----
-    The plot is interactive, allowing users to select multiple stocks, the
-    element, and which scenarios to display. Each scenario's stock is plotted
-    as a distinct line, with the baseline clearly marked. Publication standards
-    are applied for styling.
+        Scenario parameter definitions (kept for API consistency).
     """
     if not all_scenario_results:
         print("No scenario results to compare.")
@@ -443,32 +433,17 @@ def plot_scenario_stock_dynamics(
     stocks = [s for s in baseline_results.StockDict.keys() if s.startswith("S_")]
     all_scenarios = list(all_scenario_results.keys())
     time_axis = baseline_results.IndexTable.Classification["Time"].Items
+    stock_name_map = _build_stock_name_map(baseline_results)
 
-    # Create mapping from stock IDs to process names for better titles
-    stock_id_to_name = {}
-    for stock_id in stocks:
-        if stock_id.startswith("S_"):
-            process_id = int(stock_id.split("_")[1])
-            for process in baseline_results.ProcessList:
-                if process.ID == process_id:
-                    stock_id_to_name[stock_id] = f"{process.Name} (P{process_id})"
-                    break
-            if stock_id not in stock_id_to_name:
-                stock_id_to_name[stock_id] = f"Process {process_id}"
-
-    # --- Widgets ---
+    # Widgets — show descriptive names
     stock_selector = SelectMultiple(
-        options=stocks,
+        options=[(stock_name_map.get(sid, sid), sid) for sid in stocks],
         value=stocks[:3] if len(stocks) > 2 else stocks,
         description="Stocks:",
-        disabled=False,
     )
     element_dropdown = Dropdown(options=elements, description="Element:")
     scenario_selector = SelectMultiple(
-        options=all_scenarios,
-        value=all_scenarios,
-        description="Scenarios:",
-        disabled=False,
+        options=all_scenarios, value=all_scenarios, description="Scenarios:",
     )
 
     fig = go.FigureWidget()
@@ -476,58 +451,59 @@ def plot_scenario_stock_dynamics(
     def plot_scenario_stocks(selected_stocks, element, selected_scenarios):
         with fig.batch_update():
             fig.data = []
-            # Handle element safely
             if element not in elements:
-                print(
-                    f"⚠️ Element '{element}' not found in system. Available: {elements}"
-                )
                 return
             element_index = elements.index(element)
 
-            scenarios_to_plot = ["Baseline"] + list(selected_scenarios)
-            scenario_colors = create_color_sequence(
-                len(scenarios_to_plot), palette="primary"
-            )
+            stock_colors = create_color_sequence(len(selected_stocks), palette="primary")
+            scenarios_with_baseline = ["Baseline"] + list(selected_scenarios)
 
             for i, stock_id in enumerate(selected_stocks):
                 stock_obj = baseline_results.StockDict.get(stock_id)
                 if not stock_obj:
                     continue
+                color = stock_colors[i]
+                display_name = stock_name_map.get(stock_id, stock_id)
 
-                stock_name = stock_id_to_name.get(stock_id, stock_id)
+                for j, scenario_label in enumerate(scenarios_with_baseline):
+                    dash = _SCENARIO_DASHES[j % len(_SCENARIO_DASHES)]
+                    if scenario_label == "Baseline":
+                        values = stock_obj.Values[:, element_index]
+                    else:
+                        sc_stock = all_scenario_results[scenario_label].StockDict.get(stock_id)
+                        if sc_stock is None:
+                            continue
+                        values = sc_stock.Values[:, element_index]
 
-                # Plot baseline
+                    show_legend = (j == 0)
+                    fig.add_trace(
+                        go.Scatter(
+                            x=time_axis,
+                            y=values,
+                            mode="lines",
+                            name=display_name,
+                            legendgroup=stock_id,
+                            showlegend=show_legend,
+                            line=dict(color=color, width=2, dash=dash),
+                            hovertemplate=(
+                                f"<b>{display_name}</b> ({scenario_label})<br>"
+                                "Year: %{x}<br>Value: %{y:.2e} Mg<extra></extra>"
+                            ),
+                        )
+                    )
+
+            # Scenario line-style legend
+            for j, scenario_label in enumerate(scenarios_with_baseline):
+                dash = _SCENARIO_DASHES[j % len(_SCENARIO_DASHES)]
                 fig.add_trace(
                     go.Scatter(
-                        x=time_axis,
-                        y=stock_obj.Values[:, element_index],
-                        mode="lines+markers",
-                        name=f"Baseline: {stock_name}",
-                        line=dict(color=scenario_colors[0], width=2),
-                        marker=dict(color=scenario_colors[0], size=4),
-                        opacity=0.8,
+                        x=[None], y=[None], mode="lines",
+                        name=scenario_label,
+                        legendgroup="__scenarios",
+                        line=dict(color="#333", width=2, dash=dash),
+                        showlegend=True,
                     )
                 )
-
-                # Plot scenarios
-                for j, scenario_name in enumerate(selected_scenarios):
-                    scenario_result = all_scenario_results[scenario_name]
-                    scenario_stock_obj = scenario_result.StockDict.get(stock_id)
-
-                    if scenario_stock_obj:
-                        fig.add_trace(
-                            go.Scatter(
-                                x=time_axis,
-                                y=scenario_stock_obj.Values[:, element_index],
-                                mode="lines+markers",
-                                name=f"{scenario_name}: {stock_name}",
-                                line=dict(
-                                    color=scenario_colors[j + 1], width=2, dash="dash"
-                                ),
-                                marker=dict(color=scenario_colors[j + 1], size=4),
-                                opacity=0.8,
-                            )
-                        )
 
             layout_config = get_publication_layout(
                 size="large",
@@ -535,10 +511,11 @@ def plot_scenario_stock_dynamics(
                 scientific_y=True,
                 custom_title=f"Scenario Stock Dynamics: {element.upper()} Over Time",
                 x_title="Time (Years)",
-                y_title=f"Value ({element.upper()}) [Mg]",
+                y_title=f"Stock ({element.upper()}) [Mg]",
             )
             layout_config["height"] = 600
-            layout_config["showlegend"] = True
+            layout_config["margin"] = {"t": 60, "b": 120, "l": 80, "r": 20}
+            layout_config["legend"] = _publication_legend()
             fig.update_layout(**layout_config)
 
     def update_plot():
@@ -551,6 +528,5 @@ def plot_scenario_stock_dynamics(
     scenario_selector.observe(lambda change: update_plot(), names="value")
 
     update_plot()
-
     controls = HBox([stock_selector, element_dropdown, scenario_selector])
     display(VBox([controls, fig]))
