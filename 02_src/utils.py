@@ -737,7 +737,7 @@ class ScenarioManager:
         create_scenario_comparison_plot : Used internally to prepare comparison data.
         """
         if output_path is None:
-            output_path = f"scenarios/scenario_comparison_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            output_path = f"01_data/02_output/scenarios/scenario_comparison_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
 
         comparison_data = self.create_scenario_comparison_plot(scenario_names)
 

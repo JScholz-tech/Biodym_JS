@@ -71,17 +71,19 @@ docs/
 # AI assistance (development notes, not for publication)
 07_AI_Coding_Assistance/
 
+# Scenario outputs (generated files, stored in 01_data/02_output/scenarios/)
+scenarios/
+
 # Writing project (private publication materials)
 Writing project/
 
 # -----------------------------------------------------------------------------
 # 01_data - Input Files (only template is tracked)
 # -----------------------------------------------------------------------------
-# User input files (everyone creates their own)
-01_data/01_input/*.xlsx
-01_data/01_input/*.xlsm
-01_data/01_input/*.xltm
+# Exclude everything in input folder except the template subfolder
+01_data/01_input/*
 !01_data/01_input/template/
+!01_data/01_input/template/**
 
 # Temporary hex-named lock files
 01_data/01_input/[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]
