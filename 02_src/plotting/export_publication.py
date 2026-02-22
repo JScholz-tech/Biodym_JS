@@ -62,7 +62,7 @@ def export_figure(
     dpi: Optional[int] = None,
     output_dir: Optional[str] = None,
     timestamp: bool = False,
-    overwrite: bool = False,
+    overwrite: bool = True,
     verbose: bool = True,
 ) -> List[str]:
     """

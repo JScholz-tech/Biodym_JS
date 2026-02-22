@@ -91,7 +91,10 @@ Writing project/
 # -----------------------------------------------------------------------------
 # 01_data - Output Files (all generated, not tracked)
 # -----------------------------------------------------------------------------
-01_data/02_output/
+# Ignore all output files, but keep folder structure via .gitkeep
+01_data/02_output/**
+!01_data/02_output/**/
+!01_data/02_output/**/.gitkeep
 
 # -----------------------------------------------------------------------------
 # 03_studies - Case Studies

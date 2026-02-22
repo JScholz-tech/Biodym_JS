@@ -475,7 +475,7 @@ plot_flow_composition(mfa_results_baseline)
 # Export flow composition data
 from plotting.composition_export import export_flow_composition
 
-export_path = "01_data/02_output/composition_export/flow_composition.xlsx"
+export_path = "01_data/02_output/composition/flow_composition.xlsx"
 export_flow_composition(mfa_results_baseline, export_path)
 
 # # 3. Visualization
@@ -723,7 +723,7 @@ if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
             print(f"\n{Icons.EXPORT} Exporting Monte Carlo results...")
 
             # Fixed filename - overwrites previous results
-            mc_output_path = "01_data/02_output/mc_output/mc_results_detailed.xlsx"
+            mc_output_path = "01_data/02_output/mc/mc_results.xlsx"
             try:
                 mc_results.to_excel(mc_output_path, index=False)
                 print(
@@ -846,14 +846,14 @@ print(format_header("EXPORTING BASELINE RESULTS"))
 
 # ## 5.1 KPI Dashboard and Export
 
-kpi_output_path = "01_data/02_output/kpi_dashboard/system_kpis.xlsx"
+kpi_output_path = "01_data/02_output/kpi/system_kpis.xlsx"
 print(format_step(Icons.EXPORT, "5.1", "Generating KPI Dashboard..."))
 kpi_dashboard.generate_kpi_dashboard(
     mfa_results_baseline, process_logic_map, kpi_output_path
 )
 
 print(format_step(Icons.EXPORT, "5.2", "Exporting baseline results..."))
-output_file = "01_data/02_output/results_scientific_baseline.xlsx"
+output_file = "01_data/02_output/results/results_baseline.xlsx"
 utils.export_results_to_excel(
     mfa_results_baseline, output_file, input_file_path=input_file
 )

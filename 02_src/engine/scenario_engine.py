@@ -310,7 +310,7 @@ def generate_scenario_comparison_visualizations(
 def export_scenario_results(
     all_scenario_results: Dict,
     scenario_definitions: Dict,
-    output_dir: str = "01_data/02_output/scenario_output",
+    output_dir: str = "01_data/02_output/scenarios",
 ) -> None:
     """Exports the results of each scenario to a separate Excel file.
 
