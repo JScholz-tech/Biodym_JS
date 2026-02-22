@@ -99,15 +99,8 @@ Writing project/
 # -----------------------------------------------------------------------------
 # 03_studies - Case Studies
 # -----------------------------------------------------------------------------
-# Old/experimental case studies (not for publication)
-03_studies/BA_Reifen/
-03_studies/Biodym Modular/
-03_studies/case_study_bachelor_thesis/
-03_studies/Eichkamp/
-03_studies/rye_straw_cascading_treatment_system/
-03_studies/publication_plotting_example.py
-
-# Generated output files in case studies
-03_studies/*/*.png
-03_studies/*/*.xlsx
-03_studies/*/Sankey*
+# Ignore all studies except the published Weizenstroh DGAW study
+03_studies/*/
+03_studies/*.*
+!03_studies/26_Weizenstroh_DGAW/
+!03_studies/26_Weizenstroh_DGAW/**
