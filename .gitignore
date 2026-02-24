@@ -99,6 +99,9 @@ Writing project/
 # -----------------------------------------------------------------------------
 # 05_docs - Development / Internal files (kept locally, not for publication)
 # -----------------------------------------------------------------------------
+# All internal development files moved here by user
+05_docs/internal_developement/
+
 # Archive: all superseded design originals and development history
 05_docs/_archive/
 
