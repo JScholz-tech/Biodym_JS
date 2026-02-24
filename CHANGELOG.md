@@ -75,24 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## Future Releases
 
-### [1.1.0] - Planned
-- Enhanced error messages and user feedback
-- Performance optimizations for large systems
-- Additional validation test cases
-- Benchmark comparison against published MFA studies
-
-### [2.0.0] - Planned
-- Composition hierarchy as proper 3D array structure (refactor metadata approach)
-- Multi-regional MFA support (Time × Element × Region)
-- Advanced data reconciliation module
-- FOMP initial stock support via Excel configuration
-
-### [2.1.0] - Planned
-- Advanced Sankey layout algorithms
-- Interactive dashboard improvements
-- Additional export formats (SVG, HTML)
 
 ---
 
