@@ -3,16 +3,20 @@ message: "If you use this software, please cite it as below."
 type: software
 title: "BioDYM: Material Flow Analysis for Bio-based Systems"
 version: 1.0.0
-date-released: 2025-11-21
+date-released: 2026-02-24
 url: "https://github.com/JScholz-tech/Biodym_JS"
 repository-code: "https://github.com/JScholz-tech/Biodym_JS"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.XXXXXXX"
+    description: "Zenodo archive DOI (placeholder — update after Zenodo release)"
 license: MIT
 authors:
   - family-names: "Scholz"
     given-names: "Johannes"
-    email: "johannes.scholz@tu-berlin.de"
+    email: "j.scholz@tu-berlin.de"
     affiliation: "TU Berlin - Chair of Circular Economy and Recycling Technology"
-    orcid: "https://orcid.org/0000-0000-0000-0000"  # Replace with actual ORCID if available
+    orcid: "https://orcid.org/0009-0002-1723-9790"
 keywords:
   - material flow analysis
   - MFA

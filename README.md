@@ -1,4 +1,4 @@
-# BioDYM - Biogenic Dynamic Material Systems Model
+# bioDYM - Biogenic Dynamic Material Systems Model
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
@@ -17,7 +17,7 @@ BioDYM is a comprehensive Material Flow Analysis (MFA) tool designed for analyzi
 
 2. **Open Jupyter**: `jupyter lab` (or `uv run jupyter lab` for UV users)
 
-3. **Run the workflow**: Open `00_BioDYM_Workflow.ipynb` and select "Kernel → Restart & Run All"
+3. **Run the workflow**: Open `00_BioDYM_Workflow.ipynb`, add the filepath of the biodym Systemmanager Template and select "Kernel → Restart & Run All"
 
 4. **Explore**: Interactive visualizations appear automatically - no coding required!
 
@@ -58,7 +58,7 @@ Choose either **UV** (recommended, faster) or **Anaconda** (more traditional):
 
 ```bash
 # Clone the repository
-git clone -b beta-publication https://github.com/JScholz-tech/Biodym_JS.git
+git clone https://github.com/JScholz-tech/Biodym_JS.git
 cd Biodym_JS
 
 # Install uv if you don't have it
@@ -73,7 +73,7 @@ uv sync
 
 ```bash
 # Clone the repository
-git clone -b beta-publication https://github.com/JScholz-tech/Biodym_JS.git
+git clone https://github.com/JScholz-tech/Biodym_JS.git
 cd Biodym_JS
 
 # Create conda environment from environment.yml
@@ -85,17 +85,14 @@ conda activate biodym_env
 
 ### 2. Prepare Your Data
 
-Copy an example Excel file to use as your input data. The Excel file contains all your system configuration, processes, flows, and parameters:
+Copy the BioDYM Systemmanager template to use as your input data. The Excel file contains all system configuration, processes, flows, and parameters:
 
 ```bash
-# Copy the wheat straw example (recommended for first-time users)
-cp 01_data/01_input/250922_CS1_Wheat_Straw.xlsx my_analysis.xlsx
-
-# Or use the clean template
-cp 01_data/01_input/250625_Template_CS0.xlsx my_analysis.xlsx
+# Copy the template to your working location
+cp 01_data/01_input/template/260217_bioDYM_Systemmanager_template_final.xlsm my_analysis.xlsm
 ```
 
-> **Note**: `my_analysis.xlsx` is just a placeholder name - you can use any filename you prefer for your analysis.
+> **Note**: `my_analysis.xlsm` is just a placeholder name — use any filename you prefer. A protected version of the template (`_protected.xlsm`) is also available if you want to prevent accidental formula edits.
 
 ### 3. Run Your Analysis
 
@@ -139,9 +136,8 @@ Your Excel file contains several sheets that define your material flow system:
 - **`3_2_Definition_FOMP`** - First-Order Mineralization Process parameters
 - **`4_1_Uncertainty_Parameters`** - Monte Carlo uncertainty definitions
 - **`5_1_Scenario_Manager`** - Scenario definitions for comparison
-- **`6_1_Visualization_Processes`** - Process visualization settings
-- **`6_2_Visualization_Flows`** - Flow visualization settings
-- **`6_3_Layout_Configuration`** - Sankey diagram layout configuration
+- **`6_1_Reference_Manager`** - Reference Manager and assumptions
+
 
 ### Running Your First Analysis
 
@@ -167,7 +163,7 @@ The BioDYM project follows a clean, organized structure:
 - **`01_data/`** - Input/output data and examples
   - `01_input/` - Example Excel files and templates
   - `02_output/` - Analysis results and exports
-- **`scenarios/`** - Scenario configuration files (JSON) and comparison results (Excel)
+- **`01_data/02_output/scenarios/`** - Scenario comparison results (Excel, generated)
 - **`03_studies/`** - Case studies and research examples
 
 ### Documentation & Notebooks
@@ -178,22 +174,29 @@ The BioDYM project follows a clean, organized structure:
 
 ## 📊 Example Studies
 
-### Included Examples
+### Included Template
 
-1. **Wheat Straw Analysis** (`250922_CS1_Wheat_Straw.xlsx`) - Complete wheat straw processing system with Monte Carlo analysis
-2. **Template System** (`250625_Template_CS0.xlsx`) - Clean template for creating new analyses
+The repository includes the BioDYM Systemmanager template:
 
-### Example Outputs
+- **`01_data/01_input/template/260217_bioDYM_Systemmanager_template_final.xlsm`** — Blank template for setting up a new analysis
+- **`01_data/01_input/template/260217_bioDYM_Systemmanager_template_final_protected.xlsm`** — Protected version (prevents accidental formula edits)
 
-- **Baseline Results** (`results_scientific_baseline.xlsx`) - Sample output showing comprehensive analysis results
-- **Monte Carlo Results** (`mc_results_detailed.xlsx`) - Detailed uncertainty analysis outputs
-- **Scientific Results** (`results_scientific.xlsx`) - Standard scientific analysis results
-- **Configuration Results** (`results_scientific_config.xlsx`) - Configuration-driven analysis results
+### Published Case Study
 
-### Tutorial Examples
+- **Wheat Straw Cascading (DGAW 2026)** — `03_studies/26_Weizenstroh_DGAW/` — Complete wheat straw system with Monte Carlo analysis. See the study [README](03_studies/26_Weizenstroh_DGAW/README.md) and [CITATION.bib](03_studies/26_Weizenstroh_DGAW/CITATION.bib).
 
-- **Circular Sankey Example** (`examples/circular_sankey_example.py`) - Interactive visualization tutorial
-- **Monte Carlo User Interaction** (`examples/mc_user_interaction_example.py`) - Uncertainty analysis tutorial
+### Generated Outputs
+
+After running the workflow, results are written to `01_data/02_output/`:
+
+| Folder | Content |
+|--------|---------|
+| `results/` | Baseline MFA results (Excel) |
+| `composition/` | Flow composition data (Excel) |
+| `kpi/` | System KPI dashboard (Excel) |
+| `mc/` | Monte Carlo uncertainty results (Excel) |
+| `figures/` | All exported publication figures (PNG/SVG) |
+| `scenarios/` | Scenario comparison results (Excel) |
 
 ## 💡 Common Use Cases
 
@@ -291,6 +294,16 @@ pytest 04_tests/test_solver.py
 
 **Master Integration Test**: The main workflow notebook `00_BioDYM_Workflow.ipynb` serves as the comprehensive integration test. It should run successfully from start to finish after any code changes (Kernel → Restart & Run All).
 
+## 📑 Cite This Software
+
+If you use BioDYM in your research, please cite:
+
+> Scholz, J. (2026). *BioDYM: Material Flow Analysis for Bio-based Systems* (v1.0.0).
+> GitHub. https://github.com/JScholz-tech/Biodym_JS
+> DOI: [10.5281/zenodo.XXXXXXX](https://doi.org/10.5281/zenodo.XXXXXXX) *(placeholder — update after Zenodo release)*
+
+A machine-readable citation is available in [CITATION.cff](CITATION.cff).
+
 ## 🤝 Contributing
 
 We welcome contributions! Please see our [GitHub Issues](https://github.com/JScholz-tech/Biodym_JS/issues) for bug reports and feature requests.
@@ -309,11 +322,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Issues**: Report bugs or request features on [GitHub Issues](https://github.com/JScholz-tech/Biodym_JS/issues)
 - **Discussions**: Join our [GitHub Discussions](https://github.com/JScholz-tech/Biodym_JS/discussions)
-- **Examples**: Start with the included `250922_CS1_Wheat_Straw.xlsx` example file
+- **Examples**: Start with the template in `01_data/01_input/template/`
 
 ---
 
-*Last updated: November 2025 | Version: 1.0.0*
+*Last updated: February 2026 | Version: 1.0.0*
 
 ## BioDYM Extension: Stock-Outflow Transfer Coefficients (TCs)
 
