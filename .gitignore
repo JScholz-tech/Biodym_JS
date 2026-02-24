@@ -97,6 +97,30 @@ Writing project/
 !01_data/02_output/**/.gitkeep
 
 # -----------------------------------------------------------------------------
+# 05_docs - Development / Internal files (kept locally, not for publication)
+# -----------------------------------------------------------------------------
+# Archive: all superseded design originals and development history
+05_docs/_archive/
+
+# AI coding assistant instructions (Claude-specific, stale, not for public)
+05_docs/development/CLAUDE.md
+
+# ODYM compliance refactoring history (internal development artifacts)
+05_docs/development/odym-compliance/
+
+# Future/internal roadmap documents
+05_docs/development/6D_INTEGRATION_ROADMAP.md
+05_docs/development/SORTING_PLANT_EXTENSION_OVERVIEW.md
+
+# Miscellaneous files unrelated to BioDYM
+05_docs/feedback_10124.xml
+05_docs/recommended_positions_CE-RISE.csv
+05_docs/recommended_positions_ODYM1.csv
+
+# Generated LaTeX compile log
+05_docs/manual/biodym_manual.log
+
+# -----------------------------------------------------------------------------
 # 03_studies - Case Studies
 # -----------------------------------------------------------------------------
 # Ignore all studies except the published Weizenstroh DGAW study

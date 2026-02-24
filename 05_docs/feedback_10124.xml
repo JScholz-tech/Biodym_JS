@@ -1,377 +1,0 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<FEEDBACK VERSION="200701" COMMENT="XML-Importfile for mod/feedback">
-     <ITEMS>
-          <ITEM TYPE="multichoice" REQUIRED="0">
-               <ITEMID>
-                    <![CDATA[111325]]>
-               </ITEMID>
-               <ITEMTEXT>
-                    <![CDATA[How easy was the installation process?]]>
-               </ITEMTEXT>
-               <ITEMLABEL>
-                    <![CDATA[]]>
-               </ITEMLABEL>
-               <PRESENTATION>
-                    <![CDATA[r>>>>>1 (Very difficult)|2 (Difficult)|3 (Neutral)|4 (Easy)|5 (Very easy)]]>
-               </PRESENTATION>
-               <OPTIONS>
-                    <![CDATA[]]>
-               </OPTIONS>
-               <DEPENDITEM>
-                    <![CDATA[0]]>
-               </DEPENDITEM>
-               <DEPENDVALUE>
-                    <![CDATA[]]>
-               </DEPENDVALUE>
-          </ITEM>
-          <ITEM TYPE="multichoice" REQUIRED="0">
-               <ITEMID>
-                    <![CDATA[111326]]>
-               </ITEMID>
-               <ITEMTEXT>
-                    <![CDATA[**Did you encounter any installation issues?**]]>
-               </ITEMTEXT>
-               <ITEMLABEL>
-                    <![CDATA[]]>
-               </ITEMLABEL>
-               <PRESENTATION>
-                    <![CDATA[r>>>>>No issues|Minor issues (resolved quickly)|Major issues (took significant time to resolve)|Could not complete installation]]>
-               </PRESENTATION>
-               <OPTIONS>
-                    <![CDATA[]]>
-               </OPTIONS>
-               <DEPENDITEM>
-                    <![CDATA[0]]>
-               </DEPENDITEM>
-               <DEPENDVALUE>
-                    <![CDATA[]]>
-               </DEPENDVALUE>
-          </ITEM>
-          <ITEM TYPE="multichoice" REQUIRED="0">
-               <ITEMID>
-                    <![CDATA[111327]]>
-               </ITEMID>
-               <ITEMTEXT>
-                    <![CDATA[4. **Rate the clarity of installation instructions** ]]>
-               </ITEMTEXT>
-               <ITEMLABEL>
-                    <![CDATA[]]>
-               </ITEMLABEL>
-               <PRESENTATION>
-                    <![CDATA[r>>>>>- □ 1 (Very unclear)| □ 2 (Unclear)| □ 3 (Neutral)| □ 4 (Clear)| □ 5 (Very clear)]]>
-               </PRESENTATION>
-               <OPTIONS>
-                    <![CDATA[]]>
-               </OPTIONS>
-               <DEPENDITEM>
-                    <![CDATA[0]]>
-               </DEPENDITEM>
-               <DEPENDVALUE>
-                    <![CDATA[]]>
-               </DEPENDVALUE>
-          </ITEM>
-          <ITEM TYPE="multichoice" REQUIRED="0">
-               <ITEMID>
-                    <![CDATA[111328]]>
-               </ITEMID>
-               <ITEMTEXT>
-                    <![CDATA[5. **How easy was it to run your first analysis?** (1-5 scale)]]>
-               </ITEMTEXT>
-               <ITEMLABEL>
-                    <![CDATA[]]>
-               </ITEMLABEL>
-               <PRESENTATION>
-                    <![CDATA[r>>>>>1 (Very difficult)| 2 (Difficult) |3 (Neutral)|4 (Easy) |5 (Very easy)]]>
-               </PRESENTATION>
-               <OPTIONS>
-                    <![CDATA[]]>
-               </OPTIONS>
-               <DEPENDITEM>
-                    <![CDATA[0]]>
-               </DEPENDITEM>
-               <DEPENDVALUE>
-                    <![CDATA[]]>
-               </DEPENDVALUE>
-          </ITEM>
-          <ITEM TYPE="multichoice" REQUIRED="0">
-               <ITEMID>
-                    <![CDATA[111329]]>
-               </ITEMID>
-               <ITEMTEXT>
-                    <![CDATA[7. **Did you successfully complete a baseline analysis?**]]>
-               </ITEMTEXT>
-               <ITEMLABEL>
-                    <![CDATA[]]>
-               </ITEMLABEL>
-               <PRESENTATION>
-                    <![CDATA[r>>>>>Yes, without issues|Yes, with minor issues|Yes, with major issues|No, could not complete]]>
-               </PRESENTATION>
-               <OPTIONS>
-                    <![CDATA[]]>
-               </OPTIONS>
-               <DEPENDITEM>
-                    <![CDATA[0]]>
-               </DEPENDITEM>
-               <DEPENDVALUE>
-                    <![CDATA[]]>
-               </DEPENDVALUE>
-          </ITEM>
-          <ITEM TYPE="label" REQUIRED="0">
-               <ITEMID>
-                    <![CDATA[111330]]>
-               </ITEMID>
-               <ITEMTEXT>
-                    <![CDATA[label]]>
-               </ITEMTEXT>
-               <ITEMLABEL>
-                    <![CDATA[]]>
-               </ITEMLABEL>
-               <PRESENTATION>
-                    <![CDATA[<div style="color: #e4e4e4; background-color: #181818; font-family: Consolas, 'Courier New', monospace; font-weight: normal; font-size: 14px; line-height: 19px; white-space: pre;">
-<div><span style="color: #f8c762;">**Excel Template &amp; Data Input**</span></div>
-</div>]]>
-               </PRESENTATION>
-               <OPTIONS>
-                    <![CDATA[]]>
-               </OPTIONS>
-               <DEPENDITEM>
-                    <![CDATA[0]]>
-               </DEPENDITEM>
-               <DEPENDVALUE>
-                    <![CDATA[]]>
-               </DEPENDVALUE>
-          </ITEM>
-          <ITEM TYPE="multichoice" REQUIRED="0">
-               <ITEMID>
-                    <![CDATA[111331]]>
-               </ITEMID>
-               <ITEMTEXT>
-                    <![CDATA[8. **Rate the clarity of the Excel template structure** (1-5 scale)]]>
-               </ITEMTEXT>
-               <ITEMLABEL>
-                    <![CDATA[]]>
-               </ITEMLABEL>
-               <PRESENTATION>
-                    <![CDATA[r>>>>>1 (Very unclear)|2 (Unclear)|3 (Neutral) |4 (Clear) |5 (Very clear)]]>
-               </PRESENTATION>
-               <OPTIONS>
-                    <![CDATA[]]>
-               </OPTIONS>
-               <DEPENDITEM>
-                    <![CDATA[0]]>
-               </DEPENDITEM>
-               <DEPENDVALUE>
-                    <![CDATA[]]>
-               </DEPENDVALUE>
-          </ITEM>
-          <ITEM TYPE="textfield" REQUIRED="0">
-               <ITEMID>
-                    <![CDATA[111332]]>
-               </ITEMID>
-               <ITEMTEXT>
-                    <![CDATA[9. **Which sheets did you find most/least intuitive?**]]>
-               </ITEMTEXT>
-               <ITEMLABEL>
-                    <![CDATA[]]>
-               </ITEMLABEL>
-               <PRESENTATION>
-                    <![CDATA[30|255]]>
-               </PRESENTATION>
-               <OPTIONS>
-                    <![CDATA[]]>
-               </OPTIONS>
-               <DEPENDITEM>
-                    <![CDATA[0]]>
-               </DEPENDITEM>
-               <DEPENDVALUE>
-                    <![CDATA[]]>
-               </DEPENDVALUE>
-          </ITEM>
-          <ITEM TYPE="multichoice" REQUIRED="0">
-               <ITEMID>
-                    <![CDATA[111333]]>
-               </ITEMID>
-               <ITEMTEXT>
-                    <![CDATA[10. **Rate the naming conventions in the Excel template** (1-5 scale)]]>
-               </ITEMTEXT>
-               <ITEMLABEL>
-                    <![CDATA[]]>
-               </ITEMLABEL>
-               <PRESENTATION>
-                    <![CDATA[r>>>>>1 (Very confusing)|2 (Confusing) |3 (Neutral) |4 (Clear)|5 (Very clear)]]>
-               </PRESENTATION>
-               <OPTIONS>
-                    <![CDATA[]]>
-               </OPTIONS>
-               <DEPENDITEM>
-                    <![CDATA[0]]>
-               </DEPENDITEM>
-               <DEPENDVALUE>
-                    <![CDATA[]]>
-               </DEPENDVALUE>
-          </ITEM>
-          <ITEM TYPE="multichoice" REQUIRED="0">
-               <ITEMID>
-                    <![CDATA[111334]]>
-               </ITEMID>
-               <ITEMTEXT>
-                    <![CDATA[11. **How easy was it to input your own data?** (1-5 scale)]]>
-               </ITEMTEXT>
-               <ITEMLABEL>
-                    <![CDATA[]]>
-               </ITEMLABEL>
-               <PRESENTATION>
-                    <![CDATA[r>>>>>1 (Very difficult)|2 (Difficult)|3 (Neutral)|4 (Easy)|5 (Very easy)]]>
-               </PRESENTATION>
-               <OPTIONS>
-                    <![CDATA[]]>
-               </OPTIONS>
-               <DEPENDITEM>
-                    <![CDATA[0]]>
-               </DEPENDITEM>
-               <DEPENDVALUE>
-                    <![CDATA[]]>
-               </DEPENDVALUE>
-          </ITEM>
-          <ITEM TYPE="textfield" REQUIRED="0">
-               <ITEMID>
-                    <![CDATA[111335]]>
-               </ITEMID>
-               <ITEMTEXT>
-                    <![CDATA[14. **What would you change about the Excel template structure?**]]>
-               </ITEMTEXT>
-               <ITEMLABEL>
-                    <![CDATA[]]>
-               </ITEMLABEL>
-               <PRESENTATION>
-                    <![CDATA[30|255]]>
-               </PRESENTATION>
-               <OPTIONS>
-                    <![CDATA[]]>
-               </OPTIONS>
-               <DEPENDITEM>
-                    <![CDATA[0]]>
-               </DEPENDITEM>
-               <DEPENDVALUE>
-                    <![CDATA[]]>
-               </DEPENDVALUE>
-          </ITEM>
-          <ITEM TYPE="textarea" REQUIRED="0">
-               <ITEMID>
-                    <![CDATA[111336]]>
-               </ITEMID>
-               <ITEMTEXT>
-                    <![CDATA[15. **Are there any missing parameters or data fields you needed?**]]>
-               </ITEMTEXT>
-               <ITEMLABEL>
-                    <![CDATA[]]>
-               </ITEMLABEL>
-               <PRESENTATION>
-                    <![CDATA[30|5]]>
-               </PRESENTATION>
-               <OPTIONS>
-                    <![CDATA[]]>
-               </OPTIONS>
-               <DEPENDITEM>
-                    <![CDATA[0]]>
-               </DEPENDITEM>
-               <DEPENDVALUE>
-                    <![CDATA[]]>
-               </DEPENDVALUE>
-          </ITEM>
-          <ITEM TYPE="label" REQUIRED="0">
-               <ITEMID>
-                    <![CDATA[111337]]>
-               </ITEMID>
-               <ITEMTEXT>
-                    <![CDATA[label]]>
-               </ITEMTEXT>
-               <ITEMLABEL>
-                    <![CDATA[]]>
-               </ITEMLABEL>
-               <PRESENTATION>
-                    <![CDATA[<div style="color: #e4e4e4; background-color: #181818; font-family: Consolas, 'Courier New', monospace; font-weight: normal; font-size: 14px; line-height: 19px; white-space: pre;">
-<div><span style="color: #d6d6dd;">## 🧮 </span><span style="color: #f8c762;">**Core Functionality Testing**</span></div>
-</div>]]>
-               </PRESENTATION>
-               <OPTIONS>
-                    <![CDATA[]]>
-               </OPTIONS>
-               <DEPENDITEM>
-                    <![CDATA[0]]>
-               </DEPENDITEM>
-               <DEPENDVALUE>
-                    <![CDATA[]]>
-               </DEPENDVALUE>
-          </ITEM>
-          <ITEM TYPE="multichoice" REQUIRED="0">
-               <ITEMID>
-                    <![CDATA[111338]]>
-               </ITEMID>
-               <ITEMTEXT>
-                    <![CDATA[16. **Rate the accuracy of MFA calculations** (1-5 scale)]]>
-               </ITEMTEXT>
-               <ITEMLABEL>
-                    <![CDATA[]]>
-               </ITEMLABEL>
-               <PRESENTATION>
-                    <![CDATA[r>>>>>1 (Very inaccurate) |2 (Inaccurate)|3 (Neutral) |4 (Accurate)|5 (Very accurate)]]>
-               </PRESENTATION>
-               <OPTIONS>
-                    <![CDATA[]]>
-               </OPTIONS>
-               <DEPENDITEM>
-                    <![CDATA[0]]>
-               </DEPENDITEM>
-               <DEPENDVALUE>
-                    <![CDATA[]]>
-               </DEPENDVALUE>
-          </ITEM>
-          <ITEM TYPE="multichoice" REQUIRED="0">
-               <ITEMID>
-                    <![CDATA[111339]]>
-               </ITEMID>
-               <ITEMTEXT>
-                    <![CDATA[17. **Did mass balance checks work correctly?**]]>
-               </ITEMTEXT>
-               <ITEMLABEL>
-                    <![CDATA[]]>
-               </ITEMLABEL>
-               <PRESENTATION>
-                    <![CDATA[r>>>>>Always correct|Mostly correct|Sometimes incorrect|Often incorrect|Never worked]]>
-               </PRESENTATION>
-               <OPTIONS>
-                    <![CDATA[]]>
-               </OPTIONS>
-               <DEPENDITEM>
-                    <![CDATA[0]]>
-               </DEPENDITEM>
-               <DEPENDVALUE>
-                    <![CDATA[]]>
-               </DEPENDVALUE>
-          </ITEM>
-          <ITEM TYPE="multichoice" REQUIRED="0">
-               <ITEMID>
-                    <![CDATA[111340]]>
-               </ITEMID>
-               <ITEMTEXT>
-                    <![CDATA[18. **Rate the performance of MFA calculations** (1-5 scale)]]>
-               </ITEMTEXT>
-               <ITEMLABEL>
-                    <![CDATA[]]>
-               </ITEMLABEL>
-               <PRESENTATION>
-                    <![CDATA[r>>>>>1 (Very slow) |2 (Slow) |3 (Acceptable) |4 (Fast) |5 (Very fast)]]>
-               </PRESENTATION>
-               <OPTIONS>
-                    <![CDATA[]]>
-               </OPTIONS>
-               <DEPENDITEM>
-                    <![CDATA[0]]>
-               </DEPENDITEM>
-               <DEPENDVALUE>
-                    <![CDATA[]]>
-               </DEPENDVALUE>
-          </ITEM>
-     </ITEMS>
-</FEEDBACK>
