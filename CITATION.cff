@@ -8,8 +8,11 @@ url: "https://github.com/JScholz-tech/Biodym_JS"
 repository-code: "https://github.com/JScholz-tech/Biodym_JS"
 identifiers:
   - type: doi
-    value: "10.5281/zenodo.XXXXXXX"
-    description: "Zenodo archive DOI (placeholder — update after Zenodo release)"
+    value: "10.5281/zenodo.18759081"
+    description: "Zenodo archive DOI (version 1.0.0)"
+  - type: doi
+    value: "10.5281/zenodo.18759080"
+    description: "Zenodo concept DOI (always resolves to latest version)"
 license: MIT
 authors:
   - family-names: "Scholz"

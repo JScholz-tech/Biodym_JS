@@ -299,8 +299,9 @@ pytest 04_tests/test_solver.py
 If you use BioDYM in your research, please cite:
 
 > Scholz, J. (2026). *BioDYM: Material Flow Analysis for Bio-based Systems* (v1.0.0).
-> GitHub. https://github.com/JScholz-tech/Biodym_JS
-> DOI: [10.5281/zenodo.XXXXXXX](https://doi.org/10.5281/zenodo.XXXXXXX) *(placeholder — update after Zenodo release)*
+> Zenodo. https://doi.org/10.5281/zenodo.18759081
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18759081.svg)](https://doi.org/10.5281/zenodo.18759081)
 
 A machine-readable citation is available in [CITATION.cff](CITATION.cff).
 
