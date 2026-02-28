@@ -859,4 +859,72 @@ utils.export_results_to_excel(
 )
 print(format_success(f"Baseline results exported to: {output_file}"))
 
+# ## 5.2 Sankey Export
+#
+# Export the Sankey diagram in four formats for use in external tools.
+#
+# > **Element layers:** Each element (material, WC, DM, CC) produces a separate
+# > Sankey file — Sankey tools display one flow layer at a time. All elements are
+# > exported by default; restrict via `export_elements` in the config block below.
+#
+# | Format | Subfolder | Use with |
+# |--------|-----------|----------|
+# | `.html` | `sankey/html/` | Any browser — share interactively |
+# | `.json` | `sankey/json/` | Web developers, D3.js-based viewers |
+# | `.csv`  | `sankey/esankey/` | **e!Sankey** by ifu Hamburg — import via *Data → Import* |
+# | `.txt`  | `sankey/sankeymatic/` | **SankeyMATIC** — paste at sankeymatic.com |
+#
+# Files are named `sankey_{element}_{year}.ext` (e.g., `sankey_CC_2030.html`).
+
+from pathlib import Path
+from plotting.sankey import (
+    export_sankey_json,
+    export_sankey_html,
+    export_sankey_csv,
+    export_sankey_sankeymatic,
+)
+
+# ─── Sankey Export Configuration ─────────────────────────────────────────────
+export_years    = [int(mfa_results_baseline.Time_V[-1])]   # add more years: [2025, 2030]
+
+# All elements in the model (auto-detected) — or restrict: ["material", "CC"]
+all_elements    = list(mfa_results_baseline.IndexTable.Classification["Element"].Items)
+export_elements = all_elements
+
+min_flow        = 0.0   # omit flows below this absolute value (Mg)
+# ─────────────────────────────────────────────────────────────────────────────
+
+sankey_root = Path("01_data/02_output/sankey")
+
+for year in export_years:
+    for element in export_elements:
+        base = f"sankey_{element}_{year}"
+        print(f"\n{Icons.SANKEY} Exporting Sankey — {element} | {year}")
+
+        export_sankey_html(
+            mfa_results_baseline, year, element,
+            filepath=sankey_root / "html" / f"{base}.html",
+            dsm_params=dsm_details_baseline, fomp_params=None,
+            min_flow=min_flow,
+            title=f"BioDYM — {element} ({year})",
+        )
+        export_sankey_json(
+            mfa_results_baseline, year, element,
+            filepath=sankey_root / "json" / f"{base}.json",
+            dsm_params=dsm_details_baseline, fomp_params=None,
+            min_flow=min_flow,
+        )
+        export_sankey_csv(
+            mfa_results_baseline, year, element,
+            filepath=sankey_root / "esankey" / f"{base}.csv",
+            min_flow=min_flow,
+        )
+        export_sankey_sankeymatic(
+            mfa_results_baseline, year, element,
+            filepath=sankey_root / "sankeymatic" / f"{base}.txt",
+            min_flow=min_flow,
+        )
+
+print(f"\n{Icons.SUCCESS} All Sankey exports saved to: {sankey_root.resolve()}")
+
 print(format_header("ANALYSIS COMPLETE"))
