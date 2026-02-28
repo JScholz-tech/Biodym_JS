@@ -984,3 +984,125 @@ def export_sankey_html(mfa_system_results, year, element, filepath,
     fig.write_html(str(filepath), include_plotlyjs="cdn")
     print(f"Sankey HTML exported: {filepath}  ({len(sources)} flows)")
     return fig
+
+
+def export_sankey_csv(
+    mfa_system_results,
+    year,
+    element,
+    filepath,
+    min_flow=0.0,
+):
+    """Export Sankey flows as a 3-column CSV compatible with e!Sankey (ifu Hamburg).
+
+    Format (one flow per row, header included):
+        Source,Target,Value
+        Process A,Process B,1200.5
+
+    Paste or import into e!Sankey via Data → Import.
+
+    Args:
+        mfa_system_results: Solved MFAsystem object.
+        year (int): Calendar year to export (e.g., 2030).
+        element (str): Element name (e.g., "material", "DM", "CC").
+        filepath (str | Path): Output path, should end in .csv.
+        min_flow (float): Minimum absolute flow value to include.
+
+    Returns:
+        list[dict]: The rows written (Source, Target, Value).
+    """
+    import csv
+
+    filepath = pathlib.Path(filepath)
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+
+    time_vector = list(mfa_system_results.Time_V)
+    if year not in time_vector:
+        raise ValueError(f"Year {year} not in model time vector {time_vector}")
+    t_idx = time_vector.index(year)
+    el_idx = list(
+        mfa_system_results.IndexTable.Classification["Element"].Items
+    ).index(element)
+    name_map = {p.ID: p.Name for p in mfa_system_results.ProcessList}
+
+    rows = []
+    for flow in mfa_system_results.FlowDict.values():
+        val = float(flow.V[t_idx, 0, 0, 0, el_idx, 0])
+        if abs(val) < min_flow:
+            continue
+        rows.append(
+            {
+                "Source": name_map.get(flow.P_Start, str(flow.P_Start)),
+                "Target": name_map.get(flow.P_End, str(flow.P_End)),
+                "Value": round(val, 4),
+            }
+        )
+
+    with open(filepath, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["Source", "Target", "Value"])
+        writer.writeheader()
+        writer.writerows(rows)
+
+    print(f"  ✅ e!Sankey CSV:     {filepath}  ({len(rows)} flows)")
+    return rows
+
+
+def export_sankey_sankeymatic(
+    mfa_system_results,
+    year,
+    element,
+    filepath,
+    min_flow=0.0,
+):
+    """Export Sankey flows in SankeyMATIC plain-text format.
+
+    Paste the file contents directly into sankeymatic.com.
+
+    Format (one flow per line):
+        Source [Value] Target
+        Wheat Field [2000.0] Processing
+
+    Multi-word node names work without modification (spaces are valid in SankeyMATIC).
+
+    Args:
+        mfa_system_results: Solved MFAsystem object.
+        year (int): Calendar year to export.
+        element (str): Element name (e.g., "material", "DM", "CC").
+        filepath (str | Path): Output path, should end in .txt.
+        min_flow (float): Minimum absolute flow value to include.
+
+    Returns:
+        str: The full text content written to the file.
+    """
+    filepath = pathlib.Path(filepath)
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+
+    time_vector = list(mfa_system_results.Time_V)
+    if year not in time_vector:
+        raise ValueError(f"Year {year} not in model time vector {time_vector}")
+    t_idx = time_vector.index(year)
+    el_idx = list(
+        mfa_system_results.IndexTable.Classification["Element"].Items
+    ).index(element)
+    name_map = {p.ID: p.Name for p in mfa_system_results.ProcessList}
+
+    lines = [
+        f"// BioDYM Sankey Export — {element} — {year}",
+        "// Paste into sankeymatic.com",
+        "",
+    ]
+    count = 0
+    for flow in mfa_system_results.FlowDict.values():
+        val = float(flow.V[t_idx, 0, 0, 0, el_idx, 0])
+        if abs(val) < min_flow:
+            continue
+        source = name_map.get(flow.P_Start, str(flow.P_Start))
+        target = name_map.get(flow.P_End, str(flow.P_End))
+        lines.append(f"{source} [{round(val, 2)}] {target}")
+        count += 1
+
+    content = "\n".join(lines)
+    filepath.write_text(content, encoding="utf-8")
+
+    print(f"  ✅ SankeyMATIC TXT:  {filepath}  ({count} flows)")
+    return content
