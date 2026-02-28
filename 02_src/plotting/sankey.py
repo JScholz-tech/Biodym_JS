@@ -843,13 +843,11 @@ def export_sankey_json(mfa_system_results, year, element, filepath,
     process_list = mfa_system_results.ProcessList
     process_id_map = {p.ID: i for i, p in enumerate(process_list)}
     color_manager = ElementColorManager(elements)
-    dsm_pids = set(dsm_params.keys())
-    fomp_pids = set(fomp_params.keys())
 
     nodes = []
     for p in process_list:
-        proc_type = detect_biodym_process_type(p, dsm_pids, fomp_pids)
-        color = get_process_color(p, proc_type)
+        proc_type = detect_biodym_process_type(p.ID, dsm_params=dsm_params, fomp_params=fomp_params)
+        color = get_process_color(proc_type)
         nodes.append({
             "id":    p.ID,
             "name":  p.Name,
@@ -945,13 +943,11 @@ def export_sankey_html(mfa_system_results, year, element, filepath,
     process_list = mfa_system_results.ProcessList
     process_id_map = {p.ID: i for i, p in enumerate(process_list)}
     color_manager = ElementColorManager(elements)
-    dsm_pids = set(dsm_params.keys())
-    fomp_pids = set(fomp_params.keys())
     link_color = color_manager.get_element_color(element)
 
     node_labels = [p.Name for p in process_list]
     node_colors = [
-        get_process_color(p, detect_biodym_process_type(p, dsm_pids, fomp_pids))
+        get_process_color(detect_biodym_process_type(p.ID, dsm_params=dsm_params, fomp_params=fomp_params))
         for p in process_list
     ]
 
@@ -1016,18 +1012,19 @@ def export_sankey_csv(
     filepath = pathlib.Path(filepath)
     filepath.parent.mkdir(parents=True, exist_ok=True)
 
+    elements = mfa_system_results.Elements
+    if element not in elements:
+        raise ValueError(f"Element '{element}' not in system elements: {elements}.")
     time_vector = list(mfa_system_results.Time_V)
     if year not in time_vector:
         raise ValueError(f"Year {year} not in model time vector {time_vector}")
     t_idx = time_vector.index(year)
-    el_idx = list(
-        mfa_system_results.IndexTable.Classification["Element"].Items
-    ).index(element)
+    el_idx = elements.index(element)
     name_map = {p.ID: p.Name for p in mfa_system_results.ProcessList}
 
     rows = []
     for flow in mfa_system_results.FlowDict.values():
-        val = float(flow.V[t_idx, 0, 0, 0, el_idx, 0])
+        val = float(flow.Values[t_idx, el_idx])
         if abs(val) < min_flow:
             continue
         rows.append(
@@ -1077,13 +1074,14 @@ def export_sankey_sankeymatic(
     filepath = pathlib.Path(filepath)
     filepath.parent.mkdir(parents=True, exist_ok=True)
 
+    elements = mfa_system_results.Elements
+    if element not in elements:
+        raise ValueError(f"Element '{element}' not in system elements: {elements}.")
     time_vector = list(mfa_system_results.Time_V)
     if year not in time_vector:
         raise ValueError(f"Year {year} not in model time vector {time_vector}")
     t_idx = time_vector.index(year)
-    el_idx = list(
-        mfa_system_results.IndexTable.Classification["Element"].Items
-    ).index(element)
+    el_idx = elements.index(element)
     name_map = {p.ID: p.Name for p in mfa_system_results.ProcessList}
 
     lines = [
@@ -1093,7 +1091,7 @@ def export_sankey_sankeymatic(
     ]
     count = 0
     for flow in mfa_system_results.FlowDict.values():
-        val = float(flow.V[t_idx, 0, 0, 0, el_idx, 0])
+        val = float(flow.Values[t_idx, el_idx])
         if abs(val) < min_flow:
             continue
         source = name_map.get(flow.P_Start, str(flow.P_Start))
