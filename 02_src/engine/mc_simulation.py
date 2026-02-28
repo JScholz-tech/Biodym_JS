@@ -563,7 +563,7 @@ def _run_single_mc_iteration(
                 print(f"   {param} = {value:.6f}")
 
     # --- 3e. Run Solver ---
-    mfa_system_run, _ = solver.run_mfa_calculation(
+    mfa_system_run, _, _ = solver.run_mfa_calculation(
         mfa_system_setup,
         updated_dsm_params,  # Use updated DSM parameters from MC sampling
         updated_fomp_params,  # Use updated FOMP parameters

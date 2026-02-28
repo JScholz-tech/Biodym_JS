@@ -224,7 +224,7 @@ def _run_single_scenario(
 
     # Run the calculation for this scenario (using scenario-modified parameters)
     try:
-        mfa_results_scenario, _ = solver.run_mfa_calculation(
+        mfa_results_scenario, _, _ = solver.run_mfa_calculation(
             mfa_system_scenario,
             dsm_params_scenario,
             fomp_params_scenario,

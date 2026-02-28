@@ -134,7 +134,7 @@ def main():
             }
 
             # 2. Run the calculation with the sampled parameters
-            run_results, _ = solver.run_mfa_calculation(
+            run_results, _, _ = solver.run_mfa_calculation(
                 mfa_system_configured,
                 dsm_params,
                 fomp_params,
@@ -155,7 +155,7 @@ def main():
 
     else:
         print("\n--- Starting Single Deterministic Run ---")
-        mfa_system_with_results, dsm_details = solver.run_mfa_calculation(
+        mfa_system_with_results, dsm_details, _ = solver.run_mfa_calculation(
             mfa_system_configured, dsm_params, fomp_params, config
         )
         print("\n--- Calculation Complete ---")

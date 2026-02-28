@@ -313,7 +313,7 @@ def run_mfa_analysis(args):
                 }
 
                 # Run calculation
-                run_results, _ = solver.run_mfa_calculation(
+                run_results, _, _ = solver.run_mfa_calculation(
                     mfa_system_configured,
                     dsm_params,
                     fomp_params,
@@ -338,7 +338,7 @@ def run_mfa_analysis(args):
         else:
             print("   Running deterministic calculation...")
 
-            mfa_system_with_results, dsm_details = solver.run_mfa_calculation(
+            mfa_system_with_results, dsm_details, _ = solver.run_mfa_calculation(
                 mfa_system_configured, dsm_params, fomp_params, config
             )
 

@@ -592,6 +592,8 @@ def run_mfa_calculation(
     special_processes = dsm_processes.union(fomp_processes)
 
     max_iterations = 30  # Safeguard against infinite loops
+    convergence_log = []
+    converged = False
 
     for i in range(max_iterations):
         pass_changes = []
@@ -614,6 +616,7 @@ def run_mfa_calculation(
             mfa_system
         )
 
+        dsm_changed = False
         if config.RUN_DSM_CALCULATION:
             dsm_changed, dsm_run_details = _calculate_dsm_flows(
                 mfa_system, dsm_processes, dsm_params, i, flow_tc_map
@@ -621,20 +624,39 @@ def run_mfa_calculation(
             dsm_details.update(dsm_run_details)
             pass_changes.append(dsm_changed)
 
+        fomp_changed = False
         if config.RUN_FOMP_CALCULATION:
             fomp_changed = _calculate_fomp_flows(
                 mfa_system, fomp_processes, fomp_params
             )
             pass_changes.append(fomp_changed)
 
-        # --- 4. Convergence Check ---
+        # Record per-iteration diagnostics
+        convergence_log.append({
+            "iteration":    i + 1,
+            "tc_changed":   bool(tc_changed),
+            "dsm_changed":  bool(dsm_changed),
+            "fomp_changed": bool(fomp_changed),
+            "any_changed":  any(pass_changes),
+        })
+
+        # --- Convergence Check ---
         if not any(pass_changes):
+            converged = True
             print(f"--> System converged after {i + 1} iterations.")
             break
     else:
         print(
             f"⚠️ WARNING: System did not converge after {max_iterations} iterations. Results may be unstable."
         )
+
+    solver_info = {
+        "iterations":       i + 1,
+        "converged":        converged,
+        "max_iterations":   max_iterations,
+        "convergence_log":  convergence_log,
+        "method":           "Fixed-point iteration",
+    }
 
     # --- Final balance calculation ---
     mfa_system = calculate_final_balances(mfa_system, dsm_processes, fomp_processes)
@@ -646,4 +668,4 @@ def run_mfa_calculation(
     except Exception as e:
         print(f"⚠️ Final validation warning: {e}")
 
-    return mfa_system, dsm_details
+    return mfa_system, dsm_details, solver_info
