@@ -965,8 +965,8 @@ def export_sankey_html(mfa_system_results, year, element, filepath,
 
     fig = go.Figure(go.Sankey(
         node=dict(label=node_labels, color=node_colors,
-                  pad=sankey_config.DEFAULT_NODE_PAD,
-                  thickness=sankey_config.DEFAULT_NODE_THICKNESS),
+                  pad=sankey_config.NODE_SPACING,
+                  thickness=sankey_config.NODE_THICKNESS),
         link=dict(source=sources, target=targets, value=values,
                   customdata=hover,
                   hovertemplate="%{customdata}<br />%{value:.1f} Mg<extra></extra>",
