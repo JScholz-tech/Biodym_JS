@@ -7,6 +7,7 @@ calculation of the entire MFA system. It calls the specific model
 functions (DSM, FOMP) in the correct sequence until the system converges.
 """
 
+import collections
 import numpy as np
 import copy
 
@@ -15,6 +16,63 @@ import copy
 from . import dsm_model
 from . import fomp_model
 from .element_utils import recalculate_hierarchical_elements
+
+
+def _topological_sort_flows(mfa_system):
+    """Sort FlowDict keys in topological dependency order (upstream processes first).
+
+    Uses Kahn's BFS algorithm on the process graph derived from flow P_Start/P_End
+    attributes. Flows originating from upstream (low-rank) processes are sorted
+    before those from downstream processes.
+
+    When flows are processed in this order inside the iterative solver, all
+    resolvable flows in a chain can be calculated in a single pass, reducing
+    the number of solver iterations from O(chain_depth) to O(1).
+
+    Cycles (if present) are detected and placed last — they do not affect
+    the correctness of acyclic parts of the graph.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The MFA system whose FlowDict will be sorted.
+
+    Returns
+    -------
+    list of str
+        Flow names sorted in topological order by their source process rank.
+    """
+    all_pids = {p.ID for p in mfa_system.ProcessList}
+    adj = {pid: [] for pid in all_pids}
+    in_degree = {pid: 0 for pid in all_pids}
+
+    for flow in mfa_system.FlowDict.values():
+        if flow.P_Start in all_pids and flow.P_End in all_pids:
+            adj[flow.P_Start].append(flow.P_End)
+            in_degree[flow.P_End] += 1
+
+    # Kahn's BFS — start from source processes (no incoming flows)
+    queue = collections.deque(pid for pid in all_pids if in_degree[pid] == 0)
+    topo_rank = {}
+    rank = 0
+    while queue:
+        pid = queue.popleft()
+        topo_rank[pid] = rank
+        rank += 1
+        for downstream in adj[pid]:
+            in_degree[downstream] -= 1
+            if in_degree[downstream] == 0:
+                queue.append(downstream)
+
+    # Cyclic nodes (if any) get a rank beyond all acyclic nodes
+    for pid in all_pids:
+        if pid not in topo_rank:
+            topo_rank[pid] = rank
+
+    return sorted(
+        mfa_system.FlowDict.keys(),
+        key=lambda name: topo_rank.get(mfa_system.FlowDict[name].P_Start, rank),
+    )
 
 
 def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None):
@@ -171,6 +229,7 @@ def _calculate_tc_driven_flows(
     flow_tc_map,
     dsm_processes,
     config=None,
+    sorted_flow_names=None,
 ):
     """Calculates all flows that are driven by transfer coefficients (TCs).
 
@@ -190,6 +249,9 @@ def _calculate_tc_driven_flows(
         Maps flow names to their corresponding TC parameter names.
     dsm_processes : set
         A set of DSM process IDs, used for input validation.
+    sorted_flow_names : list of str, optional
+        Flow names in topological order. If provided, flows are processed
+        upstream-first so dependency chains resolve in a single pass.
 
     Returns
     -------
@@ -197,7 +259,13 @@ def _calculate_tc_driven_flows(
         True if any flow values were changed during the calculation, False otherwise.
     """
     something_changed = False
-    for flow in mfa_system.FlowDict.values():
+    flow_iter = (
+        (name, mfa_system.FlowDict[name]) for name in sorted_flow_names
+        if name in mfa_system.FlowDict
+    ) if sorted_flow_names is not None else (
+        (flow.Name, flow) for flow in mfa_system.FlowDict.values()
+    )
+    for _name, flow in flow_iter:
         if flow.P_Start in special_processes or hasattr(flow, "_fomp_protected"):
             continue
 
@@ -591,6 +659,12 @@ def run_mfa_calculation(
     fomp_processes = set(fomp_params.keys())
     special_processes = dsm_processes.union(fomp_processes)
 
+    # Pre-sort flows in topological order so upstream flows are calculated
+    # before downstream flows within each pass. This reduces the number of
+    # iterations needed for convergence from O(chain_depth) to O(1).
+    sorted_flow_names = _topological_sort_flows(mfa_system)
+    print(f"--> Flow dependency graph sorted ({len(sorted_flow_names)} flows in topological order).")
+
     max_iterations = 30  # Safeguard against infinite loops
     convergence_log = []
     converged = False
@@ -606,6 +680,7 @@ def run_mfa_calculation(
             flow_tc_map,
             dsm_processes,
             config,
+            sorted_flow_names=sorted_flow_names,
         )
         pass_changes.append(tc_changed)
 

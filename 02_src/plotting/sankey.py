@@ -786,3 +786,201 @@ def plot_element_multiplot_sankey(
         flow_selector.value,
         threshold_slider.value,
     )
+
+
+# ---------------------------------------------------------------------------
+# Export functions
+# ---------------------------------------------------------------------------
+
+def export_sankey_json(mfa_system_results, year, element, filepath,
+                       dsm_params=None, fomp_params=None, min_flow=0.0):
+    """Export Sankey data as a D3-compatible JSON file.
+
+    The output follows the standard D3 Sankey JSON format (nodes + links),
+    which is accepted by D3-based web viewers, any future Python Sankey library,
+    and can be imported into e-Sankey via its Excel data import feature.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        Solved MFA system with calculated flow values.
+    year : int
+        Calendar year to export (e.g. 2025).
+    element : str
+        Element name to export (e.g. "material", "DM", "CC").
+    filepath : str or Path
+        Output file path (should end in .json).
+    dsm_params : dict, optional
+        DSM parameters (used to identify DSM processes for node coloring).
+    fomp_params : dict, optional
+        FOMP parameters (used to identify FOMP processes for node coloring).
+    min_flow : float, optional
+        Minimum flow value to include (default 0 = include all non-zero flows).
+
+    Returns
+    -------
+    dict
+        The exported data structure (also written to filepath).
+    """
+    import json
+    import pathlib
+
+    if dsm_params is None:
+        dsm_params = {}
+    if fomp_params is None:
+        fomp_params = {}
+
+    time_vector = mfa_system_results.Time_V
+    if year not in time_vector:
+        raise ValueError(f"Year {year} not in model time range {time_vector[0]}-{time_vector[-1]}.")
+    year_idx = list(time_vector).index(year)
+
+    elements = mfa_system_results.Elements
+    if element not in elements:
+        raise ValueError(f"Element '{element}' not in system elements: {elements}.")
+    elem_idx = elements.index(element)
+
+    process_list = mfa_system_results.ProcessList
+    process_id_map = {p.ID: i for i, p in enumerate(process_list)}
+    color_manager = ElementColorManager(elements)
+    dsm_pids = set(dsm_params.keys())
+    fomp_pids = set(fomp_params.keys())
+
+    nodes = []
+    for p in process_list:
+        proc_type = detect_biodym_process_type(p, dsm_pids, fomp_pids)
+        color = get_process_color(p, proc_type)
+        nodes.append({
+            "id":    p.ID,
+            "name":  p.Name,
+            "color": color,
+            "type":  proc_type,
+        })
+
+    link_color = color_manager.get_element_color(element)
+    links = []
+    for flow in mfa_system_results.FlowDict.values():
+        value = float(flow.Values[year_idx, elem_idx])
+        if value <= min_flow:
+            continue
+        if flow.P_Start not in process_id_map or flow.P_End not in process_id_map:
+            continue
+        links.append({
+            "source": process_id_map[flow.P_Start],
+            "target": process_id_map[flow.P_End],
+            "value":  round(value, 6),
+            "label":  getattr(flow, "DescriptiveName", flow.Name),
+            "color":  link_color,
+        })
+
+    payload = {
+        "metadata": {
+            "year":    year,
+            "element": element,
+            "unit":    "Mg",
+            "source":  "BioDYM",
+        },
+        "nodes": nodes,
+        "links": links,
+    }
+
+    pathlib.Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+
+    print(f"Sankey JSON exported: {filepath}  ({len(nodes)} nodes, {len(links)} links)")
+    return payload
+
+
+def export_sankey_html(mfa_system_results, year, element, filepath,
+                       dsm_params=None, fomp_params=None, min_flow=0.0,
+                       title=None):
+    """Export an interactive standalone Sankey HTML file (no Python required to view).
+
+    The output is a self-contained HTML file with the Plotly Sankey diagram
+    embedded. It can be shared with collaborators, embedded in reports, or
+    opened in any web browser without a Python environment.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        Solved MFA system with calculated flow values.
+    year : int
+        Calendar year to export.
+    element : str
+        Element name to export.
+    filepath : str or Path
+        Output file path (should end in .html).
+    dsm_params : dict, optional
+        DSM parameters for node coloring.
+    fomp_params : dict, optional
+        FOMP parameters for node coloring.
+    min_flow : float, optional
+        Minimum flow value to include (default 0).
+    title : str, optional
+        Figure title. Defaults to "BioDYM Sankey - {element} ({year})".
+
+    Returns
+    -------
+    plotly.graph_objects.Figure
+        The Plotly figure (also written to filepath).
+    """
+    import pathlib
+
+    if dsm_params is None:
+        dsm_params = {}
+    if fomp_params is None:
+        fomp_params = {}
+
+    time_vector = mfa_system_results.Time_V
+    if year not in time_vector:
+        raise ValueError(f"Year {year} not in model time range {time_vector[0]}-{time_vector[-1]}.")
+    year_idx = list(time_vector).index(year)
+
+    elements = mfa_system_results.Elements
+    if element not in elements:
+        raise ValueError(f"Element '{element}' not in system elements: {elements}.")
+    elem_idx = elements.index(element)
+
+    process_list = mfa_system_results.ProcessList
+    process_id_map = {p.ID: i for i, p in enumerate(process_list)}
+    color_manager = ElementColorManager(elements)
+    dsm_pids = set(dsm_params.keys())
+    fomp_pids = set(fomp_params.keys())
+    link_color = color_manager.get_element_color(element)
+
+    node_labels = [p.Name for p in process_list]
+    node_colors = [
+        get_process_color(p, detect_biodym_process_type(p, dsm_pids, fomp_pids))
+        for p in process_list
+    ]
+
+    sources, targets, values, hover = [], [], [], []
+    for flow in mfa_system_results.FlowDict.values():
+        value = float(flow.Values[year_idx, elem_idx])
+        if value <= min_flow:
+            continue
+        if flow.P_Start not in process_id_map or flow.P_End not in process_id_map:
+            continue
+        sources.append(process_id_map[flow.P_Start])
+        targets.append(process_id_map[flow.P_End])
+        values.append(round(value, 6))
+        hover.append(getattr(flow, "DescriptiveName", flow.Name))
+
+    fig = go.Figure(go.Sankey(
+        node=dict(label=node_labels, color=node_colors,
+                  pad=sankey_config.DEFAULT_NODE_PAD,
+                  thickness=sankey_config.DEFAULT_NODE_THICKNESS),
+        link=dict(source=sources, target=targets, value=values,
+                  customdata=hover,
+                  hovertemplate="%{customdata}<br />%{value:.1f} Mg<extra></extra>",
+                  color=[link_color] * len(sources)),
+    ))
+
+    plot_title = title or f"BioDYM Sankey - {element} ({year})"
+    fig.update_layout(title_text=plot_title, font_size=12, height=600)
+
+    pathlib.Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+    fig.write_html(str(filepath), include_plotlyjs="cdn")
+    print(f"Sankey HTML exported: {filepath}  ({len(sources)} flows)")
+    return fig
