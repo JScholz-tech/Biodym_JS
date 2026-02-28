@@ -1008,6 +1008,7 @@ def export_sankey_csv(
         list[dict]: The rows written (Source, Target, Value).
     """
     import csv
+    import pathlib
 
     filepath = pathlib.Path(filepath)
     filepath.parent.mkdir(parents=True, exist_ok=True)
@@ -1071,6 +1072,8 @@ def export_sankey_sankeymatic(
     Returns:
         str: The full text content written to the file.
     """
+    import pathlib
+
     filepath = pathlib.Path(filepath)
     filepath.parent.mkdir(parents=True, exist_ok=True)
 
