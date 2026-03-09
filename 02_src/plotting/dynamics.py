@@ -1903,3 +1903,209 @@ def plot_system_stock_composition(mfa_system_results, element=None):
         element_dropdown.value,
         chart_type_checkbox.value,
     )
+
+
+def plot_lfg_gas_production(mfa_system_results, lfg_params):
+    """Interactive plot of CH4 and biogenic CO2 production for LFG processes.
+
+    Shows annual gas production (CH4-C and CO2-C in Mg C) over the simulation
+    period for each configured LFG process. Users can toggle between processes
+    and choose annual vs. cumulative view.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system with all flows calculated.
+    lfg_params : dict
+        LFG parameter config from ``data_loader.load_lfg_parameters()``.
+    """
+    if not lfg_params:
+        print("No LFG processes found to plot.")
+        return
+
+    import plotly.graph_objects as go
+    from ipywidgets import Dropdown, Checkbox, HBox, VBox, Layout
+    from IPython.display import display
+
+    time_items = list(mfa_system_results.IndexTable.Classification["Time"].Items)
+    elements = mfa_system_results.Elements
+
+    try:
+        cc_idx = elements.index("CC")
+    except ValueError:
+        print("   ⚠️  CC element not found — skipping LFG gas plot.")
+        return
+
+    colors = {
+        "ch4": "#E69F00",   # Orange for CH4
+        "co2": "#56B4E9",   # Sky blue for CO2
+        "stock": "#009E73", # Green for stable stock
+    }
+
+    process_ids = list(lfg_params.keys())
+    process_dropdown = Dropdown(
+        options=[(f"Process {pid}", pid) for pid in process_ids],
+        description="LFG Process:",
+        layout=Layout(width="250px"),
+    )
+    cumulative_checkbox = Checkbox(value=False, description="Cumulative", indent=False)
+
+    fig = go.FigureWidget()
+
+    def update_plot(process_id, cumulative):
+        params = lfg_params[process_id]
+        ch4_id = params.get("outflow_ch4_id")
+        co2_id = params.get("outflow_co2_id")
+
+        ch4_vals = (
+            mfa_system_results.FlowDict[ch4_id].Values[:, cc_idx]
+            if ch4_id and ch4_id in mfa_system_results.FlowDict
+            else [0] * len(time_items)
+        )
+        co2_vals = (
+            mfa_system_results.FlowDict[co2_id].Values[:, cc_idx]
+            if co2_id and co2_id in mfa_system_results.FlowDict
+            else [0] * len(time_items)
+        )
+
+        import numpy as np
+        if cumulative:
+            ch4_plot = np.cumsum(ch4_vals)
+            co2_plot = np.cumsum(co2_vals)
+            y_label = "Cumulative Carbon (Mg C)"
+        else:
+            ch4_plot = ch4_vals
+            co2_plot = co2_vals
+            y_label = "Carbon (Mg C / year)"
+
+        with fig.batch_update():
+            fig.data = []
+            fig.add_trace(go.Scatter(
+                x=time_items, y=ch4_plot,
+                name="CH4 (Mg C)", mode="lines+markers",
+                line=dict(color=colors["ch4"], width=2),
+                hovertemplate="<b>CH4</b><br>Year: %{x}<br>%{y:.2f} Mg C<extra></extra>",
+            ))
+            fig.add_trace(go.Scatter(
+                x=time_items, y=co2_plot,
+                name="biogenic CO2 (Mg C)", mode="lines+markers",
+                line=dict(color=colors["co2"], width=2),
+                hovertemplate="<b>CO2 (bio)</b><br>Year: %{x}<br>%{y:.2f} Mg C<extra></extra>",
+            ))
+            fig.layout.yaxis.title = y_label
+            fig.layout.title = f"LFG Gas Production — Process {process_id}"
+
+    fig.update_layout(
+        xaxis_title="Year",
+        yaxis_title="Carbon (Mg C / year)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        height=450,
+        template="plotly_white",
+    )
+
+    def on_change(_):
+        update_plot(process_dropdown.value, cumulative_checkbox.value)
+
+    process_dropdown.observe(on_change, "value")
+    cumulative_checkbox.observe(on_change, "value")
+
+    controls = HBox([process_dropdown, cumulative_checkbox])
+    display(controls)
+    display(fig)
+    update_plot(process_ids[0], False)
+
+
+def plot_lfg_stock_details(mfa_system_results, lfg_params):
+    """Interactive plot of LFG stable stock evolution.
+
+    Shows the in-process stock (residual organic carbon + ash) per LFG process.
+    Also shows inflow and total gas output for mass balance verification.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system with all flows calculated.
+    lfg_params : dict
+        LFG parameter config from ``data_loader.load_lfg_parameters()``.
+    """
+    if not lfg_params:
+        print("No LFG processes found to plot.")
+        return
+
+    import plotly.graph_objects as go
+    import numpy as np
+    from ipywidgets import Dropdown, Checkbox, HBox, Layout
+    from IPython.display import display
+
+    time_items = list(mfa_system_results.IndexTable.Classification["Time"].Items)
+    elements = mfa_system_results.Elements
+    mat_idx = elements.index("material")
+
+    colors = {
+        "stock": "#0173B2",
+        "inflow": "#56B4E9",
+        "gas_out": "#CC79A7",
+    }
+
+    process_ids = list(lfg_params.keys())
+    process_dropdown = Dropdown(
+        options=[(f"Process {pid}", pid) for pid in process_ids],
+        description="LFG Process:",
+        layout=Layout(width="250px"),
+    )
+
+    fig = go.FigureWidget()
+
+    def update_plot(process_id):
+        params = lfg_params[process_id]
+        ch4_id = params.get("outflow_ch4_id")
+        co2_id = params.get("outflow_co2_id")
+
+        stock_obj = mfa_system_results.StockDict.get(f"S_{process_id}")
+        stock_vals = stock_obj.Values[:, mat_idx] if stock_obj is not None else np.zeros(len(time_items))
+
+        inflow_vals = sum(
+            f.Values[:, mat_idx]
+            for f in mfa_system_results.FlowDict.values()
+            if f.P_End == process_id
+        )
+
+        gas_out = np.zeros(len(time_items))
+        for fid in [ch4_id, co2_id]:
+            if fid and fid in mfa_system_results.FlowDict:
+                gas_out = gas_out + mfa_system_results.FlowDict[fid].Values[:, mat_idx]
+
+        with fig.batch_update():
+            fig.data = []
+            fig.add_trace(go.Scatter(
+                x=time_items, y=stock_vals,
+                name="Stable Stock (Mg)", mode="lines",
+                line=dict(color=colors["stock"], width=3),
+                hovertemplate="<b>Stock</b><br>Year: %{x}<br>%{y:.2f} Mg<extra></extra>",
+            ))
+            fig.add_trace(go.Bar(
+                x=time_items, y=inflow_vals,
+                name="Waste Inflow (Mg)", opacity=0.5,
+                marker_color=colors["inflow"],
+            ))
+            fig.add_trace(go.Bar(
+                x=time_items, y=gas_out,
+                name="Gas Output (CH4+CO2, Mg C)", opacity=0.5,
+                marker_color=colors["gas_out"],
+            ))
+            fig.layout.title = f"LFG Stable Stock — Process {process_id}"
+
+    fig.update_layout(
+        xaxis_title="Year",
+        yaxis_title="Mass (Mg)",
+        barmode="overlay",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        height=450,
+        template="plotly_white",
+    )
+
+    process_dropdown.observe(lambda _: update_plot(process_dropdown.value), "value")
+
+    display(process_dropdown)
+    display(fig)
+    update_plot(process_ids[0])

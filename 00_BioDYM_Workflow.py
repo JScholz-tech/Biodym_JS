@@ -353,6 +353,7 @@ if config_obj.RUN_FOMP_CALCULATION:
     )
 else:
     fomp_params = {}
+lfg_params = data_loader.load_lfg_parameters(all_excel_data, debug_mode=DEBUG_MODE)
 uncertainty_params = data_loader.load_uncertainty_definitions(
     all_excel_data, debug_mode=DEBUG_MODE
 )
@@ -360,13 +361,14 @@ uncertainty_params = data_loader.load_uncertainty_definitions(
 print(format_success("All parameters loaded and configured."))
 
 print(format_step(Icons.CALCULATION, "2.6", "Running baseline calculation..."))
-mfa_results_baseline, dsm_details_baseline = solver.run_mfa_calculation(
+mfa_results_baseline, dsm_details_baseline, _ = solver.run_mfa_calculation(
     mfa_system_configured,
     dsm_params,
     fomp_params,
     config_obj,
     flow_tc_map=flow_tc_map,
     process_logic_map=process_logic_map,
+    lfg_params=lfg_params,
 )
 print(format_success("Baseline calculation completed successfully!"))
 
@@ -396,6 +398,7 @@ num_dynamic_tcs = sum(
 )
 num_dsm_processes = len(dsm_params) if dsm_params else 0
 num_fomp_processes = len(fomp_params) if fomp_params else 0
+num_lfg_processes = len(lfg_params) if lfg_params else 0
 
 # Display summary
 print("\n📊 Configuration & Scope")
@@ -420,6 +423,10 @@ if num_fomp_processes > 0:
     print(f"  ✅ FOMP Processes: {num_fomp_processes} configured")
 else:
     print(f"  ⚠️  FOMP Processes: None configured")
+if num_lfg_processes > 0:
+    print(f"  ✅ LFG Processes: {num_lfg_processes} configured")
+else:
+    print(f"     LFG Processes: None configured (optional)")
 
 # Check for warnings
 warnings_found = []
@@ -567,6 +574,20 @@ if fomp_params:
     plotting.plot_fomp_dynamics(mfa_results_baseline, fomp_params)
 else:
     print(f"   {Icons.INFO} No FOMP processes found - skipping FOMP analysis")
+
+# ### 3.2.3 Landfill Gas Analysis
+#
+# Gas production curves and stable carbon stock evolution for all LFG processes.
+# Skipped automatically when no LFG processes are configured.
+if lfg_params:
+    print(f"\n{Icons.LFG} Landfill Gas Analysis:")
+    print("   • CH4 and biogenic CO2 production over time")
+    print("   • Stable carbon stock evolution (residual organic C + ash)")
+    print("   • Per-fraction decay contribution")
+    plotting.plot_lfg_gas_production(mfa_results_baseline, lfg_params)
+    plotting.plot_lfg_stock_details(mfa_results_baseline, lfg_params)
+else:
+    print(f"   {Icons.INFO} No LFG processes found - skipping LFG analysis")
 
 
 # # 4. Scenario & Uncertainty Manager

@@ -31,6 +31,7 @@ class Icons:
     MFA = "🔄"  # Material Flow Analysis
     DSM = "🏗️"  # Dynamic Stock Model
     FOMP = "🌱"  # First-Order Mineralization Process
+    LFG = "💨"  # Landfill Gas Model
     MONTE_CARLO = "🎲"  # Monte Carlo Simulation
     SCENARIO = "🎭"  # Scenario Analysis
 

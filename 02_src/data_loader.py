@@ -98,6 +98,15 @@ COLUMN_NAME_MAPPING = {
         "Decay_Pool_count": "Decay_Pool_count",  # New column
         "FOMP_Parameter_ID": "FOMP_Parameter_ID",  # New column
     },
+    "3_3_Definition_LFG": {
+        "LFG_Parameter_ID": "LFG_Parameter_ID",
+        "Parameter_Name": "Parameter_Name",
+        "k_j": "k_j",
+        "DOC_j": "DOC_j",
+        "f_input_j": "f_input_j",
+        "f_ash_j": "f_ash_j",
+        "Value": "Value",
+    },
     # Add more mappings as needed
 }
 
@@ -1384,6 +1393,117 @@ def load_fomp_parameters(excel_data, debug_mode=False):
             print(f"   Process {process_id}: {len(params)} parameters")
 
     return fomp_params
+
+
+def load_lfg_parameters(excel_data, debug_mode=False):
+    """Reads and parses LFG parameters from the '3_3_Definition_LFG' sheet.
+
+    The sheet contains two row types identified by the ``LFG_Parameter_ID``
+    column (format ``P{id}_{name}``):
+
+    - **Fraction rows** — parameter name is NOT a recognised site-parameter
+      keyword; columns ``k_j``, ``DOC_j``, ``f_input_j``, ``f_ash_j`` are read.
+    - **Site parameter rows** — parameter name matches one of
+      ``{MCF, DOCf, F_CH4, OX, outflow_ch4_id, outflow_co2_id,
+      outflow_leachate_id}``; the ``Value`` column is read.
+
+    Parameters
+    ----------
+    excel_data : dict
+        Dictionary of DataFrames from the loaded Excel file.
+    debug_mode : bool, optional
+        If True, print detailed loading progress. Default is False.
+
+    Returns
+    -------
+    dict
+        ``{process_id: {
+            "fractions": [{"name": str, "k_j": float, "DOC_j": float,
+                           "f_input_j": float, "f_ash_j": float}, ...],
+            "MCF": float, "DOCf": float, "F_CH4": float, "OX": float,
+            "outflow_ch4_id": str, "outflow_co2_id": str,
+            "outflow_leachate_id": str,
+        }}``
+    """
+    sheet_name = "3_3_Definition_LFG"
+    if debug_mode:
+        print(f"--> Loading LFG parameters from sheet '{sheet_name}'...")
+
+    if sheet_name not in excel_data:
+        if debug_mode:
+            print(
+                f"--> INFO: Sheet '{sheet_name}' not found. Using empty LFG configuration."
+            )
+        return {}
+
+    df_lfg = excel_data[sheet_name]
+    lfg_params = {}
+
+    # Keywords that identify site-level scalar parameters (not fractions)
+    SITE_PARAMS = {
+        "MCF", "DOCf", "F_CH4", "OX",
+        "outflow_ch4_id", "outflow_co2_id", "outflow_leachate_id",
+    }
+
+    for _, row in df_lfg.iterrows():
+        param_id = row.get("LFG_Parameter_ID")
+        if pd.isna(param_id):
+            continue
+
+        param_id = str(param_id).strip()
+        if not (param_id.startswith("P") and "_" in param_id):
+            continue
+
+        # Parse process ID and parameter name from "P{id}_{name}"
+        try:
+            process_id = int(param_id[1:].split("_")[0])
+            param_name = param_id.split("_", 1)[1]
+        except (ValueError, IndexError):
+            if debug_mode:
+                print(f"   ⚠️  Could not parse LFG_Parameter_ID: {param_id}")
+            continue
+
+        if process_id not in lfg_params:
+            lfg_params[process_id] = {"fractions": []}
+
+        if param_name in SITE_PARAMS:
+            # Site-level scalar parameter — stored in "Value" column
+            value = row.get("Value")
+            if pd.isna(value):
+                continue
+            try:
+                lfg_params[process_id][param_name] = float(value)
+            except (ValueError, TypeError):
+                lfg_params[process_id][param_name] = str(value).strip()
+        else:
+            # Waste fraction row — read k_j, DOC_j, f_input_j, f_ash_j columns
+            def _safe_float(row, col, default=0.0):
+                v = row.get(col)
+                if v is None or pd.isna(v):
+                    return default
+                try:
+                    return float(v)
+                except (ValueError, TypeError):
+                    return default
+
+            frac = {
+                "name": param_name,
+                "k_j": _safe_float(row, "k_j"),
+                "DOC_j": _safe_float(row, "DOC_j"),
+                "f_input_j": _safe_float(row, "f_input_j"),
+                "f_ash_j": _safe_float(row, "f_ash_j"),
+            }
+            lfg_params[process_id]["fractions"].append(frac)
+
+    if debug_mode:
+        print(
+            f"--> Successfully loaded configurations for {len(lfg_params)} LFG process(es)."
+        )
+        for process_id, params in lfg_params.items():
+            n_frac = len(params.get("fractions", []))
+            print(f"   Process {process_id}: {n_frac} fraction(s)")
+
+    return lfg_params
 
 
 def load_uncertainty_definitions(excel_data, debug_mode=False):
