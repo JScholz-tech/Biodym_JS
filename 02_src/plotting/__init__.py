@@ -18,6 +18,10 @@ from .dynamics import (
     plot_flow_dynamics,
     plot_stock_bar_chart,
     plot_system_stock_composition,
+    plot_lfg_gas_production,
+    plot_lfg_stock_details,
+    plot_lfg_fraction_breakdown,
+    plot_lfg_ipcc_vs_mfa_comparison,
 )
 from .validation import plot_optimized_mass_balance_error, plot_total_mass_balance_error
 from .monte_carlo import (
@@ -61,4 +65,8 @@ __all__ = [
     "plot_scenario_flow_dynamics",
     "plot_scenario_stock_dynamics",
     "plot_graphviz_flow_chart_sankey_style",
+    "plot_lfg_gas_production",
+    "plot_lfg_stock_details",
+    "plot_lfg_fraction_breakdown",
+    "plot_lfg_ipcc_vs_mfa_comparison",
 ]
