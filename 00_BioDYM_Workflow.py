@@ -581,10 +581,11 @@ else:
 # Skipped automatically when no LFG processes are configured.
 if lfg_params:
     print(f"\n{Icons.LFG} Landfill Gas Analysis:")
-    print("   • CH4 and biogenic CO2 production over time")
+    print("   • CH4 and biogenic CO2 production over time (total)")
+    print("   • Stacked area chart: CH4 production by waste fraction")
     print("   • Stable carbon stock evolution (residual organic C + ash)")
-    print("   • Per-fraction decay contribution")
     plotting.plot_lfg_gas_production(mfa_results_baseline, lfg_params)
+    plotting.plot_lfg_fraction_breakdown(mfa_results_baseline, lfg_params)
     plotting.plot_lfg_stock_details(mfa_results_baseline, lfg_params)
 else:
     print(f"   {Icons.INFO} No LFG processes found - skipping LFG analysis")

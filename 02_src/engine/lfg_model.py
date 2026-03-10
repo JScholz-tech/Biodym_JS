@@ -61,6 +61,7 @@ def _calculate_lfg_series(
         - "DOCf": float — fraction of DOC that decomposes (≈ 0.5)
         - "F_CH4": float — CH4 vol fraction in landfill gas (≈ 0.5)
         - "OX": float — oxidation factor for cover soil (≈ 0.1)
+        - "phi": float — UNFCCC model correction factor φ (default 1.0)
     initial_stocks : dict, optional
         {fraction_name: float} initial organic C stocks (Mg C). Defaults to 0.
 
@@ -82,6 +83,9 @@ def _calculate_lfg_series(
     DOCf = float(params.get("DOCf", 0.5))
     F_CH4 = float(params.get("F_CH4", 0.5))
     OX = float(params.get("OX", 0.1))
+    # φ: UNFCCC model correction factor (default 1.0 = no correction).
+    # Accounts for model uncertainty in the FOD methodology.
+    phi = float(params.get("phi", 1.0))
 
     if initial_stocks is None:
         initial_stocks = {}
@@ -117,17 +121,24 @@ def _calculate_lfg_series(
             # b. Ash inflow — inert, accumulates permanently
             cumulative_ash += W * f_input_j * f_ash_j
 
-            # c. First-order decay from existing stock (analytical solution)
-            decay = current_stocks[name] * (1.0 - np.exp(-k_j))
+            # c. Add inflow to stock first (start-of-period convention):
+            #    waste deposited in year t starts decaying within the same year.
+            #    This matches the UNFCCC/IPCC FOD formula which gives non-zero
+            #    gas in the first year of operation (year 0 ≠ 0).
+            pre_decay_stock = current_stocks[name] + active_C_inflow
 
-            # d. Update organic C stock
-            new_stock = current_stocks[name] - decay + active_C_inflow
+            # d. First-order decay from the updated stock (analytical solution)
+            decay = pre_decay_stock * (1.0 - np.exp(-k_j))
+
+            # e. Update organic C stock
+            new_stock = pre_decay_stock - decay  # = pre_decay_stock * exp(-k_j)
             stocks[name][t] = new_stock
             current_stocks[name] = new_stock
 
             # e. Carbon in gas outputs (Mg C, IPCC FOD equation)
-            ch4_carbon_total[t] += decay * F_CH4 * MCF * (1.0 - OX)
-            co2_carbon_total[t] += decay * (1.0 - F_CH4) * MCF * (1.0 - OX)
+            #    phi: UNFCCC model correction factor (φ, default 1.0)
+            ch4_carbon_total[t] += decay * F_CH4 * MCF * (1.0 - OX) * phi
+            co2_carbon_total[t] += decay * (1.0 - F_CH4) * MCF * (1.0 - OX) * phi
 
         ash_stock_total[t] = cumulative_ash
 

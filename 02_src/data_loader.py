@@ -100,12 +100,9 @@ COLUMN_NAME_MAPPING = {
     },
     "3_3_Definition_LFG": {
         "LFG_Parameter_ID": "LFG_Parameter_ID",
-        "Parameter_Name": "Parameter_Name",
-        "k_j": "k_j",
-        "DOC_j": "DOC_j",
-        "f_input_j": "f_input_j",
-        "f_ash_j": "f_ash_j",
-        "Value": "Value",
+        "LFG_Parameter_type": "LFG_Parameter_type",
+        "LFG_Parameter_Value": "LFG_Parameter_Value",
+        "Process_ID": "Process_ID",
     },
     # Add more mappings as needed
 }
@@ -1398,14 +1395,19 @@ def load_fomp_parameters(excel_data, debug_mode=False):
 def load_lfg_parameters(excel_data, debug_mode=False):
     """Reads and parses LFG parameters from the '3_3_Definition_LFG' sheet.
 
-    The sheet contains two row types identified by the ``LFG_Parameter_ID``
-    column (format ``P{id}_{name}``):
+    The sheet uses a row-per-parameter layout (same pattern as FOMP) with
+    columns ``LFG_Parameter_ID``, ``LFG_Parameter_type``, and
+    ``LFG_Parameter_Value``.
 
-    - **Fraction rows** — parameter name is NOT a recognised site-parameter
-      keyword; columns ``k_j``, ``DOC_j``, ``f_input_j``, ``f_ash_j`` are read.
-    - **Site parameter rows** — parameter name matches one of
-      ``{MCF, DOCf, F_CH4, OX, outflow_ch4_id, outflow_co2_id,
-      outflow_leachate_id}``; the ``Value`` column is read.
+    Fraction rows are identified by a ``_j{n}`` suffix in the
+    ``LFG_Parameter_ID`` column (e.g. ``P01_k_j1``).  All rows sharing the
+    same process and the same suffix index belong to one waste fraction.
+    Site-level scalar parameters (MCF, DOCf, F_CH4, OX, output flow IDs)
+    have no ``_j{n}`` suffix.
+
+    The ``Process_ID`` column is used as the primary source for the numeric
+    process identifier (avoids template bugs where output-ID rows carry a
+    wrong process prefix in ``LFG_Parameter_ID``).
 
     Parameters
     ----------
@@ -1425,6 +1427,8 @@ def load_lfg_parameters(excel_data, debug_mode=False):
             "outflow_leachate_id": str,
         }}``
     """
+    import re
+
     sheet_name = "3_3_Definition_LFG"
     if debug_mode:
         print(f"--> Loading LFG parameters from sheet '{sheet_name}'...")
@@ -1437,49 +1441,121 @@ def load_lfg_parameters(excel_data, debug_mode=False):
         return {}
 
     df_lfg = excel_data[sheet_name]
-    lfg_params = {}
 
-    # Keywords that identify site-level scalar parameters (not fractions)
-    SITE_PARAMS = {
-        "MCF", "DOCf", "F_CH4", "OX",
-        "outflow_ch4_id", "outflow_co2_id", "outflow_leachate_id",
+    if "LFG_Parameter_type" not in df_lfg.columns or "LFG_Parameter_Value" not in df_lfg.columns:
+        if debug_mode:
+            print(
+                "   WARNING: Required columns 'LFG_Parameter_type' / "
+                "'LFG_Parameter_Value' not found in sheet. Skipping LFG loading."
+            )
+        return {}
+
+    # Map Excel parameter type strings → internal canonical names
+    PARAM_MAP = {
+        "F":                   "F_CH4",
+        "F_CH4":               "F_CH4",
+        "Φ":                   "phi",
+        "φ":                   "phi",
+        "phi":                 "phi",
+        "f":                   "f_capture",
+        "output_CH4_id":       "outflow_ch4_id",
+        "output_CO2_id":       "outflow_co2_id",
+        "output_leaching":     "outflow_leachate_id",
+        "outflow_ch4_id":      "outflow_ch4_id",
+        "outflow_co2_id":      "outflow_co2_id",
+        "outflow_leachate_id": "outflow_leachate_id",
     }
 
+    # Site-level scalar parameters (after PARAM_MAP normalisation)
+    SITE_PARAMS = {"MCF", "DOCf", "F_CH4", "OX", "phi", "f_capture",
+                   "outflow_ch4_id", "outflow_co2_id", "outflow_leachate_id"}
+
+    # Fraction-level parameter types as they appear in the Excel
+    FRAC_PARAM_TYPES = {"Waste_Fraction_j", "f_input_j", "DOC_j", "k_j", "f_ash_j"}
+
+    # Regex to extract fraction index from LFG_Parameter_ID, e.g. "P01_k_j2" → 2
+    _j_pattern = re.compile(r"_j(\d+)\b", re.IGNORECASE)
+
+    lfg_params = {}       # {process_id: {"fractions": [...], "MCF": ..., ...}}
+    frac_staging = {}     # {process_id: {frac_index: {param_type: value}}}
+
+    has_pid_col = "Process_ID" in df_lfg.columns
+    has_id_col = "LFG_Parameter_ID" in df_lfg.columns
+
     for _, row in df_lfg.iterrows():
-        param_id = row.get("LFG_Parameter_ID")
-        if pd.isna(param_id):
+        param_type = row.get("LFG_Parameter_type")
+        param_value = row.get("LFG_Parameter_Value")
+        param_id = row.get("LFG_Parameter_ID") if has_id_col else None
+
+        if pd.isna(param_type):
+            continue
+        param_type = str(param_type).strip()
+
+        # Resolve process ID — prefer explicit Process_ID column
+        process_id = None
+        if has_pid_col and pd.notna(row.get("Process_ID")):
+            try:
+                process_id = int(row["Process_ID"])
+            except (ValueError, TypeError):
+                pass
+
+        if process_id is None and pd.notna(param_id):
+            pid_str = str(param_id).strip()
+            if pid_str.startswith("P") and "_" in pid_str:
+                try:
+                    process_id = int(pid_str[1:].split("_")[0])
+                except (ValueError, IndexError):
+                    pass
+
+        if process_id is None:
             continue
 
-        param_id = str(param_id).strip()
-        if not (param_id.startswith("P") and "_" in param_id):
-            continue
-
-        # Parse process ID and parameter name from "P{id}_{name}"
-        try:
-            process_id = int(param_id[1:].split("_")[0])
-            param_name = param_id.split("_", 1)[1]
-        except (ValueError, IndexError):
-            if debug_mode:
-                print(f"   ⚠️  Could not parse LFG_Parameter_ID: {param_id}")
-            continue
-
+        # Initialise process dicts
         if process_id not in lfg_params:
             lfg_params[process_id] = {"fractions": []}
+        if process_id not in frac_staging:
+            frac_staging[process_id] = {}
 
-        if param_name in SITE_PARAMS:
-            # Site-level scalar parameter — stored in "Value" column
-            value = row.get("Value")
-            if pd.isna(value):
+        # Normalise parameter name
+        internal_name = PARAM_MAP.get(param_type, param_type)
+
+        # Try to extract fraction index from LFG_Parameter_ID
+        frac_index = None
+        if pd.notna(param_id):
+            m = _j_pattern.search(str(param_id))
+            if m:
+                frac_index = int(m.group(1))
+
+        if param_type in FRAC_PARAM_TYPES and frac_index is not None:
+            # Fraction-level parameter — accumulate in staging dict
+            if frac_index not in frac_staging[process_id]:
+                frac_staging[process_id][frac_index] = {}
+            frac_staging[process_id][frac_index][param_type] = param_value
+
+        elif internal_name in SITE_PARAMS:
+            # Site-level scalar
+            if pd.isna(param_value):
                 continue
             try:
-                lfg_params[process_id][param_name] = float(value)
+                lfg_params[process_id][internal_name] = float(param_value)
             except (ValueError, TypeError):
-                lfg_params[process_id][param_name] = str(value).strip()
+                lfg_params[process_id][internal_name] = str(param_value).strip()
+
         else:
-            # Waste fraction row — read k_j, DOC_j, f_input_j, f_ash_j columns
-            def _safe_float(row, col, default=0.0):
-                v = row.get(col)
-                if v is None or pd.isna(v):
+            if debug_mode:
+                print(
+                    f"   INFO: Skipping unrecognised LFG parameter "
+                    f"'{param_type}' (process {process_id})"
+                )
+
+    # Assemble fraction dicts from staging
+    for process_id, fracs in frac_staging.items():
+        for frac_idx in sorted(fracs.keys()):
+            fd = fracs[frac_idx]
+
+            def _sf(key, default=0.0):
+                v = fd.get(key)
+                if v is None or (isinstance(v, float) and pd.isna(v)):
                     return default
                 try:
                     return float(v)
@@ -1487,11 +1563,11 @@ def load_lfg_parameters(excel_data, debug_mode=False):
                     return default
 
             frac = {
-                "name": param_name,
-                "k_j": _safe_float(row, "k_j"),
-                "DOC_j": _safe_float(row, "DOC_j"),
-                "f_input_j": _safe_float(row, "f_input_j"),
-                "f_ash_j": _safe_float(row, "f_ash_j"),
+                "name": str(fd.get("Waste_Fraction_j", f"Fraction_{frac_idx}")).strip(),
+                "k_j":       _sf("k_j"),
+                "DOC_j":     _sf("DOC_j"),
+                "f_input_j": _sf("f_input_j"),
+                "f_ash_j":   _sf("f_ash_j", default=0.0),
             }
             lfg_params[process_id]["fractions"].append(frac)
 
@@ -1501,7 +1577,9 @@ def load_lfg_parameters(excel_data, debug_mode=False):
         )
         for process_id, params in lfg_params.items():
             n_frac = len(params.get("fractions", []))
-            print(f"   Process {process_id}: {n_frac} fraction(s)")
+            print(f"   Process {process_id}: {n_frac} fraction(s), "
+                  f"site params: MCF={params.get('MCF')}, DOCf={params.get('DOCf')}, "
+                  f"F_CH4={params.get('F_CH4')}, OX={params.get('OX')}")
 
     return lfg_params
 

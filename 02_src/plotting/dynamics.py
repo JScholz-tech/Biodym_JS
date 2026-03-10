@@ -1983,13 +1983,15 @@ def plot_lfg_gas_production(mfa_system_results, lfg_params):
             fig.add_trace(go.Scatter(
                 x=time_items, y=ch4_plot,
                 name="CH4 (Mg C)", mode="lines+markers",
-                line=dict(color=colors["ch4"], width=2),
+                line=dict(color=colors["ch4"], width=2, dash="dash"),
+                marker=dict(symbol="circle", size=5),
                 hovertemplate="<b>CH4</b><br>Year: %{x}<br>%{y:.2f} Mg C<extra></extra>",
             ))
             fig.add_trace(go.Scatter(
                 x=time_items, y=co2_plot,
                 name="biogenic CO2 (Mg C)", mode="lines+markers",
                 line=dict(color=colors["co2"], width=2),
+                marker=dict(symbol="square", size=5),
                 hovertemplate="<b>CO2 (bio)</b><br>Year: %{x}<br>%{y:.2f} Mg C<extra></extra>",
             ))
             fig.layout.yaxis.title = y_label
@@ -2109,3 +2111,198 @@ def plot_lfg_stock_details(mfa_system_results, lfg_params):
     display(process_dropdown)
     display(fig)
     update_plot(process_ids[0])
+
+
+def plot_lfg_fraction_breakdown(mfa_system_results, lfg_params):
+    """Stacked area chart of LFG gas production broken down by waste fraction.
+
+    Mirrors the DSM stock details style: each waste fraction is a separate
+    coloured area. Works by re-running ``_calculate_lfg_series`` from the
+    inflows already stored in the MFA system, so no extra solver output is
+    needed.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        Solved MFA system.
+    lfg_params : dict
+        LFG parameter config from ``data_loader.load_lfg_parameters()``.
+    """
+    if not lfg_params:
+        print("No LFG processes found to plot.")
+        return
+
+    import importlib.util as _ilu
+    import os as _os
+
+    # Load _calculate_lfg_series directly to avoid ODYM import chain
+    _lfg_path = _os.path.join(
+        _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+        "engine", "lfg_model.py",
+    )
+    _spec = _ilu.spec_from_file_location("lfg_model_plot", _lfg_path)
+    _mod = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    _calculate_lfg_series = _mod._calculate_lfg_series
+
+    time_items = list(mfa_system_results.IndexTable.Classification["Time"].Items)
+    elements = mfa_system_results.Elements
+    mat_idx = elements.index("material")
+    try:
+        wc_idx = elements.index("WC")
+    except ValueError:
+        wc_idx = None
+
+    # Collect only processes that have complete params (fractions + outflow IDs)
+    valid_ids = [
+        pid for pid, p in lfg_params.items()
+        if p.get("fractions") and p.get("outflow_ch4_id")
+    ]
+    if not valid_ids:
+        print("No fully configured LFG processes found (missing fractions or outflow IDs).")
+        return
+
+    process_ids = valid_ids
+
+    process_dropdown = Dropdown(
+        options=[(f"Process {pid}", pid) for pid in process_ids],
+        description="LFG Process:",
+        style={"description_width": "120px"},
+        layout=Layout(width="280px"),
+    )
+    gas_dropdown = Dropdown(
+        options=[("CH4 [Mg CH4]", "ch4"), ("CO2 biogenic [Mg CO2]", "co2")],
+        value="ch4",
+        description="Gas:",
+        style={"description_width": "80px"},
+        layout=Layout(width="260px"),
+    )
+    cumulative_checkbox = Checkbox(value=False, description="Cumulative", indent=False)
+    export_button = Button(
+        description="Export Plot",
+        button_style="info",
+        tooltip="Export current plot as PNG",
+    )
+
+    fig = go.FigureWidget()
+
+    # Fraction colours — cycle through a qualitative palette
+    _PALETTE = [
+        "#E64B35", "#4DBBD5", "#00A087", "#3C5488",
+        "#F39B7F", "#8491B4", "#91D1C2", "#DC0000",
+        "#7E6148", "#B09C85",
+    ]
+
+    def _get_series(process_id, gas):
+        """Return per-fraction arrays and time labels for the chosen gas."""
+        params = lfg_params[process_id]
+
+        # Sum all material inflows to this process
+        waste_in = np.zeros(len(time_items))
+        wc_in = np.zeros(len(time_items))
+        for f in mfa_system_results.FlowDict.values():
+            if f.P_End == process_id and f.Values is not None:
+                waste_in += f.Values[:, mat_idx]
+                if wc_idx is not None:
+                    wc_in += f.Values[:, wc_idx]
+
+        results = _calculate_lfg_series(waste_in, wc_in, params)
+
+        # Per-fraction gas output (Mg C)
+        F_CH4 = params.get("F_CH4", 0.5)
+        MCF = params.get("MCF", 0.8)
+        OX = params.get("OX", 0.1)
+        fracs = params["fractions"]
+
+        series = {}
+        for frac in fracs:
+            name = frac["name"]
+            decay_j = np.zeros(len(time_items))
+            stock_j = results["stocks"].get(name, np.zeros(len(time_items)))
+            # Reconstruct decay from stock: decay_j[t] = stock_j[t-1] * (1-exp(-k))
+            # Re-run single fraction to get exact decay (avoids re-implementing)
+            single_params = {
+                "fractions": [frac],
+                "MCF": MCF, "DOCf": params.get("DOCf", 0.5),
+                "F_CH4": F_CH4, "OX": OX,
+                "phi": params.get("phi", 1.0),
+            }
+            r = _calculate_lfg_series(waste_in, wc_in, single_params)
+            if gas == "ch4":
+                # Convert CH4-C → Mg CH4:  ×16/12
+                series[name] = r["ch4_carbon_total"] * (16 / 12)
+            else:
+                # Convert CO2-C → Mg CO2:  ×44/12
+                series[name] = r["co2_carbon_total"] * (44 / 12)
+
+        return series
+
+    def update_plot(process_id, gas, cumulative):
+        series = _get_series(process_id, gas)
+
+        if not series:
+            return
+
+        with fig.batch_update():
+            fig.data = []
+            for i, (name, vals) in enumerate(series.items()):
+                y = np.cumsum(vals) if cumulative else vals
+                color = _PALETTE[i % len(_PALETTE)]
+                fig.add_trace(go.Scatter(
+                    x=time_items,
+                    y=y,
+                    name=name,
+                    mode="lines",
+                    line=dict(color=color, width=0.5),
+                    stackgroup="one",
+                    fill="tonexty" if i > 0 else "tozeroy",
+                    hovertemplate=(
+                        f"<b>{name}</b><br>Year: %{{x}}<br>%{{y:.1f}}<extra></extra>"
+                    ),
+                ))
+
+            process_name = next(
+                (p.Name for p in mfa_system_results.ProcessList if p.ID == process_id),
+                f"Process {process_id}",
+            )
+            gas_label = "CH₄ [Mg CH4]" if gas == "ch4" else "CO₂ biogenic [Mg CO2]"
+            cum_tag = " — Cumulative" if cumulative else ""
+            layout_config = get_publication_layout(
+                custom_title=f"LFG Gas Production: {process_name}{cum_tag} — Stacked by Fraction",
+                x_title="Year",
+                y_title=gas_label,
+                show_grid=True,
+                scientific_y=False,
+            )
+            fig.update_layout(**layout_config)
+
+    def export_plot():
+        try:
+            paths = export_figure(
+                fig, "lfg_fraction_breakdown",
+                formats=["png", "pdf"], quality="publication", size="large", timestamp=False,
+            )
+            print(f"Exported: {', '.join(paths)}")
+        except Exception as e:
+            print(f"Export failed: {e}")
+
+    export_button.on_click(lambda b: export_plot())
+
+    def on_change(_):
+        update_plot(process_dropdown.value, gas_dropdown.value, cumulative_checkbox.value)
+
+    process_dropdown.observe(on_change, "value")
+    gas_dropdown.observe(on_change, "value")
+    cumulative_checkbox.observe(on_change, "value")
+
+    controls = HBox(
+        [
+            VBox([process_dropdown, gas_dropdown, cumulative_checkbox],
+                 layout=Layout(width="320px")),
+            VBox([export_button], layout=Layout(width="150px")),
+        ],
+        layout=Layout(justify_content="space-between"),
+    )
+    display(controls)
+    display(fig)
+    update_plot(process_ids[0], "ch4", False)

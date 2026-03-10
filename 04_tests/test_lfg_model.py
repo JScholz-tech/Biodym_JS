@@ -41,7 +41,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 def _single_fraction_params(k_j=0.1, DOC_j=0.4, f_input_j=1.0, f_ash_j=0.05,
-                              MCF=1.0, DOCf=1.0, F_CH4=0.5, OX=0.0):
+                              MCF=1.0, DOCf=1.0, F_CH4=0.5, OX=0.0, phi=1.0):
     """Minimal LFG parameter dict with a single waste fraction."""
     return {
         "fractions": [
@@ -52,6 +52,7 @@ def _single_fraction_params(k_j=0.1, DOC_j=0.4, f_input_j=1.0, f_ash_j=0.05,
         "DOCf": DOCf,
         "F_CH4": F_CH4,
         "OX": OX,
+        "phi": phi,
     }
 
 
@@ -267,6 +268,43 @@ def test_lfg_stable_stock_composition():
 
 
 # ---------------------------------------------------------------------------
+# Test: phi (model correction factor) scales gas output
+# ---------------------------------------------------------------------------
+
+def test_lfg_phi_scales_gas_output():
+    """phi=0.75 must reduce CH4 and CO2 output to 75% of phi=1.0."""
+    T = 5
+    waste_in = np.ones(T) * 100.0
+    wc_in = np.zeros(T)
+    base_params = _single_fraction_params()
+
+    params_phi1 = {**base_params, "phi": 1.0}
+    params_phi075 = {**base_params, "phi": 0.75}
+
+    r1 = _calculate_lfg_series(waste_in, wc_in, params_phi1)
+    r075 = _calculate_lfg_series(waste_in, wc_in, params_phi075)
+
+    assert np.allclose(r075["ch4_carbon_total"], r1["ch4_carbon_total"] * 0.75), (
+        "CH4 with phi=0.75 should be 75% of phi=1.0"
+    )
+    assert np.allclose(r075["co2_carbon_total"], r1["co2_carbon_total"] * 0.75), (
+        "CO2 with phi=0.75 should be 75% of phi=1.0"
+    )
+
+
+def test_lfg_phi_zero_suppresses_gas():
+    """phi=0 must result in zero gas output (like MCF=0)."""
+    T = 5
+    waste_in = np.ones(T) * 100.0
+    wc_in = np.zeros(T)
+    params = _single_fraction_params(phi=0.0)
+    results = _calculate_lfg_series(waste_in, wc_in, params)
+
+    assert np.all(results["ch4_carbon_total"] == 0), "CH4 should be 0 when phi=0"
+    assert np.all(results["co2_carbon_total"] == 0), "CO2 should be 0 when phi=0"
+
+
+# ---------------------------------------------------------------------------
 # Test: MFA system integration (calculate_lfg)
 # ---------------------------------------------------------------------------
 
@@ -344,3 +382,77 @@ def test_calculate_lfg_writes_flows():
     # Leachate CC = 0
     cc_idx = elements.index("CC")
     assert np.all(leachate_vals[:, cc_idx] == 0), "Leachate CC should be 0"
+
+
+# ---------------------------------------------------------------------------
+# Test: load_lfg_parameters — parses LFG_Parameter_type/Value layout
+# ---------------------------------------------------------------------------
+
+def test_load_lfg_parameters_parses_correctly():
+    """load_lfg_parameters must parse the FOMP-style row-per-parameter layout."""
+    import importlib.util as _ilu2
+    import os as _os2
+
+    _dl_spec = _ilu2.spec_from_file_location(
+        "data_loader",
+        _os2.path.join(_os2.path.dirname(__file__), "..", "02_src", "data_loader.py"),
+    )
+    _dl_mod = _ilu2.module_from_spec(_dl_spec)
+    _dl_spec.loader.exec_module(_dl_mod)
+    load_lfg_parameters = _dl_mod.load_lfg_parameters
+
+    import pandas as pd
+
+    # Simulate the actual Excel sheet structure:
+    # LFG_Parameter_ID | LFG_Parameter_type | LFG_Parameter_Value | Process_ID
+    rows = [
+        # Fraction 1 rows (Food waste)
+        {"Process_ID": 1, "LFG_Parameter_ID": "P01_Waste_Fraction_j1", "LFG_Parameter_type": "Waste_Fraction_j", "LFG_Parameter_Value": "Food_waste"},
+        {"Process_ID": 1, "LFG_Parameter_ID": "P01_f_input_j1",        "LFG_Parameter_type": "f_input_j",       "LFG_Parameter_Value": 0.6},
+        {"Process_ID": 1, "LFG_Parameter_ID": "P01_DOC_j1",            "LFG_Parameter_type": "DOC_j",           "LFG_Parameter_Value": 0.15},
+        {"Process_ID": 1, "LFG_Parameter_ID": "P01_k_j1",              "LFG_Parameter_type": "k_j",             "LFG_Parameter_Value": 0.185},
+        # Fraction 2 rows (Paper)
+        {"Process_ID": 1, "LFG_Parameter_ID": "P01_Waste_Fraction_j2", "LFG_Parameter_type": "Waste_Fraction_j", "LFG_Parameter_Value": "Paper"},
+        {"Process_ID": 1, "LFG_Parameter_ID": "P01_f_input_j2",        "LFG_Parameter_type": "f_input_j",       "LFG_Parameter_Value": 0.4},
+        {"Process_ID": 1, "LFG_Parameter_ID": "P01_DOC_j2",            "LFG_Parameter_type": "DOC_j",           "LFG_Parameter_Value": 0.40},
+        {"Process_ID": 1, "LFG_Parameter_ID": "P01_k_j2",              "LFG_Parameter_type": "k_j",             "LFG_Parameter_Value": 0.04},
+        # Site parameters (uses Excel column names before mapping)
+        {"Process_ID": 1, "LFG_Parameter_ID": "P01_MCF_Site_Parameter", "LFG_Parameter_type": "MCF",  "LFG_Parameter_Value": 0.8},
+        {"Process_ID": 1, "LFG_Parameter_ID": "P01_DOCf_Site_Parameter","LFG_Parameter_type": "DOCf", "LFG_Parameter_Value": 0.5},
+        {"Process_ID": 1, "LFG_Parameter_ID": "P01_F_Site_Parameter",   "LFG_Parameter_type": "F",    "LFG_Parameter_Value": 0.5},
+        {"Process_ID": 1, "LFG_Parameter_ID": "P01_OX_Site_Parameter",  "LFG_Parameter_type": "OX",   "LFG_Parameter_Value": 0.1},
+        # Output flow IDs (P05 bug in template — Process_ID column must override)
+        {"Process_ID": 1, "LFG_Parameter_ID": "P05_output_CH4_id",      "LFG_Parameter_type": "output_CH4_id",  "LFG_Parameter_Value": "F_01_02"},
+        {"Process_ID": 1, "LFG_Parameter_ID": "P05_output_CO2_id",      "LFG_Parameter_type": "output_CO2_id",  "LFG_Parameter_Value": "F_01_04"},
+        {"Process_ID": 1, "LFG_Parameter_ID": "P05_output_leaching",    "LFG_Parameter_type": "output_leaching","LFG_Parameter_Value": "F_01_03"},
+    ]
+    df = pd.DataFrame(rows)
+    excel_data = {"3_3_Definition_LFG": df}
+
+    result = load_lfg_parameters(excel_data, debug_mode=False)
+
+    assert 1 in result, "Process 1 must be parsed"
+    p = result[1]
+
+    # Fractions
+    assert len(p["fractions"]) == 2, f"Expected 2 fractions, got {len(p['fractions'])}"
+    frac1 = p["fractions"][0]
+    assert frac1["name"] == "Food_waste"
+    assert np.isclose(frac1["k_j"], 0.185)
+    assert np.isclose(frac1["DOC_j"], 0.15)
+    assert np.isclose(frac1["f_input_j"], 0.6)
+
+    frac2 = p["fractions"][1]
+    assert frac2["name"] == "Paper"
+    assert np.isclose(frac2["k_j"], 0.04)
+
+    # Site params — F must be mapped to F_CH4
+    assert np.isclose(p["MCF"], 0.8)
+    assert np.isclose(p["DOCf"], 0.5)
+    assert np.isclose(p["F_CH4"], 0.5), "F in Excel must be mapped to F_CH4"
+    assert np.isclose(p["OX"], 0.1)
+
+    # Output flow IDs — must use Process_ID column, not P05 prefix
+    assert p["outflow_ch4_id"] == "F_01_02", "output_CH4_id must map to outflow_ch4_id"
+    assert p["outflow_co2_id"] == "F_01_04"
+    assert p["outflow_leachate_id"] == "F_01_03", "output_leaching must map to outflow_leachate_id"
