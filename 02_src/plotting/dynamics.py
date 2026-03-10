@@ -338,32 +338,9 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
                 )
 
             for i, stock_ts_material in enumerate(inflow_stocks_material):
-                inflows = [
-                    f.Values
-                    for f in mfa_system_results.FlowDict.values()
-                    if f.P_End == process_id
-                ]
-                total_inflow_values = (
-                    sum(inflows)
-                    if inflows
-                    else np.zeros((len(time_items), len(element_items)))
-                )
-
-                # Calculate composition factor from inflows
-                # IMPORTANT: Use forward-fill to maintain last known composition when inflow stops
-                inflow_comp_factor = np.zeros(len(time_items))
-                last_valid_factor = 0.0  # Default if no inflow ever occurs
-
-                for t in range(len(time_items)):
-                    if total_inflow_values[t, 0] != 0:
-                        # New inflow - calculate and store composition factor
-                        last_valid_factor = total_inflow_values[t, element_index] / total_inflow_values[t, 0]
-                        inflow_comp_factor[t] = last_valid_factor
-                    else:
-                        # No inflow - use last known composition (stock continues to decay)
-                        inflow_comp_factor[t] = last_valid_factor
-
-                stock_ts_element = stock_ts_material * inflow_comp_factor
+                # stock_ts_material is (num_years, num_elements) — vintage composition
+                # is already embedded via cohort-matrix weighting in the engine.
+                stock_ts_element = stock_ts_material[:, element_index]
                 category_display = category_names[i]
 
                 fig.add_trace(
@@ -1256,13 +1233,6 @@ def plot_dynamic_stock_composition(dsm_details, mfa_system_results):
         total_inflow_values = (
             sum(inflows) if inflows else np.zeros((len(time_axis), len(element_items)))
         )
-        inflow_comp_factor = np.divide(
-            total_inflow_values[:, element_index],
-            total_inflow_values[:, 0],
-            out=np.zeros(len(time_axis)),
-            where=total_inflow_values[:, 0] != 0,
-        )
-
         with fig.batch_update():
             fig.data = []
             chart_type = go.Bar if show_as_bars else go.Scatter
@@ -1285,8 +1255,9 @@ def plot_dynamic_stock_composition(dsm_details, mfa_system_results):
             )
 
             # Plot the stock from new inflows, category by category
+            # stock_ts_material is (num_years, num_elements) — vintage composition embedded.
             for i, stock_ts_material in enumerate(inflow_stocks_material):
-                stock_ts_element = stock_ts_material * inflow_comp_factor
+                stock_ts_element = stock_ts_material[:, element_index]
                 label = f"{category_names[i]} ({mean_lifetimes[i]} yrs)"
                 fig.add_trace(
                     chart_type(
