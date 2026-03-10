@@ -1930,10 +1930,10 @@ def plot_lfg_gas_production(mfa_system_results, lfg_params):
     time_items = list(mfa_system_results.IndexTable.Classification["Time"].Items)
     elements = mfa_system_results.Elements
 
-    try:
-        cc_idx = elements.index("CC")
-    except ValueError:
-        print("   ⚠️  CC element not found — skipping LFG gas plot.")
+    # Accept "TOC" (new hierarchy) → "TC" → "CC" (legacy) for gas carbon values
+    cc_idx = next((elements.index(e) for e in ("TOC", "TC", "CC") if e in elements), None)
+    if cc_idx is None:
+        print("   ⚠️  No carbon element found (TOC/TC/CC) — skipping LFG gas plot.")
         return
 
     colors = {
