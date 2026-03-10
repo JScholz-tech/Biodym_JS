@@ -2113,6 +2113,230 @@ def plot_lfg_stock_details(mfa_system_results, lfg_params):
     update_plot(process_ids[0])
 
 
+def plot_lfg_ipcc_vs_mfa_comparison(mfa_system_results, lfg_params):
+    """Diagnostic comparison of IPCC-DOC-based vs MFA-TOC-based LFG gas estimates.
+
+    Runs two carbon-accounting modes side-by-side for each LFG process:
+
+    - **IPCC mode** (current engine default):
+      ``active_C_j = W × f_input_j × DOC_j × DOCf``
+      Uses literature-derived DOC_j per waste fraction.
+
+    - **MFA/TOC mode**:
+      ``active_C_j = TOC_inflow × f_input_j × DOCf``
+      Uses the TOC element already tracked in the MFA system (from lab measurements).
+      Requires ``TOC_[%]`` to be defined on the waste input flows.
+
+    The DOC ratio (measured TOC / IPCC-implied DOC) quantifies whether the biomass
+    carbon content matches IPCC defaults.  A ratio > 1 indicates that measured TOC
+    is broader than IPCC DOC (e.g. includes recalcitrant organic carbon such as
+    lignin or char).
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        Solved MFA system.
+    lfg_params : dict
+        LFG parameter config from ``data_loader.load_lfg_parameters()``.
+    """
+    if not lfg_params:
+        print("No LFG processes found to plot.")
+        return
+
+    import copy
+    import importlib.util as _ilu
+    import os as _os
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+    from ipywidgets import Dropdown, HBox, Layout
+    from IPython.display import display
+
+    # Load _calculate_lfg_series fresh to avoid ODYM import chain
+    _lfg_path = _os.path.join(
+        _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+        "engine", "lfg_model.py",
+    )
+    _spec = _ilu.spec_from_file_location("lfg_model_cmp", _lfg_path)
+    _mod = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    _calculate_lfg_series = _mod._calculate_lfg_series
+
+    time_items = list(mfa_system_results.IndexTable.Classification["Time"].Items)
+    elements = mfa_system_results.Elements
+    mat_idx = elements.index("material")
+    wc_idx  = elements.index("WC") if "WC" in elements else None
+    toc_idx = elements.index("TOC") if "TOC" in elements else None
+
+    valid_ids = [
+        pid for pid, p in lfg_params.items()
+        if p.get("fractions") and p.get("outflow_ch4_id")
+    ]
+    if not valid_ids:
+        print("No fully configured LFG processes found.")
+        return
+
+    process_dropdown = Dropdown(
+        options=[(f"Process {pid}", pid) for pid in valid_ids],
+        description="LFG Process:",
+        style={"description_width": "120px"},
+        layout=Layout(width="280px"),
+    )
+
+    fig = make_subplots(
+        rows=1, cols=2,
+        column_widths=[0.7, 0.3],
+        subplot_titles=["Annual CH4 Production", "Avg. Carbon Input Comparison"],
+        specs=[[{"type": "scatter"}, {"type": "bar"}]],
+    )
+    fig_widget = go.FigureWidget(fig)
+
+    colors = {"ipcc": "#E69F00", "mfa": "#56B4E9", "implied": "#999999"}
+
+    def _get_data(process_id):
+        params = lfg_params[process_id]
+        fractions = params.get("fractions", [])
+
+        waste_in = np.zeros(len(time_items))
+        wc_in    = np.zeros(len(time_items))
+        toc_in   = np.zeros(len(time_items))
+
+        for f in mfa_system_results.FlowDict.values():
+            if f.P_End == process_id and f.Values is not None:
+                waste_in += f.Values[:, mat_idx]
+                if wc_idx is not None:
+                    wc_in += f.Values[:, wc_idx]
+                if toc_idx is not None:
+                    toc_in += f.Values[:, toc_idx]
+
+        # IPCC mode
+        r_ipcc = _calculate_lfg_series(waste_in, wc_in, params)
+        ch4_ipcc = r_ipcc["ch4_carbon_total"] * (16 / 12)  # Mg CH4
+
+        # IPCC-implied TOC [Mg C/yr] for reference bar
+        ipcc_implied_toc = waste_in * sum(
+            f["f_input_j"] * f.get("DOC_j", 0.0) for f in fractions
+        )
+
+        toc_defined = toc_in.sum() > 0
+        ch4_mfa = None
+        doc_ratio = None
+
+        if toc_defined:
+            mfa_params = copy.deepcopy(params)
+            for frac in mfa_params["fractions"]:
+                frac["DOC_j"] = 1.0
+            r_mfa = _calculate_lfg_series(toc_in, wc_in, mfa_params)
+            ch4_mfa = r_mfa["ch4_carbon_total"] * (16 / 12)  # Mg CH4
+            ipcc_total = ipcc_implied_toc.sum()
+            doc_ratio = toc_in.sum() / ipcc_total if ipcc_total > 0 else float("nan")
+
+        return {
+            "time": time_items,
+            "ch4_ipcc": ch4_ipcc,
+            "ch4_mfa": ch4_mfa,
+            "toc_in": toc_in,
+            "ipcc_implied_toc": ipcc_implied_toc,
+            "doc_ratio": doc_ratio,
+            "toc_defined": toc_defined,
+        }
+
+    def update_plot(process_id):
+        d = _get_data(process_id)
+        params = lfg_params[process_id]
+
+        with fig_widget.batch_update():
+            fig_widget.data = []
+
+            # --- Left panel: CH4 curves ---
+            fig_widget.add_trace(go.Scatter(
+                x=d["time"], y=d["ch4_ipcc"],
+                name="IPCC mode (DOC_j)",
+                line=dict(color=colors["ipcc"], width=2),
+                mode="lines",
+                hovertemplate="IPCC<br>Year: %{x}<br>%{y:.1f} Mg CH4<extra></extra>",
+            ), row=1, col=1)
+
+            if d["toc_defined"] and d["ch4_mfa"] is not None:
+                fig_widget.add_trace(go.Scatter(
+                    x=d["time"], y=d["ch4_mfa"],
+                    name="MFA/TOC mode",
+                    line=dict(color=colors["mfa"], width=2, dash="dash"),
+                    mode="lines",
+                    hovertemplate="MFA/TOC<br>Year: %{x}<br>%{y:.1f} Mg CH4<extra></extra>",
+                ), row=1, col=1)
+            else:
+                # Show IPCC-implied TOC as a dashed guidance line (in CH4-equivalent)
+                # using mean DOCf and site params for conversion
+                docf = float(params.get("DOCf", 0.5))
+                F_CH4 = float(params.get("F_CH4", 0.5))
+                MCF   = float(params.get("MCF", 1.0))
+                OX    = float(params.get("OX", 0.1))
+                phi   = float(params.get("phi", 1.0))
+                # Rough single-step conversion: implied TOC × DOCf × gas factors × 16/12
+                implied_ch4 = (
+                    d["ipcc_implied_toc"] * docf * F_CH4 * MCF * (1 - OX) * phi * (16 / 12)
+                )
+                fig_widget.add_trace(go.Scatter(
+                    x=d["time"], y=implied_ch4,
+                    name="IPCC-implied TOC (calibration target)",
+                    line=dict(color=colors["implied"], width=1.5, dash="dot"),
+                    mode="lines",
+                    hovertemplate="Implied<br>Year: %{x}<br>%{y:.1f} Mg CH4<extra></extra>",
+                ), row=1, col=1)
+
+            # --- Right panel: carbon input comparison bar ---
+            avg_ipcc = float(np.mean(d["ipcc_implied_toc"]))
+            bar_labels = ["IPCC DOC\n(literature)"]
+            bar_values = [avg_ipcc]
+            bar_colors = [colors["ipcc"]]
+
+            if d["toc_defined"]:
+                avg_toc = float(np.mean(d["toc_in"]))
+                bar_labels.append("Measured TOC\n(MFA)")
+                bar_values.append(avg_toc)
+                bar_colors.append(colors["mfa"])
+
+            fig_widget.add_trace(go.Bar(
+                x=bar_labels, y=bar_values,
+                marker_color=bar_colors,
+                name="Carbon input [Mg C/yr avg]",
+                hovertemplate="%{x}<br>%{y:.1f} Mg C/yr<extra></extra>",
+                showlegend=False,
+            ), row=1, col=2)
+
+            # --- Annotation ---
+            if d["toc_defined"] and d["doc_ratio"] is not None:
+                ratio = d["doc_ratio"]
+                if ratio > 1.5:
+                    note = f"⚠ DOC ratio: {ratio:.2f} — TOC likely includes recalcitrant OC; consider re-calibrating DOCf"
+                elif ratio < 0.7:
+                    note = f"ℹ DOC ratio: {ratio:.2f} — measured TOC is lower than IPCC defaults"
+                else:
+                    note = f"✓ DOC ratio: {ratio:.2f} — measured TOC is consistent with IPCC defaults"
+            else:
+                note = "ℹ TOC not defined on input flows — set TOC_[%] in flow definitions to enable MFA mode"
+
+            fig_widget.update_layout(
+                title=dict(
+                    text=(f"IPCC vs MFA Carbon Accounting — Process {process_id}"
+                          f"<br><sup>{note}</sup>"),
+                    font=dict(size=14),
+                ),
+                xaxis_title="Year",
+                yaxis_title="CH4 [Mg CH4/yr]",
+                yaxis2_title="Avg. Carbon Input [Mg C/yr]",
+                legend=dict(orientation="h", yanchor="bottom", y=1.08,
+                            xanchor="left", x=0),
+                height=480,
+                template="plotly_white",
+            )
+
+    process_dropdown.observe(lambda _: update_plot(process_dropdown.value), "value")
+    display(process_dropdown)
+    display(fig_widget)
+    update_plot(valid_ids[0])
+
+
 def plot_lfg_fraction_breakdown(mfa_system_results, lfg_params):
     """Stacked area chart of LFG gas production broken down by waste fraction.
 

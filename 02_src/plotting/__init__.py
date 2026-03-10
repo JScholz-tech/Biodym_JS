@@ -21,6 +21,7 @@ from .dynamics import (
     plot_lfg_gas_production,
     plot_lfg_stock_details,
     plot_lfg_fraction_breakdown,
+    plot_lfg_ipcc_vs_mfa_comparison,
 )
 from .validation import plot_optimized_mass_balance_error, plot_total_mass_balance_error
 from .monte_carlo import (
@@ -67,4 +68,5 @@ __all__ = [
     "plot_lfg_gas_production",
     "plot_lfg_stock_details",
     "plot_lfg_fraction_breakdown",
+    "plot_lfg_ipcc_vs_mfa_comparison",
 ]

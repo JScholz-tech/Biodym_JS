@@ -129,12 +129,16 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
     try:
         material_idx = mfa_system.Elements.index("material")
         dm_idx = mfa_system.Elements.index("DM")
-        cc_idx = mfa_system.Elements.index("CC")
         wc_idx = mfa_system.Elements.index("WC")
     except ValueError as e:
         raise ValueError(
             f"❌ FOMP Error: MFA system is missing a required element: {e}"
         )
+    # Accept "TC" (new hierarchy) or "CC" (legacy) as the carbon element
+    _tc_name = next((e for e in ("TC", "CC") if e in mfa_system.Elements), None)
+    if _tc_name is None:
+        raise ValueError("❌ FOMP Error: MFA system is missing carbon element (TC or CC)")
+    cc_idx = mfa_system.Elements.index(_tc_name)
 
     # Get the total Dry Matter (DM) inflow time-series
     inflows = [f.Values for f in mfa_system.FlowDict.values() if f.P_End == process_id]

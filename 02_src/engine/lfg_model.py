@@ -198,9 +198,15 @@ def calculate_lfg(mfa_system, lfg_params_config):
     except ValueError as e:
         raise ValueError(f"❌ LFG Error: MFA system missing required element: {e}")
 
-    dm_idx = mfa_system.Elements.index("DM") if "DM" in mfa_system.Elements else None
-    cc_idx = mfa_system.Elements.index("CC") if "CC" in mfa_system.Elements else None
-    wc_idx = mfa_system.Elements.index("WC") if "WC" in mfa_system.Elements else None
+    dm_idx  = mfa_system.Elements.index("DM") if "DM" in mfa_system.Elements else None
+    wc_idx  = mfa_system.Elements.index("WC") if "WC" in mfa_system.Elements else None
+    # Accept "TC" (new hierarchy) or "CC" (legacy) as the total-carbon element
+    tc_idx  = next((mfa_system.Elements.index(e)
+                    for e in ("TC", "CC") if e in mfa_system.Elements), None)
+    toc_idx = mfa_system.Elements.index("TOC") if "TOC" in mfa_system.Elements else None
+    tic_idx = mfa_system.Elements.index("TIC") if "TIC" in mfa_system.Elements else None
+    ash_idx = (mfa_system.Elements.index("Ash_content")
+               if "Ash_content" in mfa_system.Elements else None)
 
     # --- Read total inflows to this process ---
     inflows = [f.Values for f in mfa_system.FlowDict.values() if f.P_End == process_id]
@@ -229,19 +235,24 @@ def calculate_lfg(mfa_system, lfg_params_config):
     co2_values = np.zeros_like(total_inflow_values)
     leachate_values = np.zeros_like(total_inflow_values)
 
-    # CH4: material = DM = CC = C_in_CH4  (Mg C, like FOMP carbon outflow)
+    # CH4: material = DM = TC = TOC = C_in_CH4  (Mg C)
+    # Carbon exits as gas — set on all applicable carbon hierarchy elements
     ch4_values[:, material_idx] = results["ch4_carbon_total"]
     if dm_idx is not None:
         ch4_values[:, dm_idx] = results["ch4_carbon_total"]
-    if cc_idx is not None:
-        ch4_values[:, cc_idx] = results["ch4_carbon_total"]
+    if tc_idx is not None:
+        ch4_values[:, tc_idx] = results["ch4_carbon_total"]
+    if toc_idx is not None:
+        ch4_values[:, toc_idx] = results["ch4_carbon_total"]
 
-    # CO2: material = DM = CC = C_in_CO2  (Mg C biogenic)
+    # CO2: material = DM = TC = TOC = C_in_CO2  (Mg C biogenic)
     co2_values[:, material_idx] = results["co2_carbon_total"]
     if dm_idx is not None:
         co2_values[:, dm_idx] = results["co2_carbon_total"]
-    if cc_idx is not None:
-        co2_values[:, cc_idx] = results["co2_carbon_total"]
+    if tc_idx is not None:
+        co2_values[:, tc_idx] = results["co2_carbon_total"]
+    if toc_idx is not None:
+        co2_values[:, toc_idx] = results["co2_carbon_total"]
 
     # Leachate: material = WC = water  (DM = 0, CC = 0)
     leachate_values[:, material_idx] = results["leachate_total"]

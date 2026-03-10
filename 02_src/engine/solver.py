@@ -485,15 +485,18 @@ def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
         True if any flow values were changed during the calculation, False otherwise.
     """
     # Check if required elements exist for FOMP
-    required_elements = ["DM", "CC"]
-    missing_elements = [e for e in required_elements if e not in mfa_system.Elements]
+    # Accept "TC" (new hierarchy with TC/TOC/TIC) or "CC" (legacy naming)
+    _tc_name = next((e for e in ("TC", "CC") if e in mfa_system.Elements), None)
+    missing_elements = (["DM"] if "DM" not in mfa_system.Elements else [])
+    if _tc_name is None:
+        missing_elements.append("TC or CC")
 
     if missing_elements:
         print(
             f"⚠️  FOMP calculation skipped: Missing required elements {missing_elements}"
         )
         print(
-            "   FOMP requires 'DM' (dry matter) and 'CC' (carbon content) for organic decomposition"
+            "   FOMP requires 'DM' (dry matter) and 'TC' or 'CC' (carbon content) for organic decomposition"
         )
         print(f"   Available elements: {mfa_system.Elements}")
         print(
@@ -523,7 +526,7 @@ def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
         # Element indices (already validated above)
         material_idx = mfa_system.Elements.index("material")
         dm_idx = mfa_system.Elements.index("DM")
-        cc_idx = mfa_system.Elements.index("CC")
+        cc_idx = mfa_system.Elements.index(_tc_name)  # "TC" or "CC"
         wc_idx = (
             mfa_system.Elements.index("WC") if "WC" in mfa_system.Elements else None
         )
