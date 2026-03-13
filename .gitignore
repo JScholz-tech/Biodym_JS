@@ -28,7 +28,9 @@ venv/
 .idea/
 .project
 .classpath
-.claude/
+# Track project skills and CLAUDE.md but exclude local/personal settings
+.claude/settings.local.json
+.claude/settings.json
 
 # -----------------------------------------------------------------------------
 # Jupyter Notebooks
