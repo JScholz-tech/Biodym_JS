@@ -522,10 +522,10 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
                         x=time_items,
                         y=cumulative_outflow,
                         mode="lines",
-                        name="Cumulative Mineralization",
+                        name="Cumulative Carbon Emissions",
                         line=dict(color=colors["output"], width=2, dash="dot"),
                         marker=dict(size=3),
-                        hovertemplate="<b>Cumulative Mineralization</b><br>Year: %{x}<br>Mass: %{y:.2f}} Mg<extra></extra>",
+                        hovertemplate="<b>Cumulative Carbon Emissions</b><br>Year: %{x}<br>Mass: %{y:.2f}} Mg<extra></extra>",
                     )
                 )
             else:
@@ -547,10 +547,10 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
                         x=time_items,
                         y=outflow_ts,
                         mode="lines",
-                        name="Annual Mineralization",
+                        name="Annual Carbon Emissions",
                         line=dict(color=colors["output"], width=2, dash="dot"),
                         marker=dict(size=3),
-                        hovertemplate="<b>Annual Mineralization</b><br>Year: %{x}<br>Mass: %{y:.2f}} Mg<extra></extra>",
+                        hovertemplate="<b>Annual Carbon Emissions</b><br>Year: %{x}<br>Mass: %{y:.2f}} Mg<extra></extra>",
                     )
                 )
 
@@ -573,9 +573,9 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
     def export_plot():
         """Export the current plot."""
         try:
-            current_process = process_dropdown.value
+            current_process_name = process_dropdown.value
             current_element = element_dropdown.value
-            filename = f"fomp_{current_process}_{current_element}"
+            filename = f"fomp_{current_process_name.replace(' ', '_')}_{current_element}"
             paths = export_figure(
                 fig, filename,
                 formats=["png", "pdf"], quality="publication", size="large", timestamp=False,
@@ -584,9 +584,20 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
         except Exception as e:
             print(f"❌ Export failed: {e}")
 
+    # Build name→ID mapping, excluding the boundary process (ID 0) and any
+    # entries in fomp_params that have no corresponding process in ProcessList.
+    process_options = {
+        p.Name: p.ID
+        for p in mfa_system_results.ProcessList
+        if p.ID in fomp_params and p.ID != 0
+    }
+    if not process_options:
+        print("⚠️  No FOMP processes found in ProcessList.")
+        return
+
     # Create enhanced widgets
     process_dropdown = Dropdown(
-        options=list(fomp_params.keys()),
+        options=list(process_options.keys()),
         description="FOMP Process:",
         style={"description_width": "120px"},
         layout=Layout(width="300px"),
@@ -631,11 +642,11 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
             </div>
             <div style="display: flex; align-items: center;">
                 <div style="width: 20px; height: 20px; background-color: {colors["output"]}; margin-right: 5px;"></div>
-                <span>Mineralization (Annual/Cumulative)</span>
+                <span>Carbon Emissions (Annual/Cumulative)</span>
             </div>
         </div>
         <div style="margin-top: 10px; font-size: 12px; color: #666;">
-            <strong>FOMP Process:</strong> First-Order Mineralization Process for organic matter dynamics
+            <strong>FOMP Process:</strong> First-Order Carbon Emission Process for organic matter dynamics
         </div>
     </div>
     """
@@ -653,9 +664,13 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
         ]
     )
 
+    # Wrap update_plot so the dropdown passes a name but the function receives an ID
+    def _update_plot_by_name(process_name, element, show_cumulative):
+        update_plot(process_options[process_name], element, show_cumulative)
+
     out = interactive(
-        update_plot,
-        process_id=process_dropdown,
+        _update_plot_by_name,
+        process_name=process_dropdown,
         element=element_dropdown,
         show_cumulative=cumulative_checkbox,
     )
@@ -1323,11 +1338,12 @@ def plot_fomp_dynamics(mfa_system_results, fomp_params_config):
     """
     from plotly.subplots import make_subplots
 
-    # Create a mapping of process names to IDs for the dropdown, only for FOMP processes
+    # Create a mapping of process names to IDs for the dropdown.
+    # Exclude the boundary process (ID 0) — it is never a real FOMP process.
     process_options = {
         p.Name: p.ID
         for p in mfa_system_results.ProcessList
-        if p.ID in fomp_params_config
+        if p.ID in fomp_params_config and p.ID != 0
     }
     if not process_options:
         print("No processes with FOMP parameters are defined in the configuration.")
@@ -1342,7 +1358,7 @@ def plot_fomp_dynamics(mfa_system_results, fomp_params_config):
             subplot_titles=(
                 "Total Inflow",
                 "Absolute Stock (S)",
-                "Outflow (Mineralization)",
+                "Outflow (Carbon Emissions)",
             ),
         )
     )

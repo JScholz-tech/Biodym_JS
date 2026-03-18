@@ -17,7 +17,18 @@ def _calculate_fomp_series(
     This is a pure function that takes time-series data and parameters as input
     and returns a dictionary of calculated time-series arrays. It uses the
     analytical solution for first-order decay for each time step:
-    `decay = stock * (1 - exp(-k))`.
+    `decay = (stock + inflow) * (1 - exp(-k))`.
+
+    The model follows the **start-of-period (add-before-decay) convention**:
+    inflow at year t is added to the stock before decay is applied, so it begins
+    decomposing within the same year. This is consistent with RothC, CENTURY,
+    and the UNFCCC AM-Tool-04 landfill FOD model used in the LFG module.
+
+    Carbon (TC) pools are tracked independently from DM pools using the same
+    decay constants. This correctly handles time-varying carbon fractions
+    (`cc_dm` as a time-series): each year's inflow carries its own CC/DM ratio
+    into the pool and retains it through decay, rather than applying the current
+    year's ratio to historically-accumulated pool material.
 
     Parameters
     ----------
@@ -25,24 +36,27 @@ def _calculate_fomp_series(
         Time-series array of total Dry Matter (DM) inflow to the process.
     params : dict
         Dictionary of model parameters, including `f_labile`, `k_labile`,
-        `k_recalcitrant`, and `cc_dm`.
+        `k_recalcitrant`, and `cc_dm`. `cc_dm` may be a scalar or a 1-D
+        np.ndarray (one value per simulation year).
     initial_stock_labile : float
-        The initial stock of the labile pool at the beginning of the simulation.
+        The initial stock of the labile DM pool at the beginning of the simulation.
     initial_stock_recalcitrant : float
-        The initial stock of the recalcitrant pool.
+        The initial stock of the recalcitrant DM pool.
 
     Returns
     -------
     dict
         A dictionary of NumPy arrays for the calculated time-series, including
-        `stock_labile`, `stock_recalcitrant`, `outflow_carbon`, and
-        `outflow_environmental`.
+        `stock_labile`, `stock_recalcitrant`, `stock_tc_labile`,
+        `stock_tc_recalcitrant`, `outflow_carbon`, and `outflow_environmental`.
     """
     num_years = len(dm_inflow_series)
 
     # Create result arrays
     stock_labile_series = np.zeros(num_years)
     stock_recalcitrant_series = np.zeros(num_years)
+    stock_tc_labile_series = np.zeros(num_years)
+    stock_tc_recalcitrant_series = np.zeros(num_years)
     outflow_carbon_series = np.zeros(num_years)
     outflow_environmental_series = np.zeros(num_years)
 
@@ -50,46 +64,72 @@ def _calculate_fomp_series(
     f_labile = params["f_labile"]
     k_labile = params["k_labile"]
     k_recalcitrant = params["k_recalcitrant"]
-    cc_dm = params["cc_dm"]
+    cc_dm = params["cc_dm"]  # scalar or np.ndarray
 
     # Initialize stocks for the loop
     current_stock_labile = initial_stock_labile
     current_stock_recalcitrant = initial_stock_recalcitrant
+    current_tc_labile = 0.0
+    current_tc_recalcitrant = 0.0
 
     for t in range(num_years):
-        # a. Determine Stocks at Start of Year
-        stock_start_labile = current_stock_labile
-        stock_start_recalcitrant = current_stock_recalcitrant
+        # Extract year-specific cc_dm (handles both scalar and time-series)
+        cc_dm_t = cc_dm[t] if isinstance(cc_dm, np.ndarray) else cc_dm
 
-        # b. Calculate Decay for Each Pool using analytical solution
-        decay_labile = stock_start_labile * (1 - np.exp(-k_labile))
-        decay_recalcitrant = stock_start_recalcitrant * (1 - np.exp(-k_recalcitrant))
-
-        # c. Calculate Inflows to Each Pool
+        # a. Add inflow first (start-of-period convention, consistent with RothC/CENTURY
+        #    and UNFCCC AM-Tool-04 LFG model): organic matter deposited in year t starts
+        #    decomposing within the same year.
         inflow_labile = dm_inflow_series[t] * f_labile
         inflow_recalcitrant = dm_inflow_series[t] * (1 - f_labile)
+        pre_decay_labile = current_stock_labile + inflow_labile
+        pre_decay_recalcitrant = current_stock_recalcitrant + inflow_recalcitrant
 
-        # d. Calculate Stocks at End of Year
-        end_of_year_labile = (stock_start_labile - decay_labile) + inflow_labile
-        end_of_year_recalcitrant = (
-            stock_start_recalcitrant - decay_recalcitrant
-        ) + inflow_recalcitrant
+        # TC pools follow the same dynamics as DM pools.
+        # Tracking TC separately preserves the vintage carbon fraction of each
+        # year's inflow as it moves through the pool, avoiding the approximation
+        # of applying the current year's cc_dm to all accumulated pool material.
+        tc_inflow_labile = dm_inflow_series[t] * cc_dm_t * f_labile
+        tc_inflow_recalcitrant = dm_inflow_series[t] * cc_dm_t * (1 - f_labile)
+        pre_decay_tc_labile = current_tc_labile + tc_inflow_labile
+        pre_decay_tc_recalcitrant = current_tc_recalcitrant + tc_inflow_recalcitrant
+
+        # b. Calculate Decay for Each Pool using analytical solution
+        decay_labile = pre_decay_labile * (1 - np.exp(-k_labile))
+        decay_recalcitrant = pre_decay_recalcitrant * (1 - np.exp(-k_recalcitrant))
+        tc_decay_labile = pre_decay_tc_labile * (1 - np.exp(-k_labile))
+        tc_decay_recalcitrant = pre_decay_tc_recalcitrant * (1 - np.exp(-k_recalcitrant))
+
+        # c. Calculate Stocks at End of Year
+        end_of_year_labile = pre_decay_labile - decay_labile
+        end_of_year_recalcitrant = pre_decay_recalcitrant - decay_recalcitrant
+        end_tc_labile = pre_decay_tc_labile - tc_decay_labile
+        end_tc_recalcitrant = pre_decay_tc_recalcitrant - tc_decay_recalcitrant
 
         stock_labile_series[t] = end_of_year_labile
         stock_recalcitrant_series[t] = end_of_year_recalcitrant
+        stock_tc_labile_series[t] = end_tc_labile
+        stock_tc_recalcitrant_series[t] = end_tc_recalcitrant
 
-        # e. Calculate and Store Split Outflows
-        total_decay_dm = decay_labile + decay_recalcitrant
-        outflow_carbon_series[t] = total_decay_dm * cc_dm
-        outflow_environmental_series[t] = total_decay_dm * (1 - cc_dm)
+        # d. Calculate and Store Split Outflows
+        # Carbon outflow = total TC that decayed (all organic carbon → all TOC).
+        # Environmental outflow = non-carbon fraction of decayed DM
+        # (volatilised H, O, N, S etc. that are not CO₂/CH₄-C).
+        total_tc_decay = tc_decay_labile + tc_decay_recalcitrant
+        total_dm_decay = decay_labile + decay_recalcitrant
+        outflow_carbon_series[t] = total_tc_decay
+        outflow_environmental_series[t] = total_dm_decay - total_tc_decay
 
         # Update stocks for the next iteration
         current_stock_labile = end_of_year_labile
         current_stock_recalcitrant = end_of_year_recalcitrant
+        current_tc_labile = end_tc_labile
+        current_tc_recalcitrant = end_tc_recalcitrant
 
     results = {
         "stock_labile": stock_labile_series,
         "stock_recalcitrant": stock_recalcitrant_series,
+        "stock_tc_labile": stock_tc_labile_series,
+        "stock_tc_recalcitrant": stock_tc_recalcitrant_series,
         "outflow_carbon": outflow_carbon_series,
         "outflow_environmental": outflow_environmental_series,
     }
@@ -147,29 +187,21 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
     )
     dm_inflow_series = total_inflow_values[:, dm_idx]
 
-    # Assemble parameters for the pure calculation function
-    dm_fraction = input_flow_composition.get("DM", 1.0)
-    cc_fraction = input_flow_composition.get("CC", 0.0)
-
-    # Handle both scalar and time-series composition fractions
-    if isinstance(dm_fraction, np.ndarray) and dm_fraction.ndim > 0:
-        # Time-series composition - use mean values for parameter calculation
-        dm_fraction_mean = (
-            np.mean(dm_fraction[dm_fraction > 0]) if np.any(dm_fraction > 0) else 1.0
+    # Compute per-year carbon-to-dry-matter ratio directly from inflow data.
+    # Using a time-series (not a time-average) correctly propagates vintage carbon
+    # fractions when feedstock composition changes over time — the same motivation
+    # as the DSM cohort-matrix weighting fix.
+    cc_inflow_series = total_inflow_values[:, cc_idx]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        cc_dm_series = np.where(
+            dm_inflow_series > 0, cc_inflow_series / dm_inflow_series, 0.0
         )
-        cc_fraction_mean = (
-            np.mean(cc_fraction[cc_fraction > 0]) if np.any(cc_fraction > 0) else 0.0
-        )
-    else:
-        # Scalar composition
-        dm_fraction_mean = float(dm_fraction)
-        cc_fraction_mean = float(cc_fraction)
 
     params_for_calc = {
         "f_labile": fomp_excel_params.get("Inflow_fraction_f (Labile pool)", 0.7),
         "k_labile": fomp_excel_params.get("decay_k1 (Labile pool)", 0.5),
         "k_recalcitrant": fomp_excel_params.get("decay_k2 (Recalcitrant pool)", 0.025),
-        "cc_dm": cc_fraction_mean / dm_fraction_mean if dm_fraction_mean != 0 else 0.0,
+        "cc_dm": cc_dm_series,
     }
 
     # LIMITATION: Initial stocks for FOMP are currently set to zero
@@ -195,8 +227,34 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
     )
 
     # --- 3. Assign results back to the MFA System in a physically consistent way ---
-    carbon_outflow_id = fomp_excel_params.get("outflow_id")
-    environmental_outflow_id = fomp_excel_params.get("outflow_id_2")
+
+    # Normalize outflow IDs: map all absent/null representations → Python None.
+    # Excel empty cells arrive as float NaN; users may also type "None" or leave
+    # the row out entirely (→ dict.get returns None).
+    def _normalize_flow_id(raw):
+        if raw is None:
+            return None
+        if isinstance(raw, float) and np.isnan(raw):
+            return None
+        if isinstance(raw, str) and raw.strip().lower() in ("none", ""):
+            return None
+        return raw
+
+    carbon_outflow_id = _normalize_flow_id(fomp_excel_params.get("outflow_id"))
+    environmental_outflow_id = _normalize_flow_id(fomp_excel_params.get("outflow_id_2"))
+
+    # Guard: carbon outflow ID is mandatory
+    if carbon_outflow_id is None:
+        raise ValueError(
+            f"FOMP Error (process {process_id}): 'output_carbon_id' is missing or blank "
+            f"in the Excel sheet. A carbon outflow flow ID is required."
+        )
+    if carbon_outflow_id not in mfa_system.FlowDict:
+        raise ValueError(
+            f"FOMP Error (process {process_id}): Flow '{carbon_outflow_id}' "
+            f"(output_carbon_id) not found in the MFA system FlowDict. "
+            f"Check that the flow is defined in the Excel flow definition sheet."
+        )
 
     # Create multi-element carbon outflow vector
     carbon_outflow_values = np.zeros_like(total_inflow_values)
@@ -205,27 +263,105 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
     carbon_outflow_values[:, dm_idx] = outflow_carbon_mass
     carbon_outflow_values[:, cc_idx] = outflow_carbon_mass
 
-    # Create multi-element environmental outflow vector
+    # Create multi-element environmental outflow vector.
+    # Part 1: non-carbon fraction of the DECAYED dry matter (H, O, N, S volatilisation)
+    # Part 2: water from the INITIAL INPUT (water bypass — not retained in the pool)
     environmental_outflow_values = np.zeros_like(total_inflow_values)
-
-    # Part 1: The non-carbon part of the DECAYED dry matter
     outflow_env_mass = fomp_results["outflow_environmental"]
     environmental_outflow_values[:, material_idx] += outflow_env_mass
     environmental_outflow_values[:, dm_idx] += outflow_env_mass
-
-    # Part 2: The water from the INITIAL INPUT (Water Bypass)
     input_water_mass = total_inflow_values[:, wc_idx]
     environmental_outflow_values[:, material_idx] += input_water_mass
     environmental_outflow_values[:, wc_idx] += input_water_mass
 
-    # Assign the final calculated flows to the system
-    if carbon_outflow_id in mfa_system.FlowDict:
-        mfa_system.FlowDict[carbon_outflow_id].Values = carbon_outflow_values
+    # Set TOC sub-element on the carbon outflow.
+    # Decomposed organic carbon is entirely from organic oxidation: all emitted TC
+    # is TOC (biogenic CO₂). TIC stays at zero — aerobic soil OC decomposition
+    # does not release inorganic carbonates to the atmosphere.
+    if "TOC" in mfa_system.Elements:
+        toc_idx = mfa_system.Elements.index("TOC")
+        carbon_outflow_values[:, toc_idx] = outflow_carbon_mass
 
-    if environmental_outflow_id in mfa_system.FlowDict:
-        mfa_system.FlowDict[
-            environmental_outflow_id
-        ].Values = environmental_outflow_values
+    # Mode detection: single-flow vs dual-flow output routing.
+    # Single-flow: outflow_id_2 absent/None OR same as outflow_id → merge both
+    #              output vectors into the single carbon outflow flow.
+    # Dual-flow:   both IDs defined and distinct → write each vector separately.
+    _env_missing = environmental_outflow_id is None
+    _same_id = environmental_outflow_id == carbon_outflow_id
+    _single_flow_mode = _env_missing or _same_id
+
+    if _single_flow_mode:
+        _reason = (
+            "outflow_id_2 is absent/None"
+            if _env_missing
+            else f"outflow_id_2 == outflow_id ('{carbon_outflow_id}')"
+        )
+        mfa_system.FlowDict[carbon_outflow_id].Values = (
+            carbon_outflow_values + environmental_outflow_values
+        )
+        print(
+            f"   FOMP (process {process_id}): single-flow mode ({_reason}). "
+            f"Carbon and environmental outputs merged into '{carbon_outflow_id}'."
+        )
+    else:
+        if environmental_outflow_id not in mfa_system.FlowDict:
+            raise ValueError(
+                f"FOMP Error (process {process_id}): Flow '{environmental_outflow_id}' "
+                f"(output_environmental_id) not found in the MFA system FlowDict. "
+                f"Either define this flow or leave output_environmental_id blank to "
+                f"use single-flow mode."
+            )
+        mfa_system.FlowDict[carbon_outflow_id].Values = carbon_outflow_values
+        mfa_system.FlowDict[environmental_outflow_id].Values = environmental_outflow_values
+        print(
+            f"   FOMP (process {process_id}): dual-flow mode. "
+            f"Carbon → '{carbon_outflow_id}', "
+            f"environmental → '{environmental_outflow_id}'."
+        )
+
+    # Write FOMP pool stocks to the MFA system StockDict.
+    # Without this, accumulated soil carbon is invisible to ODYM: inflow ≠ outflow
+    # and Consistency_Check raises a warning every iteration.
+    # The pool stock at year t is the end-of-year value from the pool model.
+    # TC pool stock uses the independently-tracked TC series (not DM × cc_dm),
+    # which correctly reflects the vintage-weighted carbon content of the pool.
+    stock_key = f"S_{process_id}"
+    if stock_key in mfa_system.StockDict:
+        pool_dm_stock = fomp_results["stock_labile"] + fomp_results["stock_recalcitrant"]
+        pool_tc_stock = (
+            fomp_results["stock_tc_labile"] + fomp_results["stock_tc_recalcitrant"]
+        )
+        stock_values = np.zeros((num_years, num_elements))
+        stock_values[:, material_idx] = pool_dm_stock
+        stock_values[:, dm_idx] = pool_dm_stock
+        stock_values[:, cc_idx] = pool_tc_stock
+        if "TOC" in mfa_system.Elements:
+            toc_idx = mfa_system.Elements.index("TOC")
+            stock_values[:, toc_idx] = pool_tc_stock
+
+        # Ash_content does not decay — it accumulates permanently in the pool stock.
+        # It is excluded from both outflows (it never leaves the FOMP process).
+        if "Ash_content" in mfa_system.Elements:
+            ash_idx = mfa_system.Elements.index("Ash_content")
+            ash_inflow_series = total_inflow_values[:, ash_idx]
+            stock_values[:, ash_idx] = np.cumsum(ash_inflow_series)
+            # Ash mass is part of DM and material — update totals accordingly
+            stock_values[:, dm_idx] += stock_values[:, ash_idx]
+            stock_values[:, material_idx] += stock_values[:, ash_idx]
+
+        # TIC (inorganic carbon) is treated as an inert mineral in FOMP — aerobic
+        # soil OC decomposition does not mobilise inorganic carbonates. TIC from
+        # the inflow accumulates permanently in the stock alongside Ash_content.
+        if "TIC" in mfa_system.Elements:
+            tic_idx = mfa_system.Elements.index("TIC")
+            tic_inflow_series = total_inflow_values[:, tic_idx]
+            stock_values[:, tic_idx] = np.cumsum(tic_inflow_series)
+            # TIC is part of TC (and DM, material) — update totals accordingly
+            stock_values[:, cc_idx] += stock_values[:, tic_idx]
+            stock_values[:, dm_idx] += stock_values[:, tic_idx]
+            stock_values[:, material_idx] += stock_values[:, tic_idx]
+
+        mfa_system.StockDict[stock_key].Values[:, :] = stock_values
 
     print(f"   Total carbon output: {np.sum(fomp_results['outflow_carbon']):.2f}")
     print(
