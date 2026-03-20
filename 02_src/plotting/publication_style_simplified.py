@@ -110,6 +110,8 @@ def get_publication_layout(
     custom_title=None,
     width=None,
     height=None,
+    x_range=None,
+    y_range=None,
 ):
     """Generates a standardized layout configuration for publication-quality plots.
 
@@ -150,6 +152,12 @@ def get_publication_layout(
         Custom width for the figure. Overrides `size` parameter.
     height : int, optional
         Custom height for the figure. Overrides `size` parameter.
+    x_range : list of two numbers or None, optional
+        Explicit x-axis range, e.g. ``[2025, 2125]``. When None the axis
+        auto-scales. Defaults to None.
+    y_range : list of two numbers or None, optional
+        Explicit y-axis range, e.g. ``[0, 6]``. When None the axis
+        auto-scales (``rangemode="tozero"`` still applies). Defaults to None.
 
     Returns
     -------
@@ -196,6 +204,7 @@ def get_publication_layout(
             "zeroline": zeroline,
             "zerolinecolor": BIOYM_COLORS["neutral"] if zeroline else "rgba(0,0,0,0)",
             "tickformat": ".2e" if scientific_x else None,
+            **({"range": x_range} if x_range is not None else {}),
         },
         "yaxis": {
             "title": {
@@ -220,6 +229,7 @@ def get_publication_layout(
             "zerolinecolor": BIOYM_COLORS["neutral"] if zeroline else "rgba(0,0,0,0)",
             "tickformat": ".2e" if scientific_y else None,
             "rangemode": "tozero",
+            **({"range": y_range} if y_range is not None else {}),
         },
         "plot_bgcolor": BACKGROUND_COLORS[background],
         "paper_bgcolor": BACKGROUND_COLORS[background],

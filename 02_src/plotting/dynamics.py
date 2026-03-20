@@ -616,8 +616,7 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params, comparison_process=
                     tickfont=dict(size=10),
                     showgrid=True,
                     gridcolor="#e8e8e8",
-                    # Use explicit integers to prevent Plotly from padding the axis
-                    range=[int(time_items[0]), int(time_items[-1])],
+                    range=[2025, 2125],
                 ),
                 yaxis=dict(
                     title=dict(text=y_label, font=dict(size=11)),
@@ -812,7 +811,7 @@ def plot_fomp_stock_comparison(mfa_system_results, fomp_params, element=None):
             tickfont=dict(size=10),
             showgrid=True,
             gridcolor="#e8e8e8",
-            range=[int(time_items[0]), int(time_items[-1])],
+            range=[2025, 2125],
         ),
         yaxis=dict(
             title=dict(text=y_label, font=dict(size=11)),
