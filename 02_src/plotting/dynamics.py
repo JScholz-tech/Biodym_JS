@@ -417,29 +417,23 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
     out.update()
 
 
-def plot_fomp_stock_details(mfa_system_results, fomp_params):
+def plot_fomp_stock_details(mfa_system_results, fomp_params, comparison_process=None):
     """Creates detailed stock evolution plots specifically for FOMP processes.
 
-    This function visualizes the dynamics of organic matter accumulation and
-    mineralization within a First-Order Mineralization Process (FOMP).
-    It provides an interactive plot showing the organic matter stock evolution,
-    along with annual or cumulative input and mineralization flows.
+    Publication-ready interactive plot (JIE single-column format). Values are
+    scaled to 10⁶ Mg C on the y-axis. An optional second trajectory can be
+    overlaid for scenario comparison.
 
     Parameters
     ----------
     mfa_system_results : odym.MFAsystem
-        The solved MFA system object, containing the results of the MFA
-        calculation, including all flows and stocks over the simulation period.
+        The solved MFA system object containing all flows and stocks.
     fomp_params : dict
-        A dictionary containing the configuration parameters for all FOMP
-        processes in the model. Used to identify relevant processes.
-
-    Notes
-    -----
-    The plot is interactive, allowing the user to select the FOMP process,
-    the element to display, and whether to show annual or cumulative values.
-    It also includes a button to export the current view as a high-resolution
-    PNG image and a legend explaining the plot elements.
+        Configuration parameters for all FOMP processes (keyed by process ID).
+    comparison_process : int or str or None
+        Optional second FOMP process to overlay for direct comparison.
+        Accepts a process ID (int) or process name (str). When provided, its
+        TC stock is drawn as a steelblue solid line behind the primary traces.
     """
     if not fomp_params:
         print("No FOMP processes found to plot.")
@@ -451,31 +445,92 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
     time_items = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = mfa_system_results.Elements
 
-    # Define consistent color scheme (Okabe-Ito colorblind-safe)
-    colors = {
-        "stock": "#0173B2",  # Blue for organic matter stock
-        "input": "#56B4E9",  # Sky blue for input
-        "output": "#CC79A7",  # Pink for mineralization
-        "background": "#f9f9f9",  # Light background
+    # Publication line style scheme (JIE single-column)
+    _SCALE = 1e6  # display values in 10⁶ Mg
+    _PUB = {
+        "stock":      dict(color="black",   width=2, dash="solid"),
+        "input":      dict(color="grey",    width=2, dash="dash"),
+        "output":     dict(color="darkred", width=2, dash="dot"),
+        "comparison": dict(color="steelblue", width=1.5, dash="solid"),
     }
+    # 7 × 4.5 inches at 96 dpi
+    _W, _H = 672, 432
+
+    # Resolve comparison process ID once (outside update_plot)
+    _cmp_id = None
+    _cmp_name = None
+    if comparison_process is not None:
+        if isinstance(comparison_process, int):
+            _cmp_id = comparison_process
+        else:
+            _cmp_id = next(
+                (p.ID for p in mfa_system_results.ProcessList
+                 if p.Name == comparison_process),
+                None,
+            )
+        if _cmp_id is not None:
+            _cmp_name = next(
+                (p.Name for p in mfa_system_results.ProcessList if p.ID == _cmp_id),
+                str(_cmp_id),
+            )
 
     fig = go.FigureWidget()
 
     def update_plot(process_id, element, show_cumulative):
+        # Use TC fallback for element label: never display "CC"
+        tc_name = next(
+            (e for e in ("TC", "CC") if e in element_items), element
+        )
+        y_label = "Carbon Stock (10\u2076 Mg C)" if element in ("TC", "CC") else (
+            f"{element} (10\u2076 Mg)"
+        )
         element_index = element_items.index(element)
 
         with fig.batch_update():
             fig.data = []
 
-            # Get stock data
+            # Optional comparison overlay (drawn first so primary sits on top)
+            if _cmp_id is not None:
+                cmp_stock_obj = mfa_system_results.StockDict.get(f"S_{_cmp_id}")
+                if cmp_stock_obj is not None:
+                    cmp_stock = cmp_stock_obj.Values[:, element_index] / _SCALE
+                    fig.add_trace(go.Scatter(
+                        x=time_items,
+                        y=cmp_stock,
+                        mode="lines",
+                        name=f"Stock – {_cmp_name}",
+                        line=_PUB["comparison"],
+                        hovertemplate=(
+                            f"<b>Stock – {_cmp_name}</b><br>"
+                            "Year: %{x}<br>Value: %{y:.3f} ×10⁶ Mg<extra></extra>"
+                        ),
+                    ))
+
+            # Primary stock
             stock_obj = mfa_system_results.StockDict.get(f"S_{process_id}")
             if stock_obj is None:
                 print(f"No stock data for process {process_id}")
                 return
+            stock_values = stock_obj.Values[:, element_index] / _SCALE
 
-            stock_values = stock_obj.Values[:, element_index]
+            process_name = next(
+                (p.Name for p in mfa_system_results.ProcessList if p.ID == process_id),
+                f"Process {process_id}",
+            )
+            stock_label = f"Stock – {process_name}" if _cmp_id is not None else "Carbon Stock"
 
-            # Get inflow and outflow data
+            fig.add_trace(go.Scatter(
+                x=time_items,
+                y=stock_values,
+                mode="lines",
+                name=stock_label,
+                line=_PUB["stock"],
+                hovertemplate=(
+                    "<b>Stock</b><br>Year: %{x}<br>Value: %{y:.3f} ×10⁶ Mg<extra></extra>"
+                ),
+            ))
+
+            # Inflow / outflow traces
             inflow_ts = sum(
                 f.Values[:, element_index]
                 for f in mfa_system_results.FlowDict.values()
@@ -487,91 +542,88 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
                 if f.P_Start == process_id
             )
 
-            # Plot stock evolution (always shown)
-            fig.add_trace(
-                go.Scatter(
-                    x=time_items,
-                    y=stock_values,
-                    mode="lines",
-                    name="Organic Matter Stock",
-                    line=dict(color=colors["stock"], width=3),
-                    marker=dict(size=4),
-                    hovertemplate="<b>Stock</b><br>Year: %{x}<br>Mass: %{y:.2f} Mg<extra></extra>",
-                )
-            )
-
             if show_cumulative == "Cumulative Values":
-                # Plot cumulative inflow and outflow
-                cumulative_inflow = np.cumsum(inflow_ts)
-                cumulative_outflow = np.cumsum(outflow_ts)
-
-                fig.add_trace(
-                    go.Scatter(
-                        x=time_items,
-                        y=cumulative_inflow,
-                        mode="lines",
-                        name="Cumulative Input",
-                        line=dict(color=colors["input"], width=2, dash="dash"),
-                        marker=dict(size=3),
-                        hovertemplate="<b>Cumulative Input</b><br>Year: %{x}<br>Mass: %{y:.2f}} Mg<extra></extra>",
-                    )
-                )
-
-                fig.add_trace(
-                    go.Scatter(
-                        x=time_items,
-                        y=cumulative_outflow,
-                        mode="lines",
-                        name="Cumulative Carbon Emissions",
-                        line=dict(color=colors["output"], width=2, dash="dot"),
-                        marker=dict(size=3),
-                        hovertemplate="<b>Cumulative Carbon Emissions</b><br>Year: %{x}<br>Mass: %{y:.2f}} Mg<extra></extra>",
-                    )
-                )
+                fig.add_trace(go.Scatter(
+                    x=time_items,
+                    y=np.cumsum(inflow_ts) / _SCALE,
+                    mode="lines",
+                    name="Cumulative Input",
+                    line=_PUB["input"],
+                    hovertemplate=(
+                        "<b>Cumulative Input</b><br>"
+                        "Year: %{x}<br>Value: %{y:.3f} ×10⁶ Mg<extra></extra>"
+                    ),
+                ))
+                fig.add_trace(go.Scatter(
+                    x=time_items,
+                    y=np.cumsum(outflow_ts) / _SCALE,
+                    mode="lines",
+                    name="Cumulative Carbon Emissions",
+                    line=_PUB["output"],
+                    hovertemplate=(
+                        "<b>Cumulative Carbon Emissions</b><br>"
+                        "Year: %{x}<br>Value: %{y:.3f} ×10⁶ Mg<extra></extra>"
+                    ),
+                ))
             else:
-                # Plot annual inflow and outflow
-                fig.add_trace(
-                    go.Scatter(
-                        x=time_items,
-                        y=inflow_ts,
-                        mode="lines",
-                        name="Annual Input",
-                        line=dict(color=colors["input"], width=2, dash="dash"),
-                        marker=dict(size=3),
-                        hovertemplate="<b>Annual Input</b><br>Year: %{x}<br>Mass: %{y:.2f}} Mg<extra></extra>",
-                    )
-                )
+                fig.add_trace(go.Scatter(
+                    x=time_items,
+                    y=inflow_ts / _SCALE,
+                    mode="lines",
+                    name="Annual Input",
+                    line=_PUB["input"],
+                    hovertemplate=(
+                        "<b>Annual Input</b><br>"
+                        "Year: %{x}<br>Value: %{y:.3f} ×10⁶ Mg<extra></extra>"
+                    ),
+                ))
+                fig.add_trace(go.Scatter(
+                    x=time_items,
+                    y=outflow_ts / _SCALE,
+                    mode="lines",
+                    name="Annual Carbon Emissions",
+                    line=_PUB["output"],
+                    hovertemplate=(
+                        "<b>Annual Carbon Emissions</b><br>"
+                        "Year: %{x}<br>Value: %{y:.3f} ×10⁶ Mg<extra></extra>"
+                    ),
+                ))
 
-                fig.add_trace(
-                    go.Scatter(
-                        x=time_items,
-                        y=outflow_ts,
-                        mode="lines",
-                        name="Annual Carbon Emissions",
-                        line=dict(color=colors["output"], width=2, dash="dot"),
-                        marker=dict(size=3),
-                        hovertemplate="<b>Annual Carbon Emissions</b><br>Year: %{x}<br>Mass: %{y:.2f}} Mg<extra></extra>",
-                    )
-                )
-
-            process_name = next(
-                (p.Name for p in mfa_system_results.ProcessList if p.ID == process_id),
-                f"Process {process_id}",
+            # Publication layout — no title (captions go in the paper)
+            fig.update_layout(
+                title=None,
+                width=_W,
+                height=_H,
+                paper_bgcolor="white",
+                plot_bgcolor="white",
+                xaxis=dict(
+                    title=dict(text="Year", font=dict(size=11)),
+                    tickfont=dict(size=10),
+                    showgrid=True,
+                    gridcolor="#e8e8e8",
+                    range=[min(time_items), max(time_items)],
+                ),
+                yaxis=dict(
+                    title=dict(text=y_label, font=dict(size=11)),
+                    tickfont=dict(size=10),
+                    showgrid=True,
+                    gridcolor="#e8e8e8",
+                    rangemode="tozero",
+                ),
+                # Legend below the plot (bbox_to_anchor equivalent in Plotly)
+                legend=dict(
+                    orientation="h",
+                    yanchor="top",
+                    y=-0.22,
+                    xanchor="center",
+                    x=0.5,
+                    font=dict(size=9),
+                    bgcolor="rgba(0,0,0,0)",
+                ),
+                margin=dict(l=70, r=30, t=20, b=100),
             )
-
-            # Enhanced layout
-            layout_config = get_publication_layout(
-                custom_title=f"FOMP Analysis: {process_name} ({element.upper()})",
-                x_title="Year",
-                y_title=f"Mass ({element.upper()}) in Mg",
-                show_grid=True,
-                scientific_y=True,
-                size="medium",
-            )
-            fig.update_layout(**layout_config)
 
     def export_plot():
-        """Export the current plot."""
         try:
             current_process_name = process_dropdown.value
             current_element = element_dropdown.value
@@ -584,8 +636,7 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
         except Exception as e:
             print(f"❌ Export failed: {e}")
 
-    # Build name→ID mapping, excluding the boundary process (ID 0) and any
-    # entries in fomp_params that have no corresponding process in ProcessList.
+    # Build name→ID mapping, excluding the boundary process (ID 0)
     process_options = {
         p.Name: p.ID
         for p in mfa_system_results.ProcessList
@@ -595,22 +646,22 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
         print("⚠️  No FOMP processes found in ProcessList.")
         return
 
-    # Create enhanced widgets
+    # Default element: prefer TC/CC, otherwise first in list
+    _tc = next((e for e in ("TC", "CC") if e in element_items), element_items[0])
+
     process_dropdown = Dropdown(
         options=list(process_options.keys()),
         description="FOMP Process:",
         style={"description_width": "120px"},
         layout=Layout(width="300px"),
     )
-
     element_dropdown = Dropdown(
         options=element_items,
-        value=element_items[0],
+        value=_tc,
         description="Element:",
         style={"description_width": "80px"},
         layout=Layout(width="200px"),
     )
-
     cumulative_checkbox = Dropdown(
         options=["Annual Values", "Cumulative Values"],
         value="Annual Values",
@@ -618,53 +669,21 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params):
         style={"description_width": "80px"},
         layout=Layout(width="200px"),
     )
-
     export_button = Button(
-        description="Export PNG",
+        description="Export PNG/PDF",
         button_style="success",
         icon="download",
-        layout=Layout(width="120px"),
+        layout=Layout(width="140px"),
     )
     export_button.on_click(lambda b: export_plot())
 
-    # Create legend
-    legend_html = f"""
-    <div style="margin: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: {colors["background"]};">
-        <h4 style="margin: 0 0 10px 0;">FOMP Analysis Legend</h4>
-        <div style="display: flex; flex-wrap: wrap; gap: 15px;">
-            <div style="display: flex; align-items: center;">
-                <div style="width: 20px; height: 20px; background-color: {colors["stock"]}; margin-right: 5px;"></div>
-                <span>Organic Matter Stock</span>
-            </div>
-            <div style="display: flex; align-items: center;">
-                <div style="width: 20px; height: 20px; background-color: {colors["input"]}; margin-right: 5px;"></div>
-                <span>Input (Annual/Cumulative)</span>
-            </div>
-            <div style="display: flex; align-items: center;">
-                <div style="width: 20px; height: 20px; background-color: {colors["output"]}; margin-right: 5px;"></div>
-                <span>Carbon Emissions (Annual/Cumulative)</span>
-            </div>
-        </div>
-        <div style="margin-top: 10px; font-size: 12px; color: #666;">
-            <strong>FOMP Process:</strong> First-Order Carbon Emission Process for organic matter dynamics
-        </div>
-    </div>
-    """
-
-    legend_widget = HTML(value=legend_html)
-
-    # Set up interaction with enhanced layout
     from ipywidgets import interactive
 
-    ui = VBox(
-        [
-            HBox([process_dropdown, element_dropdown, cumulative_checkbox]),
-            HBox([export_button]),
-            legend_widget,
-        ]
-    )
+    ui = VBox([
+        HBox([process_dropdown, element_dropdown, cumulative_checkbox]),
+        HBox([export_button]),
+    ])
 
-    # Wrap update_plot so the dropdown passes a name but the function receives an ID
     def _update_plot_by_name(process_name, element, show_cumulative):
         update_plot(process_options[process_name], element, show_cumulative)
 
