@@ -564,13 +564,19 @@ if fomp_params:
     print("   • Annual vs cumulative flow analysis")
     plotting.plot_fomp_stock_details(mfa_results_baseline, fomp_params)
 
+    # FOMP Stock Comparison — all FOMP processes overlaid on one axes
+    if len(fomp_params) > 1:
+        print(f"\n{Icons.FOMP} FOMP Stock Comparison (all processes):")
+        print("   • TC stock trajectories of all FOMP processes on one figure")
+        plotting.plot_fomp_stock_comparison(mfa_results_baseline, fomp_params)
+
     # FOMP Process Dynamics - Three-panel view of FOMP processes
     print(f"\n{Icons.MFA} FOMP Process Dynamics:")
     print(
-        "   • Three panels: Input Flows (DM), Stock Evolution (DM), Mineralization Output (DM)"
+        "   • Three panels: Input Flows (DM), Stock Evolution (DM), Carbon Emissions (DM)"
     )
     print("   • Decay rates displayed as percentages")
-    print("   • Water Content (WC) excluded from mineralization")
+    print("   • Water Content (WC) excluded from carbon emissions")
     plotting.plot_fomp_dynamics(mfa_results_baseline, fomp_params)
 else:
     print(f"   {Icons.INFO} No FOMP processes found - skipping FOMP analysis")

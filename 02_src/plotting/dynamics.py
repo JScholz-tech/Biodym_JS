@@ -589,6 +589,21 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params, comparison_process=
                     ),
                 ))
 
+            # Compute y-axis upper limit dynamically to avoid clipping
+            _all_y = [stock_values]
+            if show_cumulative == "Cumulative Values":
+                _all_y += [np.cumsum(inflow_ts) / _SCALE, np.cumsum(outflow_ts) / _SCALE]
+            else:
+                _all_y += [inflow_ts / _SCALE, outflow_ts / _SCALE]
+            if _cmp_id is not None:
+                cmp_obj = mfa_system_results.StockDict.get(f"S_{_cmp_id}")
+                if cmp_obj is not None:
+                    _all_y.append(cmp_obj.Values[:, element_index] / _SCALE)
+            _max_y = max(float(np.nanmax(v)) for v in _all_y if np.any(np.isfinite(v)))
+            # Round up to nearest 0.5 and add a small margin
+            import math
+            _y_upper = math.ceil(_max_y * 2) / 2 + 0.5
+
             # Publication layout — no title (captions go in the paper)
             fig.update_layout(
                 title=None,
@@ -601,14 +616,15 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params, comparison_process=
                     tickfont=dict(size=10),
                     showgrid=True,
                     gridcolor="#e8e8e8",
-                    range=[min(time_items), max(time_items)],
+                    # Use explicit integers to prevent Plotly from padding the axis
+                    range=[int(time_items[0]), int(time_items[-1])],
                 ),
                 yaxis=dict(
                     title=dict(text=y_label, font=dict(size=11)),
                     tickfont=dict(size=10),
                     showgrid=True,
                     gridcolor="#e8e8e8",
-                    rangemode="tozero",
+                    range=[0, _y_upper],
                 ),
                 # Legend below the plot (bbox_to_anchor equivalent in Plotly)
                 legend=dict(
@@ -697,6 +713,127 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params, comparison_process=
     display(ui)
     display(fig)
     out.update()
+
+
+def plot_fomp_stock_comparison(mfa_system_results, fomp_params, element=None):
+    """Overlay TC stock trajectories of all FOMP processes on one figure.
+
+    Produces a publication-ready static Plotly figure (JIE single-column
+    format) showing the carbon stock evolution of every FOMP process in a
+    single diagram. Useful for direct scenario / process comparison.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object.
+    fomp_params : dict
+        FOMP parameters dict (keyed by process ID) — used to identify which
+        processes to include.
+    element : str or None
+        Element to plot. Defaults to TC/CC (with legacy fallback). Pass any
+        element name present in ``mfa_system_results.Elements`` to override.
+    """
+    if not fomp_params:
+        print("No FOMP processes found to plot.")
+        return
+
+    from IPython.display import display
+    import math
+
+    element_items = mfa_system_results.Elements
+    time_items = mfa_system_results.IndexTable.Classification["Time"].Items
+
+    # Element selection: honour explicit arg, else prefer TC/CC
+    if element is None:
+        element = next((e for e in ("TC", "CC") if e in element_items), element_items[0])
+    if element not in element_items:
+        print(f"⚠️  Element '{element}' not in system — available: {element_items}")
+        return
+    elem_idx = element_items.index(element)
+    y_label = "Carbon Stock (10\u2076 Mg C)" if element in ("TC", "CC") else (
+        f"{element} (10\u2076 Mg)"
+    )
+    _SCALE = 1e6
+    _W, _H = 672, 432
+
+    # Color sequence for up to 8 processes (colorblind-friendly)
+    _COLORS = [
+        "black", "steelblue", "#E69F00", "#009E73",
+        "#CC79A7", "#56B4E9", "#D55E00", "#F0E442",
+    ]
+    _DASHES = ["solid", "solid", "dash", "dash", "dot", "dot", "dashdot", "dashdot"]
+
+    # Gather processes: iterate ProcessList in definition order
+    procs = [
+        p for p in mfa_system_results.ProcessList
+        if p.ID in fomp_params and p.ID != 0
+    ]
+    if not procs:
+        print("⚠️  No FOMP processes found in ProcessList.")
+        return
+
+    fig = go.Figure()
+    all_max = []
+
+    for i, proc in enumerate(procs):
+        stock_obj = mfa_system_results.StockDict.get(f"S_{proc.ID}")
+        if stock_obj is None:
+            continue
+        y = stock_obj.Values[:, elem_idx] / _SCALE
+        all_max.append(float(np.nanmax(y)))
+        color = _COLORS[i % len(_COLORS)]
+        dash = _DASHES[i % len(_DASHES)]
+        fig.add_trace(go.Scatter(
+            x=time_items,
+            y=y,
+            mode="lines",
+            name=proc.Name,
+            line=dict(color=color, width=2, dash=dash),
+            hovertemplate=(
+                f"<b>{proc.Name}</b><br>"
+                "Year: %{x}<br>Value: %{y:.3f} ×10⁶ Mg<extra></extra>"
+            ),
+        ))
+
+    if not all_max:
+        print("⚠️  No stock data found for any FOMP process.")
+        return
+
+    _y_upper = math.ceil(max(all_max) * 2) / 2 + 0.5
+
+    fig.update_layout(
+        title=None,
+        width=_W,
+        height=_H,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        xaxis=dict(
+            title=dict(text="Year", font=dict(size=11)),
+            tickfont=dict(size=10),
+            showgrid=True,
+            gridcolor="#e8e8e8",
+            range=[int(time_items[0]), int(time_items[-1])],
+        ),
+        yaxis=dict(
+            title=dict(text=y_label, font=dict(size=11)),
+            tickfont=dict(size=10),
+            showgrid=True,
+            gridcolor="#e8e8e8",
+            range=[0, _y_upper],
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.22,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=9),
+            bgcolor="rgba(0,0,0,0)",
+        ),
+        margin=dict(l=70, r=30, t=20, b=100),
+    )
+
+    display(fig)
 
 
 def plot_system_efficiency_metrics(mfa_system_results):
