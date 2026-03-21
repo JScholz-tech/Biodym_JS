@@ -19,7 +19,7 @@ from ipywidgets import (
     Layout,
     Button,
 )
-from .publication_style_simplified import get_publication_layout, FONT_SIZE
+from .themes import apply_theme, get_active_theme, get_publication_layout, FONT_SIZE
 from .dynamic_colors import ElementColorManager
 from .export_publication import export_figure
 from IPython.display import display
@@ -1276,9 +1276,7 @@ def plot_process_dynamics(
                 show_grid=True,
                 scientific_y=True,
             )
-            layout_config["width"] = 1400
-            layout_config["height"] = 500
-            layout_config["margin"] = {"t": 80, "b": 80, "l": 60, "r": 30}
+            apply_theme(layout_config)
             xaxis_style = layout_config.pop("xaxis")
             yaxis_style = layout_config.pop("yaxis")
             fig.update_layout(**layout_config)
@@ -1699,6 +1697,7 @@ def plot_flow_dynamics(
                 show_grid=True,
                 scientific_y=True,
             )
+            apply_theme(layout_config)
             if show_as_bars:
                 layout_config["barmode"] = "stack"
             else:
@@ -1875,6 +1874,7 @@ def plot_stock_bar_chart(mfa_system, title="Stock Levels Over Time"):
                 show_grid=True,
                 scientific_y=True,
             )
+            apply_theme(layout_config)
             layout_config["showlegend"] = False
             layout_config["xaxis"]["tickangle"] = -45
             fig.update_layout(**layout_config)
@@ -1988,22 +1988,8 @@ def plot_system_stock_composition(mfa_system_results, element=None):
                 y_title=f"Stock ({element.upper()}) [Mg]",
                 show_grid=True,
                 scientific_y=True,
-                size="large",
             )
-            layout_config["width"] = 1600
-            layout_config["height"] = 600
-            layout_config["margin"] = {"t": 80, "b": 120, "l": 80, "r": 20}
-            layout_config["legend"] = {
-                "font": {"size": FONT_SIZE["legend"]},
-                "bgcolor": "rgba(255,255,255,0.85)",
-                "bordercolor": "#ccc",
-                "borderwidth": 1,
-                "orientation": "h",
-                "yanchor": "top",
-                "y": -0.18,
-                "xanchor": "center",
-                "x": 0.5,
-            }
+            apply_theme(layout_config)
             fig.update_layout(**layout_config)
 
     # Create enhanced widgets
@@ -2139,13 +2125,14 @@ def plot_lfg_gas_production(mfa_system_results, lfg_params):
             fig.layout.yaxis.title = y_label
             fig.layout.title = f"LFG Gas Production — Process {process_id}"
 
-    fig.update_layout(
-        xaxis_title="Year",
-        yaxis_title="Carbon (Mg C / year)",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        height=450,
-        template="plotly_white",
+    _layout = get_publication_layout(
+        x_title="Year",
+        y_title="Carbon (Mg C / year)",
+        show_grid=True,
+        scientific_y=False,
     )
+    apply_theme(_layout)
+    fig.update_layout(**_layout)
 
     def on_change(_):
         update_plot(process_dropdown.value, cumulative_checkbox.value)
@@ -2239,14 +2226,15 @@ def plot_lfg_stock_details(mfa_system_results, lfg_params):
             ))
             fig.layout.title = f"LFG Stable Stock — Process {process_id}"
 
-    fig.update_layout(
-        xaxis_title="Year",
-        yaxis_title="Mass (Mg)",
-        barmode="overlay",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        height=450,
-        template="plotly_white",
+    _layout = get_publication_layout(
+        x_title="Year",
+        y_title="Mass (Mg)",
+        show_grid=True,
+        scientific_y=False,
     )
+    apply_theme(_layout)
+    _layout["barmode"] = "overlay"
+    fig.update_layout(**_layout)
 
     process_dropdown.observe(lambda _: update_plot(process_dropdown.value), "value")
 

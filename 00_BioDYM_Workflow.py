@@ -174,6 +174,13 @@ except ImportError as e:
 plt.style.use("default")
 print(f"{Icons.VISUALIZATION} Plotting environment ready")
 
+# ── Plot theme ───────────────────────────────────────────────────────────────
+# 'exploratory' → 1000×800 px, large fonts, titles visible (default)
+# 'jie'         → 672×432 px (7×4.5 in), 11 pt fonts, no title, legend below
+PLOT_THEME = "exploratory"
+plotting.set_theme(PLOT_THEME)
+print(f"{Icons.CONFIGURATION} Plot theme: '{PLOT_THEME}'")
+
 # Initialize Plotly widgets to prevent empty plot issues
 # This forces the widget communication channel to be established early
 print(f"{Icons.CONFIGURATION} Initializing interactive widget system...")

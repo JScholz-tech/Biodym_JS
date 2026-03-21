@@ -1,10 +1,165 @@
 # -*- coding: utf-8 -*-
 """
-Simplified Publication-Style Plotting Standards for BioDYM
+Plotting Themes and Style Standards for BioDYM
 
-This module defines essential styling standards for BioDYM plots,
-focusing on simplicity and consistency.
+Central module for all plot styling. Provides:
+- Named theme presets ('exploratory', 'jie') via set_theme() / get_active_theme()
+- Color palettes, font settings, figure size presets
+- get_publication_layout() for standardised Plotly layout dicts
+
+Usage
+-----
+    import plotting
+    plotting.set_theme('jie')       # once per session → all subsequent plots use JIE style
+    plotting.set_theme('exploratory')  # back to wide interactive style
 """
+
+# =============================================================================
+# THEME SYSTEM
+# =============================================================================
+
+# Module-level active theme — default is 'exploratory' (wide, annotated)
+_ACTIVE_THEME = "exploratory"
+
+THEMES = {
+    # JIE single-column: 7×4.5 in canvas at 96 dpi = 672×432 px.
+    # On export (quality='publication', scale≈4.17) → ~2800×1800 px ≈ 7×4.5" at 400 DPI.
+    "jie": {
+        "width": 672,
+        "height": 432,
+        "font_axis": 11,
+        "font_tick": 10,
+        "font_legend": 9,
+        "legend_below": True,
+        "show_title": False,
+        "x_range": [2025, 2125],
+        "grid_color": "#e8e8e8",
+        "margin": dict(l=70, r=30, t=20, b=100),
+    },
+    # Exploratory: wide, annotated, larger fonts — good for interactive notebook use.
+    "exploratory": {
+        "width": 1000,
+        "height": 800,
+        "font_axis": 18,
+        "font_tick": 16,
+        "font_legend": 16,
+        "legend_below": False,
+        "show_title": True,
+        "x_range": None,
+        "grid_color": "#E5E5E5",
+        "margin": dict(l=100, r=50, t=100, b=100),
+    },
+}
+
+
+def set_theme(name: str) -> None:
+    """Set the global plot theme for all subsequent BioDYM plots.
+
+    Call once per notebook session, typically near the top of the notebook:
+
+        import plotting
+        plotting.set_theme('jie')
+
+    Parameters
+    ----------
+    name : str
+        Theme name. One of:
+        - 'exploratory' (default) — 1000×800 px, large fonts, title visible
+        - 'jie' — 672×432 px (7×4.5 in), 11 pt fonts, no title, legend below
+    """
+    global _ACTIVE_THEME
+    if name not in THEMES:
+        raise ValueError(f"Unknown theme '{name}'. Choose from: {list(THEMES)}")
+    _ACTIVE_THEME = name
+
+
+def get_active_theme() -> dict:
+    """Return the currently active theme configuration dict."""
+    return THEMES[_ACTIVE_THEME]
+
+
+def get_theme(name: str) -> dict:
+    """Return a named theme config dict without changing the active theme.
+
+    Parameters
+    ----------
+    name : str
+        Theme name ('exploratory' or 'jie').
+    """
+    if name not in THEMES:
+        raise ValueError(f"Unknown theme '{name}'. Choose from: {list(THEMES)}")
+    return THEMES[name]
+
+
+def apply_theme(layout: dict) -> dict:
+    """Apply the active theme's size, fonts, grid, legend, and margin to a layout dict.
+
+    Call immediately after get_publication_layout() to apply the current theme:
+
+        layout_config = get_publication_layout(custom_title="...", ...)
+        apply_theme(layout_config)
+        fig.update_layout(**layout_config)
+
+    Modifies the dict in-place and also returns it for chaining.
+    Handles single-axis layouts. For multi-subplot figures (xaxis2, xaxis3, …)
+    only the primary axes are updated; subplot axes keep their defaults.
+
+    Parameters
+    ----------
+    layout : dict
+        A layout dict as returned by get_publication_layout().
+
+    Returns
+    -------
+    dict
+        The same dict, modified in-place with theme overrides applied.
+    """
+    _t = get_active_theme()
+
+    # Figure size
+    layout["width"] = _t["width"]
+    layout["height"] = _t["height"]
+
+    # Global tick font
+    layout["font"]["size"] = _t["font_tick"]
+
+    # Primary x-axis
+    if "xaxis" in layout:
+        ax = layout["xaxis"]
+        if "title" in ax:
+            ax["title"]["font"]["size"] = _t["font_axis"]
+        ax["tickfont"]["size"] = _t["font_tick"]
+        ax["gridcolor"] = _t["grid_color"]
+        if _t["x_range"] is not None:
+            ax["range"] = _t["x_range"]
+        elif "range" in ax:
+            del ax["range"]
+
+    # Primary y-axis
+    if "yaxis" in layout:
+        ay = layout["yaxis"]
+        if "title" in ay:
+            ay["title"]["font"]["size"] = _t["font_axis"]
+        ay["tickfont"]["size"] = _t["font_tick"]
+        ay["gridcolor"] = _t["grid_color"]
+
+    # Legend font + optional below placement
+    if "legend" in layout:
+        layout["legend"]["font"]["size"] = _t["font_legend"]
+        if _t["legend_below"]:
+            layout["legend"].update(
+                orientation="h", yanchor="top", y=-0.22,
+                xanchor="center", x=0.5,
+            )
+
+    # Title visibility
+    if not _t["show_title"]:
+        layout.pop("title", None)
+
+    # Margins
+    layout["margin"] = _t["margin"]
+
+    return layout
 
 
 # =============================================================================

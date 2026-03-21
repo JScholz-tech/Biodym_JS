@@ -17,7 +17,7 @@ from ipywidgets import IntSlider, Button, HBox, Layout, HTML
 from IPython.display import display
 from typing import Optional, Dict, List, Tuple
 
-from .publication_style_simplified import (
+from .themes import (
     get_publication_layout,
     BIOYM_COLORS,
 )

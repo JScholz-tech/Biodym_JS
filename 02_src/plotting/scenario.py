@@ -12,7 +12,8 @@ from ipywidgets import Button, Dropdown, HBox, HTML, Output, SelectMultiple, VBo
 from IPython.display import display
 
 from .export_publication import export_figure
-from .publication_style_simplified import (
+from .themes import (
+    apply_theme,
     get_publication_layout,
     get_element_color,
     create_color_sequence,
@@ -237,7 +238,7 @@ def plot_multi_scenario_comparison(
                 custom_title=f"{metric} Comparison: {item_display_name} ({element.upper()})",
                 y_title=f"Value ({element.upper()}) [Mg]",
             )
-            layout_config["height"] = 500
+            apply_theme(layout_config)
             layout_config["showlegend"] = False
             fig.update_layout(**layout_config)
 
@@ -407,9 +408,7 @@ def plot_scenario_flow_dynamics(
                 x_title="Time (Years)",
                 y_title=f"Flow ({element.upper()}) [Mg]",
             )
-            layout_config["height"] = 600
-            layout_config["margin"] = {"t": 80, "b": 120, "l": 80, "r": 20}
-            layout_config["legend"] = _publication_legend()
+            apply_theme(layout_config)
             fig.update_layout(**layout_config)
 
     def update_plot():
@@ -550,9 +549,7 @@ def plot_scenario_stock_dynamics(
                 x_title="Time (Years)",
                 y_title=f"Stock ({element.upper()}) [Mg]",
             )
-            layout_config["height"] = 600
-            layout_config["margin"] = {"t": 80, "b": 120, "l": 80, "r": 20}
-            layout_config["legend"] = _publication_legend()
+            apply_theme(layout_config)
             fig.update_layout(**layout_config)
 
     def update_plot():

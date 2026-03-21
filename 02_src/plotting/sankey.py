@@ -31,7 +31,7 @@ from ipywidgets import (
 from IPython.display import display
 from typing import Optional
 
-from .publication_style_simplified import (
+from .themes import (
     get_process_color,
     detect_biodym_process_type,
     get_stock_color,

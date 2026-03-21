@@ -4,6 +4,7 @@ Plotting Subpackage for BioDYM.
 """
 
 # Import key plotting functions for easy access
+from .themes import set_theme, get_active_theme, get_theme, apply_theme
 from .sankey import plot_interactive_sankey
 from .enhanced_sankey import plot_enhanced_sankey, plot_element_multiplot_sankey
 from .dynamics import (
@@ -40,6 +41,10 @@ from .scenario import (
 from .graphviz_flow_charts import plot_graphviz_flow_chart_sankey_style
 
 __all__ = [
+    "set_theme",
+    "get_active_theme",
+    "get_theme",
+    "apply_theme",
     "plot_interactive_sankey",
     "plot_enhanced_sankey",
     "plot_element_multiplot_sankey",
@@ -62,7 +67,6 @@ __all__ = [
     "plot_interactive_mc_paths",
     "plot_interactive_mc_stock_comparison",
     "plot_interactive_mc_multiple_histograms",
-    "plot_interactive_mc_multiple_histograms_simple",
     "plot_multi_scenario_comparison",
     "plot_scenario_flow_dynamics",
     "plot_scenario_stock_dynamics",

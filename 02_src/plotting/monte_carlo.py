@@ -12,7 +12,7 @@ import plotly.express as px
 from ipywidgets import Dropdown, VBox, HBox
 from IPython.display import display
 
-from .publication_style_simplified import get_publication_layout, get_element_color, BIOYM_COLORS
+from .themes import get_publication_layout, get_element_color, BIOYM_COLORS
 
 
 def plot_interactive_mc_histogram(mc_results_df, mfa_system_results=None):

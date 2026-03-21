@@ -17,7 +17,8 @@ from ipywidgets import IntSlider, Dropdown, Button, HBox, Layout
 from IPython.display import display
 from typing import Optional
 
-from .publication_style_simplified import (
+from .themes import (
+    apply_theme,
     get_publication_layout,
     BIOYM_COLORS,
 )
@@ -149,6 +150,7 @@ def plot_optimized_mass_balance_error(
                 x_title="Process",
                 y_title="Mass Balance Error (Mg)",
             )
+            apply_theme(layout_config)
             layout_config["xaxis"]["tickangle"] = -45
             layout_config["shapes"] = [
                 dict(
@@ -383,6 +385,7 @@ def plot_total_mass_balance_error(
         x_title="Process",
         y_title="Sum of Absolute Errors (Mg)",
     )
+    apply_theme(layout_config)
     layout_config["barmode"] = "stack"
     layout_config["legend"] = {
         "title": {"text": "Element", "font": {"size": 16}},
