@@ -8,9 +8,10 @@ Uses publication standards with shiny colors and standardized export.
 
 import numpy as np
 import plotly.graph_objects as go
-from ipywidgets import Dropdown, VBox, SelectMultiple, HTML, HBox
+from ipywidgets import Button, Dropdown, HBox, HTML, Output, SelectMultiple, VBox
 from IPython.display import display
 
+from .export_publication import export_figure
 from .publication_style_simplified import (
     get_publication_layout,
     get_element_color,
@@ -264,12 +265,28 @@ def plot_multi_scenario_comparison(
     element_dropdown.observe(lambda change: update_plot(), names="value")
     chart_type_dropdown.observe(lambda change: update_plot(), names="value")
     scenario_selector.observe(lambda change: update_plot(), names="value")
-    # Export button click handler is automatically set by create_export_button
 
     # Initial plot call
     update_plot()
 
-    # Display layout
+    export_out = Output()
+    export_btn = Button(description="Export Plot", button_style="info", layout={"width": "140px"})
+
+    def _export(b):
+        export_out.clear_output()
+        try:
+            paths = export_figure(
+                fig, "scenario_comparison",
+                formats=["png", "svg"], quality="publication", size="large", timestamp=False,
+            )
+            with export_out:
+                print(f"✅ Exported: {', '.join(paths)}")
+        except Exception as e:
+            with export_out:
+                print(f"❌ Export failed: {e}")
+
+    export_btn.on_click(_export)
+
     controls = HBox(
         [
             metric_dropdown,
@@ -279,7 +296,7 @@ def plot_multi_scenario_comparison(
             scenario_selector,
         ]
     )
-    display(VBox([controls, fig, parameter_display]))
+    display(VBox([controls, fig, parameter_display, export_btn, export_out]))
 
 
 def plot_scenario_flow_dynamics(
@@ -405,8 +422,27 @@ def plot_scenario_flow_dynamics(
     scenario_selector.observe(lambda change: update_plot(), names="value")
 
     update_plot()
+
+    export_out = Output()
+    export_btn = Button(description="Export Plot", button_style="info", layout={"width": "140px"})
+
+    def _export(b):
+        export_out.clear_output()
+        try:
+            paths = export_figure(
+                fig, f"scenario_flow_dynamics_{element_dropdown.value}",
+                formats=["png", "svg"], quality="publication", size="large", timestamp=False,
+            )
+            with export_out:
+                print(f"✅ Exported: {', '.join(paths)}")
+        except Exception as e:
+            with export_out:
+                print(f"❌ Export failed: {e}")
+
+    export_btn.on_click(_export)
+
     controls = HBox([flow_selector, element_dropdown, scenario_selector])
-    display(VBox([controls, fig]))
+    display(VBox([controls, fig, export_btn, export_out]))
 
 
 def plot_scenario_stock_dynamics(
@@ -529,5 +565,24 @@ def plot_scenario_stock_dynamics(
     scenario_selector.observe(lambda change: update_plot(), names="value")
 
     update_plot()
+
+    export_out = Output()
+    export_btn = Button(description="Export Plot", button_style="info", layout={"width": "140px"})
+
+    def _export(b):
+        export_out.clear_output()
+        try:
+            paths = export_figure(
+                fig, f"scenario_stock_dynamics_{element_dropdown.value}",
+                formats=["png", "svg"], quality="publication", size="large", timestamp=False,
+            )
+            with export_out:
+                print(f"✅ Exported: {', '.join(paths)}")
+        except Exception as e:
+            with export_out:
+                print(f"❌ Export failed: {e}")
+
+    export_btn.on_click(_export)
+
     controls = HBox([stock_selector, element_dropdown, scenario_selector])
-    display(VBox([controls, fig]))
+    display(VBox([controls, fig, export_btn, export_out]))

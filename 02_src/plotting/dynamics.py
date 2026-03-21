@@ -236,7 +236,7 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
         try:
             paths = export_figure(
                 fig, "dsm_process_dynamics",
-                formats=["png", "pdf"], quality="publication", size="large", timestamp=False,
+                formats=["png", "svg"], quality="publication", size="large", timestamp=False,
             )
             print(f"✅ Exported: {', '.join(paths)}")
         except Exception as e:
@@ -390,7 +390,7 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
         try:
             paths = export_figure(
                 fig, "dsm_stock_analysis",
-                formats=["png", "pdf"], quality="publication", size="large", timestamp=False,
+                formats=["png", "svg"], quality="publication", size="large", timestamp=False,
             )
             print(f"✅ Exported: {', '.join(paths)}")
         except Exception as e:
@@ -645,7 +645,7 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params, comparison_process=
             filename = f"fomp_{current_process_name.replace(' ', '_')}_{current_element}"
             paths = export_figure(
                 fig, filename,
-                formats=["png", "pdf"], quality="publication", size="large", timestamp=False,
+                formats=["png", "svg"], quality="publication", size="large", timestamp=False,
             )
             print(f"✅ Exported: {', '.join(paths)}")
         except Exception as e:
@@ -1296,7 +1296,7 @@ def plot_process_dynamics(
             paths = export_figure(
                 fig,
                 filename,
-                formats=["png", "pdf"],
+                formats=["png", "svg"],
                 quality="publication",
                 size="large",
             )
@@ -1725,7 +1725,7 @@ def plot_flow_dynamics(
             paths = export_figure(
                 fig,
                 filename,
-                formats=["png", "pdf"],
+                formats=["png", "svg"],
                 quality="publication",
                 size="large",
             )
@@ -2646,7 +2646,7 @@ def plot_lfg_fraction_breakdown(mfa_system_results, lfg_params):
         try:
             paths = export_figure(
                 fig, "lfg_fraction_breakdown",
-                formats=["png", "pdf"], quality="publication", size="large", timestamp=False,
+                formats=["png", "svg"], quality="publication", size="large", timestamp=False,
             )
             print(f"Exported: {', '.join(paths)}")
         except Exception as e:

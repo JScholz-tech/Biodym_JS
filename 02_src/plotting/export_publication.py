@@ -38,6 +38,7 @@ DPI_SETTINGS = {
 PRINT_SIZES = {
     "single_column": (3.5, 2.625),  # Single column in 2-column layout
     "double_column": (7.0, 5.25),  # Full width in 2-column layout
+    "large": None,  # Uses figure's current layout size (1200×900 px from FIGURE_SIZES["large"])
     "full_page": (7.5, 10),  # Full page
     "slide": (10, 7.5),  # Presentation slide
     "poster": (36, 48),  # Poster
