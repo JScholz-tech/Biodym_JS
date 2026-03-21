@@ -247,10 +247,10 @@ def _build_dashboard(btn):  # noqa: C901
         print("✅  Calculations complete — building plots…")
 
     def _scrollable(out_widget):
-        """Wrap an Output widget in a fixed-height scrollable box."""
+        """Wrap an Output widget in a viewport-filling scrollable box."""
         return w.Box(
             [out_widget],
-            layout=w.Layout(overflow_y="auto", height="680px", width="100%"),
+            layout=w.Layout(overflow_y="auto", height="calc(100vh - 220px)", width="100%"),
         )
 
     # Sankey
@@ -482,10 +482,10 @@ def _run_mc(btn):  # noqa: C901
             print(f"⚠️  MC comparison failed: {e}")
 
     mc_tabs = w.Tab(children=[
-        w.Box([mc_hist],    layout=w.Layout(overflow_y="auto", height="680px", width="100%")),
-        w.Box([mc_tornado], layout=w.Layout(overflow_y="auto", height="680px", width="100%")),
-        w.Box([mc_paths],   layout=w.Layout(overflow_y="auto", height="680px", width="100%")),
-        w.Box([mc_compare], layout=w.Layout(overflow_y="auto", height="680px", width="100%")),
+        w.Box([mc_hist],    layout=w.Layout(overflow_y="auto", height="calc(100vh - 220px)", width="100%")),
+        w.Box([mc_tornado], layout=w.Layout(overflow_y="auto", height="calc(100vh - 220px)", width="100%")),
+        w.Box([mc_paths],   layout=w.Layout(overflow_y="auto", height="calc(100vh - 220px)", width="100%")),
+        w.Box([mc_compare], layout=w.Layout(overflow_y="auto", height="calc(100vh - 220px)", width="100%")),
     ])
     for i, title in enumerate(["📊 Distributions", "🌪️ Sensitivity", "📈 Time Paths", "🔀 Comparison"]):
         mc_tabs.set_title(i, title)

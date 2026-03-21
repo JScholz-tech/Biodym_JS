@@ -110,7 +110,7 @@ def get_publication_layout(
     custom_title=None,
     width=None,
     height=None,
-    x_range=None,
+    x_range=[2025, 2125],
     y_range=None,
 ):
     """Generates a standardized layout configuration for publication-quality plots.

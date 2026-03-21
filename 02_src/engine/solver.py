@@ -549,11 +549,12 @@ def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
             f"     DM fraction: {np.mean(dm_fraction[dm_fraction > 0]):.3f} (range: {np.min(dm_fraction):.3f} - {np.max(dm_fraction):.3f})"
         )
         print(
-            f"     CC fraction: {np.mean(cc_fraction[cc_fraction > 0]):.3f} (range: {np.min(cc_fraction):.3f} - {np.max(cc_fraction):.3f})"
+            f"     {_tc_name} fraction: {np.mean(cc_fraction[cc_fraction > 0]):.3f} (range: {np.min(cc_fraction):.3f} - {np.max(cc_fraction):.3f})"
         )
 
-        # Build composition dictionary
-        composition = {"DM": dm_fraction, "CC": cc_fraction}
+        # Build composition dictionary — use the actual element name ("TC" or "CC")
+        # so callers can look up carbon content by element name consistently.
+        composition = {"DM": dm_fraction, _tc_name: cc_fraction}
 
         # Add WC if available
         if wc_idx is not None:
