@@ -236,9 +236,10 @@ def plot_multi_scenario_comparison(
                 show_grid=True,
                 scientific_y=True,
                 custom_title=f"{metric} Comparison: {item_display_name} ({element.upper()})",
-                y_title=f"Value ({element.upper()}) [Mg]",
+                y_title=f"{element.upper()} (Mg)",
             )
             apply_theme(layout_config)
+            layout_config["xaxis"].pop("range", None)  # categorical axis, not time-series
             layout_config["showlegend"] = False
             fig.update_layout(**layout_config)
 
@@ -404,9 +405,9 @@ def plot_scenario_flow_dynamics(
                 size="large",
                 show_grid=True,
                 scientific_y=True,
-                custom_title=f"Scenario Flow Dynamics: {element.upper()} Over Time",
-                x_title="Time (Years)",
-                y_title=f"Flow ({element.upper()}) [Mg]",
+                custom_title=f"Annual Flows by Scenario - {element.upper()}",
+                x_title="Year",
+                y_title=f"Flow ({element.upper()}) (Mg)",
             )
             apply_theme(layout_config)
             fig.update_layout(**layout_config)
@@ -545,9 +546,9 @@ def plot_scenario_stock_dynamics(
                 size="large",
                 show_grid=True,
                 scientific_y=True,
-                custom_title=f"Scenario Stock Dynamics: {element.upper()} Over Time",
-                x_title="Time (Years)",
-                y_title=f"Stock ({element.upper()}) [Mg]",
+                custom_title=f"Stock Trajectories by Scenario - {element.upper()}",
+                x_title="Year",
+                y_title=f"Stock ({element.upper()}) (Mg)",
             )
             apply_theme(layout_config)
             fig.update_layout(**layout_config)

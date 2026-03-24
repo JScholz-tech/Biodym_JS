@@ -151,6 +151,7 @@ def plot_optimized_mass_balance_error(
                 y_title="Mass Balance Error (Mg)",
             )
             apply_theme(layout_config)
+            layout_config["xaxis"].pop("range", None)  # categorical axis, not time-series
             layout_config["xaxis"]["tickangle"] = -45
             layout_config["shapes"] = [
                 dict(
@@ -386,6 +387,7 @@ def plot_total_mass_balance_error(
         y_title="Sum of Absolute Errors (Mg)",
     )
     apply_theme(layout_config)
+    layout_config["xaxis"].pop("range", None)  # categorical axis, not time-series
     layout_config["barmode"] = "stack"
     layout_config["legend"] = {
         "title": {"text": "Element", "font": {"size": 16}},

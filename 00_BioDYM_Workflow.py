@@ -175,7 +175,7 @@ plt.style.use("default")
 print(f"{Icons.VISUALIZATION} Plotting environment ready")
 
 # ── Plot theme ───────────────────────────────────────────────────────────────
-# 'exploratory' → 1000×800 px, large fonts, titles visible (default)
+# 'exploratory' → 1000×800 px, large fonts, titles visible, legend below (default)
 # 'jie'         → 672×432 px (7×4.5 in), 11 pt fonts, no title, legend below
 PLOT_THEME = "exploratory"
 plotting.set_theme(PLOT_THEME)
@@ -498,6 +498,10 @@ export_flow_composition(mfa_results_baseline, export_path)
 # explore different elements, years, and processes. Use the export buttons to save figures.
 
 print(format_header("VISUALIZATION (BASELINE)"))
+_t = plotting.get_active_theme()
+print(f"  Theme '{PLOT_THEME}': {_t['width']}×{_t['height']}px | "
+      f"fonts {_t['font_tick']}pt | legend {'below' if _t['legend_below'] else 'inside'} | "
+      f"title {'hidden' if not _t['show_title'] else 'visible'}")
 
 # ## 3.1 Sankey Diagrams
 

@@ -6,10 +6,10 @@ This file contains functions for plotting time-series data, such as
 stock and process dynamics.
 """
 
+import math
 import numpy as np
 import plotly.graph_objects as go
 from ipywidgets import (
-    interact,
     IntSlider,
     Dropdown,
     SelectMultiple,
@@ -65,7 +65,7 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
         print("No DSM processes found to plot.")
         return
 
-    from ipywidgets import Dropdown, HBox, VBox, Layout, Button, interactive
+    from ipywidgets import Dropdown, HBox, VBox, Layout, Button
     from IPython.display import display
 
     time_items = mfa_system_results.IndexTable.Classification["Time"].Items
@@ -165,20 +165,23 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
 
         # Update layout using publication style guide for subplots
         layout_config = get_publication_layout(
-            custom_title=f"DSM Process Dynamics: {process_name} ({element.upper()})",
+            custom_title=f"DSM - Inflow, Stock, and Outflow - {process_name} ({element.upper()})",
             show_grid=True,
             scientific_y=True,
         )
+        apply_theme(layout_config)
+        # 3-panel subplot needs a wider canvas; override theme width/height/margin
+        _t = get_active_theme()
         layout_config["width"] = 1400
         layout_config["height"] = 500
-        layout_config["margin"] = {"t": 80, "b": 80, "l": 60, "r": 30}
+        layout_config["margin"] = {"t": 80, "b": 150 if _t["legend_below"] else 80, "l": 60, "r": 30}
 
         # Pop axis styles and apply them globally to all subplots
         xaxis_style = layout_config.pop("xaxis")
         yaxis_style = layout_config.pop("yaxis")
         fig.update_layout(**layout_config)
         fig.update_xaxes(title_text="Year", **xaxis_style)
-        fig.update_yaxes(title_text=f"{element} in Mg", **yaxis_style)
+        fig.update_yaxes(title_text=f"{element} (Mg)", **yaxis_style)
 
         # Restore subplot titles which can be overwritten by update_layout
         fig.update_layout(
@@ -252,13 +255,15 @@ def plot_dsm_process_dynamics(mfa_system_results, dsm_params, dsm_details):
         layout=Layout(justify_content="space-between"),
     )
 
-    out = interactive(
-        update_plot, process_name=process_dropdown, element=element_dropdown
-    )
+    def _on_change(change):
+        update_plot(process_dropdown.value, element_dropdown.value)
+
+    process_dropdown.observe(_on_change, "value")
+    element_dropdown.observe(_on_change, "value")
 
     display(controls)
     display(fig)
-    out.update()
+    update_plot(process_dropdown.value, element_dropdown.value)
 
 
 def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
@@ -292,7 +297,7 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
         print("No DSM processes found to plot.")
         return
 
-    from ipywidgets import Dropdown, HBox, VBox, interactive, Layout, Button
+    from ipywidgets import Dropdown, HBox, VBox, Layout, Button
     from IPython.display import display
 
     time_items = mfa_system_results.IndexTable.Classification["Time"].Items
@@ -361,12 +366,13 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
                 f"Process {process_id}",
             )
             layout_config = get_publication_layout(
-                custom_title=f"DSM Stock Evolution: {process_name} ({element.upper()}) - Stacked by Application",
+                custom_title=f"DSM - In-Use Stock by Cohort - {process_name} ({element.upper()})",
                 x_title="Year",
-                y_title="Stock in Mg",
+                y_title="Stock (Mg)",
                 show_grid=True,
                 scientific_y=True,
             )
+            apply_theme(layout_config)
             fig.update_layout(**layout_config)
 
     process_dropdown = Dropdown(
@@ -406,15 +412,15 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
         layout=Layout(justify_content="space-between"),
     )
 
-    out = interactive(
-        update_plot,
-        process_id=process_dropdown,
-        element=element_dropdown,
-    )
+    def _on_change(change):
+        update_plot(process_dropdown.value, element_dropdown.value)
+
+    process_dropdown.observe(_on_change, "value")
+    element_dropdown.observe(_on_change, "value")
 
     display(controls)
     display(fig)
-    out.update()
+    update_plot(process_dropdown.value, element_dropdown.value)
 
 
 def plot_fomp_stock_details(mfa_system_results, fomp_params, comparison_process=None):
@@ -446,16 +452,22 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params, comparison_process=
     element_items = mfa_system_results.Elements
 
     # Publication line style scheme (JIE single-column)
-    _SCALE = 1e6  # display values in 10⁶ Mg
+    def _auto_scale(max_val):
+        """Return (scale_factor, prefix_str) so displayed values stay in 0.1–999 range."""
+        if max_val >= 1e8:
+            return 1e9, "×10⁹ "
+        elif max_val >= 1e5:
+            return 1e6, "×10⁶ "
+        elif max_val >= 1e2:
+            return 1e3, "×10³ "
+        return 1.0, ""
+
     _PUB = {
         "stock":      dict(color="black",   width=2, dash="solid"),
         "input":      dict(color="grey",    width=2, dash="dash"),
         "output":     dict(color="darkred", width=2, dash="dot"),
         "comparison": dict(color="steelblue", width=1.5, dash="solid"),
     }
-    # 7 × 4.5 inches at 96 dpi
-    _W, _H = 672, 432
-
     # Resolve comparison process ID once (outside update_plot)
     _cmp_id = None
     _cmp_name = None
@@ -477,166 +489,113 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params, comparison_process=
     fig = go.FigureWidget()
 
     def update_plot(process_id, element, show_cumulative):
-        # Use TC fallback for element label: never display "CC"
-        tc_name = next(
-            (e for e in ("TC", "CC") if e in element_items), element
-        )
-        y_label = "Carbon Stock (10\u2076 Mg C)" if element in ("TC", "CC") else (
-            f"{element} (10\u2076 Mg)"
-        )
         element_index = element_items.index(element)
 
+        # --- Pass 1: collect raw data to determine display scale ---
+        stock_obj = mfa_system_results.StockDict.get(f"S_{process_id}")
+        if stock_obj is None:
+            print(f"No stock data for process {process_id}")
+            return
+        stock_raw = stock_obj.Values[:, element_index]
+
+        inflow_ts = sum(
+            f.Values[:, element_index]
+            for f in mfa_system_results.FlowDict.values()
+            if f.P_End == process_id
+        )
+        outflow_ts = sum(
+            f.Values[:, element_index]
+            for f in mfa_system_results.FlowDict.values()
+            if f.P_Start == process_id
+        )
+
+        _raw_all = [stock_raw,
+                    np.cumsum(inflow_ts) if show_cumulative == "Cumulative Values" else inflow_ts,
+                    np.cumsum(outflow_ts) if show_cumulative == "Cumulative Values" else outflow_ts]
+        if _cmp_id is not None:
+            cmp_obj_raw = mfa_system_results.StockDict.get(f"S_{_cmp_id}")
+            if cmp_obj_raw is not None:
+                _raw_all.append(cmp_obj_raw.Values[:, element_index])
+        _max_raw = max(float(np.nanmax(np.abs(v))) for v in _raw_all if np.any(np.isfinite(v)))
+        _scale, _prefix = _auto_scale(_max_raw)
+
+        is_carbon = element in ("TC", "CC")
+        base = "Mg C" if is_carbon else "Mg"
+        axis_unit = f"{_prefix}{base}".strip()
+        y_label = (f"Carbon Stock ({axis_unit})" if is_carbon
+                   else f"{element} ({axis_unit})")
+
+        process_name = next(
+            (p.Name for p in mfa_system_results.ProcessList if p.ID == process_id),
+            f"Process {process_id}",
+        )
+
+        # --- Pass 2: build figure with computed scale ---
         with fig.batch_update():
             fig.data = []
 
-            # Optional comparison overlay (drawn first so primary sits on top)
+            # Optional comparison overlay
             if _cmp_id is not None:
                 cmp_stock_obj = mfa_system_results.StockDict.get(f"S_{_cmp_id}")
                 if cmp_stock_obj is not None:
-                    cmp_stock = cmp_stock_obj.Values[:, element_index] / _SCALE
                     fig.add_trace(go.Scatter(
                         x=time_items,
-                        y=cmp_stock,
+                        y=cmp_stock_obj.Values[:, element_index] / _scale,
                         mode="lines",
-                        name=f"Stock – {_cmp_name}",
+                        name=f"Stock \u2013 {_cmp_name}",
                         line=_PUB["comparison"],
                         hovertemplate=(
-                            f"<b>Stock – {_cmp_name}</b><br>"
-                            "Year: %{x}<br>Value: %{y:.3f} ×10⁶ Mg<extra></extra>"
+                            f"<b>Stock \u2013 {_cmp_name}</b><br>"
+                            f"Year: %{{x}}<br>Value: %{{y:.3f}} {axis_unit}<extra></extra>"
                         ),
                     ))
 
-            # Primary stock
-            stock_obj = mfa_system_results.StockDict.get(f"S_{process_id}")
-            if stock_obj is None:
-                print(f"No stock data for process {process_id}")
-                return
-            stock_values = stock_obj.Values[:, element_index] / _SCALE
-
-            process_name = next(
-                (p.Name for p in mfa_system_results.ProcessList if p.ID == process_id),
-                f"Process {process_id}",
-            )
-            stock_label = f"Stock – {process_name}" if _cmp_id is not None else "Carbon Stock"
-
+            stock_label = f"Stock \u2013 {process_name}" if _cmp_id is not None else "Carbon Stock"
             fig.add_trace(go.Scatter(
                 x=time_items,
-                y=stock_values,
+                y=stock_raw / _scale,
                 mode="lines",
                 name=stock_label,
                 line=_PUB["stock"],
                 hovertemplate=(
-                    "<b>Stock</b><br>Year: %{x}<br>Value: %{y:.3f} ×10⁶ Mg<extra></extra>"
+                    f"<b>Stock</b><br>Year: %{{x}}<br>Value: %{{y:.3f}} {axis_unit}<extra></extra>"
                 ),
             ))
 
-            # Inflow / outflow traces
-            inflow_ts = sum(
-                f.Values[:, element_index]
-                for f in mfa_system_results.FlowDict.values()
-                if f.P_End == process_id
-            )
-            outflow_ts = sum(
-                f.Values[:, element_index]
-                for f in mfa_system_results.FlowDict.values()
-                if f.P_Start == process_id
-            )
-
             if show_cumulative == "Cumulative Values":
                 fig.add_trace(go.Scatter(
-                    x=time_items,
-                    y=np.cumsum(inflow_ts) / _SCALE,
-                    mode="lines",
-                    name="Cumulative Input",
-                    line=_PUB["input"],
-                    hovertemplate=(
-                        "<b>Cumulative Input</b><br>"
-                        "Year: %{x}<br>Value: %{y:.3f} ×10⁶ Mg<extra></extra>"
-                    ),
+                    x=time_items, y=np.cumsum(inflow_ts) / _scale,
+                    mode="lines", name="Cumulative Input", line=_PUB["input"],
+                    hovertemplate=f"<b>Cumulative Input</b><br>Year: %{{x}}<br>Value: %{{y:.3f}} {axis_unit}<extra></extra>",
                 ))
                 fig.add_trace(go.Scatter(
-                    x=time_items,
-                    y=np.cumsum(outflow_ts) / _SCALE,
-                    mode="lines",
-                    name="Cumulative Carbon Emissions",
-                    line=_PUB["output"],
-                    hovertemplate=(
-                        "<b>Cumulative Carbon Emissions</b><br>"
-                        "Year: %{x}<br>Value: %{y:.3f} ×10⁶ Mg<extra></extra>"
-                    ),
+                    x=time_items, y=np.cumsum(outflow_ts) / _scale,
+                    mode="lines", name="Cumulative Carbon Emissions", line=_PUB["output"],
+                    hovertemplate=f"<b>Cumulative Carbon Emissions</b><br>Year: %{{x}}<br>Value: %{{y:.3f}} {axis_unit}<extra></extra>",
                 ))
             else:
                 fig.add_trace(go.Scatter(
-                    x=time_items,
-                    y=inflow_ts / _SCALE,
-                    mode="lines",
-                    name="Annual Input",
-                    line=_PUB["input"],
-                    hovertemplate=(
-                        "<b>Annual Input</b><br>"
-                        "Year: %{x}<br>Value: %{y:.3f} ×10⁶ Mg<extra></extra>"
-                    ),
+                    x=time_items, y=inflow_ts / _scale,
+                    mode="lines", name="Annual Input", line=_PUB["input"],
+                    hovertemplate=f"<b>Annual Input</b><br>Year: %{{x}}<br>Value: %{{y:.3f}} {axis_unit}<extra></extra>",
                 ))
                 fig.add_trace(go.Scatter(
-                    x=time_items,
-                    y=outflow_ts / _SCALE,
-                    mode="lines",
-                    name="Annual Carbon Emissions",
-                    line=_PUB["output"],
-                    hovertemplate=(
-                        "<b>Annual Carbon Emissions</b><br>"
-                        "Year: %{x}<br>Value: %{y:.3f} ×10⁶ Mg<extra></extra>"
-                    ),
+                    x=time_items, y=outflow_ts / _scale,
+                    mode="lines", name="Annual Carbon Emissions", line=_PUB["output"],
+                    hovertemplate=f"<b>Annual Carbon Emissions</b><br>Year: %{{x}}<br>Value: %{{y:.3f}} {axis_unit}<extra></extra>",
                 ))
 
-            # Compute y-axis upper limit dynamically to avoid clipping
-            _all_y = [stock_values]
-            if show_cumulative == "Cumulative Values":
-                _all_y += [np.cumsum(inflow_ts) / _SCALE, np.cumsum(outflow_ts) / _SCALE]
-            else:
-                _all_y += [inflow_ts / _SCALE, outflow_ts / _SCALE]
-            if _cmp_id is not None:
-                cmp_obj = mfa_system_results.StockDict.get(f"S_{_cmp_id}")
-                if cmp_obj is not None:
-                    _all_y.append(cmp_obj.Values[:, element_index] / _SCALE)
-            _max_y = max(float(np.nanmax(v)) for v in _all_y if np.any(np.isfinite(v)))
-            # Round up to nearest 0.5 and add a small margin
-            import math
-            _y_upper = math.ceil(_max_y * 2) / 2 + 0.5
-
-            # Publication layout — no title (captions go in the paper)
-            fig.update_layout(
-                title=None,
-                width=_W,
-                height=_H,
-                paper_bgcolor="white",
-                plot_bgcolor="white",
-                xaxis=dict(
-                    title=dict(text="Year", font=dict(size=11)),
-                    tickfont=dict(size=10),
-                    showgrid=True,
-                    gridcolor="#e8e8e8",
-                    range=[2025, 2125],
-                ),
-                yaxis=dict(
-                    title=dict(text=y_label, font=dict(size=11)),
-                    tickfont=dict(size=10),
-                    showgrid=True,
-                    gridcolor="#e8e8e8",
-                    range=[0, _y_upper],
-                ),
-                # Legend below the plot (bbox_to_anchor equivalent in Plotly)
-                legend=dict(
-                    orientation="h",
-                    yanchor="top",
-                    y=-0.22,
-                    xanchor="center",
-                    x=0.5,
-                    font=dict(size=9),
-                    bgcolor="rgba(0,0,0,0)",
-                ),
-                margin=dict(l=70, r=30, t=20, b=100),
+            _y_upper = math.ceil((_max_raw / _scale) * 2) / 2 + 0.5
+            layout_config = get_publication_layout(
+                custom_title=f"FOMP - First-Order Decay Stock - {process_name}",
+                x_title="Year",
+                y_title=y_label,
+                show_grid=True,
+                y_range=[0, _y_upper],
             )
+            apply_theme(layout_config)
+            layout_config["yaxis"]["tickformat"] = None
+            fig.update_layout(**layout_config)
 
     def export_plot():
         try:
@@ -692,26 +651,21 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params, comparison_process=
     )
     export_button.on_click(lambda b: export_plot())
 
-    from ipywidgets import interactive
-
     ui = VBox([
         HBox([process_dropdown, element_dropdown, cumulative_checkbox]),
         HBox([export_button]),
     ])
 
-    def _update_plot_by_name(process_name, element, show_cumulative):
-        update_plot(process_options[process_name], element, show_cumulative)
+    def _on_change(change):
+        update_plot(process_options[process_dropdown.value], element_dropdown.value, cumulative_checkbox.value)
 
-    out = interactive(
-        _update_plot_by_name,
-        process_name=process_dropdown,
-        element=element_dropdown,
-        show_cumulative=cumulative_checkbox,
-    )
+    process_dropdown.observe(_on_change, "value")
+    element_dropdown.observe(_on_change, "value")
+    cumulative_checkbox.observe(_on_change, "value")
 
     display(ui)
     display(fig)
-    out.update()
+    update_plot(process_options[process_dropdown.value], element_dropdown.value, cumulative_checkbox.value)
 
 
 def plot_fomp_stock_comparison(mfa_system_results, fomp_params, element=None):
@@ -749,12 +703,6 @@ def plot_fomp_stock_comparison(mfa_system_results, fomp_params, element=None):
         print(f"⚠️  Element '{element}' not in system — available: {element_items}")
         return
     elem_idx = element_items.index(element)
-    y_label = "Carbon Stock (10\u2076 Mg C)" if element in ("TC", "CC") else (
-        f"{element} (10\u2076 Mg)"
-    )
-    _SCALE = 1e6
-    _W, _H = 672, 432
-
     # Color sequence for up to 8 processes (colorblind-friendly)
     _COLORS = [
         "black", "steelblue", "#E69F00", "#009E73",
@@ -771,66 +719,63 @@ def plot_fomp_stock_comparison(mfa_system_results, fomp_params, element=None):
         print("⚠️  No FOMP processes found in ProcessList.")
         return
 
+    # --- Pass 1: find raw max across all processes to determine scale ---
+    raw_maxes = []
+    for proc in procs:
+        s = mfa_system_results.StockDict.get(f"S_{proc.ID}")
+        if s is not None:
+            raw_maxes.append(float(np.nanmax(np.abs(s.Values[:, elem_idx]))))
+    if not raw_maxes:
+        print("⚠️  No stock data found for any FOMP process.")
+        return
+
+    def _auto_scale_cmp(max_val):
+        if max_val >= 1e8:
+            return 1e9, "×10⁹ "
+        elif max_val >= 1e5:
+            return 1e6, "×10⁶ "
+        elif max_val >= 1e2:
+            return 1e3, "×10³ "
+        return 1.0, ""
+
+    _scale, _prefix = _auto_scale_cmp(max(raw_maxes))
+    is_carbon = element in ("TC", "CC")
+    base = "Mg C" if is_carbon else "Mg"
+    axis_unit = f"{_prefix}{base}".strip()
+    y_label = f"Carbon Stock ({axis_unit})" if is_carbon else f"{element} ({axis_unit})"
+
+    # --- Pass 2: build figure ---
     fig = go.Figure()
-    all_max = []
 
     for i, proc in enumerate(procs):
         stock_obj = mfa_system_results.StockDict.get(f"S_{proc.ID}")
         if stock_obj is None:
             continue
-        y = stock_obj.Values[:, elem_idx] / _SCALE
-        all_max.append(float(np.nanmax(y)))
+        y = stock_obj.Values[:, elem_idx] / _scale
         color = _COLORS[i % len(_COLORS)]
         dash = _DASHES[i % len(_DASHES)]
         fig.add_trace(go.Scatter(
-            x=time_items,
-            y=y,
-            mode="lines",
-            name=proc.Name,
+            x=time_items, y=y,
+            mode="lines", name=proc.Name,
             line=dict(color=color, width=2, dash=dash),
             hovertemplate=(
                 f"<b>{proc.Name}</b><br>"
-                "Year: %{x}<br>Value: %{y:.3f} ×10⁶ Mg<extra></extra>"
+                f"Year: %{{x}}<br>Value: %{{y:.3f}} {axis_unit}<extra></extra>"
             ),
         ))
 
-    if not all_max:
-        print("⚠️  No stock data found for any FOMP process.")
-        return
+    _y_upper = math.ceil((max(raw_maxes) / _scale) * 2) / 2 + 0.5
 
-    _y_upper = math.ceil(max(all_max) * 2) / 2 + 0.5
-
-    fig.update_layout(
-        title=None,
-        width=_W,
-        height=_H,
-        paper_bgcolor="white",
-        plot_bgcolor="white",
-        xaxis=dict(
-            title=dict(text="Year", font=dict(size=11)),
-            tickfont=dict(size=10),
-            showgrid=True,
-            gridcolor="#e8e8e8",
-            range=[2025, 2125],
-        ),
-        yaxis=dict(
-            title=dict(text=y_label, font=dict(size=11)),
-            tickfont=dict(size=10),
-            showgrid=True,
-            gridcolor="#e8e8e8",
-            range=[0, _y_upper],
-        ),
-        legend=dict(
-            orientation="h",
-            yanchor="top",
-            y=-0.22,
-            xanchor="center",
-            x=0.5,
-            font=dict(size=9),
-            bgcolor="rgba(0,0,0,0)",
-        ),
-        margin=dict(l=70, r=30, t=20, b=100),
+    layout_config = get_publication_layout(
+        custom_title="FOMP - First-Order Decay Stock Comparison",
+        x_title="Year",
+        y_title=y_label,
+        show_grid=True,
+        y_range=[0, _y_upper],
     )
+    apply_theme(layout_config)
+    layout_config["yaxis"]["tickformat"] = None
+    fig.update_layout(**layout_config)
 
     display(fig)
 
@@ -1021,8 +966,15 @@ def plot_system_efficiency_metrics(mfa_system_results):
         description="Metric:",
     )
 
-    interact(update_plot, element=element_dropdown, metric_type=metric_dropdown)
+    def _on_change(change):
+        update_plot(element_dropdown.value, metric_dropdown.value)
+
+    element_dropdown.observe(_on_change, "value")
+    metric_dropdown.observe(_on_change, "value")
+
+    display(HBox([element_dropdown, metric_dropdown]))
     display(fig)
+    update_plot(element_dropdown.value, metric_dropdown.value)
 
 
 def plot_stock_overview(mfa_system_results, dsm_params=None, fomp_params=None):
@@ -1087,9 +1039,9 @@ def plot_stock_overview(mfa_system_results, dsm_params=None, fomp_params=None):
 
     # Update layout
     layout_config = get_publication_layout(
-        custom_title="Stock Overview - Total System Stocks by Element",
+        custom_title="Total Stocks by Element",
         x_title="Year",
-        y_title="Total Stock in Mg",
+        y_title="Total Stock (Mg)",
         show_grid=True,
         size="medium",
     )
@@ -1272,7 +1224,7 @@ def plot_process_dynamics(
                 col=3,
             )
             layout_config = get_publication_layout(
-                custom_title=f"Process Dynamics: {process_name} ({element.upper()})",
+                custom_title=f"Inflow, Stock, and Outflow - {process_name} ({element.upper()})",
                 show_grid=True,
                 scientific_y=True,
             )
@@ -1280,7 +1232,7 @@ def plot_process_dynamics(
             xaxis_style = layout_config.pop("xaxis")
             yaxis_style = layout_config.pop("yaxis")
             fig.update_layout(**layout_config)
-            fig.update_xaxes(**xaxis_style)
+            fig.update_xaxes(title_text="Year", **xaxis_style)
             fig.update_yaxes(**yaxis_style)
 
     def export_current_plot(btn):
@@ -1442,9 +1394,9 @@ def plot_dynamic_stock_composition(dsm_details, mfa_system_results):
                 "",
             )
             layout_config = get_publication_layout(
-                custom_title=f"Dynamic Stock Composition for Process: '{process_name}' ({element.upper()})",
+                custom_title=f"Stock Composition - {process_name} ({element.upper()})",
                 x_title="Year",
-                y_title="Stock in Mg",
+                y_title="Stock (Mg)",
                 show_grid=True,
                 scientific_y=True,
             )
@@ -1458,13 +1410,16 @@ def plot_dynamic_stock_composition(dsm_details, mfa_system_results):
     )
     chart_type_checkbox = Checkbox(value=False, description="Show as Bar Chart")
 
-    interact(
-        update_plot,
-        process_id=process_dropdown,
-        element=element_dropdown,
-        show_as_bars=chart_type_checkbox,
-    )
+    def _on_change(change):
+        update_plot(process_dropdown.value, element_dropdown.value, chart_type_checkbox.value)
+
+    process_dropdown.observe(_on_change, "value")
+    element_dropdown.observe(_on_change, "value")
+    chart_type_checkbox.observe(_on_change, "value")
+
+    display(HBox([process_dropdown, element_dropdown, chart_type_checkbox]))
     display(fig)
+    update_plot(process_dropdown.value, element_dropdown.value, chart_type_checkbox.value)
 
 
 def plot_fomp_dynamics(mfa_system_results, fomp_params_config):
@@ -1486,7 +1441,7 @@ def plot_fomp_dynamics(mfa_system_results, fomp_params_config):
     Notes
     -----
     The plot is interactive, allowing the user to select the FOMP process
-    and the element to display. The y-axis is labeled as "Mass [Mg]" and
+    and the element to display. The y-axis is labeled as "Mass (Mg)" and
     uses scientific notation for better readability of potentially large values.
     """
     from plotly.subplots import make_subplots
@@ -1553,7 +1508,7 @@ def plot_fomp_dynamics(mfa_system_results, fomp_params_config):
             )
 
             layout_config = get_publication_layout(
-                custom_title=f"FOMP Dynamics for Process: '{process_name}' | Element: {element.upper()}",
+                custom_title=f"FOMP - First-Order Decay Flows - {process_name} ({element.upper()})",
                 show_grid=True,
                 scientific_y=True,
                 size="small",
@@ -1562,7 +1517,7 @@ def plot_fomp_dynamics(mfa_system_results, fomp_params_config):
             yaxis_style = layout_config.pop("yaxis")
             fig.update_layout(**layout_config)
             fig.update_xaxes(title_text="Year", **xaxis_style)
-            fig.update_yaxes(title_text="Mass [Mg]", **yaxis_style)
+            fig.update_yaxes(title_text="Mass (Mg)", **yaxis_style)
 
     # Create widgets for interaction
     process_dropdown = Dropdown(
@@ -1572,8 +1527,15 @@ def plot_fomp_dynamics(mfa_system_results, fomp_params_config):
         options=element_items, value=element_items[0], description="Element:"
     )
 
-    interact(update_plot, process_name=process_dropdown, element=element_dropdown)
+    def _on_change(change):
+        update_plot(process_dropdown.value, element_dropdown.value)
+
+    process_dropdown.observe(_on_change, "value")
+    element_dropdown.observe(_on_change, "value")
+
+    display(HBox([process_dropdown, element_dropdown]))
     display(fig)
+    update_plot(process_dropdown.value, element_dropdown.value)
 
 
 def plot_flow_dynamics(
@@ -1691,9 +1653,9 @@ def plot_flow_dynamics(
 
             # Update layout and title
             layout_config = get_publication_layout(
-                custom_title=f"Time Series for Selected Flows ({element.upper()})",
+                custom_title=f"Flow Analysis - {element.upper()}",
                 x_title="Year",
-                y_title="Mass in Mg",
+                y_title="Mass (Mg)",
                 show_grid=True,
                 scientific_y=True,
             )
@@ -1870,11 +1832,12 @@ def plot_stock_bar_chart(mfa_system, title="Stock Levels Over Time"):
             layout_config = get_publication_layout(
                 custom_title=f"{title} - {element.upper()} ({year})",
                 x_title="Process Name",
-                y_title="Stock Value (Mass Units)",
+                y_title="Stock (Mg)",
                 show_grid=True,
                 scientific_y=True,
             )
             apply_theme(layout_config)
+            layout_config["xaxis"].pop("range", None)  # categorical axis, not time-series
             layout_config["showlegend"] = False
             layout_config["xaxis"]["tickangle"] = -45
             fig.update_layout(**layout_config)
@@ -1887,9 +1850,15 @@ def plot_stock_bar_chart(mfa_system, title="Stock Levels Over Time"):
         options=elements, value=elements[0], description="Element"
     )
 
-    # Display widgets and plot
-    interact(update_plot, year=year_slider, element=element_dropdown)
+    def _on_change(change):
+        update_plot(year_slider.value, element_dropdown.value)
+
+    year_slider.observe(_on_change, "value")
+    element_dropdown.observe(_on_change, "value")
+
+    display(HBox([year_slider, element_dropdown]))
     display(fig)
+    update_plot(year_slider.value, element_dropdown.value)
 
 
 def plot_system_stock_composition(mfa_system_results, element=None):
@@ -1983,9 +1952,9 @@ def plot_system_stock_composition(mfa_system_results, element=None):
 
             # Apply publication layout
             layout_config = get_publication_layout(
-                custom_title=f"System Stock Composition: {element.upper()} Over Time",
+                custom_title=f"Stock Composition by Process - {element.upper()}",
                 x_title="Year",
-                y_title=f"Stock ({element.upper()}) [Mg]",
+                y_title=f"Stock ({element.upper()}) (Mg)",
                 show_grid=True,
                 scientific_y=True,
             )

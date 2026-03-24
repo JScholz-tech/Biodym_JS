@@ -12,7 +12,7 @@ import plotly.express as px
 from ipywidgets import Dropdown, VBox, HBox
 from IPython.display import display
 
-from .themes import get_publication_layout, get_element_color, BIOYM_COLORS
+from .themes import get_publication_layout, get_element_color, BIOYM_COLORS, apply_theme
 
 
 def plot_interactive_mc_histogram(mc_results_df, mfa_system_results=None):
@@ -167,10 +167,10 @@ def plot_interactive_mc_histogram(mc_results_df, mfa_system_results=None):
                 show_grid=True,
                 scientific_x=True,
                 custom_title=f"Monte Carlo Distribution: {display_name} ({element.upper()})",
-                x_title=f"Value ({element.upper()}) [Mg]",
+                x_title=f"{element.upper()} (Mg)",
                 y_title="Frequency",
             )
-            layout_config["height"] = 500
+            apply_theme(layout_config)
             layout_config["showlegend"] = False
             fig_widget.update_layout(**layout_config)
 
@@ -255,7 +255,8 @@ def plot_interactive_tornado(mc_results_df):
                 x_title="Absolute Correlation",
                 y_title="Input Parameter",
             )
-            layout_config["height"] = 200 + len(param_vars) * 25
+            apply_theme(layout_config)
+            layout_config["height"] = 200 + len(param_vars) * 25  # data-driven override
             layout_config["margin"]["l"] = 150  # Adjust left margin for long labels
             fig_widget.update_layout(**layout_config)
 
@@ -502,11 +503,11 @@ def plot_interactive_mc_paths(mc_results_df, mfa_system_results=None):
                 size="large",
                 show_grid=True,
                 scientific_y=True,
-                custom_title=f"Monte Carlo Paths: {display_name} ({element.upper()}) - {len(paths_data)} Actual Simulations",
-                x_title="Time (Years)",
-                y_title=f"Value ({element.upper()}) [Mg]",
+                custom_title=f"Simulation Trajectories - {display_name} ({element.upper()})",
+                x_title="Year",
+                y_title=f"{element.upper()} (Mg)",
             )
-            layout_config["height"] = 500
+            apply_theme(layout_config)
             layout_config["showlegend"] = True
             fig_widget.update_layout(**layout_config)
 
@@ -660,11 +661,11 @@ def plot_interactive_mc_multiple_histograms(mc_results_df, mfa_system_results=No
             size="medium",
             show_grid=True,
             scientific_x=True,
-            custom_title=f"MC Distribution: {display_name} ({element.upper()})",
+            custom_title=f"Monte Carlo Distribution - {display_name} ({element.upper()})",
             x_title=f"Value ({element.upper()}) [Mg]",
             y_title="Frequency",
         )
-        layout_config["height"] = 400
+        apply_theme(layout_config)
         layout_config["showlegend"] = False
         fig.update_layout(**layout_config)
         return fig
@@ -825,11 +826,11 @@ def plot_interactive_mc_stock_comparison(mc_results_df, mfa_system_results=None)
                 size="large",
                 show_grid=True,
                 scientific_x=True,
-                custom_title=f"Monte Carlo Stock Comparison: {element.upper()}",
-                x_title=f"Value ({element.upper()}) [Mg]",
+                custom_title=f"Stock Uncertainty Comparison - {element.upper()}",
+                x_title=f"{element.upper()} (Mg)",
                 y_title="Frequency (Count)",
             )
-
+            apply_theme(layout_config)
             # CRITICAL FIX: Set barmode to 'overlay' for comparison
             layout_config["barmode"] = "overlay"
             fig_widget.update_layout(**layout_config)

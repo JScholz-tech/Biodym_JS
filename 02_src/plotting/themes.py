@@ -25,16 +25,19 @@ THEMES = {
     # JIE single-column: 7×4.5 in canvas at 96 dpi = 672×432 px.
     # On export (quality='publication', scale≈4.17) → ~2800×1800 px ≈ 7×4.5" at 400 DPI.
     "jie": {
-        "width": 672,
-        "height": 432,
-        "font_axis": 11,
-        "font_tick": 10,
-        "font_legend": 9,
+        "width": 900,
+        "height": 600,
+        "font_axis": 14,
+        "font_tick": 14,
+        "font_legend": 14,
         "legend_below": True,
         "show_title": False,
         "x_range": [2025, 2125],
         "grid_color": "#e8e8e8",
+        "grid_dash": "solid",
         "margin": dict(l=70, r=30, t=20, b=100),
+        "scientific_y": False,   # readable tick labels, not 2.00e+4
+        "template": "plotly_white",
     },
     # Exploratory: wide, annotated, larger fonts — good for interactive notebook use.
     "exploratory": {
@@ -43,11 +46,14 @@ THEMES = {
         "font_axis": 18,
         "font_tick": 16,
         "font_legend": 16,
-        "legend_below": False,
+        "legend_below": True,
         "show_title": True,
         "x_range": None,
         "grid_color": "#E5E5E5",
-        "margin": dict(l=100, r=50, t=100, b=100),
+        "grid_dash": "dot",
+        "margin": dict(l=100, r=50, t=100, b=150),
+        "scientific_y": True,    # 2.00e+4 format
+        "template": "plotly_white",
     },
 }
 
@@ -114,34 +120,55 @@ def apply_theme(layout: dict) -> dict:
     dict
         The same dict, modified in-place with theme overrides applied.
     """
+    import re as _re
     _t = get_active_theme()
+    _sci_fmt = ".3~e" if _t.get("scientific_y", True) else None
 
     # Figure size
     layout["width"] = _t["width"]
     layout["height"] = _t["height"]
 
+    # Plotly template (sets overall look before any overrides)
+    layout["template"] = _t.get("template", "plotly_white")
+
     # Global tick font
     layout["font"]["size"] = _t["font_tick"]
 
-    # Primary x-axis
-    if "xaxis" in layout:
-        ax = layout["xaxis"]
-        if "title" in ax:
-            ax["title"]["font"]["size"] = _t["font_axis"]
-        ax["tickfont"]["size"] = _t["font_tick"]
+    def _patch_xaxis(ax):
+        if "title" in ax and isinstance(ax["title"], dict):
+            ax["title"].setdefault("font", {})["size"] = _t["font_axis"]
+        ax.setdefault("tickfont", {})["size"] = _t["font_tick"]
         ax["gridcolor"] = _t["grid_color"]
+        ax["griddash"] = _t.get("grid_dash", "dot")
         if _t["x_range"] is not None:
             ax["range"] = _t["x_range"]
         elif "range" in ax:
             del ax["range"]
 
-    # Primary y-axis
-    if "yaxis" in layout:
-        ay = layout["yaxis"]
-        if "title" in ay:
-            ay["title"]["font"]["size"] = _t["font_axis"]
-        ay["tickfont"]["size"] = _t["font_tick"]
+    def _patch_yaxis(ay):
+        if "title" in ay and isinstance(ay["title"], dict):
+            ay["title"].setdefault("font", {})["size"] = _t["font_axis"]
+        ay.setdefault("tickfont", {})["size"] = _t["font_tick"]
         ay["gridcolor"] = _t["grid_color"]
+        ay["griddash"] = _t.get("grid_dash", "dot")
+        ay["tickformat"] = _sci_fmt
+
+    # Primary axes
+    if "xaxis" in layout:
+        _patch_xaxis(layout["xaxis"])
+    if "yaxis" in layout:
+        _patch_yaxis(layout["yaxis"])
+
+    # Numbered subplot axes (xaxis2, yaxis3, …)
+    _ax_re = _re.compile(r"^([xy]axis)(\d+)$")
+    for key, ax in list(layout.items()):
+        m = _ax_re.match(key)
+        if not m or not isinstance(ax, dict):
+            continue
+        if m.group(1) == "xaxis":
+            _patch_xaxis(ax)
+        else:
+            _patch_yaxis(ax)
 
     # Legend font + optional below placement
     if "legend" in layout:
@@ -158,6 +185,9 @@ def apply_theme(layout: dict) -> dict:
 
     # Margins
     layout["margin"] = _t["margin"]
+
+    # Preserve widget state across tab switches / re-renders
+    layout["uirevision"] = "constant"
 
     return layout
 

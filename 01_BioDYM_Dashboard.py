@@ -24,7 +24,7 @@ import warnings
 
 import ipywidgets as w
 import plotly.graph_objects as go
-from IPython.display import display, clear_output
+from IPython.display import display, clear_output, Javascript
 
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
@@ -387,6 +387,12 @@ def _build_dashboard(btn):  # noqa: C901
     for i, title in enumerate(tab_titles):
         tabs.set_title(i, title)
 
+    def _refresh_plotly(change):
+        """Fire a window resize event so all Plotly FigureWidgets re-attach to DOM."""
+        display(Javascript("window.dispatchEvent(new Event('resize'));"))
+
+    tabs.observe(_refresh_plotly, names="selected_index")
+
     with _dashboard:
         display(tabs)
 
@@ -489,6 +495,7 @@ def _run_mc(btn):  # noqa: C901
     ])
     for i, title in enumerate(["📊 Distributions", "🌪️ Sensitivity", "📈 Time Paths", "🔀 Comparison"]):
         mc_tabs.set_title(i, title)
+    mc_tabs.observe(lambda c: display(Javascript("window.dispatchEvent(new Event('resize'));")), names="selected_index")
 
     with _mc_output:
         display(mc_tabs)
