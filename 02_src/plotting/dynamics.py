@@ -780,6 +780,179 @@ def plot_fomp_stock_comparison(mfa_system_results, fomp_params, element=None):
     display(fig)
 
 
+def plot_fomp_pool_breakdown(mfa_system_results, fomp_params, fomp_details, element=None):
+    """Two-panel plot: stacked pool stocks (top) and annual decay emissions per pool (bottom).
+
+    The labile pool typically has a near-zero stock (fast turnover) but dominates
+    annual carbon emissions. Showing both panels together reveals the full picture.
+    Requires per-pool data from ``solver_info["fomp_details"]``.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+    fomp_params : dict
+        FOMP parameter dict keyed by process ID.
+    fomp_details : dict
+        ``solver_info["fomp_details"]`` — per-pool arrays keyed by process ID.
+    element : str or None
+        Element to display ('TC'/'CC' for carbon pools). Defaults to TC/CC fallback.
+    """
+    if not fomp_details:
+        print("⚠️  No FOMP pool data available — run the solver first.")
+        return
+
+    time_items = mfa_system_results.IndexTable.Classification["Time"].Items
+    element_items = mfa_system_results.Elements
+
+    _tc_name = next((e for e in ("TC", "CC") if e in element_items), None)
+    if element is None:
+        element = _tc_name if _tc_name else element_items[0]
+    use_tc = element in ("TC", "CC")
+
+    procs = [
+        p for p in mfa_system_results.ProcessList
+        if p.ID in fomp_details and p.ID != 0
+    ]
+    if not procs:
+        print("⚠️  No FOMP processes found in fomp_details.")
+        return
+
+    process_options = {p.Name: p.ID for p in procs}
+    process_dropdown = Dropdown(
+        options=list(process_options.keys()),
+        description="Process:",
+        style={"description_width": "80px"},
+        layout=Layout(width="280px"),
+    )
+
+    _COLOR_LABILE       = "#E69F00"
+    _COLOR_RECALCITRANT = "#0072B2"
+
+    fig = go.FigureWidget(make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.08,
+        subplot_titles=["Pool Stocks", "Annual Decay Emissions"],
+    ))
+
+    def _auto_scale_val(max_val):
+        if max_val >= 1e8:
+            return 1e9, "×10⁹ "
+        elif max_val >= 1e5:
+            return 1e6, "×10⁶ "
+        elif max_val >= 1e2:
+            return 1e3, "×10³ "
+        return 1.0, ""
+
+    def update_plot(process_name):
+        process_id = process_options[process_name]
+        d = fomp_details[process_id]
+
+        if use_tc:
+            s_lab = d["stock_tc_labile"]
+            s_rec = d["stock_tc_recalcitrant"]
+            e_lab = d["decay_tc_labile"]
+            e_rec = d["decay_tc_recalcitrant"]
+        else:
+            s_lab = d["stock_labile"]
+            s_rec = d["stock_recalcitrant"]
+            # DM-level decay not stored separately — approximate from TC decay ratios
+            e_lab = d["decay_tc_labile"]
+            e_rec = d["decay_tc_recalcitrant"]
+
+        base = "Mg C" if use_tc else "Mg"
+        sc_s, pfx_s = _auto_scale_val(float(np.nanmax(s_lab + s_rec)))
+        sc_e, pfx_e = _auto_scale_val(float(np.nanmax(e_lab + e_rec)))
+        unit_s = f"{pfx_s}{base}".strip()
+        unit_e = f"{pfx_e}{base}/yr".strip()
+
+        with fig.batch_update():
+            fig.data = []
+
+            # --- Row 1: stacked pool stocks ---
+            fig.add_trace(go.Scatter(
+                x=time_items, y=s_lab / sc_s,
+                name="Labile Pool", legendgroup="labile",
+                mode="lines", fill="tozeroy",
+                line=dict(color=_COLOR_LABILE, width=1.5),
+                fillcolor="rgba(230,159,0,0.35)",
+                hovertemplate=f"<b>Labile Stock</b><br>Year: %{{x}}<br>%{{y:.4f}} {unit_s}<extra></extra>",
+            ), row=1, col=1)
+            fig.add_trace(go.Scatter(
+                x=time_items, y=(s_lab + s_rec) / sc_s,
+                name="Recalcitrant Pool", legendgroup="recalcitrant",
+                mode="lines", fill="tonexty",
+                line=dict(color=_COLOR_RECALCITRANT, width=1.5),
+                fillcolor="rgba(0,114,178,0.35)",
+                hovertemplate=f"<b>Recalcitrant Stock</b><br>Year: %{{x}}<br>Total: %{{y:.4f}} {unit_s}<extra></extra>",
+            ), row=1, col=1)
+
+            # --- Row 2: annual decay emissions — individual lines (not stacked) ---
+            # Non-stacked so both pools are visible even when magnitudes differ greatly
+            fig.add_trace(go.Scatter(
+                x=time_items, y=e_lab / sc_e,
+                name="Labile Pool", legendgroup="labile", showlegend=False,
+                mode="lines",
+                line=dict(color=_COLOR_LABILE, width=2, dash="solid"),
+                hovertemplate=f"<b>Labile Decay</b><br>Year: %{{x}}<br>%{{y:.4f}} {unit_e}<extra></extra>",
+            ), row=2, col=1)
+            fig.add_trace(go.Scatter(
+                x=time_items, y=e_rec / sc_e,
+                name="Recalcitrant Pool", legendgroup="recalcitrant", showlegend=False,
+                mode="lines",
+                line=dict(color=_COLOR_RECALCITRANT, width=2, dash="dash"),
+                hovertemplate=f"<b>Recalcitrant Decay</b><br>Year: %{{x}}<br>%{{y:.4f}} {unit_e}<extra></extra>",
+            ), row=2, col=1)
+
+            t = get_active_theme()
+            fig.update_layout(
+                title=dict(text=f"FOMP - First-Order Decay Pools - {process_name}")
+                      if t["show_title"] else {},
+                width=t["width"], height=t["height"],
+                margin=t["margin"],
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                legend=dict(font=dict(size=t["font_legend"])),
+                uirevision="constant",
+            )
+            if t["legend_below"]:
+                fig.update_layout(legend=dict(
+                    orientation="h", yanchor="top", y=-0.12,
+                    xanchor="center", x=0.5,
+                ))
+            grid = t["grid_color"]
+            for row in (1, 2):
+                fig.update_xaxes(
+                    showgrid=True, gridcolor=grid,
+                    tickfont=dict(size=t["font_tick"]),
+                    row=row, col=1,
+                )
+            fig.update_yaxes(
+                title_text=f"Stock ({unit_s})",
+                showgrid=True, gridcolor=grid, tickformat=None,
+                title_font=dict(size=t["font_axis"]),
+                tickfont=dict(size=t["font_tick"]),
+                row=1, col=1,
+            )
+            fig.update_yaxes(
+                title_text=f"Decay ({unit_e})",
+                showgrid=True, gridcolor=grid, tickformat=None,
+                title_font=dict(size=t["font_axis"]),
+                tickfont=dict(size=t["font_tick"]),
+                row=2, col=1,
+            )
+            fig.update_xaxes(
+                title_text="Year",
+                title_font=dict(size=t["font_axis"]),
+                row=2, col=1,
+            )
+
+    process_dropdown.observe(lambda c: update_plot(c["new"]), names="value")
+    display(HBox([process_dropdown]))
+    display(fig)
+    update_plot(process_dropdown.value)
+
+
 def plot_system_efficiency_metrics(mfa_system_results):
     """Creates interactive plots showing system efficiency metrics over time.
 

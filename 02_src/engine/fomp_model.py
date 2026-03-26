@@ -57,6 +57,8 @@ def _calculate_fomp_series(
     stock_recalcitrant_series = np.zeros(num_years)
     stock_tc_labile_series = np.zeros(num_years)
     stock_tc_recalcitrant_series = np.zeros(num_years)
+    decay_tc_labile_series = np.zeros(num_years)
+    decay_tc_recalcitrant_series = np.zeros(num_years)
     outflow_carbon_series = np.zeros(num_years)
     outflow_environmental_series = np.zeros(num_years)
 
@@ -109,6 +111,8 @@ def _calculate_fomp_series(
         stock_recalcitrant_series[t] = end_of_year_recalcitrant
         stock_tc_labile_series[t] = end_tc_labile
         stock_tc_recalcitrant_series[t] = end_tc_recalcitrant
+        decay_tc_labile_series[t] = tc_decay_labile
+        decay_tc_recalcitrant_series[t] = tc_decay_recalcitrant
 
         # d. Calculate and Store Split Outflows
         # Carbon outflow = total TC that decayed (all organic carbon → all TOC).
@@ -130,6 +134,8 @@ def _calculate_fomp_series(
         "stock_recalcitrant": stock_recalcitrant_series,
         "stock_tc_labile": stock_tc_labile_series,
         "stock_tc_recalcitrant": stock_tc_recalcitrant_series,
+        "decay_tc_labile": decay_tc_labile_series,
+        "decay_tc_recalcitrant": decay_tc_recalcitrant_series,
         "outflow_carbon": outflow_carbon_series,
         "outflow_environmental": outflow_environmental_series,
     }
@@ -156,8 +162,11 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
 
     Returns
     -------
-    odym.MFAsystem
-        The modified MFA system object with FOMP outflows updated.
+    tuple (odym.MFAsystem, dict)
+        The modified MFA system object with FOMP outflows updated, and a dict
+        of per-pool time-series arrays with keys: 'stock_labile',
+        'stock_recalcitrant', 'stock_tc_labile', 'stock_tc_recalcitrant',
+        'outflow_carbon', 'outflow_environmental'.
     """
     time_vector = mfa_system.IndexTable.Classification["Time"].Items
     num_years, num_elements = len(time_vector), len(mfa_system.Elements)
@@ -375,4 +384,4 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
     except Exception as e:
         print(f"⚠️ FOMP validation warning for process {process_id}: {e}")
 
-    return mfa_system
+    return mfa_system, fomp_results

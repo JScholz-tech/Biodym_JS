@@ -361,6 +361,16 @@ if config_obj.RUN_FOMP_CALCULATION:
 else:
     fomp_params = {}
 lfg_params = data_loader.load_lfg_parameters(all_excel_data, debug_mode=DEBUG_MODE)
+
+# Filter fomp_params and lfg_params against process_logic_map so the Excel
+# Process_Logic column acts as the authoritative enable/disable switch.
+# (DSM is already filtered at load time inside load_dsm_parameters.)
+if process_logic_map:
+    fomp_params = {pid: p for pid, p in fomp_params.items()
+                   if process_logic_map.get(pid) == "FOMP"}
+    lfg_params  = {pid: p for pid, p in lfg_params.items()
+                   if process_logic_map.get(pid) == "LFG"}
+
 uncertainty_params = data_loader.load_uncertainty_definitions(
     all_excel_data, debug_mode=DEBUG_MODE
 )
@@ -368,7 +378,7 @@ uncertainty_params = data_loader.load_uncertainty_definitions(
 print(format_success("All parameters loaded and configured."))
 
 print(format_step(Icons.CALCULATION, "2.6", "Running baseline calculation..."))
-mfa_results_baseline, dsm_details_baseline, _ = solver.run_mfa_calculation(
+mfa_results_baseline, dsm_details_baseline, solver_info_baseline = solver.run_mfa_calculation(
     mfa_system_configured,
     dsm_params,
     fomp_params,
@@ -377,6 +387,7 @@ mfa_results_baseline, dsm_details_baseline, _ = solver.run_mfa_calculation(
     process_logic_map=process_logic_map,
     lfg_params=lfg_params,
 )
+fomp_details_baseline = solver_info_baseline.get("fomp_details", {})
 print(format_success("Baseline calculation completed successfully!"))
 
 # ## 2.2 Data Validation Summary
@@ -580,6 +591,15 @@ if fomp_params:
         print(f"\n{Icons.FOMP} FOMP Stock Comparison (all processes):")
         print("   • TC stock trajectories of all FOMP processes on one figure")
         plotting.plot_fomp_stock_comparison(mfa_results_baseline, fomp_params)
+
+    # FOMP Pool Breakdown — labile vs recalcitrant stacked area per process
+    if fomp_details_baseline:
+        print(f"\n{Icons.FOMP} FOMP Pool Breakdown:")
+        print("   • Labile and recalcitrant pool stocks stacked over time")
+        print("   • Reveals relative size of fast vs slow-decaying carbon fractions")
+        plotting.plot_fomp_pool_breakdown(
+            mfa_results_baseline, fomp_params, fomp_details_baseline
+        )
 
     # FOMP Process Dynamics - Three-panel view of FOMP processes
     print(f"\n{Icons.MFA} FOMP Process Dynamics:")

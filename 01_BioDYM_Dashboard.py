@@ -196,11 +196,19 @@ def _build_dashboard(btn):  # noqa: C901
         )
         lfg_params = data_loader.load_lfg_parameters(all_excel_data)
 
-        mfa_results, dsm_details, _ = solver.run_mfa_calculation(
+        # Filter against process_logic_map (Excel Process_Logic column is authoritative)
+        if process_logic_map:
+            fomp_params = {pid: p for pid, p in fomp_params.items()
+                           if process_logic_map.get(pid) == "FOMP"}
+            lfg_params  = {pid: p for pid, p in lfg_params.items()
+                           if process_logic_map.get(pid) == "LFG"}
+
+        mfa_results, dsm_details, solver_info = solver.run_mfa_calculation(
             mfa_configured, dsm_params, fomp_params, cfg,
             flow_tc_map=flow_tc_map, process_logic_map=process_logic_map,
             lfg_params=lfg_params,
         )
+        fomp_details = solver_info.get("fomp_details", {})
 
         # ── Scenarios (fast, run with baseline) ─────────────────────────
         with _status:
@@ -304,6 +312,8 @@ def _build_dashboard(btn):  # noqa: C901
         with fomp_out:
             try:
                 plotting.plot_fomp_stock_details(mfa_results, fomp_params)
+                if fomp_details:
+                    plotting.plot_fomp_pool_breakdown(mfa_results, fomp_params, fomp_details)
                 plotting.plot_fomp_dynamics(mfa_results, fomp_params)
             except Exception as e:
                 print(f"⚠️  FOMP plot failed: {e}")

@@ -481,8 +481,11 @@ def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
 
     Returns
     -------
-    bool
-        True if any flow values were changed during the calculation, False otherwise.
+    tuple (bool, dict)
+        (something_changed, fomp_details) where fomp_details is keyed by
+        process_id and contains per-pool time-series arrays:
+        'stock_labile', 'stock_recalcitrant', 'stock_tc_labile',
+        'stock_tc_recalcitrant'.
     """
     # Check if required elements exist for FOMP
     # Accept "TC" (new hierarchy with TC/TOC/TIC) or "CC" (legacy naming)
@@ -502,9 +505,10 @@ def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
         print(
             "   Tip: For non-organic systems (e.g., metals), disable FOMP in configuration"
         )
-        return False  # No changes made
+        return False, {}  # No changes made
 
     something_changed = False
+    fomp_details = {}
     for process_id in fomp_processes:
         inflows_to_fomp = [
             f for f in mfa_system.FlowDict.values() if f.P_End == process_id
@@ -569,9 +573,17 @@ def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
                 f"     WC fraction: {np.mean(wc_fraction[wc_fraction > 0]):.3f} (range: {np.min(wc_fraction):.3f} - {np.max(wc_fraction):.3f})"
             )
 
-        mfa_system = fomp_model.calculate_fomp(
+        mfa_system, proc_pool_data = fomp_model.calculate_fomp(
             mfa_system, {process_id: fomp_params[process_id]}, composition
         )
+        fomp_details[process_id] = {
+            "stock_labile":           proc_pool_data["stock_labile"],
+            "stock_recalcitrant":     proc_pool_data["stock_recalcitrant"],
+            "stock_tc_labile":        proc_pool_data["stock_tc_labile"],
+            "stock_tc_recalcitrant":  proc_pool_data["stock_tc_recalcitrant"],
+            "decay_tc_labile":        proc_pool_data["decay_tc_labile"],
+            "decay_tc_recalcitrant":  proc_pool_data["decay_tc_recalcitrant"],
+        }
 
         for out_flow in fomp_outflows:
             if out_flow.Name in old_fomp_out_values and not np.allclose(
@@ -579,7 +591,7 @@ def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
             ):
                 something_changed = True
                 break
-    return something_changed
+    return something_changed, fomp_details
 
 
 def _calculate_lfg_flows(mfa_system, lfg_processes, lfg_params):
@@ -733,9 +745,27 @@ def run_mfa_calculation(
         lfg_params = {}
 
     dsm_details = {}
+    fomp_details = {}
     dsm_processes = set(dsm_params.keys())
     fomp_processes = set(fomp_params.keys())
     lfg_processes = set(lfg_params.keys())
+
+    # Cross-check against process_logic_map so that the Excel Process_Logic
+    # column acts as the authoritative switch.  DSM is already filtered at
+    # load time (load_dsm_parameters filters by Process_Logic == "DSM");
+    # FOMP and LFG are loaded from their dedicated sheets without that filter,
+    # so we apply it here.  A process with params in "3_3_Definition_LFG" but
+    # Process_Logic != "LFG" will be silently excluded.
+    if process_logic_map:
+        fomp_processes = {
+            pid for pid in fomp_processes
+            if process_logic_map.get(pid) == "FOMP"
+        }
+        lfg_processes = {
+            pid for pid in lfg_processes
+            if process_logic_map.get(pid) == "LFG"
+        }
+
     special_processes = dsm_processes.union(fomp_processes).union(lfg_processes)
 
     # Pre-sort flows in topological order so upstream flows are calculated
@@ -780,9 +810,10 @@ def run_mfa_calculation(
 
         fomp_changed = False
         if config.RUN_FOMP_CALCULATION:
-            fomp_changed = _calculate_fomp_flows(
+            fomp_changed, fomp_run_details = _calculate_fomp_flows(
                 mfa_system, fomp_processes, fomp_params
             )
+            fomp_details.update(fomp_run_details)
             pass_changes.append(fomp_changed)
 
         lfg_changed = False
@@ -818,6 +849,7 @@ def run_mfa_calculation(
         "max_iterations":   max_iterations,
         "convergence_log":  convergence_log,
         "method":           "Fixed-point iteration",
+        "fomp_details":     fomp_details,
     }
 
     # --- Final balance calculation ---
