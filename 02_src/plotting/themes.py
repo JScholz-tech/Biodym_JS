@@ -38,6 +38,8 @@ THEMES = {
         "margin": dict(l=70, r=30, t=20, b=100),
         "scientific_y": False,   # readable tick labels, not 2.00e+4
         "template": "plotly_white",
+        "mass_scale": 1e-3,      # Mg → Gg
+        "mass_unit": "Gg",
     },
     # Exploratory: wide, annotated, larger fonts — good for interactive notebook use.
     "exploratory": {
@@ -54,6 +56,8 @@ THEMES = {
         "margin": dict(l=100, r=50, t=100, b=150),
         "scientific_y": True,    # 2.00e+4 format
         "template": "plotly_white",
+        "mass_scale": 1.0,       # keep Mg
+        "mass_unit": "Mg",
     },
 }
 
@@ -122,7 +126,7 @@ def apply_theme(layout: dict) -> dict:
     """
     import re as _re
     _t = get_active_theme()
-    _sci_fmt = ".3~e" if _t.get("scientific_y", True) else None
+    _sci_fmt = ".3~e" if _t.get("scientific_y", True) else ","
 
     # Figure size
     layout["width"] = _t["width"]
@@ -190,6 +194,41 @@ def apply_theme(layout: dict) -> dict:
     layout["uirevision"] = "constant"
 
     return layout
+
+
+def get_mass_display() -> tuple:
+    """Return (scale_factor, unit_string) for the active theme.
+
+    Plot functions should multiply raw Mg values by scale_factor and use
+    unit_string in axis labels and hover templates.
+
+    Returns
+    -------
+    (scale, unit) : tuple[float, str]
+        e.g. (1e-3, 'Gg') for 'jie', (1.0, 'Mg') for 'exploratory'
+    """
+    _t = get_active_theme()
+    return _t.get("mass_scale", 1.0), _t.get("mass_unit", "Mg")
+
+
+def y_label(element: str, rate: bool = False) -> str:
+    """Return a themed y-axis label in the form 'mass {element} ({unit})'.
+
+    Parameters
+    ----------
+    element : str
+        Element name, e.g. 'TC', 'DM', 'Material'.
+    rate : bool
+        If True, appends ' yr⁻¹' to the unit (for annual flow plots).
+
+    Returns
+    -------
+    str
+        e.g. 'mass TC (Gg)' or 'mass TC (Gg yr\u207b\u00b9)'
+    """
+    _, unit = get_mass_display()
+    suffix = " yr\u207b\u00b9" if rate else ""
+    return f"mass {element} ({unit}{suffix})"
 
 
 # =============================================================================

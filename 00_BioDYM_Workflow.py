@@ -469,8 +469,21 @@ print()
 # ## 2.3 Mass Balance Verification
 
 print(format_header("MASS BALANCE VERIFICATION (BASELINE)", level=2))
-plotting.plot_total_mass_balance_error(mfa_results_baseline)
-plotting.plot_optimized_mass_balance_error(mfa_results_baseline)
+plotting.plot_total_mass_balance_error(
+    mfa_results_baseline,
+    dsm_params=dsm_params,
+    fomp_params=fomp_params,
+)
+plotting.plot_optimized_mass_balance_error(
+    mfa_results_baseline,
+    dsm_params=dsm_params,
+    fomp_params=fomp_params,
+)
+plotting.plot_dynamic_process_balance(
+    mfa_results_baseline,
+    dsm_params=dsm_params,
+    fomp_params=fomp_params,
+)
 
 # ## 2.4 System Flow Diagram (Graphviz)
 print(f"\n{Icons.ARROW} System Flow Diagram (Graphviz)")
@@ -569,6 +582,17 @@ if dsm_params and dsm_details_baseline:
         mfa_results_baseline, dsm_params, dsm_details_baseline
     )
 
+    print(f"\n{Icons.DSM} DSM Stock — Publication Figure:")
+    print("   • JIE-format stacked cohort areas, 10⁶ Mg y-scale, policy line 2075")
+    _dsm_pid = next(iter(dsm_params))
+    plotting.plot_dsm_stock_publication(
+        mfa_results_baseline,
+        dsm_details_baseline,
+        process_id=_dsm_pid,
+        element="material",
+        policy_year=2075,
+    )
+
     print(f"\n{Icons.MFA} DSM Process Dynamics Analysis:")
     print("   • Three-panel view: Input, Stock, Output")
     print("   • Stacked flows by element (Material, WC, DM, CC)")
@@ -590,7 +614,11 @@ if fomp_params:
     if len(fomp_params) > 1:
         print(f"\n{Icons.FOMP} FOMP Stock Comparison (all processes):")
         print("   • TC stock trajectories of all FOMP processes on one figure")
-        plotting.plot_fomp_stock_comparison(mfa_results_baseline, fomp_params)
+        plotting.plot_fomp_stock_comparison(
+            mfa_results_baseline,
+            fomp_params,
+            fomp_details=solver_info_baseline.get("fomp_details"),
+        )
 
     # FOMP Pool Breakdown — labile vs recalcitrant stacked area per process
     if fomp_details_baseline:

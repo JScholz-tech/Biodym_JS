@@ -4,11 +4,12 @@ Plotting Subpackage for BioDYM.
 """
 
 # Import key plotting functions for easy access
-from .themes import set_theme, get_active_theme, get_theme, apply_theme
+from .themes import set_theme, get_active_theme, get_theme, apply_theme, get_mass_display, y_label
 from .sankey import plot_interactive_sankey
 from .enhanced_sankey import plot_enhanced_sankey, plot_element_multiplot_sankey
 from .dynamics import (
     plot_dsm_stock_details,
+    plot_dsm_stock_publication,
     plot_dsm_process_dynamics,
     plot_fomp_stock_details,
     plot_fomp_stock_comparison,
@@ -26,7 +27,7 @@ from .dynamics import (
     plot_lfg_fraction_breakdown,
     plot_lfg_ipcc_vs_mfa_comparison,
 )
-from .validation import plot_optimized_mass_balance_error, plot_total_mass_balance_error
+from .validation import plot_optimized_mass_balance_error, plot_total_mass_balance_error, plot_dynamic_process_balance
 from .monte_carlo import (
     plot_interactive_mc_histogram,
     plot_interactive_tornado,
@@ -46,10 +47,13 @@ __all__ = [
     "get_active_theme",
     "get_theme",
     "apply_theme",
+    "get_mass_display",
+    "y_label",
     "plot_interactive_sankey",
     "plot_enhanced_sankey",
     "plot_element_multiplot_sankey",
     "plot_dsm_stock_details",
+    "plot_dsm_stock_publication",
     "plot_dsm_process_dynamics",
     "plot_fomp_stock_details",
     "plot_fomp_stock_comparison",
@@ -64,6 +68,7 @@ __all__ = [
     "plot_system_stock_composition",
     "plot_optimized_mass_balance_error",
     "plot_total_mass_balance_error",
+    "plot_dynamic_process_balance",
     "plot_interactive_mc_histogram",
     "plot_interactive_tornado",
     "plot_interactive_mc_paths",

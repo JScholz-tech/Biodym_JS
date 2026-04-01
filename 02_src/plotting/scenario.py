@@ -17,6 +17,8 @@ from .themes import (
     get_publication_layout,
     get_element_color,
     create_color_sequence,
+    get_mass_display,
+    y_label,
     FONT_SIZE,
 )
 
@@ -150,14 +152,16 @@ def plot_multi_scenario_comparison(
             scenarios_to_plot = ["Baseline"] + list(selected_scenarios)
             values = []
 
+            _sc, _unit = get_mass_display()
+
             # Get baseline value
             if metric == "Final Stock":
                 values.append(
-                    baseline_results.StockDict[item].Values[-1, element_index]
+                    baseline_results.StockDict[item].Values[-1, element_index] * _sc
                 )
             else:  # Total Flow
                 values.append(
-                    np.sum(baseline_results.FlowDict[item].Values[:, element_index])
+                    np.sum(baseline_results.FlowDict[item].Values[:, element_index]) * _sc
                 )
 
             # Get scenario values
@@ -176,7 +180,7 @@ def plot_multi_scenario_comparison(
                                     )
                                 },
                             ),
-                        ).Values[-1, element_index]
+                        ).Values[-1, element_index] * _sc
                     )
                 else:  # Total Flow
                     values.append(
@@ -193,7 +197,7 @@ def plot_multi_scenario_comparison(
                                     },
                                 ),
                             ).Values[:, element_index]
-                        )
+                        ) * _sc
                     )
 
             # Get meaningful item name for title
@@ -236,7 +240,7 @@ def plot_multi_scenario_comparison(
                 show_grid=True,
                 scientific_y=True,
                 custom_title=f"{metric} Comparison: {item_display_name} ({element.upper()})",
-                y_title=f"{element.upper()} (Mg)",
+                y_title=y_label(element.upper()),
             )
             apply_theme(layout_config)
             layout_config["xaxis"].pop("range", None)  # categorical axis, not time-series
@@ -348,6 +352,7 @@ def plot_scenario_flow_dynamics(
             if element not in elements:
                 return
             element_index = elements.index(element)
+            _sc, _unit = get_mass_display()
 
             # Color per flow, dash per scenario
             flow_colors = create_color_sequence(len(selected_flows), palette="primary")
@@ -363,12 +368,12 @@ def plot_scenario_flow_dynamics(
                 for j, scenario_label in enumerate(scenarios_with_baseline):
                     dash = _SCENARIO_DASHES[j % len(_SCENARIO_DASHES)]
                     if scenario_label == "Baseline":
-                        values = flow_obj.Values[:, element_index]
+                        values = flow_obj.Values[:, element_index] * _sc
                     else:
                         sc_flow = all_scenario_results[scenario_label].FlowDict.get(flow_id)
                         if sc_flow is None:
                             continue
-                        values = sc_flow.Values[:, element_index]
+                        values = sc_flow.Values[:, element_index] * _sc
 
                     # Show legend only for first scenario per flow (avoid duplicates)
                     show_legend = (j == 0)
@@ -383,7 +388,7 @@ def plot_scenario_flow_dynamics(
                             line=dict(color=color, width=2, dash=dash),
                             hovertemplate=(
                                 f"<b>{display_name}</b> ({scenario_label})<br>"
-                                "Year: %{x}<br>Value: %{y:.2e} Mg<extra></extra>"
+                                f"Year: %{{x}}<br>Value: %{{y:.3f}} {_unit}<extra></extra>"
                             ),
                         )
                     )
@@ -407,7 +412,7 @@ def plot_scenario_flow_dynamics(
                 scientific_y=True,
                 custom_title=f"Annual Flows by Scenario - {element.upper()}",
                 x_title="Year",
-                y_title=f"Flow ({element.upper()}) (Mg)",
+                y_title=y_label(element.upper(), rate=True),
             )
             apply_theme(layout_config)
             fig.update_layout(**layout_config)
@@ -491,6 +496,7 @@ def plot_scenario_stock_dynamics(
             if element not in elements:
                 return
             element_index = elements.index(element)
+            _sc, _unit = get_mass_display()
 
             stock_colors = create_color_sequence(len(selected_stocks), palette="primary")
             scenarios_with_baseline = ["Baseline"] + list(selected_scenarios)
@@ -505,12 +511,12 @@ def plot_scenario_stock_dynamics(
                 for j, scenario_label in enumerate(scenarios_with_baseline):
                     dash = _SCENARIO_DASHES[j % len(_SCENARIO_DASHES)]
                     if scenario_label == "Baseline":
-                        values = stock_obj.Values[:, element_index]
+                        values = stock_obj.Values[:, element_index] * _sc
                     else:
                         sc_stock = all_scenario_results[scenario_label].StockDict.get(stock_id)
                         if sc_stock is None:
                             continue
-                        values = sc_stock.Values[:, element_index]
+                        values = sc_stock.Values[:, element_index] * _sc
 
                     show_legend = (j == 0)
                     fig.add_trace(
@@ -524,7 +530,7 @@ def plot_scenario_stock_dynamics(
                             line=dict(color=color, width=2, dash=dash),
                             hovertemplate=(
                                 f"<b>{display_name}</b> ({scenario_label})<br>"
-                                "Year: %{x}<br>Value: %{y:.2e} Mg<extra></extra>"
+                                f"Year: %{{x}}<br>Value: %{{y:.3f}} {_unit}<extra></extra>"
                             ),
                         )
                     )
@@ -548,7 +554,7 @@ def plot_scenario_stock_dynamics(
                 scientific_y=True,
                 custom_title=f"Stock Trajectories by Scenario - {element.upper()}",
                 x_title="Year",
-                y_title=f"Stock ({element.upper()}) (Mg)",
+                y_title=y_label(element.upper()),
             )
             apply_theme(layout_config)
             fig.update_layout(**layout_config)

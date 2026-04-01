@@ -83,9 +83,11 @@ def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None
     iterative solver has converged. It correctly respects any initial stocks
     set during the system setup.
 
-    NOTE: DSM processes already have their stocks fully calculated by the DSM model,
-    so they are skipped to avoid double-counting. FOMP processes DO need stock
-    calculation here (they only calculate flows, not stocks).
+    NOTE: DSM and FOMP processes already have their stocks fully calculated by their
+    respective models, so they are skipped to avoid double-counting. Without this skip,
+    the solver would treat the FOMP-written year-1 stock as an "initial stock offset"
+    and add it again via cumsum(dS), causing a phantom doubling in year 1 and a
+    persistent offset in all subsequent years.
 
     Parameters
     ----------
@@ -94,7 +96,7 @@ def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None
     dsm_processes : set, optional
         Set of process IDs that are DSM processes (already have stocks calculated).
     fomp_processes : set, optional
-        Unused. Kept for API compatibility.
+        Set of process IDs that are FOMP processes (already have stocks calculated).
 
     Returns
     -------
@@ -106,8 +108,8 @@ def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None
     if fomp_processes is None:
         fomp_processes = set()
 
-    # Only skip DSM processes - FOMP processes need stock calculation from mass balance
-    special_processes = dsm_processes
+    # Skip DSM and FOMP processes — both models write correct stock values directly
+    special_processes = dsm_processes | fomp_processes
 
     print("--> Calculating final stock balances for non-DSM processes...")
 
@@ -129,10 +131,10 @@ def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None
             dS_values = total_inflows - total_outflows
             stock_ds.Values = dS_values
 
-            # Skip stock recalculation for DSM processes - they already have their stocks calculated
-            # FOMP processes are NOT skipped - they only calculate flows, not stocks
+            # Skip stock recalculation for DSM and FOMP processes — they already have
+            # their absolute stocks written directly by their respective models.
             if pid in special_processes:
-                print(f"  -> Skipping stock recalculation for Process {pid} (DSM)")
+                print(f"  -> Skipping stock recalculation for Process {pid} (DSM/FOMP)")
                 continue
 
             initial_stock_vector = stock_s.Values[0, :].copy()
