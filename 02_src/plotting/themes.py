@@ -1,10 +1,234 @@
 # -*- coding: utf-8 -*-
 """
-Simplified Publication-Style Plotting Standards for BioDYM
+Plotting Themes and Style Standards for BioDYM
 
-This module defines essential styling standards for BioDYM plots,
-focusing on simplicity and consistency.
+Central module for all plot styling. Provides:
+- Named theme presets ('exploratory', 'jie') via set_theme() / get_active_theme()
+- Color palettes, font settings, figure size presets
+- get_publication_layout() for standardised Plotly layout dicts
+
+Usage
+-----
+    import plotting
+    plotting.set_theme('jie')       # once per session → all subsequent plots use JIE style
+    plotting.set_theme('exploratory')  # back to wide interactive style
 """
+
+# =============================================================================
+# THEME SYSTEM
+# =============================================================================
+
+# Module-level active theme — default is 'exploratory' (wide, annotated)
+_ACTIVE_THEME = "exploratory"
+
+THEMES = {
+    # JIE single-column: 7×4.5 in canvas at 96 dpi = 672×432 px.
+    # On export (quality='publication', scale≈4.17) → ~2800×1800 px ≈ 7×4.5" at 400 DPI.
+    "jie": {
+        "width": 900,
+        "height": 600,
+        "font_axis": 14,
+        "font_tick": 14,
+        "font_legend": 14,
+        "legend_below": True,
+        "show_title": False,
+        "x_range": [2025, 2125],
+        "grid_color": "#e8e8e8",
+        "grid_dash": "solid",
+        "margin": dict(l=70, r=30, t=20, b=100),
+        "scientific_y": False,   # readable tick labels, not 2.00e+4
+        "template": "plotly_white",
+        "mass_scale": 1e-3,      # Mg → Gg
+        "mass_unit": "Gg",
+    },
+    # Exploratory: wide, annotated, larger fonts — good for interactive notebook use.
+    "exploratory": {
+        "width": 1000,
+        "height": 800,
+        "font_axis": 18,
+        "font_tick": 16,
+        "font_legend": 16,
+        "legend_below": True,
+        "show_title": True,
+        "x_range": None,
+        "grid_color": "#E5E5E5",
+        "grid_dash": "dot",
+        "margin": dict(l=100, r=50, t=100, b=150),
+        "scientific_y": True,    # 2.00e+4 format
+        "template": "plotly_white",
+        "mass_scale": 1.0,       # keep Mg
+        "mass_unit": "Mg",
+    },
+}
+
+
+def set_theme(name: str) -> None:
+    """Set the global plot theme for all subsequent BioDYM plots.
+
+    Call once per notebook session, typically near the top of the notebook:
+
+        import plotting
+        plotting.set_theme('jie')
+
+    Parameters
+    ----------
+    name : str
+        Theme name. One of:
+        - 'exploratory' (default) — 1000×800 px, large fonts, title visible
+        - 'jie' — 672×432 px (7×4.5 in), 11 pt fonts, no title, legend below
+    """
+    global _ACTIVE_THEME
+    if name not in THEMES:
+        raise ValueError(f"Unknown theme '{name}'. Choose from: {list(THEMES)}")
+    _ACTIVE_THEME = name
+
+
+def get_active_theme() -> dict:
+    """Return the currently active theme configuration dict."""
+    return THEMES[_ACTIVE_THEME]
+
+
+def get_theme(name: str) -> dict:
+    """Return a named theme config dict without changing the active theme.
+
+    Parameters
+    ----------
+    name : str
+        Theme name ('exploratory' or 'jie').
+    """
+    if name not in THEMES:
+        raise ValueError(f"Unknown theme '{name}'. Choose from: {list(THEMES)}")
+    return THEMES[name]
+
+
+def apply_theme(layout: dict) -> dict:
+    """Apply the active theme's size, fonts, grid, legend, and margin to a layout dict.
+
+    Call immediately after get_publication_layout() to apply the current theme:
+
+        layout_config = get_publication_layout(custom_title="...", ...)
+        apply_theme(layout_config)
+        fig.update_layout(**layout_config)
+
+    Modifies the dict in-place and also returns it for chaining.
+    Handles single-axis layouts. For multi-subplot figures (xaxis2, xaxis3, …)
+    only the primary axes are updated; subplot axes keep their defaults.
+
+    Parameters
+    ----------
+    layout : dict
+        A layout dict as returned by get_publication_layout().
+
+    Returns
+    -------
+    dict
+        The same dict, modified in-place with theme overrides applied.
+    """
+    import re as _re
+    _t = get_active_theme()
+    _sci_fmt = ".3~e" if _t.get("scientific_y", True) else ","
+
+    # Figure size
+    layout["width"] = _t["width"]
+    layout["height"] = _t["height"]
+
+    # Plotly template (sets overall look before any overrides)
+    layout["template"] = _t.get("template", "plotly_white")
+
+    # Global tick font
+    layout["font"]["size"] = _t["font_tick"]
+
+    def _patch_xaxis(ax):
+        if "title" in ax and isinstance(ax["title"], dict):
+            ax["title"].setdefault("font", {})["size"] = _t["font_axis"]
+        ax.setdefault("tickfont", {})["size"] = _t["font_tick"]
+        ax["gridcolor"] = _t["grid_color"]
+        ax["griddash"] = _t.get("grid_dash", "dot")
+        if _t["x_range"] is not None:
+            ax["range"] = _t["x_range"]
+        elif "range" in ax:
+            del ax["range"]
+
+    def _patch_yaxis(ay):
+        if "title" in ay and isinstance(ay["title"], dict):
+            ay["title"].setdefault("font", {})["size"] = _t["font_axis"]
+        ay.setdefault("tickfont", {})["size"] = _t["font_tick"]
+        ay["gridcolor"] = _t["grid_color"]
+        ay["griddash"] = _t.get("grid_dash", "dot")
+        ay["tickformat"] = _sci_fmt
+
+    # Primary axes
+    if "xaxis" in layout:
+        _patch_xaxis(layout["xaxis"])
+    if "yaxis" in layout:
+        _patch_yaxis(layout["yaxis"])
+
+    # Numbered subplot axes (xaxis2, yaxis3, …)
+    _ax_re = _re.compile(r"^([xy]axis)(\d+)$")
+    for key, ax in list(layout.items()):
+        m = _ax_re.match(key)
+        if not m or not isinstance(ax, dict):
+            continue
+        if m.group(1) == "xaxis":
+            _patch_xaxis(ax)
+        else:
+            _patch_yaxis(ax)
+
+    # Legend font + optional below placement
+    if "legend" in layout:
+        layout["legend"]["font"]["size"] = _t["font_legend"]
+        if _t["legend_below"]:
+            layout["legend"].update(
+                orientation="h", yanchor="top", y=-0.22,
+                xanchor="center", x=0.5,
+            )
+
+    # Title visibility
+    if not _t["show_title"]:
+        layout.pop("title", None)
+
+    # Margins
+    layout["margin"] = _t["margin"]
+
+    # Preserve widget state across tab switches / re-renders
+    layout["uirevision"] = "constant"
+
+    return layout
+
+
+def get_mass_display() -> tuple:
+    """Return (scale_factor, unit_string) for the active theme.
+
+    Plot functions should multiply raw Mg values by scale_factor and use
+    unit_string in axis labels and hover templates.
+
+    Returns
+    -------
+    (scale, unit) : tuple[float, str]
+        e.g. (1e-3, 'Gg') for 'jie', (1.0, 'Mg') for 'exploratory'
+    """
+    _t = get_active_theme()
+    return _t.get("mass_scale", 1.0), _t.get("mass_unit", "Mg")
+
+
+def y_label(element: str, rate: bool = False) -> str:
+    """Return a themed y-axis label in the form 'mass {element} ({unit})'.
+
+    Parameters
+    ----------
+    element : str
+        Element name, e.g. 'TC', 'DM', 'Material'.
+    rate : bool
+        If True, appends ' yr⁻¹' to the unit (for annual flow plots).
+
+    Returns
+    -------
+    str
+        e.g. 'mass TC (Gg)' or 'mass TC (Gg yr\u207b\u00b9)'
+    """
+    _, unit = get_mass_display()
+    suffix = " yr\u207b\u00b9" if rate else ""
+    return f"mass {element} ({unit}{suffix})"
 
 
 # =============================================================================
@@ -110,6 +334,8 @@ def get_publication_layout(
     custom_title=None,
     width=None,
     height=None,
+    x_range=None,
+    y_range=None,
 ):
     """Generates a standardized layout configuration for publication-quality plots.
 
@@ -150,6 +376,12 @@ def get_publication_layout(
         Custom width for the figure. Overrides `size` parameter.
     height : int, optional
         Custom height for the figure. Overrides `size` parameter.
+    x_range : list of two numbers or None, optional
+        Explicit x-axis range, e.g. ``[2025, 2125]``. When None the axis
+        auto-scales. Defaults to None.
+    y_range : list of two numbers or None, optional
+        Explicit y-axis range, e.g. ``[0, 6]``. When None the axis
+        auto-scales (``rangemode="tozero"`` still applies). Defaults to None.
 
     Returns
     -------
@@ -196,6 +428,7 @@ def get_publication_layout(
             "zeroline": zeroline,
             "zerolinecolor": BIOYM_COLORS["neutral"] if zeroline else "rgba(0,0,0,0)",
             "tickformat": ".2e" if scientific_x else None,
+            **({"range": x_range} if x_range is not None else {}),
         },
         "yaxis": {
             "title": {
@@ -220,6 +453,7 @@ def get_publication_layout(
             "zerolinecolor": BIOYM_COLORS["neutral"] if zeroline else "rgba(0,0,0,0)",
             "tickformat": ".2e" if scientific_y else None,
             "rangemode": "tozero",
+            **({"range": y_range} if y_range is not None else {}),
         },
         "plot_bgcolor": BACKGROUND_COLORS[background],
         "paper_bgcolor": BACKGROUND_COLORS[background],

@@ -9,10 +9,11 @@ Combines functionality from monte_carlo.py and mc_visuals.py with publication st
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-from ipywidgets import Dropdown, VBox, HBox
-from IPython.display import display
+from ipywidgets import Dropdown, VBox, HBox, Output, SelectMultiple, Label, Button, Layout
+from IPython.display import display, clear_output
 
-from .publication_style_simplified import get_publication_layout, get_element_color, BIOYM_COLORS
+from .themes import get_publication_layout, get_element_color, BIOYM_COLORS, apply_theme, get_mass_display, y_label
+from .export_publication import export_figure
 
 
 def plot_interactive_mc_histogram(mc_results_df, mfa_system_results=None):
@@ -120,7 +121,8 @@ def plot_interactive_mc_histogram(mc_results_df, mfa_system_results=None):
                 fig_widget.update_layout(title_text=f"No data available for {col_name}")
                 return
 
-            data_series = mc_results_df[col_name]
+            _sc, _unit = get_mass_display()
+            data_series = mc_results_df[col_name] * _sc
             mean_val = data_series.mean()
             std_val = data_series.std()
             element_color = get_element_color(element)
@@ -153,7 +155,7 @@ def plot_interactive_mc_histogram(mc_results_df, mfa_system_results=None):
                 x=mean_val,
                 y=1.05,
                 yref="paper",
-                text=f"Mean: {mean_val:.2e}<br>Std: {std_val:.2e}",
+                text=f"Mean: {mean_val:.2f} {_unit}<br>Std: {std_val:.2f} {_unit}",
                 showarrow=False,
                 font=dict(color=BIOYM_COLORS["dark"], size=15),
                 bgcolor="rgba(255, 255, 255, 0.9)",
@@ -167,10 +169,12 @@ def plot_interactive_mc_histogram(mc_results_df, mfa_system_results=None):
                 show_grid=True,
                 scientific_x=True,
                 custom_title=f"Monte Carlo Distribution: {display_name} ({element.upper()})",
-                x_title=f"Value ({element.upper()}) [Mg]",
+                x_title=y_label(element.upper()),
                 y_title="Frequency",
             )
-            layout_config["height"] = 500
+            apply_theme(layout_config)
+            layout_config["xaxis"].pop("range", None)
+            layout_config["xaxis"]["tickformat"] = ","  # comma thousands, no scientific
             layout_config["showlegend"] = False
             fig_widget.update_layout(**layout_config)
 
@@ -178,11 +182,23 @@ def plot_interactive_mc_histogram(mc_results_df, mfa_system_results=None):
     stock_dropdown.observe(update_plot, names="value")
     element_dropdown.observe(update_plot, names="value")
 
+    export_btn = Button(description="Export PNG/SVG", button_style="success", icon="download", layout=Layout(width="160px"))
+
+    def _do_export(b):
+        try:
+            name = f"mc_histogram_{stock_dropdown.value}_{element_dropdown.value}".replace(" ", "_")
+            paths = export_figure(fig_widget, name, formats=["png", "svg"], quality="publication", size="large")
+            print(f"✅ Exported: {', '.join(paths)}")
+        except Exception as e:
+            print(f"❌ Export failed: {e}")
+
+    export_btn.on_click(_do_export)
+
     # Initial plot call
     update_plot(None)
 
     # Display layout
-    controls = HBox([stock_dropdown, element_dropdown])
+    controls = HBox([stock_dropdown, element_dropdown, export_btn])
     display(VBox([controls, fig_widget]))
 
 
@@ -255,17 +271,31 @@ def plot_interactive_tornado(mc_results_df):
                 x_title="Absolute Correlation",
                 y_title="Input Parameter",
             )
-            layout_config["height"] = 200 + len(param_vars) * 25
+            apply_theme(layout_config)
+            layout_config["xaxis"].pop("range", None)
+            layout_config["xaxis"]["tickformat"] = ","
+            layout_config["height"] = 200 + len(param_vars) * 25  # data-driven override
             layout_config["margin"]["l"] = 150  # Adjust left margin for long labels
             fig_widget.update_layout(**layout_config)
 
     # --- Link Widgets and Display ---
     output_dropdown.observe(update_plot, names="value")
-    # Export button click handler is automatically set by create_export_button
+
+    export_btn = Button(description="Export PNG/SVG", button_style="success", icon="download", layout=Layout(width="160px"))
+
+    def _do_export(b):
+        try:
+            name = f"mc_tornado_{output_dropdown.value}".replace(" ", "_")
+            paths = export_figure(fig_widget, name, formats=["png", "svg"], quality="publication", size="large")
+            print(f"✅ Exported: {', '.join(paths)}")
+        except Exception as e:
+            print(f"❌ Export failed: {e}")
+
+    export_btn.on_click(_do_export)
 
     update_plot(None)  # Initial plot
 
-    controls = HBox([output_dropdown])
+    controls = HBox([output_dropdown, export_btn])
     display(VBox([controls, fig_widget]))
 
 
@@ -367,6 +397,8 @@ def plot_interactive_mc_paths(mc_results_df, mfa_system_results=None):
         col_name = f"{stock_id}_{element}"
         element_color = get_element_color(element)
 
+        _sc, _unit = get_mass_display()
+
         with fig_widget.batch_update():
             fig_widget.data = []
             fig_widget.layout.annotations = []
@@ -388,6 +420,10 @@ def plot_interactive_mc_paths(mc_results_df, mfa_system_results=None):
             paths_data = []
             time_points = None
 
+            # Use real simulation years if available
+            if mfa_system_results and hasattr(mfa_system_results, "IndexTable"):
+                time_points = mfa_system_results.IndexTable.Classification["Time"].Items
+
             for i in range(len(mc_results_df)):
                 # Get the actual time series for this iteration
                 timeseries_data = mc_results_df[timeseries_col_name].iloc[i]
@@ -398,9 +434,9 @@ def plot_interactive_mc_paths(mc_results_df, mfa_system_results=None):
                 else:
                     path_values = timeseries_data
 
-                paths_data.append(path_values)
+                paths_data.append(path_values * _sc)
 
-                # Set time points from the first iteration (should be consistent)
+                # Fallback: use 0-based index if no system provided
                 if time_points is None:
                     time_points = np.arange(len(path_values))
 
@@ -502,24 +538,37 @@ def plot_interactive_mc_paths(mc_results_df, mfa_system_results=None):
                 size="large",
                 show_grid=True,
                 scientific_y=True,
-                custom_title=f"Monte Carlo Paths: {display_name} ({element.upper()}) - {len(paths_data)} Actual Simulations",
-                x_title="Time (Years)",
-                y_title=f"Value ({element.upper()}) [Mg]",
+                custom_title=f"Simulation Trajectories - {display_name} ({element.upper()})",
+                x_title="Year",
+                y_title=y_label(element.upper()),
             )
-            layout_config["height"] = 500
+            apply_theme(layout_config)
+            layout_config["xaxis"].pop("range", None)
+            layout_config["xaxis"]["tickformat"] = ","  # comma-formatted years e.g. 2,025
             layout_config["showlegend"] = True
             fig_widget.update_layout(**layout_config)
 
     # --- Link Widgets and Display ---
     stock_dropdown.observe(update_plot, names="value")
     element_dropdown.observe(update_plot, names="value")
-    # Export button click handler is automatically set by create_export_button
+
+    export_btn = Button(description="Export PNG/SVG", button_style="success", icon="download", layout=Layout(width="160px"))
+
+    def _do_export(b):
+        try:
+            name = f"mc_paths_{stock_dropdown.value}_{element_dropdown.value}".replace(" ", "_")
+            paths = export_figure(fig_widget, name, formats=["png", "svg"], quality="publication", size="large")
+            print(f"✅ Exported: {', '.join(paths)}")
+        except Exception as e:
+            print(f"❌ Export failed: {e}")
+
+    export_btn.on_click(_do_export)
 
     # Initial plot call
     update_plot(None)
 
     # Display layout
-    controls = HBox([stock_dropdown, element_dropdown])
+    controls = HBox([stock_dropdown, element_dropdown, export_btn])
     display(VBox([controls, fig_widget]))
 
 
@@ -594,8 +643,6 @@ def plot_interactive_mc_multiple_histograms(mc_results_df, mfa_system_results=No
     stock_display_names = [stock_id_to_display[sid] for sid in stock_ids]
 
     # --- Create Widgets ---
-    from ipywidgets import SelectMultiple, Dropdown, VBox, HBox, Label
-
     element_dropdown = Dropdown(options=elements, description="Element:")
     stock_multiselect = SelectMultiple(
         options=stock_display_names,
@@ -606,89 +653,87 @@ def plot_interactive_mc_multiple_histograms(mc_results_df, mfa_system_results=No
     )
     plot_container = VBox()  # Container for the histogram widgets
 
-    def create_single_histogram(stock_id, element, display_name):
-        """Factory function to create a single FigureWidget histogram."""
+    def render_histogram(out, stock_id, element, display_name):
+        """Render a single histogram into an Output widget."""
         col_name = f"{stock_id}_{element}"
-        if col_name not in mc_results_df.columns:
-            return None
+        with out:
+            clear_output(wait=True)
+            if col_name not in mc_results_df.columns:
+                print(f"No data for {col_name}")
+                return
 
-        data_series = mc_results_df[col_name]
-        mean_val, std_val = data_series.mean(), data_series.std()
-        element_color = get_element_color(element)
+            _sc, _unit = get_mass_display()
+            scaled_series = mc_results_df[col_name] * _sc
+            mean_val = scaled_series.mean()
+            std_val = scaled_series.std()
+            element_color = get_element_color(element)
 
-        # Use FigureWidget to make it compatible with the VBox container
-        fig = go.FigureWidget()
-
-        # Add histogram trace (frequency count)
-        fig.add_trace(
-            go.Histogram(
-                x=data_series,
+            fig = go.Figure()
+            fig.add_trace(go.Histogram(
+                x=scaled_series,
                 nbinsx=30,
                 name="Distribution",
                 marker_color=element_color,
                 opacity=0.8,
                 histnorm="",
+            ))
+            fig.add_shape(
+                type="line",
+                x0=mean_val, x1=mean_val,
+                y0=0, y1=1, yref="paper",
+                line=dict(color=BIOYM_COLORS["dark"], width=2, dash="dash"),
             )
-        )
+            fig.add_annotation(
+                x=mean_val, y=1.05, yref="paper",
+                text=f"Mean: {mean_val:.2f} {_unit}<br>Std: {std_val:.2f} {_unit}",
+                showarrow=False,
+                font=dict(color=BIOYM_COLORS["dark"], size=15),
+                bgcolor="rgba(255,255,255,0.8)",
+                bordercolor=BIOYM_COLORS["dark"],
+                borderwidth=1,
+            )
+            layout_config = get_publication_layout(
+                size="medium",
+                show_grid=True,
+                custom_title=f"MC Distribution — {display_name} ({element.upper()})",
+                x_title=y_label(element.upper()),
+                y_title="Frequency",
+            )
+            apply_theme(layout_config)
+            layout_config["xaxis"].pop("range", None)
+            layout_config["xaxis"]["tickformat"] = ","  # comma thousands, no scientific
+            layout_config["showlegend"] = False
+            fig.update_layout(**layout_config)
 
-        # Add vertical line for the mean
-        fig.add_shape(
-            type="line",
-            x0=mean_val,
-            x1=mean_val,
-            y0=0,
-            y1=1,
-            yref="paper",
-            line=dict(color=BIOYM_COLORS["dark"], width=2, dash="dash"),
-        )
+            export_btn = Button(description="Export PNG/SVG", button_style="success", icon="download", layout=Layout(width="160px"))
 
-        # Add annotation for mean and standard deviation
-        fig.add_annotation(
-            x=mean_val,
-            y=1.05,
-            yref="paper",
-            text=f"Mean: {mean_val:.2e}<br>Std: {std_val:.2e}",
-            showarrow=False,
-            font=dict(color=BIOYM_COLORS["dark"], size=15),
-            bgcolor="rgba(255, 255, 255, 0.8)",
-            bordercolor=BIOYM_COLORS["dark"],
-            borderwidth=1,
-        )
+            def _do_export(b, _fig=fig, _stock_id=stock_id, _element=element):
+                try:
+                    name = f"mc_histogram_{_stock_id}_{_element}".replace(" ", "_")
+                    paths = export_figure(_fig, name, formats=["png", "svg"], quality="publication", size="medium")
+                    print(f"✅ Exported: {', '.join(paths)}")
+                except Exception as e:
+                    print(f"❌ Export failed: {e}")
 
-        # Apply standardized publication layout
-        layout_config = get_publication_layout(
-            size="medium",
-            show_grid=True,
-            scientific_x=True,
-            custom_title=f"MC Distribution: {display_name} ({element.upper()})",
-            x_title=f"Value ({element.upper()}) [Mg]",
-            y_title="Frequency",
-        )
-        layout_config["height"] = 400
-        layout_config["showlegend"] = False
-        fig.update_layout(**layout_config)
-        return fig
+            export_btn.on_click(_do_export)
+            display(export_btn)
+            fig.show()
 
     def update_plots(change):
-        """Callback to regenerate plots when widget values change."""
+        """Rebuild Output widgets for each selected stock."""
         element = element_dropdown.value
         selected_display_names = stock_multiselect.value
+        display_to_stock_id = {v: k for k, v in stock_id_to_display.items()}
 
-        new_plots = []
-        if selected_display_names:
-            # Reverse mapping from display name back to stock_id
-            display_to_stock_id = {v: k for k, v in stock_id_to_display.items()}
-            for display_name in selected_display_names:
-                stock_id = display_to_stock_id.get(display_name)
-                if stock_id:
-                    fig = create_single_histogram(stock_id, element, display_name)
-                    if fig:
-                        new_plots.append(fig)
+        outputs = []
+        for display_name in selected_display_names:
+            stock_id = display_to_stock_id.get(display_name)
+            if stock_id:
+                out = Output()
+                render_histogram(out, stock_id, element, display_name)
+                outputs.append(out)
 
-        # CRITICAL FIX: Assign a tuple of widgets, not a list
-        plot_container.children = (
-            tuple(new_plots) if new_plots else (Label("No data for selection."),)
-        )
+        plot_container.children = tuple(outputs) if outputs else (Label("No data for selection."),)
 
     # --- Link Widgets and Display ---
     element_dropdown.observe(update_plots, names="value")
@@ -765,8 +810,6 @@ def plot_interactive_mc_stock_comparison(mc_results_df, mfa_system_results=None)
     stock_display_names = [stock_id_to_display[sid] for sid in stock_ids]
 
     # --- Create Widgets ---
-    from ipywidgets import SelectMultiple, Dropdown, VBox, HBox
-
     element_dropdown = Dropdown(options=elements, description="Element:")
     stock_multiselect = SelectMultiple(
         options=stock_display_names,
@@ -806,12 +849,13 @@ def plot_interactive_mc_stock_comparison(mc_results_df, mfa_system_results=None)
                     continue
 
                 data_series = mc_results_df[col_name]
+                _sc, _unit = get_mass_display()
                 color = color_cycle[i % len(color_cycle)]
 
                 # Add histogram trace with a fixed opacity for visibility
                 fig_widget.add_trace(
                     go.Histogram(
-                        x=data_series,
+                        x=data_series * _sc,
                         nbinsx=30,
                         name=display_name,
                         marker_color=color,
@@ -825,11 +869,13 @@ def plot_interactive_mc_stock_comparison(mc_results_df, mfa_system_results=None)
                 size="large",
                 show_grid=True,
                 scientific_x=True,
-                custom_title=f"Monte Carlo Stock Comparison: {element.upper()}",
-                x_title=f"Value ({element.upper()}) [Mg]",
+                custom_title=f"Stock Uncertainty Comparison - {element.upper()}",
+                x_title=y_label(element.upper()),
                 y_title="Frequency (Count)",
             )
-
+            apply_theme(layout_config)
+            layout_config["xaxis"].pop("range", None)
+            layout_config["xaxis"]["tickformat"] = ","  # comma thousands, no scientific
             # CRITICAL FIX: Set barmode to 'overlay' for comparison
             layout_config["barmode"] = "overlay"
             fig_widget.update_layout(**layout_config)
@@ -838,9 +884,21 @@ def plot_interactive_mc_stock_comparison(mc_results_df, mfa_system_results=None)
     element_dropdown.observe(update_plot, names="value")
     stock_multiselect.observe(update_plot, names="value")
 
+    export_btn = Button(description="Export PNG/SVG", button_style="success", icon="download", layout=Layout(width="160px"))
+
+    def _do_export(b):
+        try:
+            name = f"mc_stock_comparison_{element_dropdown.value}".replace(" ", "_")
+            paths = export_figure(fig_widget, name, formats=["png", "svg"], quality="publication", size="large")
+            print(f"✅ Exported: {', '.join(paths)}")
+        except Exception as e:
+            print(f"❌ Export failed: {e}")
+
+    export_btn.on_click(_do_export)
+
     # Initial plot call
     update_plot(None)
 
     # Display layout
-    controls = HBox([stock_multiselect, element_dropdown])
+    controls = HBox([stock_multiselect, element_dropdown, export_btn])
     display(VBox([controls, fig_widget]))

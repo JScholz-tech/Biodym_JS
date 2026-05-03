@@ -174,6 +174,13 @@ except ImportError as e:
 plt.style.use("default")
 print(f"{Icons.VISUALIZATION} Plotting environment ready")
 
+# ── Plot theme ───────────────────────────────────────────────────────────────
+# 'exploratory' → 1000×800 px, large fonts, titles visible, legend below (default)
+# 'jie'         → 672×432 px (7×4.5 in), 11 pt fonts, no title, legend below
+PLOT_THEME = "exploratory"
+plotting.set_theme(PLOT_THEME)
+print(f"{Icons.CONFIGURATION} Plot theme: '{PLOT_THEME}'")
+
 # Initialize Plotly widgets to prevent empty plot issues
 # This forces the widget communication channel to be established early
 print(f"{Icons.CONFIGURATION} Initializing interactive widget system...")
@@ -353,6 +360,17 @@ if config_obj.RUN_FOMP_CALCULATION:
     )
 else:
     fomp_params = {}
+lfg_params = data_loader.load_lfg_parameters(all_excel_data, debug_mode=DEBUG_MODE)
+
+# Filter fomp_params and lfg_params against process_logic_map so the Excel
+# Process_Logic column acts as the authoritative enable/disable switch.
+# (DSM is already filtered at load time inside load_dsm_parameters.)
+if process_logic_map:
+    fomp_params = {pid: p for pid, p in fomp_params.items()
+                   if process_logic_map.get(pid) == "FOMP"}
+    lfg_params  = {pid: p for pid, p in lfg_params.items()
+                   if process_logic_map.get(pid) == "LFG"}
+
 uncertainty_params = data_loader.load_uncertainty_definitions(
     all_excel_data, debug_mode=DEBUG_MODE
 )
@@ -360,14 +378,16 @@ uncertainty_params = data_loader.load_uncertainty_definitions(
 print(format_success("All parameters loaded and configured."))
 
 print(format_step(Icons.CALCULATION, "2.6", "Running baseline calculation..."))
-mfa_results_baseline, dsm_details_baseline = solver.run_mfa_calculation(
+mfa_results_baseline, dsm_details_baseline, solver_info_baseline = solver.run_mfa_calculation(
     mfa_system_configured,
     dsm_params,
     fomp_params,
     config_obj,
     flow_tc_map=flow_tc_map,
     process_logic_map=process_logic_map,
+    lfg_params=lfg_params,
 )
+fomp_details_baseline = solver_info_baseline.get("fomp_details", {})
 print(format_success("Baseline calculation completed successfully!"))
 
 # ## 2.2 Data Validation Summary
@@ -396,6 +416,7 @@ num_dynamic_tcs = sum(
 )
 num_dsm_processes = len(dsm_params) if dsm_params else 0
 num_fomp_processes = len(fomp_params) if fomp_params else 0
+num_lfg_processes = len(lfg_params) if lfg_params else 0
 
 # Display summary
 print("\n📊 Configuration & Scope")
@@ -420,6 +441,10 @@ if num_fomp_processes > 0:
     print(f"  ✅ FOMP Processes: {num_fomp_processes} configured")
 else:
     print(f"  ⚠️  FOMP Processes: None configured")
+if num_lfg_processes > 0:
+    print(f"  ✅ LFG Processes: {num_lfg_processes} configured")
+else:
+    print(f"     LFG Processes: None configured (optional)")
 
 # Check for warnings
 warnings_found = []
@@ -444,8 +469,21 @@ print()
 # ## 2.3 Mass Balance Verification
 
 print(format_header("MASS BALANCE VERIFICATION (BASELINE)", level=2))
-plotting.plot_total_mass_balance_error(mfa_results_baseline)
-plotting.plot_optimized_mass_balance_error(mfa_results_baseline)
+plotting.plot_total_mass_balance_error(
+    mfa_results_baseline,
+    dsm_params=dsm_params,
+    fomp_params=fomp_params,
+)
+plotting.plot_optimized_mass_balance_error(
+    mfa_results_baseline,
+    dsm_params=dsm_params,
+    fomp_params=fomp_params,
+)
+plotting.plot_dynamic_process_balance(
+    mfa_results_baseline,
+    dsm_params=dsm_params,
+    fomp_params=fomp_params,
+)
 
 # ## 2.4 System Flow Diagram (Graphviz)
 print(f"\n{Icons.ARROW} System Flow Diagram (Graphviz)")
@@ -484,6 +522,10 @@ export_flow_composition(mfa_results_baseline, export_path)
 # explore different elements, years, and processes. Use the export buttons to save figures.
 
 print(format_header("VISUALIZATION (BASELINE)"))
+_t = plotting.get_active_theme()
+print(f"  Theme '{PLOT_THEME}': {_t['width']}×{_t['height']}px | "
+      f"fonts {_t['font_tick']}pt | legend {'below' if _t['legend_below'] else 'inside'} | "
+      f"title {'hidden' if not _t['show_title'] else 'visible'}")
 
 # ## 3.1 Sankey Diagrams
 
@@ -540,6 +582,17 @@ if dsm_params and dsm_details_baseline:
         mfa_results_baseline, dsm_params, dsm_details_baseline
     )
 
+    print(f"\n{Icons.DSM} DSM Stock — Publication Figure:")
+    print("   • JIE-format stacked cohort areas, 10⁶ Mg y-scale, policy line 2075")
+    _dsm_pid = next(iter(dsm_params))
+    plotting.plot_dsm_stock_publication(
+        mfa_results_baseline,
+        dsm_details_baseline,
+        process_id=_dsm_pid,
+        element="material",
+        policy_year=2075,
+    )
+
     print(f"\n{Icons.MFA} DSM Process Dynamics Analysis:")
     print("   • Three-panel view: Input, Stock, Output")
     print("   • Stacked flows by element (Material, WC, DM, CC)")
@@ -557,16 +610,52 @@ if fomp_params:
     print("   • Annual vs cumulative flow analysis")
     plotting.plot_fomp_stock_details(mfa_results_baseline, fomp_params)
 
+    # FOMP Stock Comparison — all FOMP processes overlaid on one axes
+    if len(fomp_params) > 1:
+        print(f"\n{Icons.FOMP} FOMP Stock Comparison (all processes):")
+        print("   • TC stock trajectories of all FOMP processes on one figure")
+        plotting.plot_fomp_stock_comparison(
+            mfa_results_baseline,
+            fomp_params,
+            fomp_details=solver_info_baseline.get("fomp_details"),
+        )
+
+    # FOMP Pool Breakdown — labile vs recalcitrant stacked area per process
+    if fomp_details_baseline:
+        print(f"\n{Icons.FOMP} FOMP Pool Breakdown:")
+        print("   • Labile and recalcitrant pool stocks stacked over time")
+        print("   • Reveals relative size of fast vs slow-decaying carbon fractions")
+        plotting.plot_fomp_pool_breakdown(
+            mfa_results_baseline, fomp_params, fomp_details_baseline
+        )
+
     # FOMP Process Dynamics - Three-panel view of FOMP processes
     print(f"\n{Icons.MFA} FOMP Process Dynamics:")
     print(
-        "   • Three panels: Input Flows (DM), Stock Evolution (DM), Mineralization Output (DM)"
+        "   • Three panels: Input Flows (DM), Stock Evolution (DM), Carbon Emissions (DM)"
     )
     print("   • Decay rates displayed as percentages")
-    print("   • Water Content (WC) excluded from mineralization")
+    print("   • Water Content (WC) excluded from carbon emissions")
     plotting.plot_fomp_dynamics(mfa_results_baseline, fomp_params)
 else:
     print(f"   {Icons.INFO} No FOMP processes found - skipping FOMP analysis")
+
+# ### 3.2.3 Landfill Gas Analysis
+#
+# Gas production curves and stable carbon stock evolution for all LFG processes.
+# Skipped automatically when no LFG processes are configured.
+if lfg_params:
+    print(f"\n{Icons.LFG} Landfill Gas Analysis:")
+    print("   • CH4 and biogenic CO2 production over time (total)")
+    print("   • Stacked area chart: CH4 production by waste fraction")
+    print("   • IPCC DOC-based vs MFA TOC-based carbon accounting comparison")
+    print("   • Stable carbon stock evolution (residual organic C + ash)")
+    plotting.plot_lfg_gas_production(mfa_results_baseline, lfg_params)
+    plotting.plot_lfg_fraction_breakdown(mfa_results_baseline, lfg_params)
+    plotting.plot_lfg_ipcc_vs_mfa_comparison(mfa_results_baseline, lfg_params)
+    plotting.plot_lfg_stock_details(mfa_results_baseline, lfg_params)
+else:
+    print(f"   {Icons.INFO} No LFG processes found - skipping LFG analysis")
 
 
 # # 4. Scenario & Uncertainty Manager
@@ -858,5 +947,73 @@ utils.export_results_to_excel(
     mfa_results_baseline, output_file, input_file_path=input_file
 )
 print(format_success(f"Baseline results exported to: {output_file}"))
+
+# ## 5.2 Sankey Export
+#
+# Export the Sankey diagram in four formats for use in external tools.
+#
+# > **Element layers:** Each element (material, WC, DM, CC) produces a separate
+# > Sankey file — Sankey tools display one flow layer at a time. All elements are
+# > exported by default; restrict via `export_elements` in the config block below.
+#
+# | Format | Subfolder | Use with |
+# |--------|-----------|----------|
+# | `.html` | `sankey/html/` | Any browser — share interactively |
+# | `.json` | `sankey/json/` | Web developers, D3.js-based viewers |
+# | `.csv`  | `sankey/esankey/` | **e!Sankey** by ifu Hamburg — import via *Data → Import* |
+# | `.txt`  | `sankey/sankeymatic/` | **SankeyMATIC** — paste at sankeymatic.com |
+#
+# Files are named `sankey_{element}_{year}.ext` (e.g., `sankey_CC_2030.html`).
+
+from pathlib import Path
+from plotting.sankey import (
+    export_sankey_json,
+    export_sankey_html,
+    export_sankey_csv,
+    export_sankey_sankeymatic,
+)
+
+# ─── Sankey Export Configuration ─────────────────────────────────────────────
+export_years    = [int(mfa_results_baseline.Time_V[-1])]   # add more years: [2025, 2030]
+
+# All elements in the model (auto-detected) — or restrict: ["material", "CC"]
+all_elements    = list(mfa_results_baseline.IndexTable.Classification["Element"].Items)
+export_elements = all_elements
+
+min_flow        = 0.0   # omit flows below this absolute value (Mg)
+# ─────────────────────────────────────────────────────────────────────────────
+
+sankey_root = Path("01_data/02_output/sankey")
+
+for year in export_years:
+    for element in export_elements:
+        base = f"sankey_{element}_{year}"
+        print(f"\n{Icons.SANKEY} Exporting Sankey — {element} | {year}")
+
+        export_sankey_html(
+            mfa_results_baseline, year, element,
+            filepath=sankey_root / "html" / f"{base}.html",
+            dsm_params=dsm_details_baseline, fomp_params=None,
+            min_flow=min_flow,
+            title=f"BioDYM — {element} ({year})",
+        )
+        export_sankey_json(
+            mfa_results_baseline, year, element,
+            filepath=sankey_root / "json" / f"{base}.json",
+            dsm_params=dsm_details_baseline, fomp_params=None,
+            min_flow=min_flow,
+        )
+        export_sankey_csv(
+            mfa_results_baseline, year, element,
+            filepath=sankey_root / "esankey" / f"{base}.csv",
+            min_flow=min_flow,
+        )
+        export_sankey_sankeymatic(
+            mfa_results_baseline, year, element,
+            filepath=sankey_root / "sankeymatic" / f"{base}.txt",
+            min_flow=min_flow,
+        )
+
+print(f"\n{Icons.SUCCESS} All Sankey exports saved to: {sankey_root.resolve()}")
 
 print(format_header("ANALYSIS COMPLETE"))

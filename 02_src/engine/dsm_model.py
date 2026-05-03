@@ -15,25 +15,37 @@ from .element_utils import recalculate_hierarchical_elements
 def _calculate_outflow_from_inflows(total_inflow_values, params, time_vector):
     """Calculate the stock and outflow generated from new inflows for all categories.
 
+    Uses cohort-matrix vintage weighting: the DSM is run once per category on the
+    material inflow, producing cohort matrices s_c[t, t0] and o_c[t, t0]. A
+    composition matrix comp[t0, elem] captures the element fractions at each
+    installation year t0. Element-wise stock and outflow are then obtained by the
+    matrix product:
+
+        stock_cat  = s_c @ comp   # (T×T) @ (T×E) = (T×E)
+        outflow_cat = o_c @ comp
+
+    This ensures that a cohort installed in year t0 always carries the element
+    composition of year t0, regardless of when it retires.
+
     Parameters
     ----------
-    total_inflow_values : np.ndarray
-        A 2D array of total inflow values over time for all elements.
+    total_inflow_values : np.ndarray, shape (num_years, num_elements)
+        Total inflow values over time for all elements.
     params : dict
-        The DSM parameter configuration for the specific process.
+        DSM parameter configuration for the specific process.
     time_vector : np.ndarray
-        The array of years for the model run.
+        Array of years for the model run.
 
     Returns
     -------
     tuple
-        A tuple containing:
-        - stock_from_inflows_by_cat (list): List of stock arrays for each category.
-        - outflow_from_inflows_by_cat (list): List of outflow arrays for each category.
+        - stock_from_inflows_by_cat (list): List of (num_years, num_elements) arrays.
+        - outflow_from_inflows_by_cat (list): List of (num_years, num_elements) arrays.
     """
     outflow_from_inflows_by_cat = []
     stock_from_inflows_by_cat = []
     num_years = len(time_vector)
+    num_elements = total_inflow_values.shape[1]
 
     inflow_split = params.get("inflow_split", [1.0])
     lt_params = params.get("lifetimes", {})
@@ -44,8 +56,8 @@ def _calculate_outflow_from_inflows(total_inflow_values, params, time_vector):
         print(
             f"\n--- Processing Category {i + 1} ({params.get('category_names', [f'Category_{i + 1}'])[i]}) ---"
         )
-        inflow_category = total_inflow_values[:, 0] * inflow_split[i]
-        print(f"Inflow category {i + 1}: {inflow_category[:5]}... (first 5 years)")
+        inflow_material = total_inflow_values[:, 0] * inflow_split[i]
+        print(f"Inflow category {i + 1}: {inflow_material[:5]}... (first 5 years)")
 
         lifetime_type = lt_params.get("Type")
         lifetime_type = (
@@ -66,18 +78,35 @@ def _calculate_outflow_from_inflows(total_inflow_values, params, time_vector):
             "StdDev": np.array([std_devs[i]]),
         }
 
+        # Run DSM on material inflow — retain full cohort matrices (T×T)
         dsm_model_instance = dsm.DynamicStockModel(
-            t=time_vector, i=inflow_category, lt=lt_dict
+            t=time_vector, i=inflow_material, lt=lt_dict
         )
-        s_c = dsm_model_instance.compute_s_c_inflow_driven()
-        o_c = dsm_model_instance.compute_o_c_from_s_c()
+        s_c = dsm_model_instance.compute_s_c_inflow_driven()  # (T, T)
+        o_c = dsm_model_instance.compute_o_c_from_s_c()       # (T, T)
 
-        stock_from_inflows_by_cat.append(
-            s_c.sum(axis=1) if s_c is not None else np.zeros(num_years)
-        )
-        outflow_from_inflows_by_cat.append(
-            o_c.sum(axis=1) if o_c is not None else np.zeros(num_years)
-        )
+        # Build composition matrix comp[t0, elem] = element fraction at installation year t0
+        # Row t0 describes the composition of material entering in year t0.
+        # Forward-fill: if no inflow in year t0, use last known composition.
+        comp = np.zeros((num_years, num_elements))
+        comp[:, 0] = 1.0  # material fraction is always 1
+        for elem_idx in range(1, num_elements):
+            elem_inflow = total_inflow_values[:, elem_idx] * inflow_split[i]
+            frac = np.where(inflow_material > 0, elem_inflow / inflow_material, 0.0)
+            last = 0.0
+            for t0 in range(num_years):
+                if inflow_material[t0] > 0:
+                    last = frac[t0]
+                else:
+                    frac[t0] = last
+            comp[:, elem_idx] = frac
+
+        # Vintage-weighted element arrays via matrix multiply: (T,T) @ (T,E) = (T,E)
+        stock_cat = s_c @ comp if s_c is not None else np.zeros((num_years, num_elements))
+        outflow_cat = o_c @ comp if o_c is not None else np.zeros((num_years, num_elements))
+
+        stock_from_inflows_by_cat.append(stock_cat)
+        outflow_from_inflows_by_cat.append(outflow_cat)
 
     return stock_from_inflows_by_cat, outflow_from_inflows_by_cat
 
@@ -217,24 +246,17 @@ def _distribute_and_assign_outflows(
     outflow_from_inflows_by_cat,
     outflow_from_initial_stock_ts,
     params,
-    total_inflow_values,
-    initial_stock_vector,
     flow_tc_map,
 ):
     """Distributes and assigns all calculated outflows back to the MFA system.
 
-    This function combines the outflows generated from new inflows and from the
-    initial stock, splits them according to TCs (transfer coefficients), and updates
-    the corresponding flow objects in the main MFA system.
+    Outflow arrays from ``_calculate_outflow_from_inflows`` and from the initial
+    stock functions are already shaped (num_years, num_elements) with vintage-correct
+    element composition embedded. This function only needs to split them across
+    outflow flows according to the TC (transfer coefficient) values.
 
-    CRITICAL FIX: Composition preservation - outflows from initial stock maintain
-    their original element composition, while outflows from new inflows use the
-    composition of those inflows. This prevents "transmutation" of elements.
-
-    NEW: Uses standard TC system instead of DSM-specific output_splits. This enables:
-    - Dynamic (time-varying) output splits
-    - Unified configuration with other process types
-    - Monte Carlo uncertainty sampling of splits
+    Uses the standard TC system, enabling dynamic (time-varying) splits and
+    unified configuration with other process types.
 
     Parameters
     ----------
@@ -244,28 +266,27 @@ def _distribute_and_assign_outflows(
         The ID of the current DSM process.
     outflow_flows : list of odym.Flow
         The list of outflow flow objects for this process.
-    outflow_from_inflows_by_cat : list
-        List of outflow arrays for each category from new inflows.
-    outflow_from_initial_stock_ts : np.ndarray
-        Time series of the outflow from the initial stock (all elements).
+    outflow_from_inflows_by_cat : list of np.ndarray, each (num_years, num_elements)
+        Outflow arrays per category from new inflows.
+    outflow_from_initial_stock_ts : np.ndarray, shape (num_years, num_elements)
+        Time series of outflow from the initial stock.
     params : dict
-        The DSM parameter configuration for the process.
-    total_inflow_values : np.ndarray
-        A 2D array of total inflow values, used to calculate outflow composition.
-    initial_stock_vector : np.ndarray
-        1D array of initial stock values by element, used to preserve composition.
+        DSM parameter configuration for the process.
     flow_tc_map : dict
         Map from flow names to TC parameter names.
     """
-    # Get TCs for each outflow (replaces output_splits)
-    # Each outflow flow should have a TC defined in flow_tc_map
-    num_years = len(mfa_system.IndexTable.Classification["Time"].Items)
+    num_years, num_elements = outflow_from_initial_stock_ts.shape
+    elements = mfa_system.Elements
 
-    # Track material flows separately to preserve composition
-    final_outflows_from_inflows = [np.zeros(num_years) for _ in outflow_flows]
-    final_outflows_from_initial = [np.zeros(num_years) for _ in outflow_flows]
+    # Buffers: (num_years, num_elements) per outflow flow
+    final_outflows_from_inflows = [
+        np.zeros((num_years, num_elements)) for _ in outflow_flows
+    ]
+    final_outflows_from_initial = [
+        np.zeros((num_years, num_elements)) for _ in outflow_flows
+    ]
 
-    # Get TC values for each outflow
+    # --- TC lookup and normalization (material split drives all elements) ---
     tc_values = []
     for flow in outflow_flows:
         tc_ids = flow_tc_map.get(flow.Name, {})
@@ -273,114 +294,66 @@ def _distribute_and_assign_outflows(
 
         if tc_param_name and tc_param_name in mfa_system.ParameterDict:
             tc_value = mfa_system.ParameterDict[tc_param_name].Values
-            # Handle both scalar and array TCs
             if isinstance(tc_value, (int, float)):
-                tc_value = np.full(num_years, tc_value)
-            tc_values.append(tc_value)
+                tc_value = np.full(num_years, float(tc_value))
+            else:
+                tc_value = np.asarray(tc_value).reshape(-1)
         else:
-            # No TC defined - equal split among all flows
             print(f"  -> Warning: No TC defined for DSM outflow {flow.Name}, using equal split")
-            tc_values.append(np.full(num_years, 1.0 / len(outflow_flows)))
+            tc_value = np.full(num_years, 1.0 / max(len(outflow_flows), 1))
+        tc_values.append(tc_value)
 
-    # Normalize TCs at each time step (handles dynamic TCs that may sum > 1)
-    tc_array = np.array(tc_values)  # Shape: (num_flows, num_years)
-    tc_sums = tc_array.sum(axis=0)  # Sum across flows for each year
-
-    # Avoid division by zero
+    tc_array = np.vstack(tc_values)          # (num_flows, num_years)
+    tc_sums = tc_array.sum(axis=0)           # (num_years,)
     tc_sums = np.where(tc_sums == 0, 1.0, tc_sums)
-    normalized_tcs = tc_array / tc_sums  # Normalize each year
+    normalized_tcs = tc_array / tc_sums      # (num_flows, num_years)
 
-    # Distribute outflow from new inflows using normalized TCs
-    for cat_idx, cat_outflow in enumerate(outflow_from_inflows_by_cat):
+    # --- Distribute inflow-sourced outflows ---
+    for cat_outflow in outflow_from_inflows_by_cat:
         for flow_idx in range(len(outflow_flows)):
-            final_outflows_from_inflows[flow_idx] += cat_outflow * normalized_tcs[flow_idx]
+            # tc scalar broadcast over element dimension: (num_years,1)
+            final_outflows_from_inflows[flow_idx] += (
+                cat_outflow * normalized_tcs[flow_idx][:, None]
+            )
 
-    # Distribute outflow from initial stock using normalized TCs
-    outflow_from_initial_stock_material = outflow_from_initial_stock_ts[:, 0]
-    if np.sum(outflow_from_initial_stock_material) > 0:
+    # --- Distribute initial-stock outflows ---
+    if np.sum(outflow_from_initial_stock_ts[:, 0]) > 0:
         for flow_idx in range(len(outflow_flows)):
             final_outflows_from_initial[flow_idx] = (
-                outflow_from_initial_stock_material * normalized_tcs[flow_idx]
+                outflow_from_initial_stock_ts * normalized_tcs[flow_idx][:, None]
             )
 
-    # Assign final values to MFA system flows
-    num_elements = len(mfa_system.Elements)
-    elements = mfa_system.Elements
-
-    # Calculate element fractions for initial stock (preserve original composition)
-    initial_stock_fractions = np.zeros(num_elements)
-    if initial_stock_vector[0] > 0:
-        initial_stock_fractions = initial_stock_vector / initial_stock_vector[0]
-    else:
-        initial_stock_fractions[0] = 1.0  # Material fraction is always 1
-
+    # --- Assign to MFA system FlowDict ---
     for flow_idx, outflow_flow in enumerate(outflow_flows):
-        # Combine material flows
-        total_material_flow = (
+        mfa_system.FlowDict[outflow_flow.Name].Values[:, :] = (
             final_outflows_from_inflows[flow_idx] + final_outflows_from_initial[flow_idx]
         )
-        mfa_system.FlowDict[outflow_flow.Name].Values[:, 0] = total_material_flow
 
-        # Apply element composition separately for each source
-        # This prevents "transmutation" - each source maintains its composition
-        for elem_idx in range(1, num_elements):
-            # Calculate inflow composition with forward-fill
-            inflow_factor = np.divide(
-                total_inflow_values[:, elem_idx],
-                total_inflow_values[:, 0],
-                out=np.zeros(num_years),
-                where=total_inflow_values[:, 0] != 0,
-            )
-
-            # Forward-fill: Use last valid fraction when input is zero
-            last_valid_factor = 0.0
-            for t in range(num_years):
-                if total_inflow_values[t, 0] > 0:
-                    last_valid_factor = inflow_factor[t]
-                else:
-                    inflow_factor[t] = last_valid_factor
-
-            # Apply composition from inflows to inflow-sourced outflows
-            outflow_from_inflows_elem = (
-                final_outflows_from_inflows[flow_idx] * inflow_factor
-            )
-
-            # Apply original composition from initial stock to initial-stock-sourced outflows
-            outflow_from_initial_elem = (
-                final_outflows_from_initial[flow_idx] * initial_stock_fractions[elem_idx]
-            )
-
-            # Combine both sources
-            mfa_system.FlowDict[outflow_flow.Name].Values[:, elem_idx] = (
-                outflow_from_inflows_elem + outflow_from_initial_elem
-            )
-
-        # FIX: Recalculate hierarchical elements based on their parent
-        # This ensures CC stays proportional to DM even when both are declining
+        # Recalculate hierarchical elements (e.g. TC as fraction of DM)
         element_hierarchy = getattr(mfa_system, "_element_hierarchy", {})
         if element_hierarchy:
-            mfa_system.FlowDict[outflow_flow.Name].Values = (
-                recalculate_hierarchical_elements(
-                    mfa_system.FlowDict[outflow_flow.Name].Values,
-                    elements,
-                    element_hierarchy,
-                    mfa_system,
-                )
+            mfa_system.FlowDict[outflow_flow.Name].Values = recalculate_hierarchical_elements(
+                mfa_system.FlowDict[outflow_flow.Name].Values,
+                elements,
+                element_hierarchy,
+                mfa_system,
             )
 
     print("\n--- Final Results Summary ---")
-    total_outflow_from_inflows = np.sum(
-        [np.sum(o) for o in outflow_from_inflows_by_cat]
+    total_outflow_from_inflows = sum(
+        float(np.sum(o[:, 0])) for o in outflow_from_inflows_by_cat
     )
-    print(f"Total outflow from inflows: {total_outflow_from_inflows}")
+    print(f"Total outflow from inflows (material): {total_outflow_from_inflows:.2f}")
     print(
-        f"Total outflow from initial stock: {np.sum(outflow_from_initial_stock_material)}"
+        f"Total outflow from initial stock (material): {float(np.sum(outflow_from_initial_stock_ts[:, 0])):.2f}"
     )
-    total_material_combined = np.sum(
-        [np.sum(final_outflows_from_inflows[i] + final_outflows_from_initial[i])
-         for i in range(len(outflow_flows))]
+    total_assigned = sum(
+        float(np.sum(
+            (final_outflows_from_inflows[i] + final_outflows_from_initial[i])[:, 0]
+        ))
+        for i in range(len(outflow_flows))
     )
-    print(f"Total outflow material (combined): {total_material_combined}")
+    print(f"Total outflow assigned to flows (material): {total_assigned:.2f}")
 
 
 def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs=None, flow_tc_map=None):
@@ -510,39 +483,27 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
         outflow_from_inflows_by_cat,
         outflow_from_initial_stock_ts,
         params,
-        total_inflow_values,
-        initial_stock_vector,
         flow_tc_map,
     )
 
-    # Assign stock values back to MFA system
-    # Stock = sum of all category stocks + decaying initial stock
-    total_stock_ts = sum(stock_from_inflows_by_cat) + decaying_stock_ts[:, 0]
-    mfa_system.StockDict[f"S_{process_id}"].Values[:, 0] = total_stock_ts
-
-    # For other elements, use cumulative inflow-weighted composition ratio.
-    # This ensures the stock composition reflects the average of all historical
-    # inflows, and remains stable when inflow stops (instead of dropping to zero).
-    cum_inflow_material = np.cumsum(total_inflow_values[:, 0])
-    for elem_idx in range(1, num_elements):
-        cum_inflow_elem = np.cumsum(total_inflow_values[:, elem_idx])
-        elem_ratio = np.divide(
-            cum_inflow_elem,
-            cum_inflow_material,
-            out=np.zeros(num_years),
-            where=cum_inflow_material > 0,
+    # Assign stock values back to MFA system.
+    # stock_from_inflows_by_cat items are (num_years, num_elements) — vintage composition
+    # is already embedded via the cohort-matrix multiply in _calculate_outflow_from_inflows.
+    for elem_idx in range(num_elements):
+        elem_stock = (
+            sum(s[:, elem_idx] for s in stock_from_inflows_by_cat)
+            + decaying_stock_ts[:, elem_idx]
         )
-        elem_stock = sum(stock_from_inflows_by_cat) * elem_ratio
-        elem_stock += decaying_stock_ts[:, elem_idx]
         mfa_system.StockDict[f"S_{process_id}"].Values[:, elem_idx] = elem_stock
 
-    total_stock_from_inflows = sum([np.sum(s) for s in stock_from_inflows_by_cat])
-    print(f"Total stock accumulated from inflows: {total_stock_from_inflows}")
+    total_stock_from_inflows = float(sum(np.sum(s[:, 0]) for s in stock_from_inflows_by_cat))
+    print(f"Total stock accumulated from inflows (material): {total_stock_from_inflows:.2f}")
 
-    # Check for negative stocks in calculated results
+    # Check for negative stocks in calculated results (check material column only)
     has_negative_stock = False
     for cat_idx, stock_array in enumerate(stock_from_inflows_by_cat):
-        negative_indices = np.where(stock_array < 0)[0]
+        material_stock = stock_array[:, 0]
+        negative_indices = np.where(material_stock < 0)[0]
         if len(negative_indices) > 0:
             has_negative_stock = True
             cat_name = params.get("category_names", [f"Category_{cat_idx + 1}"])[
@@ -553,7 +514,7 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
             )
             print(f"      → {len(negative_indices)} time steps with negative values")
             print(
-                f"      → Min value: {stock_array.min():.6f} at year {time_vector[np.argmin(stock_array)]}"
+                f"      → Min value: {material_stock.min():.6f} at year {time_vector[np.argmin(material_stock)]}"
             )
             print(
                 "      → This may indicate issues with lifetime distribution or inflow data"

@@ -13,12 +13,16 @@ Date: 2025-11-04
 
 import numpy as np
 import plotly.graph_objects as go
-from ipywidgets import IntSlider, Dropdown, Button, HBox, Layout
+from plotly.subplots import make_subplots
+from ipywidgets import IntSlider, Dropdown, Button, HBox, VBox, Layout
 from IPython.display import display
 from typing import Optional
 
-from .publication_style_simplified import (
+from .themes import (
+    apply_theme,
     get_publication_layout,
+    get_mass_display,
+    y_label,
     BIOYM_COLORS,
 )
 from .dynamic_colors import ElementColorManager
@@ -29,6 +33,9 @@ def plot_optimized_mass_balance_error(
     mfa_system_results,
     color_manager: Optional[ElementColorManager] = None,
     enable_export: bool = True,
+    dsm_params=None,
+    fomp_params=None,
+    lfg_params=None,
 ):
     """Creates an interactive plot of mass balance errors for each process.
 
@@ -48,6 +55,15 @@ def plot_optimized_mass_balance_error(
     enable_export : bool, optional
         If True, adds an export button for saving publication-quality figures.
         Defaults to True.
+    dsm_params : dict, optional
+        DSM process parameters dict (keyed by process ID). When provided,
+        DSM processes are labelled [DSM] in the chart. Defaults to None.
+    fomp_params : dict, optional
+        FOMP process parameters dict (keyed by process ID). When provided,
+        FOMP processes are labelled [FOMP] in the chart. Defaults to None.
+    lfg_params : dict, optional
+        LFG process parameters dict (keyed by process ID). When provided,
+        LFG processes are labelled [LFG] in the chart. Defaults to None.
 
     Notes
     -----
@@ -61,12 +77,24 @@ def plot_optimized_mass_balance_error(
     >>> # Basic usage
     >>> plot_optimized_mass_balance_error(mfa_results)
 
-    >>> # With custom color scheme (color-blind friendly)
-    >>> color_mgr = ElementColorManager(elements, color_scheme='colorblind')
-    >>> plot_optimized_mass_balance_error(mfa_results, color_manager=color_mgr)
+    >>> # With dynamic process labels
+    >>> plot_optimized_mass_balance_error(
+    ...     mfa_results, dsm_params=dsm_params, fomp_params=fomp_params)
     """
     time_items = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = [e.lower() for e in mfa_system_results.Elements]
+
+    # Build dynamic process type map for labelling
+    dynamic_labels = {}
+    if dsm_params:
+        for pid in dsm_params:
+            dynamic_labels[pid] = "DSM"
+    if fomp_params:
+        for pid in fomp_params:
+            dynamic_labels[pid] = "FOMP"
+    if lfg_params:
+        for pid in lfg_params:
+            dynamic_labels[pid] = "LFG"
 
     # Create color manager if not provided
     if color_manager is None:
@@ -77,6 +105,7 @@ def plot_optimized_mass_balance_error(
     def update_plot(year, element):
         year_index = time_items.index(year)
         element_index = element_items.index(element.lower())
+        _sc, _unit = get_mass_display()
 
         # Pre-calculate flow sums for better performance
         inflow_sums = {}
@@ -97,6 +126,10 @@ def plot_optimized_mass_balance_error(
 
         errors = []
         process_labels = []
+        bar_colors = []
+        element_color = color_manager.get_element_color(element.lower())
+        dynamic_color = BIOYM_COLORS["accent"]  # Orange for dynamic processes
+
         for p in mfa_system_results.ProcessList:
             in_val = inflow_sums.get(p.ID, 0)
             out_val = outflow_sums.get(p.ID, 0)
@@ -115,28 +148,32 @@ def plot_optimized_mass_balance_error(
             # Calculate error
             error = in_val - out_val - ds_sum
 
-            # Exclude Input/Output processes from error calculation
-            # (they are system boundaries, not mass-conserving processes)
+            # Build label: boundary processes get *, dynamic processes get [type]
+            dyn_type = dynamic_labels.get(p.ID, "")
             if is_input_process or is_output_process:
-                errors.append(0)  # Set error to zero for display
-                process_labels.append(f"{p.Name}*")  # Mark with asterisk
+                errors.append(0)
+                process_labels.append(f"{p.Name}*")
+                bar_colors.append(BIOYM_COLORS["neutral"])
+            elif dyn_type:
+                errors.append(error)
+                process_labels.append(f"{p.Name} [{dyn_type}]")
+                bar_colors.append(dynamic_color)
             else:
                 errors.append(error)
                 process_labels.append(p.Name)
+                bar_colors.append(element_color)
 
-        # Use dynamic element color for all bars
-        element_color = color_manager.get_element_color(element.lower())
-        colors = [element_color] * len(errors)
+        scaled_errors = [e * _sc for e in errors]
 
         with fig.batch_update():
             fig.data = []  # Clear previous data
             fig.add_trace(
                 go.Bar(
                     x=process_labels,
-                    y=errors,
-                    marker_color=colors,
+                    y=scaled_errors,
+                    marker_color=bar_colors,
                     marker_line=dict(color=BIOYM_COLORS["dark"], width=1),
-                    hovertemplate="<b>%{x}</b><br>Error: %{y:.2e} Mg<extra></extra>",
+                    hovertemplate=f"<b>%{{x}}</b><br>Error: %{{y:.2e}} {_unit}<extra></extra>",
                 )
             )
 
@@ -147,8 +184,10 @@ def plot_optimized_mass_balance_error(
                 scientific_y=True,
                 custom_title=f"Mass Balance Error: {element.upper()} ({year})",
                 x_title="Process",
-                y_title="Mass Balance Error (Mg)",
+                y_title=y_label(element.upper()),
             )
+            apply_theme(layout_config)
+            layout_config["xaxis"].pop("range", None)  # categorical axis, not time-series
             layout_config["xaxis"]["tickangle"] = -45
             layout_config["shapes"] = [
                 dict(
@@ -160,10 +199,12 @@ def plot_optimized_mass_balance_error(
                     line=dict(color=BIOYM_COLORS["dark"], width=2, dash="dash"),
                 )
             ]
-            # Add annotation about Input/Output processes
+            _footer = "* system boundaries — excluded from error calculation"
+            if dynamic_labels:
+                _footer += "  |  [DSM]/[FOMP]/[LFG] — dynamic stock processes"
             layout_config["annotations"] = [
                 dict(
-                    text="* Input/Output processes (system boundaries) - excluded from error calculation",
+                    text=_footer,
                     xref="paper",
                     yref="paper",
                     x=0.5,
@@ -247,6 +288,9 @@ def plot_total_mass_balance_error(
     color_manager: Optional[ElementColorManager] = None,
     enable_export: bool = True,
     export_filename: str = "mass_balance_total",
+    dsm_params=None,
+    fomp_params=None,
+    lfg_params=None,
 ):
     """Creates a static bar chart showing the sum of absolute mass balance errors.
 
@@ -270,6 +314,15 @@ def plot_total_mass_balance_error(
     export_filename : str, optional
         Base filename for exported figure (without extension).
         Defaults to "mass_balance_total".
+    dsm_params : dict, optional
+        DSM process parameters dict (keyed by process ID). When provided,
+        DSM processes are labelled [DSM] in the chart. Defaults to None.
+    fomp_params : dict, optional
+        FOMP process parameters dict (keyed by process ID). When provided,
+        FOMP processes are labelled [FOMP] in the chart. Defaults to None.
+    lfg_params : dict, optional
+        LFG process parameters dict (keyed by process ID). When provided,
+        LFG processes are labelled [LFG] in the chart. Defaults to None.
 
     Returns
     -------
@@ -287,19 +340,27 @@ def plot_total_mass_balance_error(
     >>> # Basic usage
     >>> fig = plot_total_mass_balance_error(mfa_results)
 
-    >>> # With color-blind friendly colors
-    >>> color_mgr = ElementColorManager(elements, color_scheme='colorblind')
-    >>> fig = plot_total_mass_balance_error(mfa_results, color_manager=color_mgr)
-
-    >>> # Custom export
-    >>> fig = plot_total_mass_balance_error(mfa_results,
-    ...                                      export_filename="baseline_validation")
+    >>> # With dynamic process labels
+    >>> fig = plot_total_mass_balance_error(
+    ...     mfa_results, dsm_params=dsm_params, fomp_params=fomp_params)
     """
     process_names = [p.Name for p in mfa_system_results.ProcessList]
     element_items = [e.lower() for e in mfa_system_results.Elements]
     num_processes = len(process_names)
     num_elements = len(element_items)
     num_years = len(mfa_system_results.IndexTable.Classification["Time"].Items)
+
+    # Build dynamic process type map for labelling
+    dynamic_labels = {}
+    if dsm_params:
+        for pid in dsm_params:
+            dynamic_labels[pid] = "DSM"
+    if fomp_params:
+        for pid in fomp_params:
+            dynamic_labels[pid] = "FOMP"
+    if lfg_params:
+        for pid in lfg_params:
+            dynamic_labels[pid] = "LFG"
 
     # Create color manager if not provided
     if color_manager is None:
@@ -341,9 +402,12 @@ def plot_total_mass_balance_error(
             (avg_inflow > 0) and (avg_outflow == 0) and (abs(avg_ds) < 1e-10)
         )
 
-        # Add label with marker for Input/Output processes
+        # Add label: boundary processes get *, dynamic processes get [type]
+        dyn_type = dynamic_labels.get(p.ID, "")
         if is_input_process or is_output_process:
             process_labels.append(f"{p.Name}*")
+        elif dyn_type:
+            process_labels.append(f"{p.Name} [{dyn_type}]")
         else:
             process_labels.append(p.Name)
 
@@ -357,6 +421,7 @@ def plot_total_mass_balance_error(
                 )
             total_errors[element].append(total_error_for_element)
 
+    _sc, _unit = get_mass_display()
     fig = go.Figure()
 
     # Use dynamic element colors for consistency
@@ -367,10 +432,10 @@ def plot_total_mass_balance_error(
             go.Bar(
                 name=element.upper(),
                 x=process_labels,
-                y=errors,
+                y=[e * _sc for e in errors],
                 marker_color=element_color,
                 marker_line=dict(color=BIOYM_COLORS["dark"], width=1),
-                hovertemplate=f"<b>%{{x}}</b><br>{element.upper()}: %{{y:.2e}} Mg<extra></extra>",
+                hovertemplate=f"<b>%{{x}}</b><br>{element.upper()}: %{{y:.2e}} {_unit}<extra></extra>",
             )
         )
 
@@ -381,8 +446,10 @@ def plot_total_mass_balance_error(
         scientific_y=True,
         custom_title="Total Absolute Mass Balance Error (All Years)",
         x_title="Process",
-        y_title="Sum of Absolute Errors (Mg)",
+        y_title=y_label("Material"),
     )
+    apply_theme(layout_config)
+    layout_config["xaxis"].pop("range", None)  # categorical axis, not time-series
     layout_config["barmode"] = "stack"
     layout_config["legend"] = {
         "title": {"text": "Element", "font": {"size": 16}},
@@ -398,10 +465,12 @@ def plot_total_mass_balance_error(
     }
     layout_config["xaxis"]["tickangle"] = -60
     layout_config["margin"] = dict(l=100, r=50, t=100, b=200)
-    # Add annotation about Input/Output processes
+    _footer = "* system boundaries — excluded from error calculation"
+    if dynamic_labels:
+        _footer += "  |  [DSM]/[FOMP]/[LFG] — dynamic stock processes"
     layout_config["annotations"] = [
         dict(
-            text="* Input/Output processes (system boundaries) - excluded from error calculation",
+            text=_footer,
             xref="paper",
             yref="paper",
             x=0.5,
@@ -433,3 +502,212 @@ def plot_total_mass_balance_error(
             print(f"\n⚠️ Export failed: {e}")
 
     return fig
+
+
+def plot_dynamic_process_balance(
+    mfa_system_results,
+    dsm_params=None,
+    fomp_params=None,
+    lfg_params=None,
+    color_manager: Optional[ElementColorManager] = None,
+    enable_export: bool = True,
+):
+    """Time-series mass balance validation for dynamic stock processes (DSM/FOMP/LFG).
+
+    Displays two panels per selected process and element:
+
+    - **Top panel**: Inflow, ΔStock, and Outflow as line traces over time.
+    - **Bottom panel**: Residual = Inflow − ΔStock − Outflow (should be ≈ 0 every year).
+
+    A non-zero residual indicates a mass balance violation in the model, making
+    regression detection easy. After the FOMP stock-doubling fix, all dynamic
+    processes should show residuals at floating-point precision (< 1e-10).
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object.
+    dsm_params : dict, optional
+        DSM process parameters dict (keyed by process ID). Defaults to None.
+    fomp_params : dict, optional
+        FOMP process parameters dict (keyed by process ID). Defaults to None.
+    lfg_params : dict, optional
+        LFG process parameters dict (keyed by process ID). Defaults to None.
+    color_manager : ElementColorManager, optional
+        Dynamic color manager for element colors. Defaults to None.
+    enable_export : bool, optional
+        If True, adds an export button. Defaults to True.
+
+    Notes
+    -----
+    If no params dicts are provided the function will show all processes that
+    have a StockDict entry, which may include regular MFA processes.
+    Pass at least one params dict to restrict the dropdown to dynamic processes.
+    """
+    time_items = list(mfa_system_results.IndexTable.Classification["Time"].Items)
+    element_items = mfa_system_results.Elements
+
+    # Build process options: prefer known dynamic processes; fall back to all stocked
+    process_options = {}
+    type_map = {}
+    if dsm_params:
+        for pid in dsm_params:
+            type_map[pid] = "DSM"
+    if fomp_params:
+        for pid in fomp_params:
+            type_map[pid] = "FOMP"
+    if lfg_params:
+        for pid in lfg_params:
+            type_map[pid] = "LFG"
+
+    for p in mfa_system_results.ProcessList:
+        if p.ID == 0:
+            continue
+        if type_map:
+            if p.ID in type_map:
+                label = f"{p.Name} [{type_map[p.ID]}]"
+                process_options[label] = p.ID
+        else:
+            # Fallback: show all processes with a stock
+            if f"S_{p.ID}" in mfa_system_results.StockDict:
+                process_options[p.Name] = p.ID
+
+    if not process_options:
+        print("No dynamic processes found. Pass dsm_params, fomp_params, or lfg_params.")
+        return
+
+    if color_manager is None:
+        color_manager = ElementColorManager([e.lower() for e in element_items])
+
+    # Colours for the four traces
+    _c_inflow  = BIOYM_COLORS["primary"]   # blue
+    _c_ds      = BIOYM_COLORS["accent"]    # orange
+    _c_outflow = BIOYM_COLORS["secondary"] # pink
+    _c_resid   = BIOYM_COLORS["neutral"]   # grey
+
+    fig = go.FigureWidget(
+        make_subplots(
+            rows=2, cols=1,
+            row_heights=[0.7, 0.3],
+            shared_xaxes=True,
+            subplot_titles=("Inflow / ΔStock / Outflow", "Mass Balance Error (Inflow − ΔStock − Outflow)"),
+            vertical_spacing=0.08,
+        )
+    )
+
+    def update_plot(process_label, element):
+        pid = process_options[process_label]
+        elem_idx = element_items.index(element)
+        _sc, _unit = get_mass_display()
+
+        inflow_ts = np.zeros(len(time_items))
+        outflow_ts = np.zeros(len(time_items))
+        for f in mfa_system_results.FlowDict.values():
+            if f.P_End == pid:
+                inflow_ts += f.Values[:, elem_idx]
+            if f.P_Start == pid:
+                outflow_ts += f.Values[:, elem_idx]
+
+        ds_obj = mfa_system_results.StockDict.get(f"dS_{pid}")
+        ds_ts = ds_obj.Values[:, elem_idx] if ds_obj is not None else np.zeros(len(time_items))
+
+        residual = inflow_ts - ds_ts - outflow_ts
+
+        with fig.batch_update():
+            fig.data = []
+            # Top panel
+            fig.add_trace(go.Scatter(
+                x=time_items, y=inflow_ts * _sc,
+                name="Inflow", mode="lines",
+                line=dict(color=_c_inflow, width=2),
+                hovertemplate=f"Inflow: %{{y:.4f}} {_unit}<extra></extra>",
+            ), row=1, col=1)
+            fig.add_trace(go.Scatter(
+                x=time_items, y=ds_ts * _sc,
+                name="ΔStock", mode="lines",
+                line=dict(color=_c_ds, width=2, dash="dash"),
+                hovertemplate=f"ΔStock: %{{y:.4f}} {_unit}<extra></extra>",
+            ), row=1, col=1)
+            fig.add_trace(go.Scatter(
+                x=time_items, y=outflow_ts * _sc,
+                name="Outflow", mode="lines",
+                line=dict(color=_c_outflow, width=2, dash="dot"),
+                hovertemplate=f"Outflow: %{{y:.4f}} {_unit}<extra></extra>",
+            ), row=1, col=1)
+            # Bottom panel — residual
+            fig.add_trace(go.Scatter(
+                x=time_items, y=residual * _sc,
+                name="Mass Balance Error", mode="lines",
+                line=dict(color=_c_resid, width=1.5),
+                fill="tozeroy",
+                fillcolor="rgba(108,117,125,0.15)",
+                hovertemplate=f"Mass Balance Error: %{{y:.2e}} {_unit}<extra></extra>",
+            ), row=2, col=1)
+
+            layout_config = get_publication_layout(
+                size="large",
+                show_grid=True,
+                scientific_y=False,
+                custom_title=f"Dynamic Process Balance — {process_label} ({element.upper()})",
+                x_title="Year",
+                y_title=y_label(element.upper()),
+            )
+            apply_theme(layout_config)
+            layout_config["xaxis2"] = {"title": "Year"}
+            layout_config["yaxis2"] = {
+                "title": f"Mass Balance Error ({_unit})",
+                "tickformat": ",",
+                "zeroline": True,
+                "zerolinecolor": BIOYM_COLORS["dark"],
+                "zerolinewidth": 2,
+            }
+            layout_config["showlegend"] = True
+            fig.update_layout(**layout_config)
+
+    # Widgets
+    process_dropdown = Dropdown(
+        options=list(process_options.keys()),
+        value=list(process_options.keys())[0],
+        description="Process:",
+        style={"description_width": "70px"},
+        layout=Layout(width="320px"),
+    )
+    element_dropdown = Dropdown(
+        options=element_items,
+        value=element_items[0],
+        description="Element:",
+        style={"description_width": "70px"},
+        layout=Layout(width="200px"),
+    )
+
+    def _on_change(change):
+        update_plot(process_dropdown.value, element_dropdown.value)
+
+    process_dropdown.observe(_on_change, "value")
+    element_dropdown.observe(_on_change, "value")
+
+    controls = [process_dropdown, element_dropdown]
+
+    if enable_export:
+        export_btn = Button(
+            description="Export PNG/SVG",
+            button_style="success",
+            icon="download",
+            layout=Layout(width="160px"),
+        )
+
+        def _do_export(b):
+            try:
+                proc_safe = process_dropdown.value.replace(" ", "_").replace("[", "").replace("]", "")
+                name = f"dynamic_process_balance_{proc_safe}_{element_dropdown.value}"
+                paths = export_figure(fig, name, formats=["png", "svg"], quality="publication", size="large")
+                print(f"✅ Exported: {', '.join(paths)}")
+            except Exception as e:
+                print(f"❌ Export failed: {e}")
+
+        export_btn.on_click(_do_export)
+        controls.append(export_btn)
+
+    display(HBox(controls))
+    display(fig)
+    update_plot(process_dropdown.value, element_dropdown.value)

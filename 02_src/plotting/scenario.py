@@ -8,13 +8,17 @@ Uses publication standards with shiny colors and standardized export.
 
 import numpy as np
 import plotly.graph_objects as go
-from ipywidgets import Dropdown, VBox, SelectMultiple, HTML, HBox
+from ipywidgets import Button, Dropdown, HBox, HTML, Output, SelectMultiple, VBox
 from IPython.display import display
 
-from .publication_style_simplified import (
+from .export_publication import export_figure
+from .themes import (
+    apply_theme,
     get_publication_layout,
     get_element_color,
     create_color_sequence,
+    get_mass_display,
+    y_label,
     FONT_SIZE,
 )
 
@@ -148,14 +152,16 @@ def plot_multi_scenario_comparison(
             scenarios_to_plot = ["Baseline"] + list(selected_scenarios)
             values = []
 
+            _sc, _unit = get_mass_display()
+
             # Get baseline value
             if metric == "Final Stock":
                 values.append(
-                    baseline_results.StockDict[item].Values[-1, element_index]
+                    baseline_results.StockDict[item].Values[-1, element_index] * _sc
                 )
             else:  # Total Flow
                 values.append(
-                    np.sum(baseline_results.FlowDict[item].Values[:, element_index])
+                    np.sum(baseline_results.FlowDict[item].Values[:, element_index]) * _sc
                 )
 
             # Get scenario values
@@ -174,7 +180,7 @@ def plot_multi_scenario_comparison(
                                     )
                                 },
                             ),
-                        ).Values[-1, element_index]
+                        ).Values[-1, element_index] * _sc
                     )
                 else:  # Total Flow
                     values.append(
@@ -191,7 +197,7 @@ def plot_multi_scenario_comparison(
                                     },
                                 ),
                             ).Values[:, element_index]
-                        )
+                        ) * _sc
                     )
 
             # Get meaningful item name for title
@@ -234,9 +240,10 @@ def plot_multi_scenario_comparison(
                 show_grid=True,
                 scientific_y=True,
                 custom_title=f"{metric} Comparison: {item_display_name} ({element.upper()})",
-                y_title=f"Value ({element.upper()}) [Mg]",
+                y_title=y_label(element.upper()),
             )
-            layout_config["height"] = 500
+            apply_theme(layout_config)
+            layout_config["xaxis"].pop("range", None)  # categorical axis, not time-series
             layout_config["showlegend"] = False
             fig.update_layout(**layout_config)
 
@@ -264,12 +271,28 @@ def plot_multi_scenario_comparison(
     element_dropdown.observe(lambda change: update_plot(), names="value")
     chart_type_dropdown.observe(lambda change: update_plot(), names="value")
     scenario_selector.observe(lambda change: update_plot(), names="value")
-    # Export button click handler is automatically set by create_export_button
 
     # Initial plot call
     update_plot()
 
-    # Display layout
+    export_out = Output()
+    export_btn = Button(description="Export Plot", button_style="info", layout={"width": "140px"})
+
+    def _export(b):
+        export_out.clear_output()
+        try:
+            paths = export_figure(
+                fig, "scenario_comparison",
+                formats=["png", "svg"], quality="publication", size="large", timestamp=False,
+            )
+            with export_out:
+                print(f"✅ Exported: {', '.join(paths)}")
+        except Exception as e:
+            with export_out:
+                print(f"❌ Export failed: {e}")
+
+    export_btn.on_click(_export)
+
     controls = HBox(
         [
             metric_dropdown,
@@ -279,7 +302,7 @@ def plot_multi_scenario_comparison(
             scenario_selector,
         ]
     )
-    display(VBox([controls, fig, parameter_display]))
+    display(VBox([controls, fig, parameter_display, export_btn, export_out]))
 
 
 def plot_scenario_flow_dynamics(
@@ -329,6 +352,7 @@ def plot_scenario_flow_dynamics(
             if element not in elements:
                 return
             element_index = elements.index(element)
+            _sc, _unit = get_mass_display()
 
             # Color per flow, dash per scenario
             flow_colors = create_color_sequence(len(selected_flows), palette="primary")
@@ -344,12 +368,12 @@ def plot_scenario_flow_dynamics(
                 for j, scenario_label in enumerate(scenarios_with_baseline):
                     dash = _SCENARIO_DASHES[j % len(_SCENARIO_DASHES)]
                     if scenario_label == "Baseline":
-                        values = flow_obj.Values[:, element_index]
+                        values = flow_obj.Values[:, element_index] * _sc
                     else:
                         sc_flow = all_scenario_results[scenario_label].FlowDict.get(flow_id)
                         if sc_flow is None:
                             continue
-                        values = sc_flow.Values[:, element_index]
+                        values = sc_flow.Values[:, element_index] * _sc
 
                     # Show legend only for first scenario per flow (avoid duplicates)
                     show_legend = (j == 0)
@@ -364,7 +388,7 @@ def plot_scenario_flow_dynamics(
                             line=dict(color=color, width=2, dash=dash),
                             hovertemplate=(
                                 f"<b>{display_name}</b> ({scenario_label})<br>"
-                                "Year: %{x}<br>Value: %{y:.2e} Mg<extra></extra>"
+                                f"Year: %{{x}}<br>Value: %{{y:.3f}} {_unit}<extra></extra>"
                             ),
                         )
                     )
@@ -386,13 +410,11 @@ def plot_scenario_flow_dynamics(
                 size="large",
                 show_grid=True,
                 scientific_y=True,
-                custom_title=f"Scenario Flow Dynamics: {element.upper()} Over Time",
-                x_title="Time (Years)",
-                y_title=f"Flow ({element.upper()}) [Mg]",
+                custom_title=f"Annual Flows by Scenario - {element.upper()}",
+                x_title="Year",
+                y_title=y_label(element.upper(), rate=True),
             )
-            layout_config["height"] = 600
-            layout_config["margin"] = {"t": 80, "b": 120, "l": 80, "r": 20}
-            layout_config["legend"] = _publication_legend()
+            apply_theme(layout_config)
             fig.update_layout(**layout_config)
 
     def update_plot():
@@ -405,8 +427,27 @@ def plot_scenario_flow_dynamics(
     scenario_selector.observe(lambda change: update_plot(), names="value")
 
     update_plot()
+
+    export_out = Output()
+    export_btn = Button(description="Export Plot", button_style="info", layout={"width": "140px"})
+
+    def _export(b):
+        export_out.clear_output()
+        try:
+            paths = export_figure(
+                fig, f"scenario_flow_dynamics_{element_dropdown.value}",
+                formats=["png", "svg"], quality="publication", size="large", timestamp=False,
+            )
+            with export_out:
+                print(f"✅ Exported: {', '.join(paths)}")
+        except Exception as e:
+            with export_out:
+                print(f"❌ Export failed: {e}")
+
+    export_btn.on_click(_export)
+
     controls = HBox([flow_selector, element_dropdown, scenario_selector])
-    display(VBox([controls, fig]))
+    display(VBox([controls, fig, export_btn, export_out]))
 
 
 def plot_scenario_stock_dynamics(
@@ -455,6 +496,7 @@ def plot_scenario_stock_dynamics(
             if element not in elements:
                 return
             element_index = elements.index(element)
+            _sc, _unit = get_mass_display()
 
             stock_colors = create_color_sequence(len(selected_stocks), palette="primary")
             scenarios_with_baseline = ["Baseline"] + list(selected_scenarios)
@@ -469,12 +511,12 @@ def plot_scenario_stock_dynamics(
                 for j, scenario_label in enumerate(scenarios_with_baseline):
                     dash = _SCENARIO_DASHES[j % len(_SCENARIO_DASHES)]
                     if scenario_label == "Baseline":
-                        values = stock_obj.Values[:, element_index]
+                        values = stock_obj.Values[:, element_index] * _sc
                     else:
                         sc_stock = all_scenario_results[scenario_label].StockDict.get(stock_id)
                         if sc_stock is None:
                             continue
-                        values = sc_stock.Values[:, element_index]
+                        values = sc_stock.Values[:, element_index] * _sc
 
                     show_legend = (j == 0)
                     fig.add_trace(
@@ -488,7 +530,7 @@ def plot_scenario_stock_dynamics(
                             line=dict(color=color, width=2, dash=dash),
                             hovertemplate=(
                                 f"<b>{display_name}</b> ({scenario_label})<br>"
-                                "Year: %{x}<br>Value: %{y:.2e} Mg<extra></extra>"
+                                f"Year: %{{x}}<br>Value: %{{y:.3f}} {_unit}<extra></extra>"
                             ),
                         )
                     )
@@ -510,13 +552,11 @@ def plot_scenario_stock_dynamics(
                 size="large",
                 show_grid=True,
                 scientific_y=True,
-                custom_title=f"Scenario Stock Dynamics: {element.upper()} Over Time",
-                x_title="Time (Years)",
-                y_title=f"Stock ({element.upper()}) [Mg]",
+                custom_title=f"Stock Trajectories by Scenario - {element.upper()}",
+                x_title="Year",
+                y_title=y_label(element.upper()),
             )
-            layout_config["height"] = 600
-            layout_config["margin"] = {"t": 80, "b": 120, "l": 80, "r": 20}
-            layout_config["legend"] = _publication_legend()
+            apply_theme(layout_config)
             fig.update_layout(**layout_config)
 
     def update_plot():
@@ -529,5 +569,24 @@ def plot_scenario_stock_dynamics(
     scenario_selector.observe(lambda change: update_plot(), names="value")
 
     update_plot()
+
+    export_out = Output()
+    export_btn = Button(description="Export Plot", button_style="info", layout={"width": "140px"})
+
+    def _export(b):
+        export_out.clear_output()
+        try:
+            paths = export_figure(
+                fig, f"scenario_stock_dynamics_{element_dropdown.value}",
+                formats=["png", "svg"], quality="publication", size="large", timestamp=False,
+            )
+            with export_out:
+                print(f"✅ Exported: {', '.join(paths)}")
+        except Exception as e:
+            with export_out:
+                print(f"❌ Export failed: {e}")
+
+    export_btn.on_click(_export)
+
     controls = HBox([stock_selector, element_dropdown, scenario_selector])
-    display(VBox([controls, fig]))
+    display(VBox([controls, fig, export_btn, export_out]))

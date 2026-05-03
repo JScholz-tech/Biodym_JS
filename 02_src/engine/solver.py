@@ -15,6 +15,7 @@ import copy
 # Import other engine components
 from . import dsm_model
 from . import fomp_model
+from . import lfg_model
 from .element_utils import recalculate_hierarchical_elements
 
 
@@ -82,9 +83,11 @@ def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None
     iterative solver has converged. It correctly respects any initial stocks
     set during the system setup.
 
-    NOTE: DSM processes already have their stocks fully calculated by the DSM model,
-    so they are skipped to avoid double-counting. FOMP processes DO need stock
-    calculation here (they only calculate flows, not stocks).
+    NOTE: DSM and FOMP processes already have their stocks fully calculated by their
+    respective models, so they are skipped to avoid double-counting. Without this skip,
+    the solver would treat the FOMP-written year-1 stock as an "initial stock offset"
+    and add it again via cumsum(dS), causing a phantom doubling in year 1 and a
+    persistent offset in all subsequent years.
 
     Parameters
     ----------
@@ -93,7 +96,7 @@ def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None
     dsm_processes : set, optional
         Set of process IDs that are DSM processes (already have stocks calculated).
     fomp_processes : set, optional
-        Unused. Kept for API compatibility.
+        Set of process IDs that are FOMP processes (already have stocks calculated).
 
     Returns
     -------
@@ -105,8 +108,8 @@ def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None
     if fomp_processes is None:
         fomp_processes = set()
 
-    # Only skip DSM processes - FOMP processes need stock calculation from mass balance
-    special_processes = dsm_processes
+    # Skip DSM and FOMP processes — both models write correct stock values directly
+    special_processes = dsm_processes | fomp_processes
 
     print("--> Calculating final stock balances for non-DSM processes...")
 
@@ -128,10 +131,10 @@ def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None
             dS_values = total_inflows - total_outflows
             stock_ds.Values = dS_values
 
-            # Skip stock recalculation for DSM processes - they already have their stocks calculated
-            # FOMP processes are NOT skipped - they only calculate flows, not stocks
+            # Skip stock recalculation for DSM and FOMP processes — they already have
+            # their absolute stocks written directly by their respective models.
             if pid in special_processes:
-                print(f"  -> Skipping stock recalculation for Process {pid} (DSM)")
+                print(f"  -> Skipping stock recalculation for Process {pid} (DSM/FOMP)")
                 continue
 
             initial_stock_vector = stock_s.Values[0, :].copy()
@@ -480,27 +483,34 @@ def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
 
     Returns
     -------
-    bool
-        True if any flow values were changed during the calculation, False otherwise.
+    tuple (bool, dict)
+        (something_changed, fomp_details) where fomp_details is keyed by
+        process_id and contains per-pool time-series arrays:
+        'stock_labile', 'stock_recalcitrant', 'stock_tc_labile',
+        'stock_tc_recalcitrant'.
     """
     # Check if required elements exist for FOMP
-    required_elements = ["DM", "CC"]
-    missing_elements = [e for e in required_elements if e not in mfa_system.Elements]
+    # Accept "TC" (new hierarchy with TC/TOC/TIC) or "CC" (legacy naming)
+    _tc_name = next((e for e in ("TC", "CC") if e in mfa_system.Elements), None)
+    missing_elements = (["DM"] if "DM" not in mfa_system.Elements else [])
+    if _tc_name is None:
+        missing_elements.append("TC or CC")
 
     if missing_elements:
         print(
             f"⚠️  FOMP calculation skipped: Missing required elements {missing_elements}"
         )
         print(
-            "   FOMP requires 'DM' (dry matter) and 'CC' (carbon content) for organic decomposition"
+            "   FOMP requires 'DM' (dry matter) and 'TC' or 'CC' (carbon content) for organic decomposition"
         )
         print(f"   Available elements: {mfa_system.Elements}")
         print(
             "   Tip: For non-organic systems (e.g., metals), disable FOMP in configuration"
         )
-        return False  # No changes made
+        return False, {}  # No changes made
 
     something_changed = False
+    fomp_details = {}
     for process_id in fomp_processes:
         inflows_to_fomp = [
             f for f in mfa_system.FlowDict.values() if f.P_End == process_id
@@ -522,7 +532,7 @@ def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
         # Element indices (already validated above)
         material_idx = mfa_system.Elements.index("material")
         dm_idx = mfa_system.Elements.index("DM")
-        cc_idx = mfa_system.Elements.index("CC")
+        cc_idx = mfa_system.Elements.index(_tc_name)  # "TC" or "CC"
         wc_idx = (
             mfa_system.Elements.index("WC") if "WC" in mfa_system.Elements else None
         )
@@ -545,11 +555,12 @@ def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
             f"     DM fraction: {np.mean(dm_fraction[dm_fraction > 0]):.3f} (range: {np.min(dm_fraction):.3f} - {np.max(dm_fraction):.3f})"
         )
         print(
-            f"     CC fraction: {np.mean(cc_fraction[cc_fraction > 0]):.3f} (range: {np.min(cc_fraction):.3f} - {np.max(cc_fraction):.3f})"
+            f"     {_tc_name} fraction: {np.mean(cc_fraction[cc_fraction > 0]):.3f} (range: {np.min(cc_fraction):.3f} - {np.max(cc_fraction):.3f})"
         )
 
-        # Build composition dictionary
-        composition = {"DM": dm_fraction, "CC": cc_fraction}
+        # Build composition dictionary — use the actual element name ("TC" or "CC")
+        # so callers can look up carbon content by element name consistently.
+        composition = {"DM": dm_fraction, _tc_name: cc_fraction}
 
         # Add WC if available
         if wc_idx is not None:
@@ -564,9 +575,17 @@ def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
                 f"     WC fraction: {np.mean(wc_fraction[wc_fraction > 0]):.3f} (range: {np.min(wc_fraction):.3f} - {np.max(wc_fraction):.3f})"
             )
 
-        mfa_system = fomp_model.calculate_fomp(
+        mfa_system, proc_pool_data = fomp_model.calculate_fomp(
             mfa_system, {process_id: fomp_params[process_id]}, composition
         )
+        fomp_details[process_id] = {
+            "stock_labile":           proc_pool_data["stock_labile"],
+            "stock_recalcitrant":     proc_pool_data["stock_recalcitrant"],
+            "stock_tc_labile":        proc_pool_data["stock_tc_labile"],
+            "stock_tc_recalcitrant":  proc_pool_data["stock_tc_recalcitrant"],
+            "decay_tc_labile":        proc_pool_data["decay_tc_labile"],
+            "decay_tc_recalcitrant":  proc_pool_data["decay_tc_recalcitrant"],
+        }
 
         for out_flow in fomp_outflows:
             if out_flow.Name in old_fomp_out_values and not np.allclose(
@@ -574,6 +593,75 @@ def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
             ):
                 something_changed = True
                 break
+    return something_changed, fomp_details
+
+
+def _calculate_lfg_flows(mfa_system, lfg_processes, lfg_params):
+    """Calculates all output flows for Landfill Gas (LFG) processes.
+
+    For each LFG process, reads waste inflows from the MFA system and calls
+    the LFG engine to calculate CH4, CO2, and leachate output flows.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The MFA system object, modified in place.
+    lfg_processes : set
+        Set of process IDs that are defined as LFG processes.
+    lfg_params : dict
+        Configuration parameters for all LFG processes.
+
+    Returns
+    -------
+    bool
+        True if any flow values changed, False otherwise.
+    """
+    if not lfg_processes:
+        return False
+
+    something_changed = False
+    for process_id in lfg_processes:
+        if process_id not in lfg_params:
+            continue
+
+        inflows_to_lfg = [
+            f for f in mfa_system.FlowDict.values() if f.P_End == process_id
+        ]
+        if not (
+            inflows_to_lfg and all(np.any(f.Values != 0) for f in inflows_to_lfg)
+        ):
+            continue
+
+        # Capture current outflow values for change detection
+        lfg_outflow_ids = [
+            lfg_params[process_id].get("outflow_ch4_id"),
+            lfg_params[process_id].get("outflow_co2_id"),
+            lfg_params[process_id].get("outflow_leachate_id"),
+        ]
+        old_values = {
+            fid: mfa_system.FlowDict[fid].Values.copy()
+            for fid in lfg_outflow_ids
+            if fid and fid in mfa_system.FlowDict
+        }
+
+        print(f"   LFG Process {process_id}:")
+        mfa_system = lfg_model.calculate_lfg(
+            mfa_system, {process_id: lfg_params[process_id]}
+        )
+
+        # Mark LFG outputs as protected so TC solver skips them
+        for fid in lfg_outflow_ids:
+            if fid and fid in mfa_system.FlowDict:
+                mfa_system.FlowDict[fid]._lfg_protected = True
+
+        # Detect change
+        for fid, old_val in old_values.items():
+            if fid in mfa_system.FlowDict and not np.allclose(
+                old_val, mfa_system.FlowDict[fid].Values
+            ):
+                something_changed = True
+                break
+
     return something_changed
 
 
@@ -582,9 +670,10 @@ def run_mfa_calculation(
     dsm_params,
     fomp_params,
     config,
-    flow_tc_map,
-    process_logic_map,
+    flow_tc_map=None,
+    process_logic_map=None,
     tc_updates=None,
+    lfg_params=None,
 ):
     """This function is the iterative solver for the MFA system.
 
@@ -654,10 +743,32 @@ def run_mfa_calculation(
             if param_name in mfa_system.ParameterDict:
                 mfa_system.ParameterDict[param_name].Values = new_value
 
+    if lfg_params is None:
+        lfg_params = {}
+
     dsm_details = {}
+    fomp_details = {}
     dsm_processes = set(dsm_params.keys())
     fomp_processes = set(fomp_params.keys())
-    special_processes = dsm_processes.union(fomp_processes)
+    lfg_processes = set(lfg_params.keys())
+
+    # Cross-check against process_logic_map so that the Excel Process_Logic
+    # column acts as the authoritative switch.  DSM is already filtered at
+    # load time (load_dsm_parameters filters by Process_Logic == "DSM");
+    # FOMP and LFG are loaded from their dedicated sheets without that filter,
+    # so we apply it here.  A process with params in "3_3_Definition_LFG" but
+    # Process_Logic != "LFG" will be silently excluded.
+    if process_logic_map:
+        fomp_processes = {
+            pid for pid in fomp_processes
+            if process_logic_map.get(pid) == "FOMP"
+        }
+        lfg_processes = {
+            pid for pid in lfg_processes
+            if process_logic_map.get(pid) == "LFG"
+        }
+
+    special_processes = dsm_processes.union(fomp_processes).union(lfg_processes)
 
     # Pre-sort flows in topological order so upstream flows are calculated
     # before downstream flows within each pass. This reduces the number of
@@ -701,10 +812,18 @@ def run_mfa_calculation(
 
         fomp_changed = False
         if config.RUN_FOMP_CALCULATION:
-            fomp_changed = _calculate_fomp_flows(
+            fomp_changed, fomp_run_details = _calculate_fomp_flows(
                 mfa_system, fomp_processes, fomp_params
             )
+            fomp_details.update(fomp_run_details)
             pass_changes.append(fomp_changed)
+
+        lfg_changed = False
+        if getattr(config, "RUN_LFG_CALCULATION", True) and lfg_processes:
+            lfg_changed = _calculate_lfg_flows(
+                mfa_system, lfg_processes, lfg_params
+            )
+            pass_changes.append(lfg_changed)
 
         # Record per-iteration diagnostics
         convergence_log.append({
@@ -712,6 +831,7 @@ def run_mfa_calculation(
             "tc_changed":   bool(tc_changed),
             "dsm_changed":  bool(dsm_changed),
             "fomp_changed": bool(fomp_changed),
+            "lfg_changed":  bool(lfg_changed),
             "any_changed":  any(pass_changes),
         })
 
@@ -731,10 +851,13 @@ def run_mfa_calculation(
         "max_iterations":   max_iterations,
         "convergence_log":  convergence_log,
         "method":           "Fixed-point iteration",
+        "fomp_details":     fomp_details,
     }
 
     # --- Final balance calculation ---
-    mfa_system = calculate_final_balances(mfa_system, dsm_processes, fomp_processes)
+    mfa_system = calculate_final_balances(
+        mfa_system, dsm_processes, fomp_processes.union(lfg_processes)
+    )
 
     # ODYM validation after complete calculation
     try:
