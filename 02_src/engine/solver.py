@@ -673,6 +673,7 @@ def run_mfa_calculation(
     flow_tc_map=None,
     process_logic_map=None,
     tc_updates=None,
+    flow_updates=None,
     lfg_params=None,
 ):
     """This function is the iterative solver for the MFA system.
@@ -719,7 +720,18 @@ def run_mfa_calculation(
 
     tc_updates : dict, optional
 
-        A dictionary of sampled TC values for a Monte Carlo run. Default is None.
+        Sampled TC values for a Monte Carlo run. Values may be scalars (applied
+        to the full time axis) or dicts with keys ``value``, ``start_year``,
+        ``end_year`` for year-windowed dynamic-TC perturbations. Default None.
+
+    flow_updates : dict, optional
+
+        Flow modifications for a Monte Carlo run. Keys are Flow_IDs (e.g.
+        ``"F_0_2"``). Each value is a dict with keys:
+        ``value`` (float), ``operation`` (``"multiply"``/``"add"``/``"set"``),
+        and optional ``start_year``/``end_year`` (int). Only the material
+        column (index 0) is modified; element propagation runs as normal.
+        Default None.
 
 
 
@@ -739,9 +751,58 @@ def run_mfa_calculation(
     mfa_system = copy.deepcopy(mfa_system_setup)
 
     if tc_updates:
+        time_items_tc = mfa_system.IndexTable.Classification["Time"].Items
+        time_arr_tc = np.array(time_items_tc)
         for param_name, new_value in tc_updates.items():
-            if param_name in mfa_system.ParameterDict:
+            if param_name not in mfa_system.ParameterDict:
+                continue
+            if isinstance(new_value, dict):
+                # Year-windowed dynamic-TC update
+                val = new_value["value"]
+                start_y = new_value.get("start_year")
+                end_y = new_value.get("end_year")
+                mask = np.ones(len(time_arr_tc), dtype=bool)
+                if start_y is not None:
+                    mask &= time_arr_tc >= start_y
+                if end_y is not None:
+                    mask &= time_arr_tc <= end_y
+                mfa_system.ParameterDict[param_name].Values[mask] = val
+            else:
                 mfa_system.ParameterDict[param_name].Values = new_value
+
+    if flow_updates:
+        time_items_f = mfa_system.IndexTable.Classification["Time"].Items
+        time_arr_f = np.array(time_items_f)
+        for flow_name, upd in flow_updates:
+            if flow_name not in mfa_system.FlowDict:
+                continue  # pre-flight check in run_mc_simulation() already reported this
+            val = upd["value"]
+            op = upd.get("operation", "multiply")
+            start_y = upd.get("start_year")
+            end_y = upd.get("end_year")
+            mask = np.ones(len(time_arr_f), dtype=bool)
+            if start_y is not None:
+                mask &= time_arr_f >= start_y
+            if end_y is not None:
+                mask &= time_arr_f <= end_y
+            flow_vals = mfa_system.FlowDict[flow_name].Values
+            n_elem = flow_vals.shape[1]
+            if op == "multiply":
+                flow_vals[mask, :] *= val
+            elif op == "add":
+                old_mat = flow_vals[mask, 0].copy()
+                flow_vals[mask, 0] += val
+                if n_elem > 1:
+                    ratio = np.where(old_mat > 0, flow_vals[mask, 0] / old_mat, 1.0)
+                    for e in range(1, n_elem):
+                        flow_vals[mask, e] *= ratio
+            elif op == "set":
+                old_mat = flow_vals[mask, 0].copy()
+                flow_vals[mask, 0] = val
+                if n_elem > 1:
+                    ratio = np.where(old_mat > 0, flow_vals[mask, 0] / old_mat, 1.0)
+                    for e in range(1, n_elem):
+                        flow_vals[mask, e] *= ratio
 
     if lfg_params is None:
         lfg_params = {}

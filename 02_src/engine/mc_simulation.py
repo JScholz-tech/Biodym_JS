@@ -161,6 +161,105 @@ def validate_mc_parameters(mc_params_df, mfa_system, uncertainty_params=None):
                     f"Rejection sampling enabled."
                 )
 
+    # --- Flow group validation ---
+    if uncertainty_params:
+        flow_group_registry: dict = {}
+        for pname, defn in uncertainty_params.items():
+            grp = defn.get("flow_group")
+            if not grp:
+                continue
+            if not pname.startswith("F_"):
+                warnings.append(
+                    f"   ERROR: '{pname}' — MC_Flow_Group is only valid for F_... flow entries. "
+                    f"Remove MC_Flow_Group for this parameter."
+                )
+                continue
+            # Group by (name, time-window) so different windows of the same flow are validated separately
+            _window = (defn.get("start_year"), defn.get("end_year"))
+            flow_group_registry.setdefault((grp, _window), []).append(pname)
+
+        for (grp, _window), members in flow_group_registry.items():
+            _win_str = f" [years {_window[0]}–{_window[1]}]" if any(_window) else ""
+            if len(members) == 1:
+                warnings.append(
+                    f"   WARNING: MC_Flow_Group '{grp}'{_win_str} has only one member ('{members[0]}'). "
+                    f"A group needs at least two flows to have an effect."
+                )
+                continue
+
+            # Check consistent operation across group members
+            ops = {uncertainty_params[m].get("operation", "multiply") for m in members}
+            if len(ops) > 1:
+                warnings.append(
+                    f"   ERROR: MC_Flow_Group '{grp}'{_win_str} — members have inconsistent MC_Operation "
+                    f"values {ops}. All group members must use the same operation."
+                )
+
+            # Check consistent distribution type across group members
+            dists = {uncertainty_params[m]["distribution"] for m in members}
+            if len(dists) > 1:
+                warnings.append(
+                    f"   WARNING: MC_Flow_Group '{grp}'{_win_str} — members have different distribution "
+                    f"types {dists}. Only the first member's draw is used; other distributions "
+                    f"are ignored."
+                )
+            else:
+                warnings.append(
+                    f"   Flow group '{grp}'{_win_str}: {len(members)} members share one sample "
+                    f"({list(dists)[0]}). Members: {members}"
+                )
+
+    # --- Operator and year-bound validation per parameter type ---
+    if uncertainty_params:
+        valid_ops = {"set", "multiply", "add"}
+        dynamic_tc_names = set()
+        for pname, param in mfa_system.ParameterDict.items():
+            vals = getattr(param, "Values", None)
+            if vals is not None and hasattr(vals, "__len__") and len(vals) > 1:
+                dynamic_tc_names.add(pname)
+
+        for pname, defn in uncertainty_params.items():
+            op = defn.get("operation")
+            has_start = "start_year" in defn
+            has_end = "end_year" in defn
+            has_window = has_start or has_end
+
+            if pname.startswith("F_"):
+                if op and op not in valid_ops:
+                    warnings.append(
+                        f"   ERROR: '{pname}' — unknown Operation '{op}'. "
+                        f"Must be one of: set, multiply, add."
+                    )
+
+            elif pname.startswith("TC_"):
+                if op and op not in ("set",):
+                    warnings.append(
+                        f"   ERROR: '{pname}' — Operation '{op}' is not valid for TC parameters. "
+                        f"TC parameters are always sampled as absolute values (implicit 'set'). "
+                        f"Remove the Operation field or set it to 'set'."
+                    )
+                if has_window and pname not in dynamic_tc_names:
+                    warnings.append(
+                        f"   WARNING: '{pname}' — start_year/end_year specified, but this TC "
+                        f"does not appear to be a dynamic (time-series) TC. "
+                        f"Year windowing only applies to dynamic TCs; the window will be ignored."
+                    )
+
+            else:
+                # DSM or FOMP parameter
+                if op and op not in ("set",):
+                    warnings.append(
+                        f"   ERROR: '{pname}' — Operation '{op}' is not valid for DSM/FOMP parameters. "
+                        f"These parameters are always sampled as absolute values (implicit 'set'). "
+                        f"Remove the Operation field or set it to 'set'."
+                    )
+                if has_window:
+                    warnings.append(
+                        f"   ERROR: '{pname}' — start_year/end_year is not applicable to "
+                        f"DSM/FOMP parameters (they are time-invariant constants). "
+                        f"Remove the year columns for this entry."
+                    )
+
     return validated_params, warnings
 
 
@@ -524,13 +623,50 @@ def _run_single_mc_iteration(
     """
     # --- 3a. Sample parameters ---
     sampled_params = sample_parameters(uncertainty_params)
-    tc_updates = sampled_params.copy()
+
+    # --- 3a2. Flow group consolidation: all members share the first member's draw ---
+    # Group by (flow_group, start_year, end_year) so different time windows are sampled independently
+    _flow_groups: dict = {}
+    for _pname, _defn in uncertainty_params.items():
+        _grp = _defn.get("flow_group")
+        if _grp and _pname.startswith("F_"):
+            _window = (_defn.get("start_year"), _defn.get("end_year"))
+            _flow_groups.setdefault((_grp, _window), []).append(_pname)
+    for (_grp, _window), _members in _flow_groups.items():
+        if len(_members) < 2:
+            continue
+        _shared = sampled_params.get(_members[0])
+        if _shared is not None:
+            for _m in _members[1:]:
+                if _m in sampled_params:
+                    sampled_params[_m] = _shared
+
+    # TC/DSM/FOMP entries only — F_... flows are handled separately
+    tc_updates = {k: v for k, v in sampled_params.items() if not k.startswith("F_")}
 
     # --- 3b. Apply DSM parameter updates ---
     updated_dsm_params = apply_dsm_parameter_updates(dsm_params, sampled_params)
 
     # --- 3b2. Apply FOMP parameter updates ---
     updated_fomp_params = apply_fomp_parameter_updates(fomp_params, sampled_params)
+
+    # --- 3b3. Build flow updates from F_... entries ---
+    # List of (flow_id, spec) tuples — allows multiple windowed specs for the same flow
+    flow_updates = []
+    for param_name, sampled_value in sampled_params.items():
+        if not param_name.startswith("F_"):
+            continue
+        defn = uncertainty_params.get(param_name, {})
+        flow_id = defn.get("flow_id", param_name)  # strips ::N suffix to get real flow name
+        entry = {
+            "value": sampled_value,
+            "operation": defn.get("operation", "multiply"),
+        }
+        if "start_year" in defn:
+            entry["start_year"] = defn["start_year"]
+        if "end_year" in defn:
+            entry["end_year"] = defn["end_year"]
+        flow_updates.append((flow_id, entry))
 
     # --- 3c. Propagate Splitter Uncertainty ---
     for param_name, sample_value in sampled_params.items():
@@ -549,28 +685,55 @@ def _run_single_mc_iteration(
     normalize_tc_updates(tc_updates, mfa_system_setup,
                          uncertainty_params=uncertainty_params)
 
+    # --- 3d2. Upgrade year-windowed TC entries to dict format (after normalization) ---
+    for param_name in list(tc_updates.keys()):
+        if not param_name.startswith("TC_"):
+            continue
+        defn = uncertainty_params.get(param_name, {})
+        start_y = defn.get("start_year")
+        end_y = defn.get("end_year")
+        if start_y is not None or end_y is not None:
+            tc_updates[param_name] = {
+                "value": tc_updates[param_name],
+                "start_year": start_y,
+                "end_year": end_y,
+            }
+
     # Log sampled values for the first 3 iterations only (to verify without flooding)
     if iteration_num <= 3:
         print(f"\n   --- Iteration {iteration_num} sampled values (post-normalization) ---")
         for param, value in sampled_params.items():
             if param.startswith("TC_"):
-                normalized_val = tc_updates.get(param, value)
+                tc_val = tc_updates.get(param, value)
+                normalized_val = tc_val["value"] if isinstance(tc_val, dict) else tc_val
                 if abs(normalized_val - value) > 1e-8:
                     print(f"   {param} = {value:.6f} -> {normalized_val:.6f} (normalized)")
                 else:
                     print(f"   {param} = {value:.6f}")
+            elif param.startswith("F_"):
+                defn_log = uncertainty_params.get(param, {})
+                op = defn_log.get("operation", "multiply")
+                sy = defn_log.get("start_year", "—")
+                ey = defn_log.get("end_year", "—")
+                window = f"  [{sy}–{ey}]" if (sy != "—" or ey != "—") else ""
+                grp = defn_log.get("flow_group")
+                grp_tag = f"  group={grp}" if grp else ""
+                flow_id = defn_log.get("flow_id", param)
+                display = flow_id if flow_id == param else f"{flow_id} [{param}]"
+                print(f"   {display} = {value:.6f}  op={op}{window}{grp_tag}")
             else:
                 print(f"   {param} = {value:.6f}")
 
     # --- 3e. Run Solver ---
     mfa_system_run, _, _ = solver.run_mfa_calculation(
         mfa_system_setup,
-        updated_dsm_params,  # Use updated DSM parameters from MC sampling
-        updated_fomp_params,  # Use updated FOMP parameters
+        updated_dsm_params,
+        updated_fomp_params,
         config,
         flow_tc_map=flow_tc_map,
         process_logic_map=process_logic_map,
         tc_updates=tc_updates,
+        flow_updates=flow_updates if flow_updates else None,
     )
 
     # --- 3f. Collect Results ---
@@ -700,30 +863,59 @@ def generate_mc_setup_report(
                 params = f"mean={definition['mean']}, std={definition['std']}"
             else:
                 params = "unknown parameters"
-            report_lines.append(f"   - {name}: {dist.capitalize()}({params})")
+            op = definition.get("operation")
+            sy = definition.get("start_year")
+            ey = definition.get("end_year")
+            extras = ""
+            if op:
+                extras += f"  op={op}"
+            if sy is not None or ey is not None:
+                extras += f"  years={sy or '…'}–{ey or '…'}"
+            report_lines.append(f"   - {name}: {dist.capitalize()}({params}){extras}")
 
     # 2. Parameter-to-Model Mapping
     report_lines.append("\n2. PARAMETER-TO-MODEL MAPPING:")
     process_name_map = {p.ID: p.Name for p in mfa_system.ProcessList}
+    flow_name_map = {f.Name: f for f in mfa_system.FlowDict.values()}
 
     for name in uncertainty_params:
         target = "Unknown"
-        if name.startswith("TC_"):
+        defn = uncertainty_params[name]
+        op = defn.get("operation", "multiply" if name.startswith("F_") else "set")
+        sy = defn.get("start_year")
+        ey = defn.get("end_year")
+        window = f" [years {sy}–{ey}]" if (sy or ey) else ""
+
+        if name.startswith("F_"):
+            try:
+                flow_id = defn.get("flow_id", name)  # real flow name (strips ::N suffix)
+                parts = flow_id.split("_")
+                p_start, p_end = int(parts[1]), int(parts[2])
+                start_name = process_name_map.get(p_start, f"ID {p_start}")
+                end_name = process_name_map.get(p_end, f"ID {p_end}")
+                exists = flow_id in mfa_system.FlowDict
+                status = "" if exists else " — WARNING: flow not found in system"
+                grp = defn.get("flow_group")
+                grp_tag = f"  [group: {grp}]" if grp else ""
+                target = (
+                    f"Flow ({op}): {start_name} -> {end_name}{window}{grp_tag}{status}"
+                )
+            except (ValueError, IndexError):
+                target = "Flow (could not parse process IDs)"
+        elif name.startswith("TC_"):
             try:
                 parts = name.split("_")
                 if parts[1].startswith("E") and len(parts) >= 4:
-                    # Element-specific format: TC_E2_11_00
                     element_id = parts[1]
                     p_start, p_end = int(parts[2]), int(parts[3])
                     start_name = process_name_map.get(p_start, f"ID {p_start}")
                     end_name = process_name_map.get(p_end, f"ID {p_end}")
-                    target = f"Transfer Coefficient ({element_id}) for flow: {start_name} -> {end_name}"
+                    target = f"Transfer Coefficient ({element_id}) for flow: {start_name} -> {end_name}{window}"
                 else:
-                    # Standard format: TC_05_06
                     p_start, p_end = int(parts[1]), int(parts[2])
                     start_name = process_name_map.get(p_start, f"ID {p_start}")
                     end_name = process_name_map.get(p_end, f"ID {p_end}")
-                    target = f"Transfer Coefficient for flow: {start_name} -> {end_name}"
+                    target = f"Transfer Coefficient for flow: {start_name} -> {end_name}{window}"
             except (ValueError, IndexError):
                 target = "Transfer Coefficient (could not parse process IDs)"
         elif "_DSM_" in name:
@@ -813,6 +1005,26 @@ def run_mc_simulation(
         return None
 
     print(f"\n[MC] Running Monte Carlo simulation with {n_iterations} iterations...")
+
+    # --- 1b. Pre-flight check: verify all F_... entries exist in FlowDict ---
+    known_flows = set(mfa_system_setup.FlowDict.keys())
+    _seen_flow_ids: set = set()
+    missing_flows = []
+    for _name, _defn in uncertainty_params.items():
+        if not _name.startswith("F_"):
+            continue
+        _flow_id = _defn.get("flow_id", _name)
+        if _flow_id in _seen_flow_ids:
+            continue
+        _seen_flow_ids.add(_flow_id)
+        if _flow_id not in known_flows:
+            missing_flows.append(_flow_id)
+    if missing_flows:
+        print("\n[MC] ERROR: The following flow IDs in MC_Parameter_ID were not found in the")
+        print("     model's FlowDict. The MC run will produce NO uncertainty for these flows.")
+        print("     Check that MC_Parameter_ID exactly matches the Flow_ID in '1_2_Data_Flows'.")
+        print(f"     Missing: {missing_flows}")
+        print(f"     Available flows: {sorted(known_flows)}")
 
     # --- 2. Build maps for efficient lookup ---
     tc_info_map = {}

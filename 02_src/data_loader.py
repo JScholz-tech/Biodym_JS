@@ -1616,15 +1616,25 @@ def load_uncertainty_definitions(excel_data, debug_mode=False):
     df_uncertainty = excel_data[sheet_name]
     if debug_mode:
         print(f"  DEBUG: df_uncertainty before dropna:\n{df_uncertainty}")
-    df_uncertainty = df_uncertainty.dropna(subset=["Parameter_Name"])
+
+    # Support both new column names (MC_Parameter_ID) and legacy (Parameter_Name)
+    id_col = "MC_Parameter_ID" if "MC_Parameter_ID" in df_uncertainty.columns else "Parameter_Name"
+    df_uncertainty = df_uncertainty.dropna(subset=[id_col])
+
+    # Filter by MC_Parameter_Selection toggle — skip rows where it is empty/NaN
+    sel_col = "MC_Parameter_Selection"
+    if sel_col in df_uncertainty.columns:
+        df_uncertainty = df_uncertainty[df_uncertainty[sel_col].notna() & (df_uncertainty[sel_col].astype(str).str.strip() != "")]
+
     if debug_mode:
         print(
-            f"  DEBUG: df_uncertainty after dropna (rows: {len(df_uncertainty)}):\n{df_uncertainty}"
+            f"  DEBUG: df_uncertainty after filtering (rows: {len(df_uncertainty)}):\n{df_uncertainty}"
         )
     uncertainty_params = {}
+    _seen_names: dict = {}  # tracks how many times each F_ name has appeared
 
     for _, row in df_uncertainty.iterrows():
-        param_name = row["Parameter_Name"]
+        param_name = str(row[id_col]).strip()
         dist_type = row["Distribution_Type"].lower()
         definition = {"distribution": dist_type}
 
@@ -1656,7 +1666,39 @@ def load_uncertainty_definitions(excel_data, debug_mode=False):
         else:
             print(f"⚠️ WARNING: Unknown distribution type '{dist_type}' for parameter '{param_name}' — skipping.")
 
+        # --- Optional modifier columns (new names preferred, legacy fallback) ---
+        op_col = "MC_Operation" if "MC_Operation" in df_uncertainty.columns else "Operation"
+        raw_op = row.get(op_col)
+        if raw_op is not None and pd.notna(raw_op) and str(raw_op).strip():
+            definition["operation"] = str(raw_op).strip().lower()
+
+        start_col = "MC_Start_Year" if "MC_Start_Year" in df_uncertainty.columns else "start_year"
+        raw_start = row.get(start_col)
+        if raw_start is not None and pd.notna(raw_start):
+            try:
+                definition["start_year"] = int(raw_start)
+            except (ValueError, TypeError):
+                print(f"⚠️ WARNING: Invalid {start_col} '{raw_start}' for '{param_name}' — ignoring.")
+
+        end_col = "MC_End_Year" if "MC_End_Year" in df_uncertainty.columns else "end_year"
+        raw_end = row.get(end_col)
+        if raw_end is not None and pd.notna(raw_end):
+            try:
+                definition["end_year"] = int(raw_end)
+            except (ValueError, TypeError):
+                print(f"⚠️ WARNING: Invalid {end_col} '{raw_end}' for '{param_name}' — ignoring.")
+
+        raw_group = row.get("MC_Flow_Group")
+        if raw_group is not None and pd.notna(raw_group) and str(raw_group).strip():
+            definition["flow_group"] = str(raw_group).strip()
+
         if len(definition) > 1:
+            if param_name.startswith("F_"):
+                definition["flow_id"] = param_name  # real flow name, preserved before any renaming
+                count = _seen_names.get(param_name, 0)
+                _seen_names[param_name] = count + 1
+                if count > 0:
+                    param_name = f"{param_name}::{count}"
             uncertainty_params[param_name] = definition
 
     if debug_mode:
