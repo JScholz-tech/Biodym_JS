@@ -8,8 +8,37 @@ structure of the stock and a lifetime distribution.
 """
 
 import numpy as np
+import scipy.special
+import scipy.optimize
 import dynamic_stock_model as dsm
 from .element_utils import recalculate_hierarchical_elements
+
+
+def _weibull_shape_scale_from_mean_std(mean, std):
+    """Derive Weibull shape k and scale λ from distribution mean and std.
+
+    Solves Γ(1+2/k)/Γ(1+1/k)² - 1 = (std/mean)² numerically via brentq,
+    then computes λ = mean / Γ(1+1/k).
+
+    Returns (k=0, λ=mean) on failure — caller should fall back to Fixed lifetime.
+    """
+    if mean <= 0:
+        return 0.0, 0.0
+    if std <= 0:
+        return 0.0, mean  # degenerate — signal Fixed
+    cov_sq = (std / mean) ** 2
+
+    def _eq(k):
+        g1 = scipy.special.gamma(1.0 + 1.0 / k)
+        g2 = scipy.special.gamma(1.0 + 2.0 / k)
+        return g2 / (g1 * g1) - 1.0 - cov_sq
+
+    try:
+        k = scipy.optimize.brentq(_eq, 0.1, 200.0)
+        lam = mean / scipy.special.gamma(1.0 + 1.0 / k)
+        return float(k), float(lam)
+    except ValueError:
+        return 0.0, float(mean)
 
 
 def _calculate_outflow_from_inflows(total_inflow_values, params, time_vector):
@@ -72,11 +101,45 @@ def _calculate_outflow_from_inflows(total_inflow_values, params, time_vector):
             )
             lifetime_type = "Fixed"
 
-        lt_dict = {
-            "Type": lifetime_type,
-            "Mean": np.array([mean_lifetimes[i]]),
-            "StdDev": np.array([std_devs[i]]),
-        }
+        if lifetime_type == "Weibull":
+            # ODYM Weibull needs Shape (k) and Scale (λ), not Mean/StdDev.
+            shape_list = lt_params.get("Shape", [])
+            scale_list = lt_params.get("Scale", [])
+            shape_val = shape_list[i] if i < len(shape_list) and shape_list[i] is not None else None
+            scale_val = scale_list[i] if i < len(scale_list) and scale_list[i] is not None else None
+
+            if shape_val is not None and scale_val is not None:
+                print(f"  Weibull: Shape(k)={shape_val}, Scale(λ)={scale_val}")
+                lt_dict = {
+                    "Type": "Weibull",
+                    "Shape": np.array([float(shape_val)]),
+                    "Scale": np.array([float(scale_val)]),
+                }
+            else:
+                # Derive from Mean/StdDev via moment matching
+                k, lam = _weibull_shape_scale_from_mean_std(mean_lifetimes[i], std_devs[i])
+                if k > 0:
+                    print(
+                        f"  Weibull: derived Shape(k)={k:.4f}, Scale(λ)={lam:.4f} "
+                        f"from Mean={mean_lifetimes[i]}, StdDev={std_devs[i]}"
+                    )
+                    lt_dict = {
+                        "Type": "Weibull",
+                        "Shape": np.array([k]),
+                        "Scale": np.array([lam]),
+                    }
+                else:
+                    print(
+                        f"  WARNING: Weibull moment-matching failed for Mean={mean_lifetimes[i]}, "
+                        f"StdDev={std_devs[i]} — falling back to Fixed lifetime"
+                    )
+                    lt_dict = {"Type": "Fixed", "Mean": np.array([mean_lifetimes[i]])}
+        else:
+            lt_dict = {
+                "Type": lifetime_type,
+                "Mean": np.array([mean_lifetimes[i]]),
+                "StdDev": np.array([std_devs[i]]),
+            }
 
         # Run DSM on material inflow — retain full cohort matrices (T×T)
         dsm_model_instance = dsm.DynamicStockModel(

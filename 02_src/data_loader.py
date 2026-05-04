@@ -1135,6 +1135,8 @@ def _parse_parameter_based_dsm(process_data):
     lifetime_types = []
     lifetime_means = []
     lifetime_stddevs = []
+    lifetime_shapes = []
+    lifetime_scales = []
     category_names = []
     output_splits = []
     output_flow_ids = set()
@@ -1155,6 +1157,12 @@ def _parse_parameter_based_dsm(process_data):
         lifetime_stddevs.append(
             float(lifetime_stddev) if lifetime_stddev is not None else 0.0
         )
+
+        raw_shape = cat_params.get("DSM_Lifetime_Shape")
+        lifetime_shapes.append(float(raw_shape) if raw_shape is not None and str(raw_shape).strip() not in ("", "nan") else None)
+
+        raw_scale = cat_params.get("DSM_Lifetime_Scale")
+        lifetime_scales.append(float(raw_scale) if raw_scale is not None and str(raw_scale).strip() not in ("", "nan") else None)
 
         # Use category name if available, otherwise use the key
         if isinstance(cat_key, str) and cat_key != "DSM_Category_Name":
@@ -1203,6 +1211,8 @@ def _parse_parameter_based_dsm(process_data):
             "Type": lifetime_types,
             "Mean": lifetime_means,
             "StdDev": lifetime_stddevs,
+            "Shape": lifetime_shapes,
+            "Scale": lifetime_scales,
         },
         "category_names": category_names,
         "output_splits": output_splits,
@@ -1236,6 +1246,16 @@ def _parse_category_based_dsm(process_data):
     lifetime_stddevs = list(process_data["Lifetime_StdDev"])
     category_names = list(process_data["Category_Name"])
 
+    # Optional Weibull-specific columns
+    lifetime_shapes = [
+        float(v) if pd.notna(v) else None
+        for v in process_data.get("Lifetime_Shape", pd.Series([None] * len(process_data)))
+    ]
+    lifetime_scales = [
+        float(v) if pd.notna(v) else None
+        for v in process_data.get("Lifetime_Scale", pd.Series([None] * len(process_data)))
+    ]
+
     # Validate DSM lifetime parameters and warn about potential issues
     process_id = process_data["Process_ID"].iloc[0]
     for i, (mean, stddev, cat_name) in enumerate(
@@ -1258,6 +1278,8 @@ def _parse_category_based_dsm(process_data):
             "Type": list(process_data["Lifetime_Type"]),
             "Mean": lifetime_means,
             "StdDev": lifetime_stddevs,
+            "Shape": lifetime_shapes,
+            "Scale": lifetime_scales,
         },
         "category_names": category_names,
         "parameter_based": False,  # Flag to indicate this is category-based format
