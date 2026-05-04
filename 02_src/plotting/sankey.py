@@ -1107,3 +1107,279 @@ def export_sankey_sankeymatic(
 
     print(f"  ✅ SankeyMATIC TXT:  {filepath}  ({count} flows)")
     return content
+
+
+def export_mfa_diagram_xlsx(
+    mfa_system_results,
+    year,
+    element,
+    filepath,
+    dsm_params=None,
+    fomp_params=None,
+    lfg_params=None,
+    process_logic_map=None,
+    node_positions=None,
+    title="BioDYM MFA System",
+    min_flow=0.0,
+    stock_unit="Mg",
+    flow_unit="Mg/yr",
+):
+    """Export MFA system to Structural Collective MFA Tool Excel format.
+
+    Writes a .xlsx file compatible with https://mfa.structuralcollective.nl/editor
+    with six sheets: Nodes, Flows, Groups, Settings, Node Colors, Node Positions.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        Solved MFA system with calculated flow and stock values.
+    year : int
+        Calendar year to export (single snapshot).
+    element : str
+        Element name to export (e.g. "material", "DM", "TC").
+    filepath : str or Path
+        Output path (should end in .xlsx).
+    dsm_params : dict, optional
+        DSM parameters dict — used to identify DSM processes for grouping/coloring.
+    fomp_params : dict, optional
+        FOMP parameters dict — used to identify FOMP processes.
+    lfg_params : dict, optional
+        LFG parameters dict — used to identify LFG processes.
+    process_logic_map : dict, optional
+        Maps process IDs to logic type strings (e.g. "DSM", "FOMP", "Input").
+        When provided, used for group assignment instead of param dicts.
+    node_positions : dict, optional
+        Maps process names to (x, y) tuples for manual layout.
+        Example: {"Atmosphere": (100, 200), "Field": (400, 200)}.
+    title : str, optional
+        Diagram title written to Settings sheet. Default "BioDYM MFA System".
+    min_flow : float, optional
+        Minimum absolute flow value to include. Default 0.0 (all non-zero).
+    stock_unit : str, optional
+        Unit label for stock values. Default "Mg".
+    flow_unit : str, optional
+        Unit label for flow values. Default "Mg/yr".
+
+    Returns
+    -------
+    dict
+        Summary with counts: {"nodes": n, "flows": n, "groups": n}.
+    """
+    import pathlib
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.utils import get_column_letter
+
+    if dsm_params is None:
+        dsm_params = {}
+    if fomp_params is None:
+        fomp_params = {}
+    if lfg_params is None:
+        lfg_params = {}
+    if node_positions is None:
+        node_positions = {}
+
+    # --- Resolve year and element indices ---
+    time_vector = list(mfa_system_results.Time_V)
+    if year not in time_vector:
+        raise ValueError(f"Year {year} not in model time range {time_vector[0]}–{time_vector[-1]}.")
+    t_idx = time_vector.index(year)
+
+    elements = mfa_system_results.Elements
+    if element not in elements:
+        raise ValueError(f"Element '{element}' not in system elements: {elements}.")
+    el_idx = elements.index(element)
+
+    name_map = {p.ID: p.Name for p in mfa_system_results.ProcessList}
+
+    # --- Determine process type for each process ---
+    def _proc_type(proc_id):
+        if process_logic_map is not None:
+            logic = process_logic_map.get(proc_id)
+            if logic:
+                return str(logic).strip()
+        return detect_biodym_process_type(
+            proc_id, dsm_params=dsm_params, fomp_params=fomp_params
+        )
+
+    # --- Collect nodes with stock values ---
+    node_rows = []
+    for p in mfa_system_results.ProcessList:
+        stock_key = f"S_{p.ID}"
+        stock_val = 0.0
+        if stock_key in mfa_system_results.StockDict:
+            sv = mfa_system_results.StockDict[stock_key].Values
+            if sv is not None and sv.shape[0] > t_idx:
+                stock_val = float(sv[t_idx, el_idx])
+        node_rows.append({
+            "node_id": p.Name,
+            "title": p.Name,
+            "stock": round(stock_val, 4),
+            "stock_unit": stock_unit,
+            "proc_id": p.ID,
+        })
+
+    # --- Collect flows ---
+    flow_rows = []
+    for flow in mfa_system_results.FlowDict.values():
+        val = float(flow.Values[t_idx, el_idx])
+        if abs(val) < min_flow:
+            continue
+        source = name_map.get(flow.P_Start, str(flow.P_Start))
+        target = name_map.get(flow.P_End, str(flow.P_End))
+        flow_rows.append({
+            "source": source,
+            "target": target,
+            "value": round(val, 4),
+            "flow_unit": flow_unit,
+        })
+
+    # --- Build groups: one row per (group_id, node) ---
+    # Group logic: Input/boundary → "Boundary"; DSM/FOMP/LFG → own group; rest → "Process"
+    _type_to_group = {
+        "Input": "Boundary",
+        "Output": "Boundary",
+        "boundary": "Boundary",
+        "input": "Boundary",
+        "DSM": "DSM",
+        "dsm": "DSM",
+        "FOMP": "FOMP",
+        "fomp": "FOMP",
+        "LFG": "LFG",
+        "lfg": "LFG",
+        "Splitter": "Process",
+        "regular": "Process",
+    }
+    group_rows = []
+    group_name_map = {}
+    for nd in node_rows:
+        ptype = _proc_type(nd["proc_id"])
+        grp_id = _type_to_group.get(ptype, "Process")
+        group_rows.append({"group_id": grp_id, "group_name": grp_id, "node_id": nd["node_id"]})
+        group_name_map[grp_id] = grp_id
+
+    # --- Node colors from BioDYM theme ---
+    color_rows = []
+    for nd in node_rows:
+        ptype = _proc_type(nd["proc_id"])
+        color = get_process_color(ptype)
+        color_rows.append({"node_title_or_id": nd["node_id"], "color": color})
+
+    # --- Node positions ---
+    pos_rows = []
+    for nd in node_rows:
+        pos = node_positions.get(nd["node_id"])
+        if pos is not None:
+            pos_rows.append({"node_id": nd["node_id"], "x": pos[0], "y": pos[1]})
+
+    # --- Build workbook ---
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)  # remove default sheet
+
+    header_font = Font(bold=True)
+    desc_font = Font(italic=True, color="888888")
+
+    def _add_sheet(name, columns, desc_row, data_rows):
+        ws = wb.create_sheet(name)
+        ws.append(columns)
+        ws.append(desc_row)
+        for row in data_rows:
+            ws.append([row.get(c, "") for c in columns])
+        for col_idx in range(1, len(columns) + 1):
+            ws.cell(1, col_idx).font = header_font
+            ws.cell(2, col_idx).font = desc_font
+            ws.column_dimensions[get_column_letter(col_idx)].width = 22
+        return ws
+
+    _add_sheet(
+        "Nodes",
+        ["node_id", "title", "stock", "stock_unit"],
+        ["Unique node identifier", "Display name", "Stock value", "Unit for stock"],
+        [{"node_id": r["node_id"], "title": r["title"],
+          "stock": r["stock"], "stock_unit": r["stock_unit"]} for r in node_rows],
+    )
+
+    _add_sheet(
+        "Flows",
+        ["source", "target", "value", "flow_unit"],
+        ["Source node ID", "Target node ID", "Flow value", "Unit for flow"],
+        flow_rows,
+    )
+
+    _add_sheet(
+        "Groups",
+        ["group_id", "group_name", "node_id"],
+        ["Unique group identifier", "Display name", "Member node ID"],
+        group_rows,
+    )
+
+    # Settings sheet — key-value with defaults matching reference file
+    ws_set = wb.create_sheet("Settings")
+    ws_set.append(["Setting", "Value"])
+    ws_set.cell(1, 1).font = header_font
+    ws_set.cell(1, 2).font = header_font
+    ws_set.column_dimensions["A"].width = 30
+    ws_set.column_dimensions["B"].width = 30
+    settings = [
+        ("title", title),
+        ("showFlowValues", True),
+        ("showFlowUnits", True),
+        ("showNodeValues", False),
+        ("showStocks", True),
+        ("showStockUnits", True),
+        ("showInOutDetails", False),
+        ("nodeValueNewLine", True),
+        ("nodeLabelBackground", True),
+        ("nodeLabelBackgroundOpacity", 0.85),
+        ("nodePadding", 10),
+        ("linkOpacity", 0.5),
+        ("linkVisibility", 1),
+        ("linkColorStyle", "solid"),
+        ("colorMode", "origin"),
+        ("clusterFlows", False),
+        ("showGroupNames", True),
+        ("showGroupIcons", False),
+        ("showGroupTotals", True),
+        ("canvasWidth", 1600),
+        ("canvasHeight", 900),
+        ("fontFamily", FONT_FAMILY),
+        ("fontSize", 14),
+        ("backgroundColor", "#f3f3f3"),
+        ("textColor", "#000000"),
+        ("valueScale", "none"),
+        ("smallLinkThreshold", 1.5),
+        ("smallLinkDotted", True),
+        ("timeSeriesEnabled", False),
+        ("nodeWidth", 15),
+    ]
+    for key, val in settings:
+        ws_set.append([key, val])
+
+    _add_sheet(
+        "Node Colors",
+        ["node_title_or_id", "color"],
+        ["Node title or ID", "Hex color (e.g. #ff0000)"],
+        color_rows,
+    )
+
+    _add_sheet(
+        "Node Positions",
+        ["node_id", "x", "y"],
+        ["Node ID", "X position", "Y position"],
+        pos_rows,
+    )
+
+    # --- Write file ---
+    filepath = pathlib.Path(filepath)
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(filepath)
+
+    n_nodes = len(node_rows)
+    n_flows = len(flow_rows)
+    n_groups = len({r["group_id"] for r in group_rows})
+    print(
+        f"  Structural Collective MFA Tool xlsx exported: {filepath}\n"
+        f"  {n_nodes} nodes, {n_flows} flows, {n_groups} groups  |  "
+        f"year={year}, element={element}"
+    )
+    return {"nodes": n_nodes, "flows": n_flows, "groups": n_groups}

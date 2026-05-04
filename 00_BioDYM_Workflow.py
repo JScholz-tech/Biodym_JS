@@ -950,7 +950,7 @@ print(format_success(f"Baseline results exported to: {output_file}"))
 
 # ## 5.2 Sankey Export
 #
-# Export the Sankey diagram in four formats for use in external tools.
+# Export the Sankey diagram in five formats for use in external tools.
 #
 # > **Element layers:** Each element (material, WC, DM, CC) produces a separate
 # > Sankey file — Sankey tools display one flow layer at a time. All elements are
@@ -962,6 +962,7 @@ print(format_success(f"Baseline results exported to: {output_file}"))
 # | `.json` | `sankey/json/` | Web developers, D3.js-based viewers |
 # | `.csv`  | `sankey/esankey/` | **e!Sankey** by ifu Hamburg — import via *Data → Import* |
 # | `.txt`  | `sankey/sankeymatic/` | **SankeyMATIC** — paste at sankeymatic.com |
+# | `.xlsx` | `sankey/structuralcollective/` | **Structural Collective MFA Tool** — import at mfa.structuralcollective.nl |
 #
 # Files are named `sankey_{element}_{year}.ext` (e.g., `sankey_CC_2030.html`).
 
@@ -971,6 +972,7 @@ from plotting.sankey import (
     export_sankey_html,
     export_sankey_csv,
     export_sankey_sankeymatic,
+    export_mfa_diagram_xlsx,
 )
 
 # ─── Sankey Export Configuration ─────────────────────────────────────────────
@@ -1011,6 +1013,16 @@ for year in export_years:
         export_sankey_sankeymatic(
             mfa_results_baseline, year, element,
             filepath=sankey_root / "sankeymatic" / f"{base}.txt",
+            min_flow=min_flow,
+        )
+        export_mfa_diagram_xlsx(
+            mfa_results_baseline, year, element,
+            filepath=sankey_root / "structuralcollective" / f"{base}.xlsx",
+            dsm_params=dsm_details_baseline,
+            fomp_params=None,
+            process_logic_map=process_logic_map,
+            node_positions=None,   # dict of {name: (x, y)} for manual layout
+            title=f"BioDYM — {element} ({year})",
             min_flow=min_flow,
         )
 

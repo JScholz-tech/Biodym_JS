@@ -41,6 +41,13 @@ from .scenario import (
     plot_scenario_stock_dynamics,
 )
 from .graphviz_flow_charts import plot_graphviz_flow_chart_sankey_style
+from .sankey import (
+    export_sankey_json,
+    export_sankey_html,
+    export_sankey_csv,
+    export_sankey_sankeymatic,
+    export_mfa_diagram_xlsx,
+)
 
 __all__ = [
     "set_theme",
@@ -82,4 +89,9 @@ __all__ = [
     "plot_lfg_stock_details",
     "plot_lfg_fraction_breakdown",
     "plot_lfg_ipcc_vs_mfa_comparison",
+    "export_sankey_json",
+    "export_sankey_html",
+    "export_sankey_csv",
+    "export_sankey_sankeymatic",
+    "export_mfa_diagram_xlsx",
 ]
