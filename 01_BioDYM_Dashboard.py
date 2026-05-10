@@ -14,12 +14,12 @@ def _():
 
     warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
-    _here = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(0, os.path.join(_here, "02_src"))
-    sys.path.insert(0, os.path.join(_here, "06_framework", "ODYM-master_20241127", "odym", "modules"))
-    sys.path.insert(0, os.path.join(_here, "06_framework", "bioDYM_add-on", "modules"))
+    here = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, os.path.join(here, "02_src"))
+    sys.path.insert(0, os.path.join(here, "06_framework", "ODYM-master_20241127", "odym", "modules"))
+    sys.path.insert(0, os.path.join(here, "06_framework", "bioDYM_add-on", "modules"))
 
-    import config as _config_module
+    import config as config_module
     import data_loader
     import system_setup
     import plotting
@@ -32,7 +32,7 @@ def _():
         calculate_stock_analysis,
     )
     return (
-        _config_module, _here, data_loader, go, mo, os, plot_flow_composition,
+        config_module, here, data_loader, go, mo, os, plot_flow_composition,
         plotting, run_mc_simulation, scenario_engine, solver, sys,
         system_setup, calculate_system_kpis, calculate_system_overview,
         calculate_stock_analysis, warnings,
@@ -40,9 +40,9 @@ def _():
 
 
 @app.cell
-def _(mo, os, _here):
+def _(mo, os, here):
     file_input = mo.ui.text(
-        value=os.path.join(_here, "01_data", "01_input", ""),
+        value=os.path.join(here, "01_data", "01_input", ""),
         placeholder="path/to/your_input.xlsm",
         label="📂 Input file",
         full_width=True,
@@ -68,8 +68,8 @@ All plots will appear in the tabs below. No code editing required.
 
 @app.cell
 def _(
-    mo, run_btn, file_input, os, _here,
-    _config_module, data_loader, system_setup, solver, scenario_engine,
+    mo, run_btn, file_input, os, here,
+    config_module, data_loader, system_setup, solver, scenario_engine,
 ):
     import pandas as pd
 
@@ -83,13 +83,13 @@ def _(
     if not os.path.exists(_input_file):
         mo.stop(True, mo.callout(mo.md(f"**File not found:** `{_input_file}`"), kind="danger"))
 
-    os.chdir(_here)
+    os.chdir(here)
 
     _input_data = pd.read_excel(
         _input_file, sheet_name=None, header=0, engine="openpyxl",
         na_values=["N.A.", "NA", "n/a"], decimal=",",
     )
-    _cfg = _config_module.load_configuration(_input_file)
+    _cfg = config_module.load_configuration(_input_file)
 
     def _get_list(attr, default=None):
         v = getattr(_cfg, attr, None)
