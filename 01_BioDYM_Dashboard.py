@@ -63,10 +63,12 @@ def _(mo):
 
 @app.cell
 def _(file_upload, mo, run_btn):
-    return mo.vstack([
-        mo.md("# 📊 BioDYM Dashboard\n*Interactive results viewer — upload your Excel input file and click Run.*"),
+    mo.vstack([
+        mo.md("# BioDYM Dashboard"),
+        mo.md("*Upload your .xlsm file, then click Run Analysis.*"),
         mo.hstack([file_upload, run_btn], align="end", gap=2),
     ])
+    return
 
 
 @app.cell
