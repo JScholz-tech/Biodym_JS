@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.3"
+__generated_with = "0.23.5"
 app = marimo.App(width="full", app_title="BioDYM Dashboard")
 
 
@@ -31,57 +31,76 @@ def _():
         calculate_system_overview,
         calculate_stock_analysis,
     )
+
     return (
-        config_module, here, data_loader, go, mo, os, plot_flow_composition,
-        plotting, run_mc_simulation, scenario_engine, solver, sys,
-        system_setup, calculate_system_kpis, calculate_system_overview,
-        calculate_stock_analysis, warnings,
+        calculate_stock_analysis,
+        calculate_system_kpis,
+        calculate_system_overview,
+        config_module,
+        data_loader,
+        here,
+        mo,
+        os,
+        plot_flow_composition,
+        plotting,
+        run_mc_simulation,
+        scenario_engine,
+        solver,
+        system_setup,
     )
 
 
 @app.cell
-def _(mo, os, here):
-    file_input = mo.ui.text(
-        value=os.path.join(here, "01_data", "01_input", ""),
-        placeholder="path/to/your_input.xlsm",
-        label="📂 Input file",
-        full_width=True,
+def _(mo):
+    file_upload = mo.ui.file(
+        filetypes=[".xlsm"],
+        label="📂 Upload input file (.xlsm)",
+        multiple=False,
     )
     run_btn = mo.ui.run_button(label="▶  Run Analysis")
-    return file_input, run_btn
+    return file_upload, run_btn
 
 
 @app.cell
-def _(mo, file_input, run_btn):
-    return (
-        mo.vstack([
-            mo.md("""
-## 📊 BioDYM Dashboard
-
-Interactive results viewer — provide the Excel input file and click **Run Analysis**.
-All plots will appear in the tabs below. No code editing required.
-"""),
-            mo.hstack([file_input, run_btn], gap="1rem", align="end"),
-        ])
-    ,)
+def _(file_upload, mo, run_btn):
+    return mo.vstack([
+        mo.md("# 📊 BioDYM Dashboard\n*Interactive results viewer — upload your Excel input file and click Run.*"),
+        mo.hstack([file_upload, run_btn], align="end", gap=2),
+    ])
 
 
 @app.cell
 def _(
-    mo, run_btn, file_input, os, here,
-    config_module, data_loader, system_setup, solver, scenario_engine,
+    config_module,
+    data_loader,
+    file_upload,
+    here,
+    mo,
+    os,
+    run_btn,
+    scenario_engine,
+    solver,
+    system_setup,
 ):
     import pandas as pd
+    import tempfile
 
     mo.stop(
         not run_btn.value,
-        mo.callout(mo.md("Click **▶ Run Analysis** to load data and compute results."), kind="info"),
+        mo.callout(mo.md("Upload an **.xlsm** file above, then click **▶ Run Analysis**."), kind="info"),
     )
 
-    _input_file = file_input.value.strip()
+    _files = file_upload.value
+    mo.stop(
+        not _files,
+        mo.callout(mo.md("Please **upload an .xlsm input file** first."), kind="warn"),
+    )
 
-    if not os.path.exists(_input_file):
-        mo.stop(True, mo.callout(mo.md(f"**File not found:** `{_input_file}`"), kind="danger"))
+    # Save uploaded bytes to a temp file so downstream code gets a real path
+    _tmp = tempfile.NamedTemporaryFile(suffix=".xlsm", prefix="BioDYM_upload_", delete=False)
+    _tmp.write(_files[0].contents)
+    _tmp.close()
+    _input_file = _tmp.name
 
     os.chdir(here)
 
@@ -164,17 +183,27 @@ def _(
     has_scenarios        = _has_scenarios
     all_scenario_results = _all_scenario_results
     scenario_definitions = _scenario_definitions
-
     return (
-        mfa_results, dsm_params, dsm_details, fomp_params, fomp_details,
-        lfg_params, cfg, all_excel_data, input_data, process_logic_map,
-        flow_tc_map, mfa_configured, has_scenarios, all_scenario_results,
-        scenario_definitions, pd,
+        all_excel_data,
+        all_scenario_results,
+        cfg,
+        dsm_details,
+        dsm_params,
+        flow_tc_map,
+        fomp_details,
+        fomp_params,
+        has_scenarios,
+        input_data,
+        lfg_params,
+        mfa_configured,
+        mfa_results,
+        process_logic_map,
+        scenario_definitions,
     )
 
 
 @app.cell
-def _(mo, run_btn, mfa_results, dsm_params, fomp_params, plotting):
+def _(dsm_params, fomp_params, mfa_results, mo, plotting, run_btn):
     mo.stop(not run_btn.value)
     try:
         with mo.capture() as _cap_sankey:
@@ -186,7 +215,7 @@ def _(mo, run_btn, mfa_results, dsm_params, fomp_params, plotting):
 
 
 @app.cell
-def _(mo, run_btn, mfa_results, all_excel_data, plotting):
+def _(all_excel_data, mfa_results, mo, plotting, run_btn):
     mo.stop(not run_btn.value)
     try:
         with mo.capture() as _cap_flows:
@@ -199,7 +228,7 @@ def _(mo, run_btn, mfa_results, all_excel_data, plotting):
 
 
 @app.cell
-def _(mo, run_btn, mfa_results, plot_flow_composition):
+def _(mfa_results, mo, plot_flow_composition, run_btn):
     mo.stop(not run_btn.value)
     try:
         with mo.capture() as _cap_comp:
@@ -211,7 +240,7 @@ def _(mo, run_btn, mfa_results, plot_flow_composition):
 
 
 @app.cell
-def _(mo, run_btn, mfa_results, plotting):
+def _(mfa_results, mo, plotting, run_btn):
     mo.stop(not run_btn.value)
     try:
         with mo.capture() as _cap_stocks:
@@ -224,7 +253,17 @@ def _(mo, run_btn, mfa_results, plotting):
 
 
 @app.cell
-def _(mo, run_btn, mfa_results, dsm_params, dsm_details, fomp_params, fomp_details, lfg_params, plotting):
+def _(
+    dsm_details,
+    dsm_params,
+    fomp_details,
+    fomp_params,
+    lfg_params,
+    mfa_results,
+    mo,
+    plotting,
+    run_btn,
+):
     mo.stop(not run_btn.value)
     _model_parts = []
 
@@ -263,11 +302,19 @@ def _(mo, run_btn, mfa_results, dsm_params, dsm_details, fomp_params, fomp_detai
         mo.md("No DSM, FOMP, or LFG processes configured."), kind="info"
     )
     has_models = bool(_model_parts)
-    return t_models, has_models
+    return has_models, t_models
 
 
 @app.cell
-def _(mo, run_btn, has_scenarios, all_scenario_results, scenario_definitions, mfa_results, plotting):
+def _(
+    all_scenario_results,
+    has_scenarios,
+    mfa_results,
+    mo,
+    plotting,
+    run_btn,
+    scenario_definitions,
+):
     mo.stop(not run_btn.value)
     if has_scenarios and all_scenario_results:
         try:
@@ -284,8 +331,15 @@ def _(mo, run_btn, has_scenarios, all_scenario_results, scenario_definitions, mf
 
 
 @app.cell
-def _(mo, run_btn, mfa_results, process_logic_map,
-      calculate_system_kpis, calculate_system_overview, calculate_stock_analysis):
+def _(
+    calculate_stock_analysis,
+    calculate_system_kpis,
+    calculate_system_overview,
+    mfa_results,
+    mo,
+    process_logic_map,
+    run_btn,
+):
     mo.stop(not run_btn.value)
     try:
         _kpi_df      = calculate_system_kpis(mfa_results, process_logic_map)
@@ -305,7 +359,7 @@ def _(mo, run_btn, mfa_results, process_logic_map,
 
 
 @app.cell
-def _(mo, run_btn, mfa_results, plotting):
+def _(mfa_results, mo, plotting, run_btn):
     mo.stop(not run_btn.value)
     try:
         with mo.capture() as _cap_val:
@@ -319,9 +373,18 @@ def _(mo, run_btn, mfa_results, plotting):
 
 @app.cell
 def _(
-    mo, run_btn,
-    t_sankey, t_flows, t_composition, t_stocks, t_models, t_scenarios, t_kpi, t_validation,
-    has_scenarios, has_models,
+    has_models,
+    has_scenarios,
+    mo,
+    run_btn,
+    t_composition,
+    t_flows,
+    t_kpi,
+    t_models,
+    t_sankey,
+    t_scenarios,
+    t_stocks,
+    t_validation,
 ):
     mo.stop(not run_btn.value)
     _tab_dict = {
@@ -336,8 +399,7 @@ def _(
         _tab_dict["📊 Scenarios"] = t_scenarios
     _tab_dict["📋 KPI"]         = t_kpi
     _tab_dict["✅ Validation"]  = t_validation
-
-    return (mo.ui.tabs(_tab_dict),)
+    return
 
 
 @app.cell
@@ -349,10 +411,19 @@ def _(mo, run_btn):
 
 @app.cell
 def _(
-    mo, mc_btn, run_btn,
-    mfa_configured, input_data, dsm_params, fomp_params, cfg,
-    process_logic_map, flow_tc_map, mfa_results,
-    run_mc_simulation, plotting,
+    cfg,
+    dsm_params,
+    flow_tc_map,
+    fomp_params,
+    input_data,
+    mc_btn,
+    mfa_configured,
+    mfa_results,
+    mo,
+    plotting,
+    process_logic_map,
+    run_btn,
+    run_mc_simulation,
 ):
     mo.stop(not run_btn.value)
     mo.stop(not mc_btn.value, mo.callout(mo.md("Click **🎲 Run Monte Carlo** to run the uncertainty analysis."), kind="info"))
@@ -395,13 +466,7 @@ def _(
         _mc_compare = _c_comp.as_html()
     except Exception as _e:
         _mc_compare = mo.callout(mo.md(f"Comparison failed: {_e}"), kind="warn")
-
-    return (mo.ui.tabs({
-        "📊 Distributions": _mc_hist,
-        "🌪️ Sensitivity":   _mc_tornado,
-        "📈 Time Paths":    _mc_paths,
-        "🔀 Comparison":    _mc_compare,
-    }),)
+    return
 
 
 if __name__ == "__main__":
