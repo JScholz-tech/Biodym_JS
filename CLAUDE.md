@@ -3,9 +3,9 @@
 ## Commands
 - **Run anything**: always prefix with `uv run` (e.g. `uv run python`, `uv run jupyter`)
 - **Sync notebook**: `uv run jupytext --to notebook <file>.py`
-- **Launch dashboard (Marimo)**: `uv run marimo run 01_BioDYM_Dashboard.py`
-- **Edit dashboard interactively**: `uv run marimo edit 01_BioDYM_Dashboard.py`
-- **Launch dashboard (legacy Voilà)**: `uv run voila 01_BioDYM_Dashboard.ipynb`
+- **Launch dashboard (Voilà — primary)**: `uv run voila 01_BioDYM_Dashboard.ipynb`
+- **Launch dashboard (Marimo — WIP)**: `uv run marimo run tools/marimo_dashboard.py`
+- **Edit Marimo dashboard**: `uv run marimo edit tools/marimo_dashboard.py`
 - **Execute notebook**: `uv run jupyter nbconvert --to notebook --execute <file>.ipynb`
 - **Run explorer tools**: `uv run marimo run tools/buf_explorer.py` (or `cuf_explorer.py`)
 
@@ -14,12 +14,14 @@
 - Light format (not percent): section markers are `# +` / `# -`, not `# %%`
 - **After every edit to a `.py` notebook**, sync it: `uv run jupytext --to notebook <file>.py`
 - After editing any module in `02_src/`, the Jupyter kernel must be restarted for changes to take effect — `%autoreload` is NOT configured
-- Notebooks: `00_BioDYM_Workflow.py` (main analysis), `01_BioDYM_Dashboard.py` (Marimo dashboard)
-- **IMPORTANT**: `01_BioDYM_Dashboard.py` uses `@app.cell` decorators (Marimo format) — it is NOT a Jupytext file. Do NOT run `jupytext` on it.
+- Notebooks: `00_BioDYM_Workflow.py` (main analysis)
+- **IMPORTANT**: `tools/marimo_dashboard.py` uses `@app.cell` decorators (Marimo format) — it is NOT a Jupytext file. Do NOT run `jupytext` on it.
 
 ## Project structure
 ```
+01_BioDYM_Dashboard.ipynb — Voilà dashboard (primary); launch with `uv run voila 01_BioDYM_Dashboard.ipynb`
 tools/
+  marimo_dashboard.py  — Marimo dashboard (WIP); launch with `uv run marimo run tools/marimo_dashboard.py`
   buf_explorer.py      — Marimo: BUF (Biomass Utilisation Factor) interactive calculator
   cuf_explorer.py      — Marimo: CUF (Carbon Utilisation Factor) interactive calculator
 02_src/
@@ -66,7 +68,7 @@ tools/
 ## Adding a new plot function
 1. Write the function in the appropriate `02_src/plotting/<module>.py`
 2. Export it from `02_src/plotting/__init__.py` (both import line AND `__all__` list)
-3. Add it to the relevant `@app.cell` tab in `01_BioDYM_Dashboard.py` (no sync needed — Marimo format)
+3. Add it to the relevant `@app.cell` tab in `tools/marimo_dashboard.py` (no sync needed — Marimo format)
 4. Add it to `00_BioDYM_Workflow.py` in the matching section, then sync: `uv run jupytext --to notebook 00_BioDYM_Workflow.py`
 
 ## Adding a new engine module
@@ -81,7 +83,8 @@ tools/
 - Commit format: `type(scope): short description` (e.g. `feat(lfg): add N-pool FOD model`)
 - Never commit `.xlsm` input data files — they belong in `01_data/01_input/` but are gitignored
 - Always commit `.py` and `.ipynb` together for `00_BioDYM_Workflow.py` changes
-- `01_BioDYM_Dashboard.py` has no `.ipynb` counterpart — commit the `.py` only
+- Voilà dashboard: `01_BioDYM_Dashboard.ipynb` is the primary dashboard — commit standalone (no paired `.py`)
+- Marimo dashboard: `tools/marimo_dashboard.py` is WIP — commit standalone (no `.ipynb` counterpart)
 
 ## Common pitfalls
 - `plot_flow_composition` is in `plotting.composition`, not `plotting` — import separately
@@ -91,4 +94,4 @@ tools/
 - `export_sankey_batch()` is in `02_src/plotting/sankey.py` — use this instead of the inline loop
 - `extract_workflow_dimensions()` is in `02_src/config.py` — use in workflow and dashboard
 - `display_system_summary()` is in `02_src/reporting/validation_summary.py`
-- Marimo dashboard: `mo.capture()` context captures IPython `display()` calls for tab content
+- Marimo dashboard (`tools/marimo_dashboard.py`): uses `mo.state()` for result persistence; `mo.capture()` captures IPython `display()` calls for tab content
