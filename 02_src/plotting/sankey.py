@@ -1383,3 +1383,85 @@ def export_mfa_diagram_xlsx(
         f"year={year}, element={element}"
     )
     return {"nodes": n_nodes, "flows": n_flows, "groups": n_groups}
+
+
+def export_sankey_batch(
+    mfa_system,
+    export_years: list,
+    export_elements: list,
+    sankey_root="01_data/02_output/sankey",
+    dsm_params=None,
+    fomp_params=None,
+    process_logic_map=None,
+    min_flow: float = 0.0,
+    node_positions=None,
+) -> None:
+    """Export Sankey diagrams for all (year, element) pairs in four formats.
+
+    Formats: HTML (browser), JSON (web/D3), SankeyMATIC (.txt), Structural Collective (.xlsx).
+
+    Parameters
+    ----------
+    mfa_system : MFAsystem
+        The solved MFA system to export.
+    export_years : list of int
+        Years to export (e.g. [2025, 2125]).
+    export_elements : list of str
+        Elements to export (e.g. ["material", "TC"]).
+    sankey_root : str or Path
+        Root output folder; subfolders html/, json/, sankeymatic/, structuralcollective/ are created automatically.
+    dsm_params : dict, optional
+        DSM details from solver (dsm_details). Passed to HTML/JSON/xlsx exporters.
+    fomp_params : dict, optional
+        FOMP details. Passed to HTML/JSON/xlsx exporters (usually None).
+    process_logic_map : dict, optional
+        Process logic map for xlsx exporter.
+    min_flow : float
+        Flows below this absolute value (Mg) are omitted.
+    node_positions : dict, optional
+        Manual node positions {name: (x, y)} for xlsx layout.
+    """
+    import pathlib
+
+    try:
+        from ..constants import Icons
+    except ImportError:
+        from constants import Icons
+
+    sankey_root = pathlib.Path(sankey_root)
+
+    for year in export_years:
+        for element in export_elements:
+            base = f"sankey_{element}_{year}"
+            print(f"\n{Icons.SANKEY} Exporting Sankey — {element} | {year}")
+
+            export_sankey_html(
+                mfa_system, year, element,
+                filepath=sankey_root / "html" / f"{base}.html",
+                dsm_params=dsm_params, fomp_params=fomp_params,
+                min_flow=min_flow,
+                title=f"BioDYM — {element} ({year})",
+            )
+            export_sankey_json(
+                mfa_system, year, element,
+                filepath=sankey_root / "json" / f"{base}.json",
+                dsm_params=dsm_params, fomp_params=fomp_params,
+                min_flow=min_flow,
+            )
+            export_sankey_sankeymatic(
+                mfa_system, year, element,
+                filepath=sankey_root / "sankeymatic" / f"{base}.txt",
+                min_flow=min_flow,
+            )
+            export_mfa_diagram_xlsx(
+                mfa_system, year, element,
+                filepath=sankey_root / "structuralcollective" / f"{base}.xlsx",
+                dsm_params=dsm_params,
+                fomp_params=fomp_params,
+                process_logic_map=process_logic_map,
+                node_positions=node_positions,
+                title=f"BioDYM — {element} ({year})",
+                min_flow=min_flow,
+            )
+
+    print(f"\n{Icons.SUCCESS} All Sankey exports saved to: {sankey_root.resolve()}")

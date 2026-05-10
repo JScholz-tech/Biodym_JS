@@ -378,3 +378,102 @@ def load_configuration(excel_file_path=None):
     # Use default configuration
     default_config = get_default_config()
     return create_config_object(default_config)
+
+
+# ==============================================================================
+# WORKFLOW DIMENSION EXTRACTION
+# ==============================================================================
+
+
+def _get_config_list(config_obj, attribute_name, default=None):
+    """Extract a comma-separated list attribute from a config object."""
+    if hasattr(config_obj, attribute_name):
+        value = getattr(config_obj, attribute_name)
+        if value and pd.notna(value):
+            return [item.strip() for item in str(value).split(",") if item.strip()]
+    return default
+
+
+def extract_workflow_dimensions(config_obj, input_data: dict) -> dict:
+    """Extract all dimension lists and time range from a loaded config object.
+
+    Prints a configuration summary to stdout. Falls back to data-driven values
+    if config attributes are missing.
+
+    Parameters
+    ----------
+    config_obj : Config
+        Loaded configuration object (from load_configuration).
+    input_data : dict
+        Full Excel workbook as {sheet_name: DataFrame}, used only for the
+        Elements/time fallback when config attributes are absent.
+
+    Returns
+    -------
+    dict with keys: start_year, end_year, elements, regions, goods,
+                    materials, processes, run_scenario, selected_scenario
+    """
+    try:
+        from .constants import Icons
+    except ImportError:
+        from constants import Icons
+
+    regions   = _get_config_list(config_obj, "Regions", ["Case_Study_Region"])
+    goods     = _get_config_list(config_obj, "Goods", None)
+    materials = _get_config_list(config_obj, "Materials", None)
+    processes = _get_config_list(config_obj, "Process_Types", None)
+
+    print(f"{Icons.VISUALIZATION} Dimensions loaded from configuration:")
+    print(f"   {Icons.ARROW} Regions: {regions}")
+    if materials:
+        print(f"   - Materials: {materials}")
+    if goods:
+        print(f"   - Goods: {goods}")
+    if processes:
+        print(f"   - Process Types: {processes}")
+
+    try:
+        start_year = int(config_obj.Start_Year)
+        end_year   = int(config_obj.End_Year)
+        for attr in ("Elements", "Elements_comma_separated", "Element_list"):
+            if hasattr(config_obj, attr):
+                elements = [e.strip() for e in getattr(config_obj, attr).split(",")]
+                break
+        else:
+            raise AttributeError("No Elements attribute found in config object")
+    except Exception as exc:
+        print(f"{Icons.WARNING} Could not get time/elements from config: {exc}. Falling back to data-driven values.")
+        flow_data  = input_data["1_2_Data_Flows"]
+        years      = sorted(flow_data["Flow_Data_Year"].unique())
+        start_year = int(min(years))
+        end_year   = int(max(years))
+        elements   = ["material", "WC", "DM", "CC"]
+
+    run_scenario      = getattr(config_obj, "Run_Scenario_Analysis", False)
+    selected_scenario = getattr(
+        config_obj,
+        "Selected_Scenario_Name 1",
+        getattr(config_obj, "Selected_Scenario_Name", "N/A"),
+    )
+
+    print(f"\n-- Configuration Summary --")
+    print(f"{Icons.TIME} Time range: {start_year} - {end_year}")
+    print(f"{Icons.ELEMENT} Elements: {elements}")
+    print(f"{Icons.MONTE_CARLO} Monte Carlo: {'Enabled' if config_obj.RUN_MONTE_CARLO else 'Disabled'}")
+    print(f"{Icons.DSM} DSM Calculation: {'Enabled' if config_obj.RUN_DSM_CALCULATION else 'Disabled'}")
+    print(f"{Icons.FOMP} FOMP Calculation: {'Enabled' if config_obj.RUN_FOMP_CALCULATION else 'Disabled'}")
+    print(f"{Icons.SCENARIO} Scenario Analysis: {'Enabled' if run_scenario else 'Disabled'}")
+    if run_scenario:
+        print(f"   -> Selected Scenario: '{selected_scenario}'")
+
+    return {
+        "start_year": start_year,
+        "end_year": end_year,
+        "elements": elements,
+        "regions": regions,
+        "goods": goods,
+        "materials": materials,
+        "processes": processes,
+        "run_scenario": run_scenario,
+        "selected_scenario": selected_scenario,
+    }

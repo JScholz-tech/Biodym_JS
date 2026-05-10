@@ -211,8 +211,7 @@ if not os.path.exists(input_file):
 
 print(format_header("EXTRACTING CONFIGURATION FROM EXCEL"))
 
-# Load the full dataset once. This will be passed to functions that need it.
-# NOTE: Uses decimal=',' for European standard (comma as decimal separator)
+# Load the full dataset once. NOTE: Uses decimal=',' for European standard.
 input_data = pd.read_excel(
     input_file,
     sheet_name=None,
@@ -223,87 +222,19 @@ input_data = pd.read_excel(
 )
 print(format_success(f"Excel file loaded: {len(input_data)} sheets"))
 
-# Use the robust loader from the config module. This function handles all errors
-# and fallbacks, guaranteeing a valid config object is returned.
 config_obj = config.load_configuration(input_file)
 print(format_success("Configuration object loaded."))
 
-
-# Phase 1b: Extract dimension lists from config
-def get_config_list(config_obj, attribute_name, default=None):
-    """Helper to extract comma-separated lists from config object."""
-    if hasattr(config_obj, attribute_name):
-        value = getattr(config_obj, attribute_name)
-        if value and pd.notna(value):
-            return [item.strip() for item in str(value).split(",") if item.strip()]
-    return default
-
-
-regions = get_config_list(config_obj, "Regions", ["Case_Study_Region"])
-goods = get_config_list(config_obj, "Goods", None)
-materials = get_config_list(config_obj, "Materials", None)
-processes = get_config_list(config_obj, "Process_Types", None)
-
-print(f"{Icons.VISUALIZATION} Dimensions loaded from configuration:")
-print(f"   {Icons.ARROW} Regions: {regions}")
-if materials:
-    print(f"   - Materials: {materials}")
-if goods:
-    print(f"   - Goods: {goods}")
-if processes:
-    print(f"   - Process Types: {processes}")
-
-# Extract core values from the config object, with fallbacks to data-driven values
-try:
-    start_year = int(config_obj.Start_Year)
-    end_year = int(config_obj.End_Year)
-    # Try different possible element attribute names
-    if hasattr(config_obj, "Elements"):
-        elements = [elem.strip() for elem in config_obj.Elements.split(",")]
-    elif hasattr(config_obj, "Elements_comma_separated"):
-        elements = [
-            elem.strip() for elem in config_obj.Elements_comma_separated.split(",")
-        ]
-    elif hasattr(config_obj, "Element_list"):
-        elements = [elem.strip() for elem in config_obj.Element_list.split(",")]
-    else:
-        raise AttributeError("No Elements attribute found in config object")
-except Exception as e:
-    print(
-        f"{Icons.WARNING} Could not get time/elements from config object: {e}. Falling back to data-driven values."
-    )
-    flow_data = input_data["1_2_Data_Flows"]
-    # Fix: Use correct column name 'Flow_Data_Year' instead of 'Year_Flow'
-    years = sorted(flow_data["Flow_Data_Year"].unique())
-    start_year = int(min(years))
-    end_year = int(max(years))
-    elements = ["material", "WC", "DM", "CC"]
-
-# Display final configuration summary
-run_scenario = getattr(config_obj, "Run_Scenario_Analysis", False)
-selected_scenario = getattr(
-    config_obj,
-    "Selected_Scenario_Name 1",
-    getattr(config_obj, "Selected_Scenario_Name", "N/A"),
-)
-
-print(f"\n-- Configuration Summary --")
-print(f"{Icons.TIME} Time range: {start_year} - {end_year}")
-print(f"{Icons.ELEMENT} Elements: {elements}")
-print(
-    f"{Icons.MONTE_CARLO} Monte Carlo: {'Enabled' if config_obj.RUN_MONTE_CARLO else 'Disabled'}"
-)
-print(
-    f"{Icons.DSM} DSM Calculation: {'Enabled' if config_obj.RUN_DSM_CALCULATION else 'Disabled'}"
-)
-print(
-    f"{Icons.FOMP} FOMP Calculation: {'Enabled' if config_obj.RUN_FOMP_CALCULATION else 'Disabled'}"
-)
-print(
-    f"{Icons.SCENARIO} Scenario Analysis: {'Enabled' if run_scenario else 'Disabled'}"
-)
-if run_scenario:
-    print(f"   -> Selected Scenario: '{selected_scenario}'")
+dims              = config.extract_workflow_dimensions(config_obj, input_data)
+start_year        = dims["start_year"]
+end_year          = dims["end_year"]
+elements          = dims["elements"]
+regions           = dims["regions"]
+goods             = dims["goods"]
+materials         = dims["materials"]
+processes         = dims["processes"]
+run_scenario      = dims["run_scenario"]
+selected_scenario = dims["selected_scenario"]
 
 # # 2. Calculation & Mass Balance
 
@@ -396,75 +327,11 @@ print(format_success("Baseline calculation completed successfully!"))
 
 print(format_header("DATA VALIDATION SUMMARY", level=2))
 
-# Count loaded items
-num_processes = len(mfa_system_configured.ProcessList)
-num_flows = len(mfa_system_configured.FlowDict)
-num_stocks = len([k for k in mfa_system_configured.StockDict.keys()])
-num_elements = len(elements)
-time_span = end_year - start_year + 1
-
-# Count parameters
-num_static_tcs = sum(
-    1
-    for p in mfa_system_configured.ParameterDict.values()
-    if "TC" in p.Name and np.isscalar(p.Values)
+from reporting.validation_summary import display_system_summary
+display_system_summary(
+    mfa_system_configured, config_obj, elements, regions,
+    start_year, end_year, dsm_params, fomp_params, lfg_params,
 )
-num_dynamic_tcs = sum(
-    1
-    for p in mfa_system_configured.ParameterDict.values()
-    if "TC" in p.Name and isinstance(p.Values, np.ndarray)
-)
-num_dsm_processes = len(dsm_params) if dsm_params else 0
-num_fomp_processes = len(fomp_params) if fomp_params else 0
-num_lfg_processes = len(lfg_params) if lfg_params else 0
-
-# Display summary
-print("\n📊 Configuration & Scope")
-print(f"  ✅ Time range: {start_year}-{end_year} ({time_span} years)")
-print(f"  ✅ Elements: {num_elements} defined ({', '.join(elements)})")
-print(f"  ✅ Regions: {len(regions)} ({', '.join(regions)})")
-
-print("\n🏗️  System Structure")
-print(f"  ✅ Processes: {num_processes} loaded")
-print(f"  ✅ Flows: {num_flows} defined")
-print(f"  ✅ Stocks: {num_stocks} configured")
-
-print("\n⚙️  Parameters")
-print(f"  ✅ Transfer Coefficients:")
-print(f"     • Static TCs: {num_static_tcs}")
-print(f"     • Dynamic TCs: {num_dynamic_tcs}")
-if num_dsm_processes > 0:
-    print(f"  ✅ DSM Processes: {num_dsm_processes} configured")
-else:
-    print(f"  ⚠️  DSM Processes: None configured")
-if num_fomp_processes > 0:
-    print(f"  ✅ FOMP Processes: {num_fomp_processes} configured")
-else:
-    print(f"  ⚠️  FOMP Processes: None configured")
-if num_lfg_processes > 0:
-    print(f"  ✅ LFG Processes: {num_lfg_processes} configured")
-else:
-    print(f"     LFG Processes: None configured (optional)")
-
-# Check for warnings
-warnings_found = []
-if num_dsm_processes == 0 and config_obj.RUN_DSM_CALCULATION:
-    warnings_found.append("DSM calculation enabled but no processes configured")
-if num_fomp_processes == 0 and config_obj.RUN_FOMP_CALCULATION:
-    warnings_found.append("FOMP calculation enabled but no processes configured")
-
-# Overall status
-print("\n📍 Overall Status")
-if len(warnings_found) == 0:
-    print("  🟢 ALL SYSTEMS GO - No warnings detected")
-    print("  ✅ All required data loaded successfully")
-else:
-    print(f"  🟡 READY WITH {len(warnings_found)} WARNING(S)")
-    for warning in warnings_found:
-        print(f"     ⚠️  {warning}")
-    print("  ✅ Analysis can proceed (warnings are non-critical)")
-
-print()
 
 # ## 2.3 Mass Balance Verification
 
@@ -965,60 +832,25 @@ print(format_success(f"Baseline results exported to: {output_file}"))
 #
 # Files are named `sankey_{element}_{year}.ext` (e.g., `sankey_TC_2125.html`).
 
-from pathlib import Path
-from plotting.sankey import (
-    export_sankey_json,
-    export_sankey_html,
-    export_sankey_sankeymatic,
-    export_mfa_diagram_xlsx,
-)
+from plotting.sankey import export_sankey_batch
 
 # ─── Sankey Export Configuration ─────────────────────────────────────────────
 export_years    = [int(mfa_results_baseline.Time_V[-1])]   # add more years: [2025, 2030]
 
 # All elements in the model (auto-detected) — or restrict: ["material", "CC"]
-all_elements    = list(mfa_results_baseline.IndexTable.Classification["Element"].Items)
-export_elements = all_elements
+export_elements = list(mfa_results_baseline.IndexTable.Classification["Element"].Items)
 
 min_flow        = 0.0   # omit flows below this absolute value (Mg)
 # ─────────────────────────────────────────────────────────────────────────────
 
-sankey_root = Path("01_data/02_output/sankey")
-
-for year in export_years:
-    for element in export_elements:
-        base = f"sankey_{element}_{year}"
-        print(f"\n{Icons.SANKEY} Exporting Sankey — {element} | {year}")
-
-        export_sankey_html(
-            mfa_results_baseline, year, element,
-            filepath=sankey_root / "html" / f"{base}.html",
-            dsm_params=dsm_details_baseline, fomp_params=None,
-            min_flow=min_flow,
-            title=f"BioDYM — {element} ({year})",
-        )
-        export_sankey_json(
-            mfa_results_baseline, year, element,
-            filepath=sankey_root / "json" / f"{base}.json",
-            dsm_params=dsm_details_baseline, fomp_params=None,
-            min_flow=min_flow,
-        )
-        export_sankey_sankeymatic(
-            mfa_results_baseline, year, element,
-            filepath=sankey_root / "sankeymatic" / f"{base}.txt",
-            min_flow=min_flow,
-        )
-        export_mfa_diagram_xlsx(
-            mfa_results_baseline, year, element,
-            filepath=sankey_root / "structuralcollective" / f"{base}.xlsx",
-            dsm_params=dsm_details_baseline,
-            fomp_params=None,
-            process_logic_map=process_logic_map,
-            node_positions=None,   # dict of {name: (x, y)} for manual layout
-            title=f"BioDYM — {element} ({year})",
-            min_flow=min_flow,
-        )
-
-print(f"\n{Icons.SUCCESS} All Sankey exports saved to: {sankey_root.resolve()}")
+export_sankey_batch(
+    mfa_results_baseline,
+    export_years=export_years,
+    export_elements=export_elements,
+    sankey_root="01_data/02_output/sankey",
+    dsm_params=dsm_details_baseline,
+    process_logic_map=process_logic_map,
+    min_flow=min_flow,
+)
 
 print(format_header("ANALYSIS COMPLETE"))
