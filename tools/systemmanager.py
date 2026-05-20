@@ -21,11 +21,12 @@ def _():
 
     here = os.path.dirname(os.path.abspath(__file__))
     _src = os.path.join(here, "..", "02_src")
-    if _src not in sys.path:
-        sys.path.insert(0, _src)
+    for _p in (here, _src):
+        if _p not in sys.path:
+            sys.path.insert(0, _p)
 
     from data_loader import normalize_column_names, _sanitize_col_name
-    from tools.yaml_schema import validate_composition, model_to_yaml, save_yaml
+    from yaml_schema import validate_composition, model_to_yaml, save_yaml
 
     return here, mo, normalize_column_names, os, pd, save_yaml, model_to_yaml, validate_composition
 
@@ -323,49 +324,41 @@ def _(excel_state, mo, normalize_column_names, validate_composition):
 # ---------------------------------------------------------------------------
 
 @app.cell
-def _(excel_state, here, mo, model_to_yaml, os, save_yaml):
-    mo.stop(
-        excel_state() is None,
-        mo.md(""),  # silent — upload cell already shows the callout
-    )
-
-    _data = excel_state()
-    _sheets = _data["sheets"]
-    _filename = _data["filename"]
-
-    _export_btn = mo.ui.run_button(label="💾  Export YAML")
-    _out_dir = os.path.join(here, "..", "01_data", "02_output")
-
-    return _export_btn, _filename, _out_dir, _sheets
+def _(mo):
+    export_btn = mo.ui.run_button(label="💾  Export YAML")
+    return (export_btn,)
 
 
 @app.cell
-def _(_export_btn, _filename, _out_dir, _sheets, mo, model_to_yaml, os, save_yaml):
-    mo.stop(not _export_btn.value)
-
-    _yaml_data = model_to_yaml(_sheets, source_file=_filename)
-    _stem = os.path.splitext(_filename)[0]
-    os.makedirs(_out_dir, exist_ok=True)
-    _out_path = os.path.join(_out_dir, f"{_stem}_config.yaml")
-    save_yaml(_yaml_data, _out_path)
-
-    import yaml as _yaml
-    _preview = _yaml.dump(_yaml_data, default_flow_style=False, allow_unicode=True, sort_keys=False)
-
+def _(mo, export_btn):
     mo.vstack([
-        mo.callout(mo.md(f"✅ Saved to `{_out_path}`"), kind="success"),
-        mo.md("### YAML Preview"),
-        mo.code(_preview, language="yaml"),
+        mo.md("---\n## Export Configuration"),
+        mo.md("Export model metadata, processes, and flows as a version-controllable YAML file."),
+        export_btn,
     ])
     return
 
 
 @app.cell
-def _(_export_btn, mo):
+def _(excel_state, export_btn, here, mo, model_to_yaml, os, save_yaml):
+    mo.stop(excel_state() is None, mo.md(""))
+    mo.stop(not export_btn.value)
+
+    import yaml as _yaml
+
+    _data = excel_state()
+    _yaml_data = model_to_yaml(_data["sheets"], source_file=_data["filename"])
+    _stem = os.path.splitext(_data["filename"])[0]
+    _out_dir = os.path.join(here, "..", "01_data", "02_output")
+    os.makedirs(_out_dir, exist_ok=True)
+    _out_path = os.path.join(_out_dir, f"{_stem}_config.yaml")
+    save_yaml(_yaml_data, _out_path)
+
+    _preview = _yaml.dump(_yaml_data, default_flow_style=False, allow_unicode=True, sort_keys=False)
     mo.vstack([
-        mo.md("---\n## Export Configuration"),
-        mo.md("Export model metadata, processes, and flows as a version-controllable YAML file."),
-        _export_btn,
+        mo.callout(mo.md(f"✅ Saved to `{_out_path}`"), kind="success"),
+        mo.md("### YAML Preview"),
+        mo.md(f"```yaml\n{_preview}\n```"),
     ])
     return
 
