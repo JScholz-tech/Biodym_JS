@@ -90,8 +90,9 @@ def load_bom_parameters(excel_data, elements, debug_mode=False):
             print(f"  -> Sheet '{SHEET_NAME}' is empty.")
         return {}
 
-    # Detect TC column format (E{n}_TC_ID)
+    # Detect TC column formats: E{n}_TC_ID and E{n}_TC_Value[%]
     tc_col_map = _build_tc_column_map(df, elements, debug_mode)
+    tc_val_col_map = _build_tc_value_column_map(df, elements)
 
     bom_params = {}
 
@@ -110,12 +111,20 @@ def load_bom_parameters(excel_data, elements, debug_mode=False):
 
             if flow_type == "target_Product":
                 tc_ids = {}
+                tc_values = {}
                 for elem, col in tc_col_map.items():
                     if col and col in row and not _is_nan(row[col]):
                         tc_ids[elem] = str(row[col]).strip()
-                target_flows.append({"flow_id": flow_id, "tc_ids": tc_ids})
+                # Read inline values from E{n}_TC_Value[%] columns as fallback
+                for elem, val_col in tc_val_col_map.items():
+                    if val_col and val_col in row and not _is_nan(row[val_col]):
+                        try:
+                            tc_values[elem] = float(row[val_col])
+                        except (TypeError, ValueError):
+                            pass
+                target_flows.append({"flow_id": flow_id, "tc_ids": tc_ids, "tc_values": tc_values})
                 if debug_mode:
-                    print(f"  -> Process {process_id}: target_Product flow '{flow_id}', tc_ids={tc_ids}")
+                    print(f"  -> Process {process_id}: target_Product flow '{flow_id}', tc_ids={tc_ids}, tc_values={tc_values}")
 
             elif flow_type == "Unused_Material":
                 residue_flows.append(flow_id)
@@ -154,6 +163,19 @@ def _build_tc_column_map(df, elements, debug_mode=False):
             col_map[element] = None
     if debug_mode:
         print(f"  -> BOM TC column map: {col_map}")
+    return col_map
+
+
+def _build_tc_value_column_map(df, elements):
+    """Returns {element_name: column_name} for E{n}_TC_Value[%] columns."""
+    cols = df.columns.tolist()
+    col_map = {}
+    for elem_idx, element in enumerate(elements):
+        if element == "material":
+            continue
+        n = elem_idx + 1
+        candidate = f"E{n}_TC_Value[%]"
+        col_map[element] = candidate if candidate in cols else None
     return col_map
 
 
@@ -230,12 +252,13 @@ def calculate_bom_assembly(mfa_system, bom_processes, bom_params, element_hierar
 
             old_values = mfa_system.FlowDict[fid].Values.copy()
 
-            if tc_cfg == "No TC" or not target_cfg["tc_ids"]:
+            if tc_cfg == "No TC" or (not target_cfg["tc_ids"] and not target_cfg.get("tc_values")):
                 # No composition constraint: target gets everything available
                 primary = available.copy()
             else:
                 bom_ts = _read_bom_fractions_ts(
-                    target_cfg["tc_ids"], elements, mfa_system, n_time, n_elem
+                    target_cfg["tc_ids"], elements, mfa_system, n_time, n_elem,
+                    tc_values=target_cfg.get("tc_values"),
                 )
                 abs_bom_ts = _compute_absolute_bom_fractions_ts(
                     bom_ts, elements, element_hierarchy
@@ -270,27 +293,37 @@ def calculate_bom_assembly(mfa_system, bom_processes, bom_params, element_hierar
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _read_bom_fractions_ts(tc_ids, elements, mfa_system, n_time, n_elem):
-    """Read per-element BOM fractions from ParameterDict.
+def _read_bom_fractions_ts(tc_ids, elements, mfa_system, n_time, n_elem, tc_values=None):
+    """Read per-element BOM fractions from ParameterDict, with inline-value fallback.
+
+    Priority:
+      1. ParameterDict[tc_id]  (time-varying, from static/dynamic TCs sheets)
+      2. tc_values[elem]       (constant, read directly from BOM sheet value column)
 
     Returns (n_time, n_elem) array of parent-relative fractions.
     material (index 0) is always 1.0.
     """
     bom_ts = np.zeros((n_time, n_elem))
     bom_ts[:, 0] = 1.0
+    tc_values = tc_values or {}
 
-    for elem, tc_id in tc_ids.items():
-        if not tc_id or tc_id not in mfa_system.ParameterDict:
+    for elem_idx, elem in enumerate(elements):
+        if elem == "material":
             continue
-        idx = elements.index(elem) if elem in elements else None
-        if idx is None:
-            continue
-        vals = mfa_system.ParameterDict[tc_id].Values
-        if isinstance(vals, (int, float)):
-            bom_ts[:, idx] = float(vals)
-        else:
-            arr = np.asarray(vals).reshape(-1)
-            bom_ts[:, idx] = arr[:n_time] if len(arr) >= n_time else np.pad(arr, (0, n_time - len(arr)), constant_values=arr[-1])
+        idx = elem_idx  # elements list is 0-indexed; material is index 0
+
+        tc_id = tc_ids.get(elem)
+        if tc_id and tc_id in mfa_system.ParameterDict:
+            # Priority 1: ParameterDict lookup (time-varying)
+            vals = mfa_system.ParameterDict[tc_id].Values
+            if isinstance(vals, (int, float)):
+                bom_ts[:, idx] = float(vals)
+            else:
+                arr = np.asarray(vals).reshape(-1)
+                bom_ts[:, idx] = arr[:n_time] if len(arr) >= n_time else np.pad(arr, (0, n_time - len(arr)), constant_values=arr[-1])
+        elif elem in tc_values:
+            # Priority 2: inline constant value from BOM sheet E{n}_TC_Value[%]
+            bom_ts[:, idx] = float(tc_values[elem])
 
     return bom_ts
 
