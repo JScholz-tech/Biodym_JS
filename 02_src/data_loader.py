@@ -104,6 +104,11 @@ COLUMN_NAME_MAPPING = {
         "LFG_Parameter_Value": "LFG_Parameter_Value",
         "Process_ID": "Process_ID",
     },
+    "3_4_Definition_BOM": {
+        "Process_ID": "Process_ID",
+        "Primary_Flow_ID": "Primary_Flow_ID",
+        "Residue_Flow_ID": "Residue_Flow_ID",
+    },
     # Add more mappings as needed
 }
 
@@ -1604,6 +1609,28 @@ def load_lfg_parameters(excel_data, debug_mode=False):
                   f"F_CH4={params.get('F_CH4')}, OX={params.get('OX')}")
 
     return lfg_params
+
+
+def load_bom_parameters(excel_data, elements, debug_mode=False):
+    """Wrapper: delegates to bom_assembler.load_bom_parameters().
+
+    Parameters
+    ----------
+    excel_data : dict
+        Dictionary of DataFrames keyed by sheet name.
+    elements : list of str
+        Ordered element names matching mfa_system.Elements.
+    debug_mode : bool, optional
+
+    Returns
+    -------
+    dict
+        Keys are process IDs; values are BOM configuration dicts.
+        See engine.bom_assembler.load_bom_parameters() for details.
+    """
+    from engine import bom_assembler as _bom
+
+    return _bom.load_bom_parameters(excel_data, elements, debug_mode=debug_mode)
 
 
 def load_uncertainty_definitions(excel_data, debug_mode=False):

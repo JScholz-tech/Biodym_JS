@@ -16,6 +16,7 @@ import copy
 from . import dsm_model
 from . import fomp_model
 from . import lfg_model
+from . import bom_assembler as _bom_assembler
 from .element_utils import recalculate_hierarchical_elements
 
 
@@ -675,6 +676,7 @@ def run_mfa_calculation(
     tc_updates=None,
     flow_updates=None,
     lfg_params=None,
+    bom_params=None,
 ):
     """This function is the iterative solver for the MFA system.
 
@@ -806,19 +808,21 @@ def run_mfa_calculation(
 
     if lfg_params is None:
         lfg_params = {}
+    if bom_params is None:
+        bom_params = {}
 
     dsm_details = {}
     fomp_details = {}
     dsm_processes = set(dsm_params.keys())
     fomp_processes = set(fomp_params.keys())
     lfg_processes = set(lfg_params.keys())
+    bom_processes = set(bom_params.keys())
 
     # Cross-check against process_logic_map so that the Excel Process_Logic
     # column acts as the authoritative switch.  DSM is already filtered at
     # load time (load_dsm_parameters filters by Process_Logic == "DSM");
-    # FOMP and LFG are loaded from their dedicated sheets without that filter,
-    # so we apply it here.  A process with params in "3_3_Definition_LFG" but
-    # Process_Logic != "LFG" will be silently excluded.
+    # FOMP, LFG, and BOM_Assembler are loaded from their dedicated sheets without
+    # that filter, so we apply it here.
     if process_logic_map:
         fomp_processes = {
             pid for pid in fomp_processes
@@ -828,14 +832,26 @@ def run_mfa_calculation(
             pid for pid in lfg_processes
             if process_logic_map.get(pid) == "LFG"
         }
+        bom_processes = {
+            pid for pid in bom_processes
+            if process_logic_map.get(pid) == "BOM_Assembler"
+        }
 
-    special_processes = dsm_processes.union(fomp_processes).union(lfg_processes)
+    special_processes = (
+        dsm_processes.union(fomp_processes).union(lfg_processes).union(bom_processes)
+    )
 
     # Pre-sort flows in topological order so upstream flows are calculated
     # before downstream flows within each pass. This reduces the number of
     # iterations needed for convergence from O(chain_depth) to O(1).
     sorted_flow_names = _topological_sort_flows(mfa_system)
     print(f"--> Flow dependency graph sorted ({len(sorted_flow_names)} flows in topological order).")
+
+    # Set initial-stock outflow time-series once before the iteration loop.
+    # These values are constant (not iteration-dependent), so pre-computing
+    # them here avoids redundant work inside the loop.
+    from . import initial_stock_engine as _ise
+    mfa_system = _ise.update_initial_stock_flows_during_solver(mfa_system)
 
     max_iterations = 30  # Safeguard against infinite loops
     convergence_log = []
@@ -855,13 +871,6 @@ def run_mfa_calculation(
             sorted_flow_names=sorted_flow_names,
         )
         pass_changes.append(tc_changed)
-
-        # --- 1.5. Update Initial Stock Flows ---
-        from . import initial_stock_engine
-
-        mfa_system = initial_stock_engine.update_initial_stock_flows_during_solver(
-            mfa_system
-        )
 
         dsm_changed = False
         if config.RUN_DSM_CALCULATION:
@@ -886,6 +895,15 @@ def run_mfa_calculation(
             )
             pass_changes.append(lfg_changed)
 
+        # --- 2.5. BOM Assembler processes ---
+        bom_changed = False
+        if bom_processes:
+            element_hierarchy = getattr(mfa_system, "_element_hierarchy", None)
+            bom_changed = _bom_assembler.calculate_bom_assembly(
+                mfa_system, bom_processes, bom_params, element_hierarchy
+            )
+            pass_changes.append(bom_changed)
+
         # Record per-iteration diagnostics
         convergence_log.append({
             "iteration":    i + 1,
@@ -893,6 +911,7 @@ def run_mfa_calculation(
             "dsm_changed":  bool(dsm_changed),
             "fomp_changed": bool(fomp_changed),
             "lfg_changed":  bool(lfg_changed),
+            "bom_changed":  bool(bom_changed),
             "any_changed":  any(pass_changes),
         })
 
@@ -917,7 +936,9 @@ def run_mfa_calculation(
 
     # --- Final balance calculation ---
     mfa_system = calculate_final_balances(
-        mfa_system, dsm_processes, fomp_processes.union(lfg_processes)
+        mfa_system,
+        dsm_processes,
+        fomp_processes.union(lfg_processes).union(bom_processes),
     )
 
     # ODYM validation after complete calculation
