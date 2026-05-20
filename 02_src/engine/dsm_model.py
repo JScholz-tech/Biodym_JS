@@ -350,7 +350,9 @@ def _distribute_and_assign_outflows(
     ]
 
     # --- TC lookup and normalization (material split drives all elements) ---
-    tc_values = []
+    # First pass: collect defined TC values; mark undefined flows with None.
+    tc_values_raw = []
+    any_tc_defined = False
     for flow in outflow_flows:
         tc_ids = flow_tc_map.get(flow.Name, {})
         tc_param_name = tc_ids.get("material")
@@ -361,10 +363,26 @@ def _distribute_and_assign_outflows(
                 tc_value = np.full(num_years, float(tc_value))
             else:
                 tc_value = np.asarray(tc_value).reshape(-1)
+            any_tc_defined = True
         else:
-            print(f"  -> Warning: No TC defined for DSM outflow {flow.Name}, using equal split")
-            tc_value = np.full(num_years, 1.0 / max(len(outflow_flows), 1))
-        tc_values.append(tc_value)
+            tc_value = None  # resolved in second pass
+        tc_values_raw.append(tc_value)
+
+    # Second pass: resolve None placeholders.
+    # - If at least one flow has a TC → undefined flows receive 0 (they are simply
+    #   not part of the split; the defined TCs are normalised among themselves).
+    # - If NO flow has any TC → fall back to equal split across all flows.
+    tc_values = []
+    for i, tc_val in enumerate(tc_values_raw):
+        if tc_val is not None:
+            tc_values.append(tc_val)
+        elif any_tc_defined:
+            print(f"  -> Info: No TC for DSM outflow {outflow_flows[i].Name}; "
+                  f"assigning 0 (other TCs are defined and sum to 1).")
+            tc_values.append(np.zeros(num_years))
+        else:
+            print(f"  -> Info: No TCs defined for any DSM outflow; using equal split.")
+            tc_values.append(np.full(num_years, 1.0 / max(len(outflow_flows), 1)))
 
     tc_array = np.vstack(tc_values)          # (num_flows, num_years)
     tc_sums = tc_array.sum(axis=0)           # (num_years,)

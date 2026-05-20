@@ -712,59 +712,35 @@ def _create_single_outflow_flow(
 
 
 def calculate_initial_stock_balances(mfa_system, initial_stock_configs):
-    """Calculates the time-series stock balance for processes with initial stocks.
+    """Deprecated — not called by the solver.
 
-    Parameters
-    ----------
-    mfa_system : odym.MFAsystem
-        The MFA system object.
-    initial_stock_configs : dict
-        A dictionary of initial stock configurations, keyed by process ID.
-
-    Returns
-    -------
-    odym.MFAsystem
-        The modified MFA system with updated stock balance time-series.
+    Stock balances for initial-stock processes are computed by
+    ``solver.calculate_final_balances`` via cumulative-sum of dS, which
+    correctly respects the time-aware outflows set by
+    ``update_initial_stock_flows_during_solver``. This function is retained
+    only for backwards compatibility and should not be called directly.
     """
-    print("--> Calculating initial stock balances...")
-
-    for process_id, config in initial_stock_configs.items():
-        stock_s = mfa_system.StockDict.get(f"S_{process_id}")
-        if stock_s is None:
-            continue
-
-        # Get initial stock
-        initial_stock = stock_s.Values[0, :].copy()
-
-        # Calculate total outflow from initial stock
-        total_outflow = np.zeros_like(initial_stock)
-        if (
-            hasattr(mfa_system, "initial_stock_outflows")
-            and process_id in mfa_system.initial_stock_outflows
-        ):
-            for flow in mfa_system.initial_stock_outflows[process_id]:
-                total_outflow += flow.Values[0, :]  # First year outflow
-
-        # Update stock values (assuming constant consumption)
-        n_years = len(mfa_system.IndexTable.Classification["Time"].Items)
-        for t in range(n_years):
-            remaining_stock = initial_stock - (total_outflow * t)
-            stock_s.Values[t, :] = np.maximum(
-                remaining_stock, 0
-            )  # Prevent negative stocks
-
-        print(f"  -> Updated stock balance for Process {process_id}")
-
-    print("--> Initial stock balances calculated.")
+    import warnings
+    warnings.warn(
+        "calculate_initial_stock_balances() is deprecated and has no effect. "
+        "Stock balances are computed inside solver.calculate_final_balances().",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return mfa_system
 
 
 def update_initial_stock_flows_during_solver(mfa_system):
-    """Updates the values of initial stock outflow flows during solver iterations.
+    """Initialises outflow time-series for initial-stock processes.
 
-    This function is called during each solver iteration to calculate and set
-    the values for flows originating from initial stocks, based on the
-    configuration attached to the flow object.
+    Called once before the iterative solver loop (not on every iteration —
+    the values are constant, so recomputing them each pass is wasteful).
+
+    For each flow the annual consumption vector is computed as:
+        annual_consumption = initial_stock * consumption_rate * split_fraction
+
+    Outflows are clamped to zero once the initial stock is exhausted, preventing
+    negative stock values in ``calculate_final_balances``.
 
     Parameters
     ----------
@@ -774,26 +750,39 @@ def update_initial_stock_flows_during_solver(mfa_system):
     Returns
     -------
     odym.MFAsystem
-        The modified MFA system with updated initial stock flow values.
+        The modified MFA system with initial stock flow values set.
     """
     if not hasattr(mfa_system, "initial_stock_outflows"):
         return mfa_system
 
     for process_id, outflow_flows in mfa_system.initial_stock_outflows.items():
         for flow in outflow_flows:
-            # Read from external dict (ODYM compliance)
             config = getattr(mfa_system, "_initial_stock_configs", {}).get(flow.Name)
-            if config:
-                # Calculate annual consumption with split
-                annual_consumption = (
-                    config["initial_stock"]
-                    * config["consumption_rate"]
-                    * config["split_fraction"]
-                )
+            if config is None:
+                continue
 
-                # Set flow values (constant over time)
-                for t in range(len(flow.Values)):
-                    flow.Values[t, :] = annual_consumption
+            annual_consumption = (
+                config["initial_stock"]
+                * config["consumption_rate"]
+                * config["split_fraction"]
+            )  # shape (n_elem,)
+
+            n_time = flow.Values.shape[0]
+
+            # Determine the year index at which the material stock (index 0) is exhausted.
+            material_annual = annual_consumption[0]
+            material_initial = config["initial_stock"][0]
+            if material_annual > 0:
+                # Number of full years before stock is consumed
+                years_until_depletion = int(np.floor(material_initial / material_annual))
+            else:
+                years_until_depletion = n_time  # never depleted
+
+            # Build time-series: constant until depletion, zero afterwards
+            flow.Values[:] = 0.0
+            active_years = min(years_until_depletion, n_time)
+            if active_years > 0:
+                flow.Values[:active_years, :] = annual_consumption[np.newaxis, :]
 
     return mfa_system
 
