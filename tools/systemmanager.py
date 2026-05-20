@@ -21,10 +21,9 @@ def _():
         if _p not in sys.path:
             sys.path.insert(0, _p)
 
-    from data_loader import normalize_column_names, _sanitize_col_name
     from yaml_schema import validate_composition, model_to_yaml, save_yaml
 
-    return here, mo, model_to_yaml, normalize_column_names, os, pd, save_yaml, validate_composition
+    return here, mo, model_to_yaml, os, pd, save_yaml, validate_composition
 
 
 @app.cell
@@ -95,7 +94,16 @@ def _(file_upload, mo, os, pd, set_excel_state):
 
 
 @app.cell
-def _(excel_state, mo, normalize_column_names, validate_composition):
+def _(excel_state, mo, validate_composition):
+    import sys as _sys
+    import os as _os
+    _here = _os.path.dirname(_os.path.abspath(__file__))
+    _src = _os.path.join(_here, "..", "02_src")
+    for _p in (_here, _src):
+        if _p not in _sys.path:
+            _sys.path.insert(0, _p)
+    from data_loader import normalize_column_names
+
     mo.stop(
         excel_state() is None,
         mo.callout(mo.md("No data loaded yet — upload a file above."), kind="info"),
@@ -290,7 +298,7 @@ def _(excel_state, mo, normalize_column_names, validate_composition):
         ])
 
     # ---- Assemble tabs ----
-    return mo.ui.tabs({
+    mo.ui.tabs({
         "Overview": _build_overview(_sheets, _elements),
         "Processes": _build_processes(_sheets),
         "Flows": _build_flows(_sheets),
@@ -298,6 +306,7 @@ def _(excel_state, mo, normalize_column_names, validate_composition):
         "BOM Assembly": _build_bom(_sheets, _elements, normalize_column_names),
         "Validation": _build_validation(_sheets, _elements),
     })
+    return
 
 
 @app.cell
