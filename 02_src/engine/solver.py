@@ -403,7 +403,16 @@ def _calculate_dsm_flows(mfa_system, dsm_processes, dsm_params, iteration, flow_
         total_inflow_sum = sum(np.sum(f.Values) for f in inflows_to_dsm)
 
         inflow_names = [f.Name for f in inflows_to_dsm]
-        is_ready = total_inflow_sum > 0
+
+        # Also run when initial stock exists, even if no new inflows yet
+        _stock_cfg = dsm_params.get(process_id, {}).get("stock_configuration", "Stock")
+        if _stock_cfg in ("Stock_with_InitialStock_Cohort", "Stock_with_InitialStock_Decay"):
+            _s_chk = mfa_system.StockDict.get(f"S_{process_id}")
+            _has_initial = _s_chk is not None and float(_s_chk.Values[0, 0]) > 0
+        else:
+            _has_initial = False
+
+        is_ready = total_inflow_sum > 0 or _has_initial
         if not is_ready:
             continue
 

@@ -265,6 +265,8 @@ def _calculate_outflow_from_initial_stock_cohort(
         distribution_type=cohort_params["distribution_type"],
         max_age=cohort_params["max_age"],
         decay_constant=cohort_params["decay_constant"],
+        mean_age=cohort_params.get("mean_age"),
+        std_age=cohort_params.get("std_age"),
     )
 
     # Apply element composition to all cohorts

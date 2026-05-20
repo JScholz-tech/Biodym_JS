@@ -171,6 +171,16 @@ def load_initial_stock_parameters(excel_data, elements=None):
                     config["cohort_decay_constant"] = float(param_value)
                 else:
                     print(f"    WARNING: Process {process_id} has non-numeric decay constant: {param_value_raw}")
+            elif param_name == "Cohort_Mean_Age[years]":
+                if param_value is not None:
+                    config["cohort_mean_age"] = float(param_value)
+                else:
+                    print(f"    WARNING: Process {process_id} has non-numeric mean age: {param_value_raw}")
+            elif param_name == "Cohort_StdDev_Age[years]":
+                if param_value is not None:
+                    config["cohort_std_age"] = float(param_value)
+                else:
+                    print(f"    WARNING: Process {process_id} has non-numeric std age: {param_value_raw}")
             else:
                 config[
                     param_name.lower().replace(" ", "_").replace("[", "").replace("]", "")
