@@ -4,10 +4,6 @@ __generated_with = "0.23.5"
 app = marimo.App(width="full", app_title="BioDYM System Manager")
 
 
-# ---------------------------------------------------------------------------
-# Imports + path setup
-# ---------------------------------------------------------------------------
-
 @app.cell
 def _():
     import os
@@ -28,12 +24,8 @@ def _():
     from data_loader import normalize_column_names, _sanitize_col_name
     from yaml_schema import validate_composition, model_to_yaml, save_yaml
 
-    return here, mo, normalize_column_names, os, pd, save_yaml, model_to_yaml, validate_composition
+    return here, mo, model_to_yaml, normalize_column_names, os, pd, save_yaml, validate_composition
 
-
-# ---------------------------------------------------------------------------
-# State + widgets
-# ---------------------------------------------------------------------------
 
 @app.cell
 def _(mo):
@@ -45,10 +37,6 @@ def _(mo):
     excel_state, set_excel_state = mo.state(None)
     return excel_state, file_upload, set_excel_state
 
-
-# ---------------------------------------------------------------------------
-# Header
-# ---------------------------------------------------------------------------
 
 @app.cell
 def _(file_upload, mo):
@@ -62,10 +50,6 @@ def _(file_upload, mo):
     ])
     return
 
-
-# ---------------------------------------------------------------------------
-# Parse file on upload → set state
-# ---------------------------------------------------------------------------
 
 @app.cell
 def _(file_upload, mo, os, pd, set_excel_state):
@@ -110,10 +94,6 @@ def _(file_upload, mo, os, pd, set_excel_state):
     return
 
 
-# ---------------------------------------------------------------------------
-# Main content tabs
-# ---------------------------------------------------------------------------
-
 @app.cell
 def _(excel_state, mo, normalize_column_names, validate_composition):
     mo.stop(
@@ -138,11 +118,12 @@ def _(excel_state, mo, normalize_column_names, validate_composition):
 
     _elements = _get_elements(_sheets)
 
-    # ---- Helper: render a DataFrame as a scrollable table ----
+    # ---- Helper: render a DataFrame as an HTML table ----
     def _show_df(df, max_rows=200):
         if df is None or df.empty:
             return mo.callout(mo.md("*(sheet is empty)*"), kind="info")
-        return mo.ui.table(df.head(max_rows).fillna("").astype(str), selection=None)
+        _html = df.head(max_rows).fillna("").to_html(index=False, border=0, classes="dataframe")
+        return mo.Html(f'<div style="overflow-x:auto;max-height:400px;overflow-y:auto">{_html}</div>')
 
     # ---- Tab: Overview ----
     def _build_overview(sheets, elements):
@@ -319,10 +300,6 @@ def _(excel_state, mo, normalize_column_names, validate_composition):
     })
 
 
-# ---------------------------------------------------------------------------
-# YAML export
-# ---------------------------------------------------------------------------
-
 @app.cell
 def _(mo):
     export_btn = mo.ui.run_button(label="💾  Export YAML")
@@ -330,7 +307,7 @@ def _(mo):
 
 
 @app.cell
-def _(mo, export_btn):
+def _(export_btn, mo):
     mo.vstack([
         mo.md("---\n## Export Configuration"),
         mo.md("Export model metadata, processes, and flows as a version-controllable YAML file."),
