@@ -272,32 +272,31 @@ def _calculate_outflow_from_initial_stock_cohort(
         material_cohorts, cohort_params["element_fractions"]
     )
 
-    # Initialize output arrays
+    max_age = cohort_params["max_age"]
+
+    # ODYM's compute_evolution_initialstock places the initial stock at index
+    # SwitchTime in the time array.  To make SwitchTime=max_age correspond to
+    # the first simulation year (t=0), we build an extended time vector that
+    # prepends max_age "past" steps.  We then take only the [max_age:] slice.
+    n_extended = num_years + max_age
+    t_extended = np.arange(n_extended)
+
     stock_ts = np.zeros((num_years, num_elements))
     outflow_ts = np.zeros((num_years, num_elements))
 
-    # Process each element separately (ODYM handles one element at a time)
     for elem_idx in range(num_elements):
-        # Create ODYM DSM for this element
-        dsm = DynamicStockModel(t=time_vector, lt=params.get("lifetimes", {}))
-
-        # Initial stock for this element (age cohorts)
+        dsm_obj = DynamicStockModel(t=t_extended, lt=params.get("lifetimes", {}))
         initial_stock_elem = initial_stock_cohort_matrix[:, elem_idx]
 
-        # Compute evolution using ODYM method
-        max_age = cohort_params["max_age"]
-        dsm.compute_evolution_initialstock(
+        dsm_obj.compute_evolution_initialstock(
             InitialStock=initial_stock_elem, SwitchTime=max_age
         )
+        dsm_obj.compute_o_c_from_s_c()
+        dsm_obj.compute_stock_total()
+        dsm_obj.compute_outflow_total()
 
-        # Compute outflow cohorts
-        dsm.compute_o_c_from_s_c()
-
-        # Sum across cohorts to get total stock and outflow
-        if hasattr(dsm, "s"):
-            stock_ts[:, elem_idx] = dsm.s
-        if hasattr(dsm, "o"):
-            outflow_ts[:, elem_idx] = dsm.o
+        stock_ts[:, elem_idx] = dsm_obj.s[max_age:]
+        outflow_ts[:, elem_idx] = dsm_obj.o[max_age:]
 
     return stock_ts, outflow_ts
 
