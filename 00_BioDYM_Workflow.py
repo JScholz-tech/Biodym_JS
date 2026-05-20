@@ -407,7 +407,7 @@ print(f"\n{Icons.ARROW} Traditional Sankey Diagram (Auto-Layout)")
 print("   • Single element selection with dropdown")
 print("   • Automatic node positioning via topological sort")
 print("   • Interactive filtering by year, process, and flow threshold")
-plotting.plot_interactive_sankey(mfa_results_baseline, dsm_params, fomp_params)
+plotting.plot_interactive_sankey(mfa_results_baseline, dsm_params, fomp_params, bom_params=bom_params)
 
 # ## 3.2 Additional Visualizations
 print(f"\n{Icons.ARROW} Additional Visualizations")
@@ -527,6 +527,19 @@ if lfg_params:
     plotting.plot_lfg_stock_details(mfa_results_baseline, lfg_params)
 else:
     print(f"   {Icons.INFO} No LFG processes found - skipping LFG analysis")
+
+# ### 3.2.4 BOM Assembler Analysis
+#
+# Assembly efficiency and flow breakdown for all BOM_Assembler processes.
+# Shows assembled product vs. residue per element and assembly efficiency (%).
+# Skipped automatically when no BOM Assembler processes are configured.
+if bom_params:
+    print(f"\n{Icons.ARROW} BOM Assembler Analysis:")
+    print("   • Assembled product vs. residue (stacked) per element")
+    print("   • Assembly efficiency (%) — fraction of inflow becoming product")
+    plotting.plot_bom_assembly_flows(mfa_results_baseline, bom_params)
+else:
+    print(f"   {Icons.INFO} No BOM Assembler processes found - skipping BOM analysis")
 
 
 # # 4. Scenario & Uncertainty Manager
