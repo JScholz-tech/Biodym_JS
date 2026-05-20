@@ -155,44 +155,6 @@ def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None
     return mfa_system
 
 
-# --- BioDYM Extension: Stock-Outflow TCs ---
-# This function is a custom addition to ODYM for handling
-# outflows directly from initial stocks.
-def process_initial_stocks(mfa_system):
-    """Processes initial stock outflows using the dedicated initial stock engine.
-
-    Notes
-    -----
-    This function is a BioDYM-specific extension to the standard ODYM framework
-    that allows for outflows to be generated directly from a process's initial
-    stock, which is not a standard ODYM feature.
-
-    Parameters
-    ----------
-    mfa_system : odym.MFAsystem
-        The MFA system object.
-
-    Returns
-    -------
-    odym.MFAsystem
-        The MFA system, potentially modified by the initial stock engine.
-    """
-    print("--> Processing initial stock outflows...")
-
-    # Check if initial stock configurations were loaded
-    if (
-        hasattr(mfa_system, "initial_stock_outflows")
-        and mfa_system.initial_stock_outflows
-    ):
-        # Get initial stock configurations (we need to reload them)
-        # This is a temporary solution - in the future, we should store the configs in mfa_system
-        print("  -> Initial stock outflows already processed during setup")
-        return mfa_system
-    else:
-        print("  -> No initial stock outflows found")
-        return mfa_system
-
-
 def enhanced_input_validation(input_flows, dsm_processes):
     """Validates if a process has valid inputs to justify calculation.
 
@@ -846,12 +808,6 @@ def run_mfa_calculation(
     # iterations needed for convergence from O(chain_depth) to O(1).
     sorted_flow_names = _topological_sort_flows(mfa_system)
     print(f"--> Flow dependency graph sorted ({len(sorted_flow_names)} flows in topological order).")
-
-    # Set initial-stock outflow time-series once before the iteration loop.
-    # These values are constant (not iteration-dependent), so pre-computing
-    # them here avoids redundant work inside the loop.
-    from . import initial_stock_engine as _ise
-    mfa_system = _ise.update_initial_stock_flows_during_solver(mfa_system)
 
     max_iterations = 30  # Safeguard against infinite loops
     convergence_log = []

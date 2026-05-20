@@ -104,10 +104,11 @@ COLUMN_NAME_MAPPING = {
         "LFG_Parameter_Value": "LFG_Parameter_Value",
         "Process_ID": "Process_ID",
     },
-    "3_4_Definition_BOM": {
+    "3_3_Definition_BOM_Assembly": {
         "Process_ID": "Process_ID",
-        "Primary_Flow_ID": "Primary_Flow_ID",
-        "Residue_Flow_ID": "Residue_Flow_ID",
+        "Output_flow_type": "Output_flow_type",
+        "Flow_ID": "Flow_ID",
+        "TC_Configuration": "TC_Configuration",
     },
     # Add more mappings as needed
 }
@@ -1628,7 +1629,7 @@ def load_bom_parameters(excel_data, elements, debug_mode=False):
         Keys are process IDs; values are BOM configuration dicts.
         See engine.bom_assembler.load_bom_parameters() for details.
     """
-    from engine import bom_assembler as _bom
+    from engine import bom_assembler as _bom  # local import avoids circular dependency
 
     return _bom.load_bom_parameters(excel_data, elements, debug_mode=debug_mode)
 

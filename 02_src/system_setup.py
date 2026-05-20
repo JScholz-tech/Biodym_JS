@@ -522,9 +522,6 @@ def _apply_initial_stock(mfa_system, all_excel_data):
         mfa_system = initial_stock_engine.apply_initial_stock_values(
             mfa_system, initial_stock_configs
         )
-        mfa_system = initial_stock_engine.process_initial_stock_outflows(
-            mfa_system, initial_stock_configs
-        )
 
         # Store initial_stock_configs on MFA system for later use by DSM Cohort mode
         mfa_system._process_initial_stock_configs = initial_stock_configs

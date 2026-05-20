@@ -4,156 +4,198 @@ BOM Assembler Process Logic for the BioDYM Engine.
 
 A BOM_Assembler process models remanufacturing, repair, or assembly operations
 where the output product must have a strictly defined mass composition (Bill of
-Materials, BOM). Rather than splitting the inflow by fixed fractions, the process:
+Materials). Rather than splitting the inflow by fixed fractions, the process:
 
-  1. Totals the available mass for each top-level element from all inflows.
-  2. Finds the limiting element — the one that constrains maximum assembly volume
-     given the BOM target fractions.
-  3. Scales the primary product output to match the exact BOM.
-  4. Routes all excess (non-assemblable) mass to a designated residue flow.
+  1. Totals the available mass for each element from all inflows.
+  2. Reads the target BOM composition from ParameterDict (time-varying TCs).
+  3. Converts parent-relative fractions to absolute (material-relative) fractions
+     by cascading through the element hierarchy.
+  4. Finds the limiting element — the one that constrains maximum assembly volume.
+  5. Scales the target-product output to match the exact BOM.
+  6. Routes all excess (non-assemblable) mass to designated residue flows.
 
-Mass balance is always maintained: total_inflow = primary_product + residue.
+Mass balance: total_inflow == target_product + residue  (always maintained).
 
-Excel configuration lives in sheet '3_4_Definition_BOM'. Each row defines one
-BOM_Assembler process. The BOM fractions must be given for every top-level element
-(elements whose parent is 'material' or who have no parent); sub-elements like DM/TC
-within the hierarchy are recomputed automatically.
+Excel configuration: sheet '3_3_Definition_BOM_Assembly'
+Multi-row layout — one row per output flow per process:
 
-Configuration columns expected in '3_4_Definition_BOM':
-    Process_ID          int  — matches the process ID in 2_1_Definition_Processes
-    Primary_Flow_ID     str  — Flow_ID of the primary product output
-    Residue_Flow_ID     str  — Flow_ID of the residue/waste output
-    BOM_E{n}_Fraction   float — target mass fraction for element n (0–1 scale)
-                                e.g. BOM_E1_Fraction for 'material' (always 1.0),
-                                     BOM_E2_Fraction for 'WC', etc.
+    Process_ID        int   — ID in 2_1_Definition_Processes
+    Process_Name      str   — informational
+    Process_Logic     str   — must be 'BOM_Assembler'
+    TC_Configuration  str   — 'Dynamic' or 'No TC'
+    Stock_Configuration str — typically 'No_Stock'
+    Outflow_count     int   — total number of output flows for this process
+    Output_Flow       str   — human-readable output flow name
+    Output_flow_type  str   — 'target_Product' or 'Unused_Material'
+    Flow_ID           str   — matches FlowDict key (e.g. 'F_04_05')
+    Year              int   — start year (informational)
+    E2_TC_ID … E{n}_TC_ID  — ParameterDict keys for BOM fractions (one per element)
+                              Fractions are relative to the parent element
+                              (same convention as the element hierarchy).
+                              Only required on 'target_Product' rows.
 
-The BOM fractions for top-level elements must sum to 1.0.
+BOM fraction semantics (relative-to-parent):
+    E2_TC_ID value → fraction of MATERIAL that is element-2  (e.g. WC = 60%)
+    E3_TC_ID value → fraction of MATERIAL that is element-3  (e.g. DM = 40%)
+    E4_TC_ID value → fraction of element-3 (DM) that is element-4 (TC = 18%)
+
+For 'No TC' processes (TC_Configuration == 'No TC'): no BOM fractions are
+defined; all inflow passes directly to the target_Product flow with no
+composition constraint (behaves as a pass-through / merger).
 """
 
 import numpy as np
 
 
+# ---------------------------------------------------------------------------
+# Excel loader
+# ---------------------------------------------------------------------------
+
+SHEET_NAME = "3_3_Definition_BOM_Assembly"
+
+
 def load_bom_parameters(excel_data, elements, debug_mode=False):
-    """Reads BOM Assembler configurations from the '3_4_Definition_BOM' sheet.
+    """Reads BOM Assembler configurations from '3_3_Definition_BOM_Assembly'.
 
     Parameters
     ----------
     excel_data : dict
         Dictionary of DataFrames keyed by sheet name.
     elements : list of str
-        Ordered list of element names matching mfa_system.Elements.
+        Ordered element names matching mfa_system.Elements.
     debug_mode : bool, optional
-        If True, print detailed parsing information.
 
     Returns
     -------
     dict
-        Keys are process IDs (int). Values are dicts with:
-        - 'primary_flow_id'  : str
-        - 'residue_flow_id'  : str
-        - 'bom_fractions'    : np.ndarray, shape (n_elements,),
-                               target mass fraction per element (0–1).
-                               Index 0 (material) is implicitly 1.0.
+        Keys are process IDs (int). Values:
+        {
+          'target_flows': [{'flow_id': str, 'tc_ids': {element: tc_id_str}}, ...],
+          'residue_flows': [str, ...],
+          'tc_configuration': str,   # 'Dynamic' or 'No TC'
+        }
         Returns {} if the sheet is missing or empty.
     """
-    sheet_name = "3_4_Definition_BOM"
     if debug_mode:
-        print(f"--> Loading BOM Assembler parameters from sheet '{sheet_name}'...")
+        print(f"--> Loading BOM Assembler parameters from '{SHEET_NAME}'...")
 
-    if sheet_name not in excel_data:
+    if SHEET_NAME not in excel_data:
         if debug_mode:
-            print(f"  -> Sheet '{sheet_name}' not found. No BOM Assembler processes.")
+            print(f"  -> Sheet '{SHEET_NAME}' not found. No BOM Assembler processes.")
         return {}
 
-    df = excel_data[sheet_name].dropna(subset=["Process_ID"])
+    df = excel_data[SHEET_NAME].dropna(subset=["Process_ID"])
     if df.empty:
         if debug_mode:
-            print(f"  -> Sheet '{sheet_name}' is empty.")
+            print(f"  -> Sheet '{SHEET_NAME}' is empty.")
         return {}
+
+    # Detect TC column format (E{n}_TC_ID)
+    tc_col_map = _build_tc_column_map(df, elements, debug_mode)
 
     bom_params = {}
 
-    for _, row in df.iterrows():
-        process_id = int(row["Process_ID"])
-        primary_flow_id = str(row.get("Primary_Flow_ID", "")).strip()
-        residue_flow_id = str(row.get("Residue_Flow_ID", "")).strip()
+    for process_id, group in df.groupby(df["Process_ID"].astype(int)):
+        process_id = int(process_id)
+        tc_cfg = str(group["TC_Configuration"].iloc[0]).strip() if "TC_Configuration" in group.columns else "No TC"
 
-        if not primary_flow_id or not residue_flow_id:
-            print(
-                f"  -> WARNING: BOM process {process_id} missing Primary_Flow_ID or "
-                f"Residue_Flow_ID — skipped."
-            )
+        target_flows = []
+        residue_flows = []
+
+        for _, row in group.iterrows():
+            flow_id = str(row.get("Flow_ID", "")).strip()
+            if not flow_id:
+                continue
+            flow_type = str(row.get("Output_flow_type", "")).strip()
+
+            if flow_type == "target_Product":
+                tc_ids = {}
+                for elem, col in tc_col_map.items():
+                    if col and col in row and not _is_nan(row[col]):
+                        tc_ids[elem] = str(row[col]).strip()
+                target_flows.append({"flow_id": flow_id, "tc_ids": tc_ids})
+                if debug_mode:
+                    print(f"  -> Process {process_id}: target_Product flow '{flow_id}', tc_ids={tc_ids}")
+
+            elif flow_type == "Unused_Material":
+                residue_flows.append(flow_id)
+                if debug_mode:
+                    print(f"  -> Process {process_id}: Unused_Material flow '{flow_id}'")
+            else:
+                if debug_mode:
+                    print(f"  -> Process {process_id}: unknown Output_flow_type '{flow_type}' for '{flow_id}' — skipped")
+
+        if not target_flows:
+            print(f"  -> WARNING: BOM process {process_id} has no 'target_Product' flow — skipped.")
             continue
 
-        # Read per-element BOM fractions using E{n}_Fraction column naming
-        bom_fractions = np.zeros(len(elements))
-        bom_fractions[0] = 1.0  # material fraction is always 1.0
-
-        for elem_idx, element in enumerate(elements[1:], start=1):
-            col = f"BOM_E{elem_idx + 1}_Fraction"
-            if col in row and not _is_missing(row[col]):
-                bom_fractions[elem_idx] = float(row[col])
-            else:
-                # Try legacy element-name column: BOM_WC_Fraction
-                col_legacy = f"BOM_{element}_Fraction"
-                if col_legacy in row and not _is_missing(row[col_legacy]):
-                    bom_fractions[elem_idx] = float(row[col_legacy])
-
         bom_params[process_id] = {
-            "primary_flow_id": primary_flow_id,
-            "residue_flow_id": residue_flow_id,
-            "bom_fractions": bom_fractions,
+            "target_flows": target_flows,
+            "residue_flows": residue_flows,
+            "tc_configuration": tc_cfg,
         }
-        if debug_mode:
-            print(
-                f"  -> Process {process_id}: primary={primary_flow_id}, "
-                f"residue={residue_flow_id}, BOM={bom_fractions}"
-            )
 
-    print(
-        f"--> Loaded BOM Assembler parameters for {len(bom_params)} process(es)."
-    )
+    print(f"--> Loaded BOM Assembler configurations for {len(bom_params)} process(es).")
     return bom_params
 
 
-def _is_missing(val):
-    """Return True if val is NaN, None, or empty string."""
+def _build_tc_column_map(df, elements, debug_mode=False):
+    """Returns {element_name: column_name} for E{n}_TC_ID columns."""
+    cols = df.columns.tolist()
+    col_map = {}
+    for elem_idx, element in enumerate(elements):
+        if element == "material":
+            continue
+        n = elem_idx + 1
+        candidate = f"E{n}_TC_ID"
+        if candidate in cols:
+            col_map[element] = candidate
+        else:
+            col_map[element] = None
+    if debug_mode:
+        print(f"  -> BOM TC column map: {col_map}")
+    return col_map
+
+
+def _is_nan(val):
     if val is None:
         return True
     try:
         import math
-        return math.isnan(val)
+        return math.isnan(float(val))
     except (TypeError, ValueError):
-        return str(val).strip() == ""
+        return str(val).strip() in ("", "nan", "NaN", "None")
 
+
+# ---------------------------------------------------------------------------
+# Assembly calculation (called from solver every iteration)
+# ---------------------------------------------------------------------------
 
 def calculate_bom_assembly(mfa_system, bom_processes, bom_params, element_hierarchy=None):
-    """Calculates primary-product and residue flows for all BOM_Assembler processes.
+    """Calculates target-product and residue flows for all BOM_Assembler processes.
 
-    For each BOM_Assembler process this function:
-      1. Sums all inflows to get total available mass per element per year.
-      2. Identifies the limiting element and scales primary output to exact BOM.
-      3. Routes excess mass to the residue flow.
-
-    The calculation is element-hierarchy-aware: the material total (element 0) is
-    derived as the sum of top-level elements, not set independently.
+    For each BOM_Assembler process:
+      1. Sum all inflows to get available mass per element.
+      2. Read time-varying BOM fractions from ParameterDict (parent-relative).
+      3. Convert to absolute fractions via hierarchy cascade.
+      4. Find limiting element → scale primary output to exact BOM.
+      5. Assign excess to residue flows.
 
     Parameters
     ----------
     mfa_system : odym.MFAsystem
-        The MFA system object, modified in place.
-    bom_processes : set
-        Set of process IDs identified as BOM_Assembler.
+        Modified in place.
+    bom_processes : set of int
+        Process IDs registered as BOM_Assembler.
     bom_params : dict
-        Per-process configuration dicts as returned by load_bom_parameters().
-    element_hierarchy : dict, optional
-        Element hierarchy from mfa_system._element_hierarchy. Used to identify
-        top-level elements for the limiting-factor comparison.
+        Per-process config as returned by load_bom_parameters().
+    element_hierarchy : dict or None
+        mfa_system._element_hierarchy.
 
     Returns
     -------
     bool
-        True if any flow values changed during this call, False otherwise.
+        True if any flow value changed.
     """
     if not bom_processes:
         return False
@@ -161,148 +203,177 @@ def calculate_bom_assembly(mfa_system, bom_processes, bom_params, element_hierar
     something_changed = False
     elements = mfa_system.Elements
     n_elem = len(elements)
-    elem_idx = {e: i for i, e in enumerate(elements)}
-
-    # Identify top-level elements (direct children of 'material', excluding material itself)
-    top_level_indices = _get_top_level_element_indices(elements, element_hierarchy)
+    n_time = len(mfa_system.IndexTable.Classification["Time"].Items)
 
     for process_id in bom_processes:
         if process_id not in bom_params:
             continue
 
         cfg = bom_params[process_id]
-        primary_fid = cfg["primary_flow_id"]
-        residue_fid = cfg["residue_flow_id"]
-        bom_fractions = cfg["bom_fractions"]  # shape (n_elem,)
+        target_flow_cfgs = cfg["target_flows"]
+        residue_flow_ids = cfg["residue_flows"]
+        tc_cfg = cfg.get("tc_configuration", "No TC")
 
-        # Validate that both flows exist
-        if primary_fid not in mfa_system.FlowDict:
-            print(f"  -> WARNING: Primary flow '{primary_fid}' not found for BOM process {process_id}")
-            continue
-        if residue_fid not in mfa_system.FlowDict:
-            print(f"  -> WARNING: Residue flow '{residue_fid}' not found for BOM process {process_id}")
-            continue
-
-        # Sum all inflows to this process
+        # --- Sum all inflows ---
         inflows = [f for f in mfa_system.FlowDict.values() if f.P_End == process_id]
         if not inflows:
             continue
+        available = sum(f.Values for f in inflows)  # (n_time, n_elem)
 
-        total_inflow = sum(f.Values for f in inflows)  # shape (n_time, n_elem)
-        n_time = total_inflow.shape[0]
+        total_primary = np.zeros((n_time, n_elem))
 
-        old_primary = mfa_system.FlowDict[primary_fid].Values.copy()
-
-        # --- Limiting-factor calculation ---
-        # For each top-level element e with BOM fraction b_e > 0:
-        #   max_assemblable[t] = available[t, e] / b_e
-        # The actual product volume is min over all top-level elements.
-        # Material total is sum of top-level assembled amounts.
-
-        max_assemblable = np.full(n_time, np.inf)  # start with no constraint
-
-        for tl_idx in top_level_indices:
-            b = bom_fractions[tl_idx]
-            if b <= 0:
-                # This element contributes nothing to the BOM — its surplus is residue
+        for target_cfg in target_flow_cfgs:
+            fid = target_cfg["flow_id"]
+            if fid not in mfa_system.FlowDict:
+                print(f"  -> WARNING: BOM target flow '{fid}' not in FlowDict for process {process_id}")
                 continue
-            available = total_inflow[:, tl_idx]
-            # Avoid division by zero: if b == 0 skip; already handled above
-            max_assemblable = np.minimum(max_assemblable, available / b)
 
-        # If no top-level element had a positive BOM fraction, nothing can be assembled
-        if np.all(np.isinf(max_assemblable)):
-            max_assemblable = np.zeros(n_time)
+            old_values = mfa_system.FlowDict[fid].Values.copy()
 
-        # Clamp to [0, total_inflow_material] — can't assemble more than we have
-        max_assemblable = np.clip(max_assemblable, 0.0, total_inflow[:, 0])
+            if tc_cfg == "No TC" or not target_cfg["tc_ids"]:
+                # No composition constraint: target gets everything available
+                primary = available.copy()
+            else:
+                bom_ts = _read_bom_fractions_ts(
+                    target_cfg["tc_ids"], elements, mfa_system, n_time, n_elem
+                )
+                abs_bom_ts = _compute_absolute_bom_fractions_ts(
+                    bom_ts, elements, element_hierarchy
+                )
+                max_assemblable = _find_limiting_factor(available, abs_bom_ts, n_time, n_elem)
+                primary = _build_primary_vector(max_assemblable, abs_bom_ts, n_time, n_elem)
 
-        # Build primary product vector
-        primary_out = np.zeros_like(total_inflow)
-        primary_out[:, 0] = max_assemblable  # material total set from top-level sum below
-        for tl_idx in top_level_indices:
-            primary_out[:, tl_idx] = max_assemblable * bom_fractions[tl_idx]
+            mfa_system.FlowDict[fid].Values = primary
+            total_primary += primary
 
-        # Recalculate material column as sum of top-level elements
-        primary_out[:, 0] = sum(primary_out[:, i] for i in top_level_indices)
+            if not np.allclose(old_values, primary):
+                something_changed = True
 
-        # Sub-elements (DM, TC, etc.) are proportional to their parent in the BOM
-        _propagate_sub_elements(primary_out, bom_fractions, elements, element_hierarchy)
+        # --- Residue = inflow − all primary products ---
+        residue = np.maximum(available - total_primary, 0.0)
 
-        # Residue = everything that wasn't assembled
-        residue_out = total_inflow - primary_out
-        residue_out = np.maximum(residue_out, 0.0)  # numerical guard
-
-        # Write to flows
-        mfa_system.FlowDict[primary_fid].Values = primary_out
-        mfa_system.FlowDict[residue_fid].Values = residue_out
-
-        if not np.allclose(old_primary, primary_out):
-            something_changed = True
+        if residue_flow_ids:
+            split = 1.0 / len(residue_flow_ids)
+            for rfid in residue_flow_ids:
+                if rfid not in mfa_system.FlowDict:
+                    print(f"  -> WARNING: BOM residue flow '{rfid}' not in FlowDict for process {process_id}")
+                    continue
+                old_r = mfa_system.FlowDict[rfid].Values.copy()
+                mfa_system.FlowDict[rfid].Values = residue * split
+                if not np.allclose(old_r, mfa_system.FlowDict[rfid].Values):
+                    something_changed = True
 
     return something_changed
 
 
-def _get_top_level_element_indices(elements, element_hierarchy):
-    """Returns indices of top-level elements (direct children of 'material').
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
 
-    If no hierarchy is provided, all non-material elements are top-level.
+def _read_bom_fractions_ts(tc_ids, elements, mfa_system, n_time, n_elem):
+    """Read per-element BOM fractions from ParameterDict.
+
+    Returns (n_time, n_elem) array of parent-relative fractions.
+    material (index 0) is always 1.0.
+    """
+    bom_ts = np.zeros((n_time, n_elem))
+    bom_ts[:, 0] = 1.0
+
+    for elem, tc_id in tc_ids.items():
+        if not tc_id or tc_id not in mfa_system.ParameterDict:
+            continue
+        idx = elements.index(elem) if elem in elements else None
+        if idx is None:
+            continue
+        vals = mfa_system.ParameterDict[tc_id].Values
+        if isinstance(vals, (int, float)):
+            bom_ts[:, idx] = float(vals)
+        else:
+            arr = np.asarray(vals).reshape(-1)
+            bom_ts[:, idx] = arr[:n_time] if len(arr) >= n_time else np.pad(arr, (0, n_time - len(arr)), constant_values=arr[-1])
+
+    return bom_ts
+
+
+def _compute_absolute_bom_fractions_ts(bom_ts, elements, element_hierarchy):
+    """Convert parent-relative BOM fractions to material-absolute fractions.
 
     Parameters
     ----------
+    bom_ts : (n_time, n_elem) — fractions relative to parent element.
     elements : list of str
     element_hierarchy : dict or None
 
     Returns
     -------
-    list of int
+    abs_bom_ts : (n_time, n_elem) — fraction of total MATERIAL mass.
     """
+    n_time, n_elem = bom_ts.shape
+    abs_bom = np.zeros_like(bom_ts)
+    abs_bom[:, 0] = 1.0  # material
+
     if not element_hierarchy:
-        # No hierarchy: all elements except material[0] are top-level
-        return list(range(1, len(elements)))
-
-    top_level = []
-    for idx, elem in enumerate(elements[1:], start=1):
-        # Find this element in the hierarchy by name
-        parent = None
-        for _eid, info in element_hierarchy.items():
-            if info["name"] == elem:
-                parent = info.get("parent")
-                break
-        # Top-level: parent is 'material' or absent
-        if parent is None or parent == "material":
-            top_level.append(idx)
-    return top_level
-
-
-def _propagate_sub_elements(out_vector, bom_fractions, elements, element_hierarchy):
-    """Sets sub-element values in out_vector based on their parent's assembled mass.
-
-    Sub-elements (e.g. DM within material, TC within DM) are assigned values
-    proportional to their BOM fraction times their parent's assembled value.
-
-    Parameters
-    ----------
-    out_vector : np.ndarray, shape (n_time, n_elem)
-        Modified in place.
-    bom_fractions : np.ndarray, shape (n_elem,)
-    elements : list of str
-    element_hierarchy : dict or None
-    """
-    if not element_hierarchy:
-        return
+        # No hierarchy: all elements treated as top-level (direct % of material)
+        abs_bom[:, 1:] = bom_ts[:, 1:]
+        return abs_bom
 
     elem_idx = {e: i for i, e in enumerate(elements)}
 
-    for _eid, info in element_hierarchy.items():
-        elem = info["name"]
-        parent = info.get("parent")
-        if elem not in elem_idx or parent not in elem_idx:
-            continue
-        if parent == "material":
-            continue  # already handled as top-level
+    # Multiple passes to handle arbitrary hierarchy depth
+    for _ in range(n_elem):
+        for _eid, info in element_hierarchy.items():
+            elem = info.get("name")
+            parent = info.get("parent")
+            if elem not in elem_idx or parent not in elem_idx:
+                continue
+            e_i = elem_idx[elem]
+            p_i = elem_idx[parent]
+            abs_bom[:, e_i] = abs_bom[:, p_i] * bom_ts[:, e_i]
 
-        child_i = elem_idx[elem]
-        parent_i = elem_idx[parent]
-        b = bom_fractions[child_i]
-        out_vector[:, child_i] = out_vector[:, parent_i] * b
+    # Fallback: elements not covered by hierarchy use their bom_ts value directly
+    for i in range(1, n_elem):
+        mask = (abs_bom[:, i] == 0) & (bom_ts[:, i] > 0)
+        abs_bom[mask, i] = bom_ts[mask, i]
+
+    return abs_bom
+
+
+def _find_limiting_factor(available, abs_bom_ts, n_time, n_elem):
+    """Return max assemblable material per time step given available mass and BOM.
+
+    Parameters
+    ----------
+    available : (n_time, n_elem)
+    abs_bom_ts : (n_time, n_elem) — absolute fractions relative to material
+
+    Returns
+    -------
+    max_assemblable : (n_time,)
+    """
+    max_assemblable = np.full(n_time, np.inf)
+
+    for e in range(1, n_elem):  # skip material (index 0)
+        bom_e = abs_bom_ts[:, e]
+        avail_e = available[:, e]
+        # Where BOM fraction > 0, compute how much material we could assemble
+        mask = bom_e > 0
+        ratio = np.where(mask, avail_e / np.where(mask, bom_e, 1.0), np.inf)
+        max_assemblable = np.minimum(max_assemblable, ratio)
+
+    # If no element had a positive BOM fraction, use available material directly
+    all_inf = np.isinf(max_assemblable)
+    max_assemblable = np.where(all_inf, available[:, 0], max_assemblable)
+
+    # Clamp: cannot assemble more material than what arrived
+    return np.clip(max_assemblable, 0.0, available[:, 0])
+
+
+def _build_primary_vector(max_assemblable, abs_bom_ts, n_time, n_elem):
+    """Compute primary product flow values.
+
+    primary[t, 0]  = max_assemblable[t]               (material)
+    primary[t, e]  = max_assemblable[t] × abs_bom[t, e]  (elements)
+    """
+    primary = max_assemblable[:, np.newaxis] * abs_bom_ts  # (n_time, n_elem)
+    primary[:, 0] = max_assemblable  # material = total, not product of fraction
+    return primary
