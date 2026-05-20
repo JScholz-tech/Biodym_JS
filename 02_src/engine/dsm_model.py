@@ -249,7 +249,7 @@ def _calculate_outflow_from_initial_stock_cohort(
     tuple
         (stock_ts, outflow_ts) - Time series of stock and outflow with all elements
     """
-    from odym.modules.dynamic_stock_model import DynamicStockModel
+    from dynamic_stock_model import DynamicStockModel
     from .age_cohort_utils import (
         generate_age_cohorts,
         apply_element_composition_to_cohorts,
