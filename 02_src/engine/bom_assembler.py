@@ -149,16 +149,22 @@ def load_bom_parameters(excel_data, elements, debug_mode=False):
 
 
 def _build_tc_column_map(df, elements, debug_mode=False):
-    """Returns {element_name: column_name} for E{n}_TC_ID columns."""
+    """Returns {element_name: column_name} for TC_ID columns.
+
+    Priority: <element>_TC_ID (named) over E{n}_TC_ID (legacy index).
+    """
     cols = df.columns.tolist()
     col_map = {}
     for elem_idx, element in enumerate(elements):
         if element == "material":
             continue
         n = elem_idx + 1
-        candidate = f"E{n}_TC_ID"
-        if candidate in cols:
-            col_map[element] = candidate
+        named = f"{element}_TC_ID"
+        legacy = f"E{n}_TC_ID"
+        if named in cols:
+            col_map[element] = named
+        elif legacy in cols:
+            col_map[element] = legacy
         else:
             col_map[element] = None
     if debug_mode:
@@ -167,15 +173,19 @@ def _build_tc_column_map(df, elements, debug_mode=False):
 
 
 def _build_tc_value_column_map(df, elements):
-    """Returns {element_name: column_name} for E{n}_TC_Value[%] columns."""
+    """Returns {element_name: column_name} for TC_Value columns.
+
+    Priority: <element>_Value[%] (named) over E{n}_TC_Value[%] (legacy index).
+    """
     cols = df.columns.tolist()
     col_map = {}
     for elem_idx, element in enumerate(elements):
         if element == "material":
             continue
         n = elem_idx + 1
-        candidate = f"E{n}_TC_Value[%]"
-        col_map[element] = candidate if candidate in cols else None
+        named = f"{element}_Value[%]"
+        legacy = f"E{n}_TC_Value[%]"
+        col_map[element] = named if named in cols else (legacy if legacy in cols else None)
     return col_map
 
 

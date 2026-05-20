@@ -9,6 +9,7 @@ interface between the raw data and the core model logic.
 UPDATED: Added column name mapping to handle naming convention changes.
 """
 
+import re
 import pandas as pd
 import numpy as np
 from copy import deepcopy
@@ -38,6 +39,16 @@ except ImportError:
     except ImportError:
         ODYM_AVAILABLE = False
         msc = None
+
+
+def _sanitize_col_name(name):
+    """Convert a string to a safe column identifier.
+
+    Replaces any character that is not a letter, digit, or underscore with
+    an underscore, then collapses runs of underscores to a single one.
+    """
+    result = re.sub(r'[^A-Za-z0-9_]', '_', str(name))
+    return re.sub(r'_+', '_', result)
 
 
 # Column name mapping for backward compatibility and naming convention updates
@@ -121,28 +132,67 @@ SHEET_NAME_MAPPING = {
 }
 
 
-def normalize_column_names(df, sheet_name):
-    """Normalizes column names in a DataFrame based on a predefined mapping.
+def normalize_column_names(df, sheet_name=None, elements=None):
+    """Normalizes column names in a DataFrame.
 
-    This function checks for a mapping for the given sheet name in the global
-    COLUMN_NAME_MAPPING constant and applies it. This allows for backward
-    compatibility with older Excel template versions.
+    Two passes:
+    1. Static mapping from COLUMN_NAME_MAPPING (sheet-specific renames).
+    2. Dynamic E{n}_TC_ID / E{n}_TC_Value[%] → <element>_TC_ID / <element>_Value[%]
+       when `elements` is provided (omits 'material' at index 0).
+
+    Also raises ValueError early if pandas-style duplicate-column suffixes
+    (.1, .2, …) are detected — these indicate an Excel column-naming collision
+    that must be fixed in the source file.
 
     Parameters
     ----------
     df : pd.DataFrame
-        The DataFrame whose columns are to be normalized.
-    sheet_name : str
-        The name of the sheet the DataFrame was read from.
+    sheet_name : str, optional
+    elements : list of str, optional
+        Ordered element names (first entry is 'material').  When supplied,
+        E{n}_TC_ID → <element>_TC_ID and E{n}_TC_Value[%] → <element>_Value[%]
+        renames are applied (only when the named column does not already exist).
 
     Returns
     -------
     pd.DataFrame
-        A new DataFrame with normalized column names.
     """
-    if sheet_name in COLUMN_NAME_MAPPING:
-        mapping = COLUMN_NAME_MAPPING[sheet_name]
-        df = df.rename(columns=mapping)
+    # Guard: detect pandas duplicate-column suffix (.1, .2, …)
+    # Warns rather than raises so existing files with accidental duplicates
+    # still load; the warning surfaces the issue without crashing the model.
+    import warnings as _warnings
+    dupe_cols = [c for c in df.columns if re.search(r'\.\d+$', str(c))]
+    if dupe_cols:
+        _warnings.warn(
+            f"duplicate columns detected (pandas .N suffix): {dupe_cols}. "
+            "Fix the source Excel file before loading.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    # Pass 1: static sheet-specific renames
+    if sheet_name and sheet_name in COLUMN_NAME_MAPPING:
+        df = df.rename(columns=COLUMN_NAME_MAPPING[sheet_name])
+
+    # Pass 2: dynamic E{n} → element-name renames
+    if elements:
+        rename_map = {}
+        for elem_idx, element in enumerate(elements):
+            if element == "material":
+                continue
+            n = elem_idx + 1
+            tc_id_old = f"E{n}_TC_ID"
+            tc_id_new = f"{element}_TC_ID"
+            if tc_id_old in df.columns and tc_id_new not in df.columns:
+                rename_map[tc_id_old] = tc_id_new
+
+            val_old = f"E{n}_TC_Value[%]"
+            val_new = f"{element}_Value[%]"
+            if val_old in df.columns and val_new not in df.columns:
+                rename_map[val_old] = val_new
+        if rename_map:
+            df = df.rename(columns=rename_map)
+
     return df
 
 
