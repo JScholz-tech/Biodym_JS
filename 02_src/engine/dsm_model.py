@@ -283,22 +283,75 @@ def _calculate_outflow_from_initial_stock_cohort(
     n_extended = num_years + max_age
     t_extended = np.arange(n_extended)
 
+    # Build a normalised single-category lt_dict for ODYM.
+    # params["lifetimes"]["Type"] comes from _parse_parameter_based_dsm as a list
+    # (e.g. ["Normal"]).  ODYM's __init__ tiles all keys EXCEPT "Type", so passing
+    # a list as Type means lt["Type"] == "Normal" is always False → sf stays zeros
+    # → NaN via 0/0 in compute_evolution_initialstock.  Extract the first element.
+    lt_raw = params.get("lifetimes", {})
+    type_raw = lt_raw.get("Type", "Normal")
+    lt_type = (type_raw[0] if isinstance(type_raw, list) else type_raw) or "Normal"
+    if isinstance(lt_type, str):
+        lt_type = lt_type.capitalize()
+
+    lt_means  = lt_raw.get("Mean",   [0.0])
+    lt_stds   = lt_raw.get("StdDev", [0.0])
+    lt_shapes = lt_raw.get("Shape",  [None])
+    lt_scales = lt_raw.get("Scale",  [None])
+    mean_val  = float(lt_means[0])  if lt_means  and lt_means[0]  is not None else 0.0
+    std_val   = float(lt_stds[0])   if lt_stds   and lt_stds[0]   is not None else 0.0
+
+    if lt_type == "Weibull":
+        shape_val = lt_shapes[0] if lt_shapes and lt_shapes[0] is not None else None
+        scale_val = lt_scales[0] if lt_scales and lt_scales[0] is not None else None
+        if shape_val is not None and scale_val is not None:
+            lt_dict = {"Type": "Weibull",
+                       "Shape": np.array([float(shape_val)]),
+                       "Scale": np.array([float(scale_val)])}
+        else:
+            k, lam = _weibull_shape_scale_from_mean_std(mean_val, std_val)
+            lt_dict = {"Type": "Weibull",
+                       "Shape": np.array([k]),
+                       "Scale": np.array([lam])}
+    elif std_val == 0 or lt_type == "Fixed":
+        lt_dict = {"Type": "Fixed", "Mean": np.array([mean_val])}
+    else:
+        lt_dict = {"Type": lt_type,
+                   "Mean": np.array([mean_val]),
+                   "StdDev": np.array([std_val])}
+
+    print(f"  -> Cohort lt_dict: Type={lt_dict['Type']}, "
+          f"Mean={lt_dict.get('Mean', [None])[0]:.1f}, "
+          f"StdDev={lt_dict.get('StdDev', [None])[0] if 'StdDev' in lt_dict else 'N/A'}")
+
     stock_ts = np.zeros((num_years, num_elements))
     outflow_ts = np.zeros((num_years, num_elements))
 
     for elem_idx in range(num_elements):
-        dsm_obj = DynamicStockModel(t=t_extended, lt=params.get("lifetimes", {}))
+        dsm_obj = DynamicStockModel(t=t_extended, lt=lt_dict)
         initial_stock_elem = initial_stock_cohort_matrix[:, elem_idx]
 
         dsm_obj.compute_evolution_initialstock(
             InitialStock=initial_stock_elem, SwitchTime=max_age
         )
-        dsm_obj.compute_o_c_from_s_c()
+        # compute_evolution_initialstock pre-fills o_c with zeros, so
+        # compute_o_c_from_s_c() would be a no-op.  Instead derive outflow
+        # directly from the stock derivative: o[t] = max(0, s[t-1] - s[t]).
         dsm_obj.compute_stock_total()
-        dsm_obj.compute_outflow_total()
+        s_full = dsm_obj.s  # length = n_extended
 
-        stock_ts[:, elem_idx] = dsm_obj.s[max_age:]
-        outflow_ts[:, elem_idx] = dsm_obj.o[max_age:]
+        stock_ts[:, elem_idx] = s_full[max_age:]
+
+        # Outflow = non-negative stock decrease per year
+        o_full = np.zeros(n_extended)
+        o_full[1:] = np.maximum(0.0, s_full[:-1] - s_full[1:])
+        outflow_ts[:, elem_idx] = o_full[max_age:]
+
+    if stock_ts[:, 0].max() > 0:
+        print(f"  -> Cohort initial stock: S[0]={stock_ts[0, 0]:.1f}, "
+              f"S[-1]={stock_ts[-1, 0]:.1f}, outflow[1]={outflow_ts[1, 0]:.2f}")
+    else:
+        print("  -> WARNING: cohort stock is all zeros — check lt_dict or age cohort params")
 
     return stock_ts, outflow_ts
 

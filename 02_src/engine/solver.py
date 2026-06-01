@@ -112,7 +112,8 @@ def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None
     # Skip DSM and FOMP processes — both models write correct stock values directly
     special_processes = dsm_processes | fomp_processes
 
-    print("--> Calculating final stock balances for non-DSM processes...")
+    print(f"--> Calculating final stock balances for non-DSM processes...")
+    print(f"    special_processes (skip list): {sorted(special_processes)}")
 
     for pid in {p.ID for p in mfa_system.ProcessList}:
         if f"S_{pid}" in mfa_system.StockDict:
@@ -129,14 +130,19 @@ def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None
             total_outflows = (
                 sum(outflows) if outflows else np.zeros_like(stock_s.Values)
             )
-            dS_values = total_inflows - total_outflows
-            stock_ds.Values = dS_values
-
-            # Skip stock recalculation for DSM and FOMP processes — they already have
-            # their absolute stocks written directly by their respective models.
+            # DSM/FOMP processes write their own correct absolute stock values.
+            # Derive dS from the stock derivative so that an initial stock at t=0
+            # is reflected as a positive dS[0] rather than a large phantom outflow.
             if pid in special_processes:
+                dS_values = np.zeros_like(stock_s.Values)
+                dS_values[1:, :] = stock_s.Values[1:, :] - stock_s.Values[:-1, :]
+                dS_values[0, :] = stock_s.Values[0, :]
+                stock_ds.Values = dS_values
                 print(f"  -> Skipping stock recalculation for Process {pid} (DSM/FOMP)")
                 continue
+
+            dS_values = total_inflows - total_outflows
+            stock_ds.Values = dS_values
 
             initial_stock_vector = stock_s.Values[0, :].copy()
             # S[t] = initial_stock + cumulative_sum(dS[0:t+1])
