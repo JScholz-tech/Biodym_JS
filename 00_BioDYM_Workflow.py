@@ -295,6 +295,7 @@ lfg_params = data_loader.load_lfg_parameters(all_excel_data, debug_mode=DEBUG_MO
 bom_params = data_loader.load_bom_parameters(
     all_excel_data, elements=mfa_system_configured.Elements, debug_mode=DEBUG_MODE
 )
+flow_cap_params = data_loader.load_flow_cap_parameters(all_excel_data, debug_mode=DEBUG_MODE)
 
 # Filter fomp_params and lfg_params against process_logic_map so the Excel
 # Process_Logic column acts as the authoritative enable/disable switch.
@@ -321,6 +322,7 @@ mfa_results_baseline, dsm_details_baseline, solver_info_baseline = solver.run_mf
     process_logic_map=process_logic_map,
     lfg_params=lfg_params,
     bom_params=bom_params,
+    flow_cap_params=flow_cap_params,
 )
 fomp_details_baseline = solver_info_baseline.get("fomp_details", {})
 print(format_success("Baseline calculation completed successfully!"))

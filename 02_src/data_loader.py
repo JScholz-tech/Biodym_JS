@@ -1684,6 +1684,26 @@ def load_bom_parameters(excel_data, elements, debug_mode=False):
     return _bom.load_bom_parameters(excel_data, elements, debug_mode=debug_mode)
 
 
+def load_flow_cap_parameters(excel_data, debug_mode=False):
+    """Wrapper: delegates to flow_cap.load_flow_cap_parameters().
+
+    Parameters
+    ----------
+    excel_data : dict
+        Dictionary of DataFrames keyed by sheet name.
+    debug_mode : bool, optional
+
+    Returns
+    -------
+    dict
+        Keys are process IDs; values are FlowCap configuration dicts.
+        See engine.flow_cap.load_flow_cap_parameters() for details.
+    """
+    from engine import flow_cap as _flow_cap  # local import avoids circular dependency
+
+    return _flow_cap.load_flow_cap_parameters(excel_data, debug_mode=debug_mode)
+
+
 def load_uncertainty_definitions(excel_data, debug_mode=False):
     """Reads the '4_1_Uncertainty_Parameters' sheet into a dictionary.
 
