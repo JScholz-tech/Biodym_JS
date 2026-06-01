@@ -1696,7 +1696,8 @@ def load_flow_cap_parameters(excel_data, debug_mode=False):
     Returns
     -------
     dict
-        Keys are process IDs; values are FlowCap configuration dicts.
+        Keys are process IDs (int); values are FlowCap configuration dicts
+        with keys: capped_flow_id, overflow_flow_id, cap_series {year: Mg}.
         See engine.flow_cap.load_flow_cap_parameters() for details.
     """
     from engine import flow_cap as _flow_cap  # local import avoids circular dependency
