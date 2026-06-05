@@ -25,6 +25,9 @@ def run_scenario_analysis(
     flow_tc_map,
     process_logic_map,
     initial_stock_configs=None,
+    lfg_params=None,
+    bom_params=None,
+    flow_cap_params=None,
 ) -> Tuple[Dict, Dict]:
     """Orchestrates the entire scenario analysis process.
 
@@ -94,6 +97,9 @@ def run_scenario_analysis(
             flow_tc_map=flow_tc_map,
             process_logic_map=process_logic_map,
             initial_stock_configs=initial_stock_configs,
+            lfg_params=lfg_params,
+            bom_params=bom_params,
+            flow_cap_params=flow_cap_params,
         )
 
         if scenario_result is not None:
@@ -154,6 +160,9 @@ def _run_single_scenario(
     flow_tc_map: Dict,
     process_logic_map: Dict,
     initial_stock_configs: Optional[Dict] = None,
+    lfg_params: Optional[Dict] = None,
+    bom_params: Optional[Dict] = None,
+    flow_cap_params: Optional[Dict] = None,
 ) -> Optional[object]:
     """Runs the MFA calculation for a single, specified scenario.
 
@@ -231,6 +240,9 @@ def _run_single_scenario(
             scenario_config_obj,
             flow_tc_map=flow_tc_map,
             process_logic_map=process_logic_map,
+            lfg_params=lfg_params or {},
+            bom_params=bom_params or {},
+            flow_cap_params=flow_cap_params or {},
         )
 
         print(f"✅ Scenario '{scenario_name}' calculation completed successfully!")

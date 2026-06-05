@@ -561,6 +561,9 @@ all_scenario_results, scenario_definitions = scenario_engine.run_scenario_analys
     fomp_params=fomp_params,
     flow_tc_map=flow_tc_map,
     process_logic_map=process_logic_map,
+    lfg_params=lfg_params,
+    bom_params=bom_params,
+    flow_cap_params=flow_cap_params,
 )
 
 # Mass balance verification for baseline and all scenarios
