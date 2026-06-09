@@ -208,6 +208,16 @@ def _run_single_scenario(
     # Create a deep copy of the configured system for this scenario
     mfa_system_scenario = copy.deepcopy(mfa_system_configured)
 
+    # Re-register FlowCap cap parameters on the copied system.
+    # deepcopy may or may not preserve _CapParam objects depending on the Python
+    # version and ODYM internals.  Calling register_cap_parameters is idempotent:
+    # if the key already exists in ParameterDict it is a no-op; if it was lost
+    # during copy it restores a fresh baseline array that apply_scenario then
+    # modifies with the scenario values.
+    if flow_cap_params:
+        from engine import flow_cap as _fc
+        _fc.register_cap_parameters(mfa_system_scenario, flow_cap_params)
+
     # Apply scenario modifications (now returns modified parameters too)
     (
         mfa_system_scenario,
@@ -386,6 +396,7 @@ def check_mass_balance(mfa_system_results, label: str = "System") -> pd.DataFram
     pd.DataFrame
         Summary with columns: Element, Max_Abs_Error, Sum_Abs_Error, Status.
     """
+    unit = getattr(mfa_system_results, "Unit", "Mg")
     element_items = [e.lower() for e in mfa_system_results.Elements]
     num_processes = len(mfa_system_results.ProcessList)
     num_elements = len(element_items)
@@ -444,12 +455,12 @@ def check_mass_balance(mfa_system_results, label: str = "System") -> pd.DataFram
 
     # Print summary
     if all_pass:
-        print(f"   ✅ Mass balance check [{label}]: PASSED (all elements < 1e-6 Mg)")
+        print(f"   ✅ Mass balance check [{label}]: PASSED (all elements < 1e-6 {unit})")
     else:
         print(f"   ⚠️ Mass balance check [{label}]:")
         for _, row in df.iterrows():
             marker = "✅" if row["Status"] == "PASS" else "⚠️"
-            print(f"      {marker} {row['Element']}: max error = {row['Max_Abs_Error_Mg']:.2e} Mg")
+            print(f"      {marker} {row['Element']}: max error = {row['Max_Abs_Error_Mg']:.2e} {unit}")
 
     return df
 

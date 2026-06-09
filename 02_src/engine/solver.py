@@ -18,7 +18,6 @@ from . import fomp_model
 from . import lfg_model
 from . import bom_assembler as _bom_assembler
 from . import flow_cap as _flow_cap
-from .element_utils import recalculate_hierarchical_elements
 
 
 def _topological_sort_flows(mfa_system):
@@ -298,15 +297,6 @@ def _calculate_tc_driven_flows(
                             outflow_vector[:, mat_idx] * element_fraction
                         )
 
-                    # FIX: Recalculate hierarchical elements based on their parent
-                    # This ensures elements like CC (% of DM) are correctly recalculated
-                    # after DM changes, rather than being calculated as % of material
-                    element_hierarchy = getattr(mfa_system, "_element_hierarchy", {})
-                    if element_hierarchy:
-                        outflow_vector = recalculate_hierarchical_elements(
-                            outflow_vector, elements, element_hierarchy, mfa_system
-                        )
-
             elif process_logic == "Pass-through":
                 # Pass-through: Copy total inflow directly to outflow (no transformation)
                 outflow_vector = total_inflow_vector.copy()
@@ -334,14 +324,6 @@ def _calculate_tc_driven_flows(
                 )
                 if not element_hierarchy:
                     element_hierarchy = getattr(mfa_system, "_element_hierarchy", {})
-
-                # FIX: Recalculate hierarchical elements based on their parent
-                # This must happen BEFORE summing material, so hierarchical elements
-                # are correct when we sum top-level elements
-                if element_hierarchy:
-                    outflow_vector = recalculate_hierarchical_elements(
-                        outflow_vector, elements, element_hierarchy, mfa_system
-                    )
 
                 # Recalculate total material as sum of TOP-LEVEL elements only
                 # (excludes hierarchical elements like CC which is % of DM, not material)
