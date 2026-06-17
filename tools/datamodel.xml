@@ -1,0 +1,595 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  BioDYM Data Model — Excel Input Structure
+  ==========================================
+  Documents the sheet schema, column semantics, allowed values, and
+  entity relationships for the BioDYM .xlsm template file.
+
+  Used as the authoritative reference for:
+    - systemmanager.py  (editor forms, validation rules)
+    - yaml_schema.py    (YAML export key names)
+    - data_loader.py    (column normalisation, REQUIRED_STRUCTURE)
+
+  Naming conventions
+  ------------------
+  • Element columns use E{n} indices in the Excel file (E1 = material, E2..EN).
+    data_loader.normalize_column_names() can rename these to element names at
+    runtime, but the raw Excel always uses E{n}.
+  • TC columns exist in two formats (old/new) — both documented per sheet.
+
+  Known naming irregularity in the Excel template
+  ------------------------------------------------
+  Two sheets share the "3_3" prefix:
+    3_3_Definition_BOM_Assembly  — BOM fraction data
+    3_3_Definition_LFG           — Landfill-gas model parameters
+  This is a template artefact; both sheets coexist in the same workbook.
+-->
+
+<datamodel version="1.1" updated="2026-05-21">
+
+  <!-- ================================================================== -->
+  <!-- 1. Element Hierarchy                                                 -->
+  <!-- ================================================================== -->
+  <elements>
+    <description>
+      Elements are the tracked substances within each material flow.
+      E1 is always "material" (the physical bulk carrier).
+      E2..EN are independently tracked fractions.
+      The number and names of elements are declared in 0_Configuration.
+    </description>
+
+    <hierarchy>
+      <element index="1" name="material" role="bulk_carrier" tracked="false">
+        <note>Total wet mass. Sum-carrier for all other elements.</note>
+      </element>
+      <element index="2" name="WC" fullname="Water Content" role="fraction" tracked="true">
+        <note>WC + DM = 1.0 (fraction of material)</note>
+      </element>
+      <element index="3" name="DM" fullname="Dry Matter" role="fraction" tracked="true">
+        <children>
+          <child name="TC"  fullname="Total Carbon (CHNS analyser)" legacy_alias="CC"/>
+          <child name="Ash_content" fullname="Ash Content"/>
+          <!-- TC = TOC + TIC -->
+          <grandchild name="TOC" fullname="Total Organic Carbon"/>
+          <grandchild name="TIC" fullname="Total Inorganic Carbon"/>
+        </children>
+        <note>TC/CC fallback pattern: next((e for e in ("TC","CC") if e in elements), None)</note>
+      </element>
+    </hierarchy>
+
+    <lookup_pattern>
+      <!--
+        Active element column range (skips E1 = material):
+          range(2, len(elements)+1)  →  [2, 3, 4, ...]
+        Excel column name: E{n}_TC_Value[%]
+        Element name:      elements[n-1]   (0-based list index)
+      -->
+    </lookup_pattern>
+  </elements>
+
+  <!-- ================================================================== -->
+  <!-- 2. Sheet Schemas                                                     -->
+  <!-- ================================================================== -->
+  <sheets>
+
+    <!-- ---------------------------------------------------------------- -->
+    <sheet name="0_Configuration" role="model_dimensions" required="true">
+      <description>
+        Key-value pairs for global model settings.
+        The configuration sheet may also be named "Configuration" or "Config"
+        in older templates (config.py falls back through all three names).
+      </description>
+      <columns>
+        <column name="Parameter" type="string" pk="true">
+          <allowed_values>
+            <value>Elements</value>
+            <value>Start_Year</value>
+            <value>End_Year</value>
+            <value>Model_Name</value>
+            <value>Parent_Element_ID_1</value>
+            <value>Parent_Element_ID_2</value>
+            <!-- Parent_Element_ID_N: declares the parent element index for element N
+                 Used for BOM fraction hierarchy display in the systemmanager. -->
+          </allowed_values>
+        </column>
+        <column name="Value" type="string">
+          <note>Elements value is a comma-separated list, e.g. "material,WC,DM,TC"</note>
+        </column>
+      </columns>
+    </sheet>
+
+    <!-- ---------------------------------------------------------------- -->
+    <sheet name="1_1_Definition_Flows" role="flow_topology" required="true">
+      <description>
+        Defines all material flows between processes.
+        Each row is one directed edge in the flow graph.
+      </description>
+      <columns>
+        <column name="Flow_ID"                type="string"  pk="true"  required="true"/>
+        <column name="Flow_Name"              type="string"  required="true"/>
+        <column name="Flow_Output_Process_ID" type="integer" fk="2_1_Definition_Processes.ID" required="true">
+          <note>
+            Source process — the process this flow LEAVES FROM.
+            Named "Output" from the perspective of the source process.
+            Accessed as row["Flow_Output_Process_ID"] throughout the engine.
+          </note>
+        </column>
+        <column name="Input_Process_ID"       type="integer" fk="2_1_Definition_Processes.ID" required="true">
+          <note>
+            Destination process — the process this flow ENTERS.
+            Named "Input" from the perspective of the destination process.
+            Accessed as row["Input_Process_ID"] throughout the engine.
+          </note>
+        </column>
+        <column name="Flow_Type"              type="string">
+          <allowed_values>
+            <value>Material</value>
+            <value>Recirculation</value>
+          </allowed_values>
+        </column>
+        <!-- Element fraction columns — one per active element (E2..EN) -->
+        <column name="E{n}_Fraction[%]" type="float" range="[0.0, 1.0]"
+                pattern="E{n}_Fraction[%]" for_elements="2..N">
+          <note>Fraction of element n in this flow; used for composition tracking.</note>
+        </column>
+        <column name="Flow_WC_ID" type="string" legacy="true">
+          <note>Legacy reference ID for WC fraction (older templates). Trailing-space variant
+                "Flow_WC_ID " is normalised by COLUMN_NAME_MAPPING.</note>
+        </column>
+      </columns>
+      <code_note>
+        WRONG names sometimes seen in older code: "From_Process", "To_Process" —
+        these do NOT exist in the Excel template.  Always use the names above.
+      </code_note>
+    </sheet>
+
+    <!-- ---------------------------------------------------------------- -->
+    <sheet name="1_2_Data_Flows" role="flow_timeseries" required="true">
+      <description>Annual flow quantity data. Supports old and new element-column formats.</description>
+      <columns>
+        <column name="Flow_ID"          type="string"  fk="1_1_Definition_Flows.Flow_ID" required="true"/>
+        <column name="Flow_Data_Year"   type="integer" required="true"/>
+        <!-- New format (preferred) -->
+        <column name="E1_value"         type="float"   unit="Mg/a"
+                note="Material (E1) flow quantity. New format."/>
+        <column name="E{n}_value"       type="float"   pattern="E{n}_value"        for_elements="2..N"/>
+        <column name="E{n}_Fraction[%]" type="float"   pattern="E{n}_Fraction[%]"  for_elements="2..N" range="[0.0,1.0]"/>
+        <!-- Legacy format -->
+        <column name="Flow_Material"    type="float"   legacy="true" note="Total material flow (Mg/a). Old format."/>
+        <column name="WC_[%]"           type="float"   legacy="true"/>
+        <column name="DM_[%]"           type="float"   legacy="true"/>
+        <column name="CC_[%]"           type="float"   legacy="true" note="Legacy TC column name."/>
+        <column name="Author_Source"    type="string"/>
+        <column name="Type_Source"      type="string"/>
+      </columns>
+    </sheet>
+
+    <!-- ---------------------------------------------------------------- -->
+    <sheet name="2_1_Definition_Processes" role="process_definitions" required="true">
+      <description>
+        Defines all processes (nodes) in the MFA system.
+        Process 0 is the system boundary (environment); it is labeled "Input"
+        in the process_logic_map built by system_setup.py.
+      </description>
+      <columns>
+        <column name="ID"                  type="integer" pk="true"  required="true">
+          <note>
+            Primary key.  The column is named "ID" in the Excel template.
+            system_setup.py accesses it as row["ID"] and set_index("ID").
+            REQUIRED_STRUCTURE also specifies "ID".
+            WARNING: some data_loader.py validate-only functions mistakenly
+            reference "Process_ID" instead — these silently produce no output
+            but do not break model execution.
+          </note>
+        </column>
+        <column name="Process_Name"        type="string"  required="true"/>
+        <column name="Process_Logic"       type="string"  required="true">
+          <allowed_values>
+            <value name="Input"         description="System boundary source — no inflows allowed"/>
+            <value name="Output"        description="System boundary sink — no outflows allowed"/>
+            <value name="Splitter"      description="Distributes inflow across outflows via TCs. Gets TCs loaded."/>
+            <value name="Transformer"   description="Transforms input composition via TCs. Gets TCs loaded."/>
+            <value name="DSM"           description="Dynamic stock model — cohort accumulation and outflow. Gets TCs loaded."/>
+            <value name="BOM_Assembler" description="Assembles multiple input flows into one output via BOM fractions."/>
+            <value name="Pass-through"  description="Copies total inflow directly to outflow. No TCs required."/>
+            <value name="LFG"           description="Landfill gas generation model (N-pool FOD, UNFCCC AM-Tool-04)."/>
+          </allowed_values>
+          <tc_loading_note>
+            TCs are loaded ONLY for Splitter, Transformer, and DSM logic types
+            (data_loader.load_tc_parameters, line ~768).
+            Input, Output, and Pass-through processes are always skipped regardless
+            of their TC_Configuration value.
+          </tc_loading_note>
+        </column>
+        <column name="TC_Configuration"    type="string">
+          <allowed_values>
+            <value name="Static"   description="Fixed TCs from 2_2_static_TCs. Required for Splitter/Transformer/DSM."/>
+            <value name="Dynamic"  description="Year-varying TCs from 2_3_dynamic_TCs."/>
+            <value name="No TC"    description="No TCs — for processes that carry the value through unchanged (Pass-through, BOM_Assembler, LFG)."/>
+          </allowed_values>
+          <convention>
+            Input and Output processes conventionally use TC_Configuration = "Static"
+            in the template (validate_unified_configuration warns if they do not),
+            even though the engine ignores TC_Configuration for these logic types.
+          </convention>
+        </column>
+        <column name="Stock_Configuration" type="string">
+          <allowed_values>
+            <value name="Stock"                           description="Simple stock accumulation."/>
+            <value name="No_Stock"                        description="Flow-through only; no stock variable created."/>
+            <value name="Stock_with_InitialStock_Cohort"  description="Stock with initial cohort distribution (DSM only)."/>
+            <value name="Stock_with_InitialStock_Decay"   description="Stock with initial decay model (DSM only)."/>
+          </allowed_values>
+          <convention>
+            Output processes conventionally use Stock_Configuration = "Stock"
+            so cumulative boundary flows accumulate (validate_unified_configuration warns otherwise).
+            DSM processes must use one of the Stock_with_InitialStock_* variants
+            if initial stock data is provided in 2_4_Initial_Stock.
+          </convention>
+        </column>
+        <column name="Outflow_count"       type="integer" note="Nr. of outflows; used for TC sum validation. Mapped from 'Nr. Outflows'."/>
+        <!-- Legacy columns (older Excel templates only) -->
+        <column name="TC?"              type="boolean" legacy="true"/>
+        <column name="TC_Type"          type="string"  legacy="true"/>
+        <column name="Stock?"           type="boolean" legacy="true"/>
+        <column name="Initial_Stock?"   type="boolean" legacy="true"/>
+      </columns>
+    </sheet>
+
+    <!-- ---------------------------------------------------------------- -->
+    <sheet name="2_2_static_TCs" role="transfer_coefficients_static" required="false">
+      <description>
+        Static (time-invariant) transfer coefficients.
+        Each row defines the fraction of element E{n} that leaves process P
+        via flow F.  All TC rows for a given (Process_ID, E{n}) must sum to 1.0.
+        Only loaded for processes with TC_Configuration = "Static" AND
+        Process_Logic ∈ {Splitter, Transformer, DSM}.
+      </description>
+      <columns>
+        <column name="Process_ID" type="integer" fk="2_1_Definition_Processes.ID" required="true"/>
+        <column name="Flow_ID"    type="string"  fk="1_1_Definition_Flows.Flow_ID" required="true"/>
+        <!-- New format (preferred) -->
+        <column name="E{n}_TC_ID"       type="string" pattern="E{n}_TC_ID"       for_elements="1..N"
+                note="Internal parameter reference ID (e.g. TC_05_06). E1=material included here unlike TC_Value columns."/>
+        <column name="E{n}_TC_Value[%]" type="float"  pattern="E{n}_TC_Value[%]" for_elements="2..N" range="[0.0, 1.0]">
+          <note>E1_TC_Value[%] is NOT independently settable — material follows element fractions.</note>
+          <validation>
+            <rule>SUM over all Flow_IDs for same (Process_ID, E{n}) MUST equal 1.0 (±1e-6)</rule>
+            <enforcement>BLOCK Apply in systemmanager TC editor</enforcement>
+          </validation>
+        </column>
+        <!-- Legacy format -->
+        <column name="TC_{element}_ID"     type="string" legacy="true" pattern="TC_{element}_ID"     note="e.g. TC_material_ID, TC_WC_ID"/>
+        <column name="TC_Value_{element}"  type="float"  legacy="true" pattern="TC_Value_{element}"  note="e.g. TC_Value_material, TC_Value_WC"/>
+        <!-- Metadata -->
+        <column name="Outflow_count"  type="integer" note="Mapped from 'Nr. Outflows'."/>
+        <column name="Titel_source"   type="string"  note="Mapped from 'Titel_Source'."/>
+        <column name="Author_source"  type="string"  note="Mapped from 'Author_Source'."/>
+      </columns>
+    </sheet>
+
+    <!-- ---------------------------------------------------------------- -->
+    <sheet name="2_3_dynamic_TCs" role="transfer_coefficients_dynamic" required="false">
+      <description>
+        Year-varying transfer coefficients.
+        Same structure as 2_2_static_TCs plus a Year column for time-series interpolation.
+        Only loaded for processes with TC_Configuration = "Dynamic".
+      </description>
+      <columns>
+        <column name="Year"     type="integer" required="true" note="Only 'Year' is in REQUIRED_STRUCTURE for this sheet."/>
+        <column name="Process_ID" type="integer" fk="2_1_Definition_Processes.ID"/>
+        <column name="Flow_ID"    type="string"  fk="1_1_Definition_Flows.Flow_ID"/>
+        <!-- New format -->
+        <column name="E{n}_TC_ID"       type="string" pattern="E{n}_TC_ID"       for_elements="1..N"/>
+        <column name="E{n}_TC_Value[%]" type="float"  pattern="E{n}_TC_Value[%]" for_elements="2..N" range="[0.0, 1.0]">
+          <validation>
+            <rule>After time-interpolation, sums per (Process_ID, element) are normalised
+                  by normalize_dynamic_tcs_by_process() in data_loader.py to ensure 1.0.</rule>
+          </validation>
+        </column>
+        <!-- Legacy format -->
+        <column name="TC_{element}_ID"    type="string" legacy="true"/>
+        <column name="TC_Value_{element}" type="float"  legacy="true"/>
+      </columns>
+    </sheet>
+
+    <!-- ---------------------------------------------------------------- -->
+    <sheet name="2_4_Initial_Stock" role="initial_stock" required="false">
+      <description>
+        Initial stock values for DSM processes with cohort or decay initialisation.
+        Referenced when Stock_Configuration ∈ {Stock_with_InitialStock_Cohort, Stock_with_InitialStock_Decay}.
+      </description>
+      <columns>
+        <column name="Process_ID"          type="integer" fk="2_1_Definition_Processes.ID"/>
+        <column name="IS_Parameter_type"   type="string"/>
+        <column name="IS_Parameter_Value"  type="float"/>
+        <column name="Initial_Stock_WC[%]" type="float" range="[0.0, 1.0]"/>
+        <column name="Initial_Stock_DM[%]" type="float" range="[0.0, 1.0]"/>
+        <column name="Initial_Stock_CC[%]" type="float" range="[0.0, 1.0]" note="Legacy TC/CC alias."/>
+      </columns>
+    </sheet>
+
+    <!-- ---------------------------------------------------------------- -->
+    <sheet name="3_1_Definition_DSM" role="dynamic_stock_model" required="false">
+      <description>Lifetime distribution parameters for DSM processes.</description>
+      <columns>
+        <column name="Process_ID"          type="integer" fk="2_1_Definition_Processes.ID"/>
+        <column name="DSM_Parameter_ID"    type="string"/>
+        <column name="DSM_Parameter_type"  type="string">
+          <allowed_values>
+            <value name="Inflow_Split_[%]"   description="Fraction of total inflow entering this DSM category"/>
+            <value name="Lifetime_Type"      description="Distribution: Normal, LogNormal, Fixed, Weibull"/>
+            <value name="Lifetime_Mean"      description="Mean lifetime (years)"/>
+            <value name="Lifetime_StdDev"    description="Standard deviation of lifetime (years)"/>
+            <value name="DSM_Lifetime_Scale" description="Scale parameter (Weibull/LogNormal)"/>
+            <value name="DSM_Lifetime_Shape" description="Shape parameter (Weibull/LogNormal)"/>
+          </allowed_values>
+        </column>
+        <column name="DSM_Value"           type="float"/>
+        <column name="Category_ID"         type="string"/>
+        <column name="Category_Name"       type="string"/>
+        <column name="DSM_material_count"  type="integer"/>
+      </columns>
+    </sheet>
+
+    <!-- ---------------------------------------------------------------- -->
+    <sheet name="3_2_Definition_FOMP" role="first_order_multi_pool" required="false">
+      <description>FOMP (First-Order Multi-Pool) soil carbon decay parameters per process.</description>
+      <columns>
+        <column name="Process_ID"           type="integer" fk="2_1_Definition_Processes.ID"/>
+        <column name="FOMP_Parameter_ID"    type="string"  pk="true"/>
+        <column name="FOMP_Parameter_type"  type="string">
+          <allowed_values>
+            <value name="f_labile"        description="Labile fraction (0.0–1.0); recalcitrant = 1 − f_labile (the recalcitrant fraction parameter has no effect — hardcoded)."/>
+            <value name="k_labile"        description="Labile pool first-order decay rate (yr⁻¹)"/>
+            <value name="k_recalcitrant"  description="Recalcitrant pool first-order decay rate (yr⁻¹)"/>
+            <value name="Nr._Decay_Pools" description="Number of pools (currently fixed at 2; single-valued row)"/>
+          </allowed_values>
+        </column>
+        <column name="FOMP_Parameter_Value" type="float"
+                note="Mapped from legacy 'FOMP_Value'."/>
+        <column name="Pool_ID"             type="string"/>
+        <column name="Pool"                type="string"/>
+        <column name="Decay_Pool_count"    type="integer"/>
+      </columns>
+    </sheet>
+
+    <!-- ---------------------------------------------------------------- -->
+    <sheet name="3_3_Definition_BOM_Assembly" role="bom_assembly" required="false">
+      <description>
+        Bill-of-Materials assembly fractions for BOM_Assembler processes.
+        Defines how element fractions are distributed across output flows.
+        Fractions are parent-relative (e.g. WC fraction = % of material;
+        TC fraction = % of DM — see Parent_Element_ID_N in 0_Configuration).
+
+        NOTE: shares the "3_3" prefix with 3_3_Definition_LFG — this is a
+        template naming quirk; both sheets coexist in the same workbook.
+      </description>
+      <columns>
+        <column name="Process_ID"       type="integer" fk="2_1_Definition_Processes.ID" required="true">
+          <note>Must reference a process with Process_Logic = BOM_Assembler.</note>
+        </column>
+        <column name="Flow_ID"          type="string"  fk="1_1_Definition_Flows.Flow_ID" required="true"/>
+        <column name="Output_flow_type" type="string"  required="true">
+          <allowed_values>
+            <value name="target_Product"  description="Primary output flow — receives BOM fraction number inputs in editor."/>
+            <value name="Unused_Material" description="Remainder flow — automatically receives 1 − Σfractions; no inputs."/>
+          </allowed_values>
+        </column>
+        <column name="TC_Configuration" type="string" note="Mirrors TC_Configuration from the process definition row."/>
+        <!-- BOM fraction columns — only meaningful for target_Product rows -->
+        <column name="E{n}_TC_Value[%]" type="float"  pattern="E{n}_TC_Value[%]" for_elements="2..N" range="[0.0, 1.0]">
+          <note>E1 (material) column is not used for BOM fractions — only E2..EN.</note>
+          <validation>
+            <rule>SUM over all target_Product rows for same (Process_ID, E{n}) SHOULD be ≤ 1.0</rule>
+            <enforcement>WARN in systemmanager BOM editor — do not block; remainder goes to Unused_Material.</enforcement>
+          </validation>
+        </column>
+      </columns>
+    </sheet>
+
+    <!-- ---------------------------------------------------------------- -->
+    <sheet name="3_3_Definition_LFG" role="landfill_gas" required="false">
+      <description>
+        Landfill gas generation parameters (N-pool FOD, UNFCCC AM-Tool-04).
+        NOTE: shares the "3_3" prefix with 3_3_Definition_BOM_Assembly.
+
+        Gas outputs convention: material = DM = TC = TOC = C_mass (Mg C).
+        Multiply CH4-C × 16/12 for Mg CH4.
+      </description>
+      <columns>
+        <column name="Process_ID"           type="integer" fk="2_1_Definition_Processes.ID">
+          <note>Must reference a process with Process_Logic = LFG.</note>
+        </column>
+        <column name="LFG_Parameter_ID"     type="string"  pk="true">
+          <note>Format: P{id}_{name}, e.g. P5_MCF, P5_k_1</note>
+        </column>
+        <column name="LFG_Parameter_type"   type="string">
+          <allowed_values>
+            <value name="site_param"      description="Site-level scalar: MCF, DOCf, F_CH4, OX, phi (φ correction), f_capture"/>
+            <value name="fraction_param"  description="Degradable fraction row: k_j, DOC_j, f_input_j, f_ash_j"/>
+          </allowed_values>
+        </column>
+        <column name="LFG_Parameter_Value"  type="float"/>
+      </columns>
+      <param_map_note>
+        PARAM_MAP aliases used during loading:
+        "Φ" / "φ" / "phi" → "phi";  "f" → "f_capture";  "F" / "F_CH4" → "F_CH4"
+      </param_map_note>
+    </sheet>
+
+  </sheets>
+
+  <!-- ================================================================== -->
+  <!-- 3. Entity Relationships                                              -->
+  <!-- ================================================================== -->
+  <relationships>
+
+    <relationship name="Flow_leaves_Process" cardinality="N:1">
+      <from entity="1_1_Definition_Flows"    column="Flow_Output_Process_ID"/>
+      <to   entity="2_1_Definition_Processes" column="ID"/>
+      <note>Each flow has exactly one source process.</note>
+    </relationship>
+
+    <relationship name="Flow_enters_Process" cardinality="N:1">
+      <from entity="1_1_Definition_Flows"    column="Input_Process_ID"/>
+      <to   entity="2_1_Definition_Processes" column="ID"/>
+      <note>Each flow has exactly one destination process.</note>
+    </relationship>
+
+    <relationship name="StaticTC_belongs_to_Process" cardinality="N:1">
+      <from entity="2_2_static_TCs"           column="Process_ID"/>
+      <to   entity="2_1_Definition_Processes"  column="ID"/>
+      <constraint>Only for Process_Logic ∈ {Splitter, Transformer, DSM} with TC_Configuration = Static</constraint>
+    </relationship>
+
+    <relationship name="StaticTC_references_Flow" cardinality="N:1">
+      <from entity="2_2_static_TCs"          column="Flow_ID"/>
+      <to   entity="1_1_Definition_Flows"     column="Flow_ID"/>
+      <constraint>TC Flow_ID must be an outflow of the same Process_ID (Flow_Output_Process_ID = Process_ID)</constraint>
+    </relationship>
+
+    <relationship name="DynamicTC_belongs_to_Process" cardinality="N:1">
+      <from entity="2_3_dynamic_TCs"          column="Process_ID"/>
+      <to   entity="2_1_Definition_Processes"  column="ID"/>
+      <constraint>Only for Process_Logic ∈ {Splitter, Transformer, DSM} with TC_Configuration = Dynamic</constraint>
+    </relationship>
+
+    <relationship name="BOM_belongs_to_Process" cardinality="N:1">
+      <from entity="3_3_Definition_BOM_Assembly" column="Process_ID"/>
+      <to   entity="2_1_Definition_Processes"     column="ID"/>
+      <constraint>Process_Logic must be BOM_Assembler</constraint>
+    </relationship>
+
+    <relationship name="BOM_references_Flow" cardinality="N:1">
+      <from entity="3_3_Definition_BOM_Assembly" column="Flow_ID"/>
+      <to   entity="1_1_Definition_Flows"         column="Flow_ID"/>
+    </relationship>
+
+    <relationship name="DSM_belongs_to_Process" cardinality="N:1">
+      <from entity="3_1_Definition_DSM"       column="Process_ID"/>
+      <to   entity="2_1_Definition_Processes"  column="ID"/>
+      <constraint>Process_Logic must be DSM</constraint>
+    </relationship>
+
+    <relationship name="FOMP_belongs_to_Process" cardinality="N:1">
+      <from entity="3_2_Definition_FOMP"      column="Process_ID"/>
+      <to   entity="2_1_Definition_Processes"  column="ID"/>
+    </relationship>
+
+    <relationship name="LFG_belongs_to_Process" cardinality="N:1">
+      <from entity="3_3_Definition_LFG"       column="Process_ID"/>
+      <to   entity="2_1_Definition_Processes"  column="ID"/>
+      <constraint>Process_Logic must be LFG</constraint>
+    </relationship>
+
+  </relationships>
+
+  <!-- ================================================================== -->
+  <!-- 4. Cross-Sheet Consistency Rules                                    -->
+  <!-- ================================================================== -->
+  <validation_rules>
+
+    <rule id="R01" severity="error" checked_by="TC_editor_save">
+      <description>TC sum per (Process_ID, element) must equal 1.0</description>
+      <formula>SUM(E{n}_TC_Value[%]) over all Flow_IDs for same Process_ID == 1.0 ± 1e-6</formula>
+      <applies_to sheet="2_2_static_TCs"/>
+    </rule>
+
+    <rule id="R02" severity="warning" checked_by="BOM_editor_save">
+      <description>BOM fraction sum per (Process_ID, element) must not exceed 1.0</description>
+      <formula>SUM(E{n}_TC_Value[%]) over all target_Product rows for same Process_ID ≤ 1.0 + 1e-9</formula>
+      <applies_to sheet="3_3_Definition_BOM_Assembly"/>
+      <note>Remainder (1 − sum) is automatically routed to Unused_Material.</note>
+    </rule>
+
+    <rule id="R03" severity="error" checked_by="validation_tab">
+      <description>Flow source and destination Process IDs must reference existing processes</description>
+      <columns>Flow_Output_Process_ID, Input_Process_ID</columns>
+      <applies_to sheet="1_1_Definition_Flows"/>
+    </rule>
+
+    <rule id="R04" severity="warning" checked_by="validate_unified_configuration">
+      <description>
+        Input and Output processes should have TC_Configuration = "Static".
+        (Engine ignores TC_Configuration for these logic types, but template
+        convention is "Static" — validate_unified_configuration warns otherwise.)
+      </description>
+      <applies_to sheet="2_1_Definition_Processes"/>
+    </rule>
+
+    <rule id="R05" severity="warning" checked_by="validation_tab">
+      <description>BOM_Assembler processes should have at least one Unused_Material outflow row</description>
+      <applies_to sheet="3_3_Definition_BOM_Assembly"/>
+    </rule>
+
+    <rule id="R06" severity="warning" checked_by="systemmanager_load + normalize_column_names">
+      <description>No pandas duplicate-column suffixes (.1, .2, …) in any sheet</description>
+      <applies_to sheet="*"/>
+    </rule>
+
+    <rule id="R07" severity="warning" checked_by="validate_unified_configuration">
+      <description>DSM processes should have a valid Stock_Configuration variant; Output processes should have "Stock".</description>
+      <applies_to sheet="2_1_Definition_Processes"/>
+    </rule>
+
+  </validation_rules>
+
+  <!-- ================================================================== -->
+  <!-- 5. systemmanager.py Editor State Model                              -->
+  <!-- ================================================================== -->
+  <editor_state>
+    <description>
+      The systemmanager edits_state overlay stores user changes without
+      mutating the base excel_state.  Changes are merged via _apply_edits()
+      only at validation time and on YAML export.
+    </description>
+
+    <state_dict name="edits_state">
+      <key name="processes" type="dict[int, dict[str, Any]]">
+        <note>pid → {Process_Name, Process_Logic, TC_Configuration, Stock_Configuration}
+              Key is the integer value from the "ID" column.</note>
+      </key>
+      <key name="flows" type="dict[str, dict[str, Any]]">
+        <note>fid → {Flow_Name, Flow_Output_Process_ID (int), Input_Process_ID (int)}</note>
+      </key>
+      <key name="tcs" type="dict[tuple[int,str,str], float]">
+        <note>(process_id, flow_id, "E{n}") → value; "E{n}" uses index notation, not element name</note>
+      </key>
+      <key name="bom" type="dict[tuple[int,str,str], float]">
+        <note>(process_id, flow_id, "E{n}") → value</note>
+      </key>
+      <key name="config" type="dict[str, str]">
+        <note>Reserved for future Model Config editing (not in Phase 3B scope)</note>
+      </key>
+    </state_dict>
+
+    <selector_states>
+      <state name="tc_sel_state"  type="int|None" description="Selected Process ID in TC editor"/>
+      <state name="bom_sel_state" type="int|None" description="Selected Process ID in BOM editor"/>
+    </selector_states>
+
+    <dirty_state name="dirty_state" type="bool" description="True when edits_state has uncommitted changes"/>
+
+  </editor_state>
+
+  <!-- ================================================================== -->
+  <!-- 6. YAML Export Key Mapping                                          -->
+  <!-- ================================================================== -->
+  <yaml_export>
+    <description>
+      yaml_schema.model_to_yaml() produces this top-level structure.
+      Element names (not E{n} indices) are used as YAML keys for
+      human-readable, git-diffable output.
+    </description>
+    <keys>
+      <key name="meta"                  source="runtime"                      note="source_file, exported_at"/>
+      <key name="model"                 source="0_Configuration"              note="start_year, end_year, elements list"/>
+      <key name="processes"             source="2_1_Definition_Processes"     note="id comes from 'ID' column"/>
+      <key name="flows"                 source="1_1_Definition_Flows"         note="from_process ← Flow_Output_Process_ID; to_process ← Input_Process_ID"/>
+      <key name="transfer_coefficients" source="2_2_static_TCs"              note="grouped by process; element names as value keys"/>
+      <key name="bom_assembly"          source="3_3_Definition_BOM_Assembly"  note="target_Product rows get fractions; Unused_Material gets empty dict"/>
+    </keys>
+  </yaml_export>
+
+</datamodel>

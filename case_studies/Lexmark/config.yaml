@@ -1,0 +1,749 @@
+schema_version: '1.0'
+name: Lexmark
+model:
+  start_year: 2015
+  end_year: 2040
+  elements:
+  - material
+  - Supplies
+  - Wear Parts
+  - Complex Components
+  - Other
+  - Imaging Unit
+  - Toner Cartridge
+  - Fuser
+  - Casing
+  - Power Supply
+  - HDD/ Motherborad
+  unit_of_measurement: Mg
+  hierarchy_level_names:
+  - Product
+  - Component
+  - Material
+  - Element
+  input_file: ''
+  output_file: ''
+  run_dsm_calculation: true
+  run_fomp_calculation: true
+  run_monte_carlo: false
+  mc_iterations: 1000
+  run_scenario_analysis: false
+  selected_scenarios:
+  - ''
+  - ''
+  - ''
+  - ''
+processes:
+- id: 0
+  name: Manufacturing
+  logic: Input
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 1
+  name: Use-Phase
+  logic: DSM
+  stock: Stock
+  tc_config: Dynamic
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 2
+  name: Distribution
+  logic: FlowCap
+  stock: No_Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 3
+  name: WEE Recycling
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 4
+  name: Pre-Check (HDD removal)
+  logic: Splitter
+  stock: No_Stock
+  tc_config: Dynamic
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 5
+  name: Pre-Check (removal of damaged printers)
+  logic: Splitter
+  stock: No_Stock
+  tc_config: Dynamic
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 6
+  name: Printer Storage (Defective)
+  logic: Splitter
+  stock: No_Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 7
+  name: Remanufacturing (Inspection)
+  logic: Splitter
+  stock: No_Stock
+  tc_config: Dynamic
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 8
+  name: Remanufacturing (Extraction)
+  logic: Transformer
+  stock: No_Stock
+  tc_config: Dynamic
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 9
+  name: Remanufacturing (Part Replacement)
+  logic: BOM_Assembler
+  stock: No_Stock
+  tc_config: Dynamic
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 10
+  name: New Spare Parts (Remanufacturing)_bla
+  logic: Input
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 11
+  name: Spare Part Storage (Remanufacturing)
+  logic: Pass-through
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 12
+  name: Shipping
+  logic: Pass-through
+  stock: No_Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 13
+  name: Dismantling (Inspection)
+  logic: Splitter
+  stock: No_Stock
+  tc_config: Dynamic
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 14
+  name: Dismantling
+  logic: Transformer
+  stock: No_Stock
+  tc_config: Dynamic
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 15
+  name: Sparepart Storage Belgium
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 16
+  name: Service(Extraction)
+  logic: Transformer
+  stock: No_Stock
+  tc_config: Dynamic
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 17
+  name: Service(Repair)
+  logic: BOM_Assembler
+  stock: No_Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 18
+  name: New Spare Parts (Service)
+  logic: Input
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 19
+  name: Spare Part Storage (Service)
+  logic: Pass-through
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 20
+  name: Use-Phase(Reman)
+  logic: DSM
+  stock: Stock
+  tc_config: Dynamic
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+flows:
+- id: F_00_01
+  name: F_00_01_Printer(New)
+  from_process: 0
+  to_process: 1
+- id: F_01_02
+  name: F_01_02_Printer(EoL)
+  from_process: 1
+  to_process: 2
+- id: F_02_04
+  name: F_02_04_Printer(EoL_Zary)
+  from_process: 2
+  to_process: 4
+- id: F_02_03
+  name: F_02_03_Printer(EoL_WEE)
+  from_process: 2
+  to_process: 3
+- id: F_04_03
+  name: F_04_03_HDD_WEE
+  from_process: 4
+  to_process: 3
+- id: F_04_05
+  name: F_04_05_Printer
+  from_process: 4
+  to_process: 5
+- id: F_05_03
+  name: F_05_03_Printer(WEE)
+  from_process: 5
+  to_process: 3
+- id: F_05_06
+  name: F_05_06_Printer(InputStorage)
+  from_process: 5
+  to_process: 6
+- id: F_06_07
+  name: F_06_07_Printer(Reman)
+  from_process: 6
+  to_process: 7
+- id: F_07_08
+  name: F_07_08_Printer(Reman)
+  from_process: 7
+  to_process: 8
+- id: F_07_03
+  name: F_07_03_Printer(Reman_WEE)
+  from_process: 7
+  to_process: 3
+- id: F_08_09
+  name: F_08_09_Printer(Reman)
+  from_process: 8
+  to_process: 9
+- id: F_08_03
+  name: F_08_03_Printer(Reman_WEE)
+  from_process: 8
+  to_process: 3
+- id: F_09_12
+  name: F_09_12_Printer(Reman_Shipping)
+  from_process: 9
+  to_process: 12
+- id: F_09_11
+  name: F_09_11_Spareparts_Overflow
+  from_process: 9
+  to_process: 11
+- id: F_10_11
+  name: F_10_11_Spareparts(Input)
+  from_process: 10
+  to_process: 11
+- id: F_11_09
+  name: F_11_09_Spareparts(new)
+  from_process: 11
+  to_process: 9
+- id: F_06_13
+  name: F_06_12_Printer(Dismantling)
+  from_process: 6
+  to_process: 13
+- id: F_12_20
+  name: F_12_01_Printer(Reman_New)
+  from_process: 12
+  to_process: 20
+- id: F_13_14
+  name: F_13_14_Printer(Dismantling)
+  from_process: 13
+  to_process: 14
+- id: F_13_03
+  name: F_13_03_Printer(Dismantling_WEE)
+  from_process: 13
+  to_process: 3
+- id: F_14_03
+  name: F_14_03_Printer(Dismantling_WEE)
+  from_process: 14
+  to_process: 3
+- id: F_14_15
+  name: F_14_15_Spareparts(Dismantling)
+  from_process: 14
+  to_process: 15
+- id: F_20_02
+  name: F_20_02_Use-Phase_(Reman)
+  from_process: 20
+  to_process: 2
+transfer_coefficients:
+- process_id: 8
+  flow_id: F_08_03
+  tc_type: dynamic
+  values: {}
+  time_series:
+  - year: 2025
+    values:
+      Supplies: 0.5
+      Wear Parts: 0.854
+      Complex Components: 0.0
+      Other: 0.0
+      Imaging Unit: 0.5
+      Toner Cartridge: 0.5
+      Fuser: 1.0
+      Casing: 1.0
+      Power Supply: 0.0
+      HDD/ Motherborad: 0.0
+  ref: ''
+- process_id: 8
+  flow_id: F_08_09
+  tc_type: dynamic
+  values: {}
+  time_series:
+  - year: 2025
+    values:
+      Supplies: 0.5
+      Wear Parts: 0.146
+      Complex Components: 1.0
+      Other: 1.0
+      Imaging Unit: 0.5
+      Toner Cartridge: 0.5
+      Fuser: 0.0
+      Casing: 0.0
+      Power Supply: 1.0
+      HDD/ Motherborad: 1.0
+  ref: ''
+- process_id: 14
+  flow_id: F_14_03
+  tc_type: dynamic
+  values: {}
+  time_series:
+  - year: 2025
+    values:
+      Supplies: 0.5
+      Wear Parts: 0.854
+      Complex Components: 0.0
+      Other: 0.5
+      Imaging Unit: 0.5
+      Toner Cartridge: 0.5
+      Fuser: 0.5
+      Casing: 1.0
+      Power Supply: 0.0
+      HDD/ Motherborad: 0.0
+  ref: ''
+- process_id: 14
+  flow_id: F_14_15
+  tc_type: dynamic
+  values: {}
+  time_series:
+  - year: 2025
+    values:
+      Supplies: 0.5
+      Wear Parts: 0.146
+      Complex Components: 1.0
+      Other: 0.5
+      Imaging Unit: 0.5
+      Toner Cartridge: 0.5
+      Fuser: 0.5
+      Casing: 0.0
+      Power Supply: 1.0
+      HDD/ Motherborad: 1.0
+  ref: ''
+element_hierarchy:
+- parent: material
+  children:
+  - Supplies
+  - Wear Parts
+  - Complex Components
+  - Other
+- parent: Supplies
+  children:
+  - Imaging Unit
+  - Toner Cartridge
+- parent: Wear Parts
+  children:
+  - Fuser
+  - Casing
+- parent: Complex Components
+  children:
+  - Power Supply
+  - HDD/ Motherborad
+flow_compositions:
+- flow_id: F_00_01
+  values:
+    Supplies: 0.144
+    Wear Parts: 0.356
+    Complex Components: 0.127
+    Other: 0.373
+    Imaging Unit: 0.641
+    Toner Cartridge: 0.359
+    Fuser: 0.293
+    Casing: 0.707
+    Power Supply: 0.908
+    HDD/ Motherborad: 0.092
+  ref: ''
+- flow_id: F_10_11
+  values:
+    Supplies: 0.2
+    Wear Parts: 0.6
+    Complex Components: 0.2
+    Imaging Unit: 0.5
+    Toner Cartridge: 0.5
+    Fuser: 0.2
+    Casing: 0.8
+    Power Supply: 0.5
+    HDD/ Motherborad: 0.5
+  ref: ''
+flow_data:
+- flow_id: F_00_01
+  element: material
+  values:
+    '2015': 0.0
+    '2016': 0.0
+    '2017': 0.0
+    '2018': 630000.0
+    '2019': 1330000.0
+    '2020': 910000.0
+    '2021': 1190000.0
+    '2022': 980000.0
+    '2023': 560000.0
+    '2024': 0.0
+    '2025': 0.0
+    '2026': 0.0
+    '2027': 0.0
+    '2028': 0.0
+    '2029': 0.0
+    '2030': 0.0
+    '2031': 0.0
+    '2032': 0.0
+    '2033': 0.0
+    '2034': 0.0
+    '2035': 0.0
+    '2036': 0.0
+    '2037': 0.0
+    '2038': 0.0
+    '2039': 0.0
+    '2040': 0.0
+- flow_id: F_10_11
+  element: material
+  values:
+    '2015': 0.0
+    '2016': 0.0
+    '2017': 0.0
+    '2018': 0.0
+    '2019': 0.0
+    '2020': 0.0
+    '2021': 0.0
+    '2022': 0.0
+    '2023': 1200.0
+    '2024': 1200.0
+    '2025': 1200.0
+    '2026': 1200.0
+    '2027': 1200.0
+    '2028': 1200.0
+    '2029': 1200.0
+    '2030': 1200.0
+    '2031': 1200.0
+    '2032': 1200.0
+    '2033': 0.0
+    '2034': 0.0
+    '2035': 0.0
+    '2036': 0.0
+    '2037': 0.0
+    '2038': 0.0
+    '2039': 0.0
+    '2040': 0.0
+bom_assembly:
+- process_id: 9
+  flows:
+  - flow_id: F_09_12
+    output_flow_type: target_Product
+    fractions:
+      Supplies: 0.144
+      Wear Parts: 0.356
+      Complex Components: 0.127
+      Other: 0.373
+      Imaging Unit: 0.641
+      Toner Cartridge: 0.359
+      Fuser: 0.293
+      Casing: 0.707
+      Power Supply: 0.908
+      HDD/ Motherborad: 0.092
+  - flow_id: F_09_11
+    output_flow_type: Unused_Material
+    fractions: {}
+scenarios:
+- name: DPP1_Increased_Demand[+20%]
+  modifications:
+  - parameter_name: TC_Cap_02
+    parameter_type: ''
+    operation: replace
+    new_value: 14000.0
+    start_year: 2027
+    end_year: 2027
+    ref: ''
+  - parameter_name: TC_Cap_02
+    parameter_type: ''
+    operation: replace
+    new_value: 15400.0
+    start_year: 2028
+    end_year: 2028
+    ref: ''
+  - parameter_name: TC_Cap_02
+    parameter_type: ''
+    operation: replace
+    new_value: 5600.0
+    start_year: 2029
+    end_year: 2029
+    ref: ''
+  - parameter_name: TC_Cap_02
+    parameter_type: ''
+    operation: replace
+    new_value: 3500.0
+    start_year: 2030
+    end_year: 2030
+    ref: ''
+  - parameter_name: TC_Cap_02
+    parameter_type: ''
+    operation: replace
+    new_value: 1820.0
+    start_year: 2031
+    end_year: 2031
+    ref: ''
+  - parameter_name: TC_Cap_02
+    parameter_type: ''
+    operation: replace
+    new_value: 1400.0
+    start_year: 2032
+    end_year: 2032
+    ref: ''
+  - parameter_name: TC_Cap_02
+    parameter_type: ''
+    operation: replace
+    new_value: 0.0
+    start_year: 2033
+    end_year: 2033
+    ref: ''
+  - parameter_name: TC_E1_06_07
+    parameter_type: ''
+    operation: replace
+    new_value: 0.18
+    start_year: 2027
+    end_year: 2027
+    ref: ''
+  - parameter_name: TC_E1_06_13
+    parameter_type: ''
+    operation: replace
+    new_value: 0.82
+    start_year: 2027
+    end_year: 2027
+    ref: ''
+  - parameter_name: TC_E1_06_07
+    parameter_type: ''
+    operation: replace
+    new_value: 0.19
+    start_year: 2028
+    end_year: 2028
+    ref: ''
+  - parameter_name: TC_E1_06_13
+    parameter_type: ''
+    operation: replace
+    new_value: 0.81
+    start_year: 2028
+    end_year: 2028
+    ref: ''
+  - parameter_name: TC_E1_06_07
+    parameter_type: ''
+    operation: replace
+    new_value: 0.2
+    start_year: 2029
+    end_year: 2029
+    ref: ''
+  - parameter_name: TC_E1_06_13
+    parameter_type: ''
+    operation: replace
+    new_value: 0.8
+    start_year: 2029
+    end_year: 2029
+    ref: ''
+  - parameter_name: TC_E1_06_07
+    parameter_type: ''
+    operation: replace
+    new_value: 0.2
+    start_year: 2030
+    end_year: 2030
+    ref: ''
+  - parameter_name: TC_E1_06_13
+    parameter_type: ''
+    operation: replace
+    new_value: 0.8
+    start_year: 2030
+    end_year: 2030
+    ref: ''
+  - parameter_name: TC_E1_04_03
+    parameter_type: ''
+    operation: replace
+    new_value: 0.5
+    start_year: 2015
+    end_year: 2040
+    ref: ''
+  - parameter_name: TC_E1_04_05
+    parameter_type: ''
+    operation: replace
+    new_value: 0.5
+    start_year: 2015
+    end_year: 2040
+    ref: ''
+- name: DPP2_Highly_Increased_Demand[+40%]
+  modifications:
+  - parameter_name: TC_Cap_02
+    parameter_type: ''
+    operation: replace
+    new_value: 16800.0
+    start_year: 2027
+    end_year: 2027
+    ref: ''
+  - parameter_name: TC_Cap_02
+    parameter_type: ''
+    operation: replace
+    new_value: 18200.0
+    start_year: 2028
+    end_year: 2028
+    ref: ''
+  - parameter_name: TC_Cap_02
+    parameter_type: ''
+    operation: replace
+    new_value: 8400.0
+    start_year: 2029
+    end_year: 2029
+    ref: ''
+  - parameter_name: TC_Cap_02
+    parameter_type: ''
+    operation: replace
+    new_value: 5600.0
+    start_year: 2030
+    end_year: 2030
+    ref: ''
+  - parameter_name: TC_Cap_02
+    parameter_type: ''
+    operation: replace
+    new_value: 2520.0
+    start_year: 2031
+    end_year: 2031
+    ref: ''
+  - parameter_name: TC_Cap_02
+    parameter_type: ''
+    operation: replace
+    new_value: 2100.0
+    start_year: 2032
+    end_year: 2032
+    ref: ''
+  - parameter_name: TC_Cap_02
+    parameter_type: ''
+    operation: replace
+    new_value: 0.0
+    start_year: 2033
+    end_year: 2033
+    ref: ''
+  - parameter_name: TC_E1_06_07
+    parameter_type: ''
+    operation: replace
+    new_value: 0.2
+    start_year: 2027
+    end_year: 2027
+    ref: ''
+  - parameter_name: TC_E1_06_13
+    parameter_type: ''
+    operation: replace
+    new_value: 0.8
+    start_year: 2027
+    end_year: 2027
+    ref: ''
+  - parameter_name: TC_E1_06_07
+    parameter_type: ''
+    operation: replace
+    new_value: 0.22
+    start_year: 2028
+    end_year: 2028
+    ref: ''
+  - parameter_name: TC_E1_06_13
+    parameter_type: ''
+    operation: replace
+    new_value: 0.78
+    start_year: 2028
+    end_year: 2028
+    ref: ''
+  - parameter_name: TC_E1_06_07
+    parameter_type: ''
+    operation: replace
+    new_value: 0.25
+    start_year: 2029
+    end_year: 2029
+    ref: ''
+  - parameter_name: TC_E1_06_13
+    parameter_type: ''
+    operation: replace
+    new_value: 0.75
+    start_year: 2029
+    end_year: 2029
+    ref: ''
+  - parameter_name: TC_E1_06_07
+    parameter_type: ''
+    operation: replace
+    new_value: 0.3
+    start_year: 2030
+    end_year: 2030
+    ref: ''
+  - parameter_name: TC_E1_06_13
+    parameter_type: ''
+    operation: replace
+    new_value: 0.7
+    start_year: 2030
+    end_year: 2030
+    ref: ''
+mc_parameters: []
+references: []

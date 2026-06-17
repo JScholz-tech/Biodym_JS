@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+{% block title %}{{ scenario.name }} — {{ cfg.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span>
+  <a href="/{{ cfg.name }}">{{ cfg.name }}</a> <span>/</span>
+  <a href="/{{ cfg.name }}/scenarios">Scenarios</a> <span>/</span>
+  <strong>{{ scenario.name }}</strong>
+{% endblock %}
+
+{% block content %}
+<h1>{{ scenario.name }}</h1>
+
+<div class="card" style="margin-bottom:1rem">
+  <p class="muted" style="margin:0">
+    Each row defines one parameter modification applied when this scenario runs.
+    Select a parameter from the dropdown — the type and value constraints are filled automatically.
+    <strong>TC names</strong> follow the standard BioDYM convention:
+    <code>TC_{from:02d}_{to:02d}</code> for material (Splitter/DSM) and
+    <code>TC_E{n}_{from:02d}_{to:02d}</code> for element <em>n</em> (Transformer, n=1 for first
+    non-material element, e.g. WC) — verify these match the IDs in your Excel
+    <code>2_2_static_TCs</code> / <code>2_3_dynamic_TCs</code> sheets.
+    Use <em>Custom…</em> if they differ.
+    <em>Start / End Year</em> are optional; leave blank to apply to all years.
+  </p>
+</div>
+
+<div class="card">
+  <form method="post" action="/{{ cfg.name }}/scenarios/{{ scenario.name | urlencode }}" id="scen-form">
+
+    <div style="overflow-x:auto">
+      <table id="mod-table" style="min-width:900px">
+        <thead>
+          <tr>
+            <th style="min-width:260px">Parameter</th>
+            <th style="min-width:100px">Type</th>
+            <th style="min-width:110px">Operation</th>
+            <th style="min-width:160px">Value</th>
+            <th style="min-width:90px">Start Year</th>
+            <th style="min-width:90px">End Year</th>
+            {% if cfg.references %}<th style="min-width:70px;color:var(--muted)">Ref</th>{% endif %}
+            <th style="width:36px"></th>
+          </tr>
+        </thead>
+        <tbody id="mod-body">
+          {% for mod in scenario.modifications %}
+          {% set i = loop.index0 %}
+          <tr>
+            {# ── Parameter cell ── #}
+            <td>
+              <input type="hidden" name="mod_{{ i }}_parameter_name"
+                     class="param-hidden" value="{{ mod.parameter_name }}">
+              <select class="param-sel" style="width:100%;margin-bottom:3px"
+                      onchange="onParamSelect(this)">
+                <option value="">— select —</option>
+                {# filled by JS — avoids duplicating PARAMS list in Jinja #}
+              </select>
+              <input type="text" class="param-custom" style="width:100%;display:none;font-family:monospace;font-size:0.88rem"
+                     placeholder="e.g. TC_05_06"
+                     value="{{ mod.parameter_name }}"
+                     oninput="this.closest('td').querySelector('.param-hidden').value=this.value">
+            </td>
+            {# ── Type ── #}
+            <td>
+              <select name="mod_{{ i }}_parameter_type" class="param-type" style="width:100%">
+                {% for pt in param_types %}
+                <option value="{{ pt }}" {% if pt == mod.parameter_type %}selected{% endif %}>{{ pt if pt else 'auto' }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            {# ── Operation ── #}
+            <td>
+              <select name="mod_{{ i }}_operation" style="width:100%">
+                {% for op in operations %}
+                <option value="{{ op }}" {% if op == mod.operation %}selected{% endif %}>{{ op }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            {# ── Value + hint ── #}
+            <td>
+              <input type="number" name="mod_{{ i }}_new_value"
+                     class="val-input" value="{{ mod.new_value }}"
+                     step="any" min="0" style="width:100px">
+              <span class="val-hint muted" style="font-size:0.8rem;margin-left:4px">—</span>
+            </td>
+            {# ── Year range ── #}
+            <td>
+              <input type="number" name="mod_{{ i }}_start_year"
+                     value="{{ mod.start_year if mod.start_year is not none else '' }}"
+                     step="1" min="1900" max="2300" placeholder="—" style="width:84px">
+            </td>
+            <td>
+              <input type="number" name="mod_{{ i }}_end_year"
+                     value="{{ mod.end_year if mod.end_year is not none else '' }}"
+                     step="1" min="1900" max="2300" placeholder="—" style="width:84px">
+            </td>
+            {% if cfg.references %}
+            <td>
+              <select name="mod_{{ i }}_ref" style="width:64px;font-size:0.83rem;padding:2px 4px">
+                <option value="">—</option>
+                {% for ref in cfg.references %}
+                <option value="{{ ref.cite_key }}"
+                        title="{{ ref.authors }}{% if ref.year %} ({{ ref.year }}){% endif %}{% if ref.title %} — {{ ref.title[:80] }}{% endif %}"
+                        {% if mod.ref == ref.cite_key %}selected{% endif %}>[{{ loop.index }}]</option>
+                {% endfor %}
+              </select>
+            </td>
+            {% endif %}
+            <td>
+              <button type="button" class="btn btn-danger btn-sm"
+                      onclick="removeRow(this)">✕</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <button type="button" class="btn btn-secondary" style="margin-top:0.75rem"
+            onclick="addRow()">+ Add Modification</button>
+
+    <div class="btn-row" style="margin-top:1.25rem">
+      <button type="submit" class="btn btn-primary">Save Scenario</button>
+      <a href="/{{ cfg.name }}/scenarios" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+const OPERATIONS  = {{ operations | tojson }};
+const PARAM_TYPES = {{ param_types | tojson }};
+const PARAMS      = {{ params_json | safe }};
+const REFS        = {{ cfg.references | map(attribute='cite_key') | list | tojson }};
+const REF_LABELS  = {{ cfg.references | map(attribute='authors') | list | tojson }};
+const REF_YEARS   = {{ cfg.references | map(attribute='year') | list | tojson }};
+
+function refOptions(sel) {
+  if (!REFS.length) return '';
+  let html = '<option value="">—</option>';
+  REFS.forEach((ck, idx) => {
+    const label = `[${idx+1}] ${REF_LABELS[idx]}${REF_YEARS[idx] ? ' (' + REF_YEARS[idx] + ')' : ''}`;
+    html += `<option value="${ck}"${ck === sel ? ' selected' : ''}>${label}</option>`;
+  });
+  return html;
+}
+
+// ── Build optgroup HTML once ──────────────────────────────────────────────────
+const GROUPS = {};
+PARAMS.forEach(p => {
+  if (!GROUPS[p.group]) GROUPS[p.group] = [];
+  GROUPS[p.group].push(p);
+});
+
+function buildSelectOptions(selectedName) {
+  let html = '<option value="">— select —</option>';
+  Object.entries(GROUPS).forEach(([group, items]) => {
+    html += `<optgroup label="${group}">`;
+    items.forEach(p => {
+      const sel = p.name === selectedName ? ' selected' : '';
+      html += `<option value="${p.name}"${sel}>${p.label}</option>`;
+    });
+    html += '</optgroup>';
+  });
+  html += '<option value="__custom__"' + (PARAMS.every(p => p.name !== selectedName) && selectedName ? ' selected' : '') + '>✏ Custom…</option>';
+  return html;
+}
+
+// ── Init all existing rows ────────────────────────────────────────────────────
+function initRow(tr) {
+  const hidden   = tr.querySelector('.param-hidden');
+  const sel      = tr.querySelector('.param-sel');
+  const custom   = tr.querySelector('.param-custom');
+  const currentName = hidden ? hidden.value : '';
+
+  sel.innerHTML = buildSelectOptions(currentName);
+
+  // Determine if current name is a known param or custom
+  const known = PARAMS.find(p => p.name === currentName);
+  if (currentName && !known) {
+    // Custom value
+    sel.value = '__custom__';
+    custom.style.display = 'block';
+    custom.value = currentName;
+  } else if (known) {
+    applyParamMeta(tr, known);
+  }
+}
+
+document.querySelectorAll('#mod-body tr').forEach(initRow);
+
+// ── Select change handler ─────────────────────────────────────────────────────
+function onParamSelect(sel) {
+  const tr     = sel.closest('tr');
+  const hidden = tr.querySelector('.param-hidden');
+  const custom = tr.querySelector('.param-custom');
+  const val    = sel.value;
+
+  if (val === '__custom__') {
+    custom.style.display = 'block';
+    custom.value = '';
+    hidden.value = '';
+    custom.focus();
+    clearParamMeta(tr);
+  } else {
+    custom.style.display = 'none';
+    hidden.value = val;
+    const param = PARAMS.find(p => p.name === val);
+    if (param) applyParamMeta(tr, param);
+    else clearParamMeta(tr);
+  }
+}
+
+function applyParamMeta(tr, param) {
+  // Auto-fill type
+  const typeSel = tr.querySelector('.param-type');
+  if (typeSel) typeSel.value = param.type || '';
+
+  // Update value input
+  const valInp = tr.querySelector('.val-input');
+  if (valInp) {
+    valInp.step = param.step || 'any';
+    valInp.min  = param.min  || '0';
+    valInp.max  = param.max  || '';
+    if (param.max) valInp.setAttribute('max', param.max);
+    else           valInp.removeAttribute('max');
+  }
+
+  // Update hint
+  const hint = tr.querySelector('.val-hint');
+  if (hint) hint.textContent = param.hint || '';
+}
+
+function clearParamMeta(tr) {
+  const valInp = tr.querySelector('.val-input');
+  if (valInp) { valInp.step = 'any'; valInp.min = ''; valInp.removeAttribute('max'); }
+  const hint = tr.querySelector('.val-hint');
+  if (hint) hint.textContent = '';
+}
+
+// ── Add / remove rows ─────────────────────────────────────────────────────────
+let rowCount = document.querySelectorAll('#mod-body tr').length;
+
+function opOptions(sel) {
+  return OPERATIONS.map(op => `<option value="${op}"${op === sel ? ' selected' : ''}>${op}</option>`).join('');
+}
+function typeOptions(sel) {
+  return PARAM_TYPES.map(pt => `<option value="${pt}"${pt === sel ? ' selected' : ''}>${pt || 'auto'}</option>`).join('');
+}
+
+function addRow() {
+  const tbody = document.getElementById('mod-body');
+  const i = rowCount++;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>
+      <input type="hidden" name="mod_${i}_parameter_name" class="param-hidden" value="">
+      <select class="param-sel" style="width:100%;margin-bottom:3px" onchange="onParamSelect(this)">
+        ${buildSelectOptions('')}
+      </select>
+      <input type="text" class="param-custom" style="width:100%;display:none;font-family:monospace;font-size:0.88rem"
+             placeholder="e.g. TC_05_06"
+             oninput="this.closest('td').querySelector('.param-hidden').value=this.value">
+    </td>
+    <td><select name="mod_${i}_parameter_type" class="param-type" style="width:100%">${typeOptions('')}</select></td>
+    <td><select name="mod_${i}_operation" style="width:100%">${opOptions('replace')}</select></td>
+    <td>
+      <input type="number" name="mod_${i}_new_value" class="val-input" value="0" step="any" min="0" style="width:100px">
+      <span class="val-hint muted" style="font-size:0.8rem;margin-left:4px"></span>
+    </td>
+    <td><input type="number" name="mod_${i}_start_year" step="1" min="1900" max="2300" placeholder="—" style="width:84px"></td>
+    <td><input type="number" name="mod_${i}_end_year"   step="1" min="1900" max="2300" placeholder="—" style="width:84px"></td>
+    ${REFS.length ? `<td><select name="mod_${i}_ref" style="width:64px;font-size:0.83rem;padding:2px 4px">${refOptions('')}</select></td>` : ''}
+    <td><button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)">✕</button></td>`;
+  tbody.appendChild(tr);
+}
+
+function removeRow(btn) {
+  btn.closest('tr').remove();
+  reindexRows();
+}
+
+function reindexRows() {
+  document.querySelectorAll('#mod-body tr').forEach((tr, i) => {
+    tr.querySelectorAll('input[name], select[name]').forEach(el => {
+      el.name = el.name.replace(/^mod_\d+_/, `mod_${i}_`);
+    });
+  });
+  rowCount = document.querySelectorAll('#mod-body tr').length;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}BioDYM — Case Studies{% endblock %}
+
+{% block content %}
+<h1>Case Studies</h1>
+
+{% if studies %}
+<div class="card" style="padding:0">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Elements</th>
+        <th>Processes</th>
+        <th>Flows</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in studies %}
+      <tr>
+        <td><a href="/{{ s.name }}" style="font-weight:600;color:var(--primary)">{{ s.name }}</a></td>
+        <td><span class="muted">{{ s.elements }}</span></td>
+        <td>{{ s.processes }}</td>
+        <td>{{ s.flows }}</td>
+        <td>
+          <div class="btn-row">
+            <a href="/{{ s.name }}" class="btn btn-secondary btn-sm">Open</a>
+            <form method="post" action="/{{ s.name }}/delete" style="display:inline"
+                  onsubmit="return confirm('Delete case study {{ s.name }}?')">
+              <button type="submit" class="btn btn-danger">Delete</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert-warn">No case studies yet — create one below.</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem">
+
+  <div class="card">
+    <h2 style="margin-top:0">Import from Excel</h2>
+    <p class="muted" style="margin-bottom:1rem">
+      Reads elements, year range, processes, and flows directly from a BioDYM <code>.xlsx</code> / <code>.xlsm</code> file.
+      Fastest way to get started from an existing template.
+    </p>
+    {% if import_error %}
+    <div class="alert alert-err">{{ import_error }}</div>
+    {% endif %}
+    <form method="post" action="/create-from-excel" enctype="multipart/form-data">
+      <div class="field" style="margin-bottom:0.75rem">
+        <label>Name</label>
+        <input type="text" name="name" required placeholder="my_case_study">
+      </div>
+      <div class="field" style="margin-bottom:1rem">
+        <label>Excel File (.xlsx / .xlsm)</label>
+        <input type="file" name="file" accept=".xlsx,.xlsm" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Create from Excel</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">New Empty Case Study</h2>
+    <p class="muted" style="margin-bottom:1rem">
+      Start from scratch — define elements and year range manually.
+    </p>
+    <form method="post" action="/new">
+      <div class="field" style="margin-bottom:0.75rem">
+        <label>Name</label>
+        <input type="text" name="name" required placeholder="wheat_straw_berlin">
+      </div>
+      <div class="field" style="margin-bottom:0.75rem">
+        <label>Elements (comma-separated)</label>
+        <input type="text" name="elements" value="material, WC, DM, TC">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem">
+        <div class="field">
+          <label>Start Year</label>
+          <input type="number" name="start_year" value="2025" min="1900" max="2200">
+        </div>
+        <div class="field">
+          <label>End Year</label>
+          <input type="number" name="end_year" value="2125" min="1900" max="2200">
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary">Create Empty</button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

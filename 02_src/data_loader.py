@@ -1697,12 +1697,32 @@ def load_flow_cap_parameters(excel_data, debug_mode=False):
     -------
     dict
         Keys are process IDs (int); values are FlowCap configuration dicts
-        with keys: capped_flow_id, overflow_flow_id, cap_series {year: Mg}.
+        with keys: capped_flow_id, overflow_flow_id, cap_series {year: Mg},
+        cap_tc_id (str | None).
         See engine.flow_cap.load_flow_cap_parameters() for details.
     """
     from engine import flow_cap as _flow_cap  # local import avoids circular dependency
 
     return _flow_cap.load_flow_cap_parameters(excel_data, debug_mode=debug_mode)
+
+
+def register_flow_cap_parameters(mfa_system, flow_cap_params) -> None:
+    """Register FlowCap cap time series in mfa_system.ParameterDict.
+
+    Call once after define_flows_and_parameters() and before the solver.
+    Only processes with a Cap_TC_ID defined in the FlowCap sheet are registered.
+    This makes cap values visible to apply_scenario() for scenario switching.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        Configured system; ParameterDict is modified in place.
+    flow_cap_params : dict
+        As returned by load_flow_cap_parameters().
+    """
+    from engine import flow_cap as _flow_cap
+
+    _flow_cap.register_cap_parameters(mfa_system, flow_cap_params)
 
 
 def load_uncertainty_definitions(excel_data, debug_mode=False):
@@ -1927,11 +1947,18 @@ def load_scenario_definitions(excel_data):
         df.columns = df.iloc[header_row]
         df = df.iloc[header_row + 1 :].reset_index(drop=True)
 
+    # Normalise column name aliases so apply_scenario always sees consistent keys
+    col_aliases = {
+        "Parameter_ID":       "Parameter_Name",   # user column → internal name
+        "Scenario_Operation": "Operation",
+    }
+    df = df.rename(columns={src: dst for src, dst in col_aliases.items() if src in df.columns})
+
     try:
         df_scenarios = df.dropna(subset=["Scenario_Name", "Parameter_Name"])
     except KeyError:
         print(
-            f"--> ERROR: Could not find 'Scenario_Name' or 'Parameter_Name' columns in sheet '{sheet_name}'."
+            f"--> ERROR: Could not find 'Scenario_Name' or 'Parameter_Name'/'Parameter_ID' columns in sheet '{sheet_name}'."
         )
         return {}
 
@@ -1956,6 +1983,530 @@ def load_scenario_definitions(excel_data):
 
     print(f"--> Successfully loaded {len(scenario_definitions)} scenario(s).")
     return scenario_definitions
+
+
+def load_yaml_config(yaml_path: str) -> dict:
+    """Load a BioDYM web-app config YAML file and return the raw dict.
+
+    Parameters
+    ----------
+    yaml_path : str
+        Path to the ``config.yaml`` produced by the BioDYM config web app
+        (e.g. ``"case_studies/wheat_straw/config.yaml"``).
+
+    Returns
+    -------
+    dict
+        Full parsed YAML contents.
+    """
+    import yaml as _yaml
+
+    with open(yaml_path, encoding="utf-8") as fh:
+        return _yaml.safe_load(fh) or {}
+
+
+def load_uncertainty_definitions_from_yaml(yaml_path: str) -> dict:
+    """Load MC uncertainty definitions from a web-app config YAML.
+
+    Drop-in replacement for :func:`load_uncertainty_definitions` when
+    scenarios and MC parameters are managed in the config web app instead
+    of (or in addition to) the Excel sheet ``4_1_Uncertainty_Parameters``.
+
+    Only rows with ``enabled: true`` are included.
+
+    Parameters
+    ----------
+    yaml_path : str
+        Path to the ``config.yaml`` produced by the BioDYM config web app.
+
+    Returns
+    -------
+    dict
+        Same structure as :func:`load_uncertainty_definitions`:
+        ``{parameter_id: {"distribution": str, "mean": float, ...}}``.
+    """
+    data = load_yaml_config(yaml_path)
+    mc_list = data.get("mc_parameters", [])
+
+    uncertainty_params: dict = {}
+    for p in mc_list:
+        if not p.get("enabled", True):
+            continue
+        pid = str(p.get("parameter_id", "")).strip()
+        if not pid:
+            continue
+
+        dist = str(p.get("distribution", "normal")).lower()
+        defn: dict = {"distribution": dist}
+
+        for field in ("mean", "std", "min", "max", "mode"):
+            val = p.get(field)
+            if val is not None:
+                defn[field] = float(val)
+
+        op = str(p.get("operation", "replace") or "replace").lower()
+        if op:
+            defn["operation"] = op
+
+        for year_field in ("start_year", "end_year"):
+            val = p.get(year_field)
+            if val is not None:
+                defn[year_field] = int(val)
+
+        fg = p.get("flow_group")
+        if fg:
+            defn["flow_group"] = str(fg)
+
+        if pid.startswith("F_"):
+            defn["flow_id"] = pid
+
+        if len(defn) > 1:
+            uncertainty_params[pid] = defn
+
+    print(f"   ✓ Loaded {len(uncertainty_params)} MC uncertainty parameter(s) from YAML.")
+    return uncertainty_params
+
+
+def load_scenario_definitions_from_yaml(yaml_path: str) -> dict:
+    """Load scenario definitions from a web-app config YAML.
+
+    Drop-in replacement for :func:`load_scenario_definitions` when
+    scenarios are managed in the config web app instead of (or in addition
+    to) the Excel sheet ``5_1_Scenario_Manager``.
+
+    Parameters
+    ----------
+    yaml_path : str
+        Path to the ``config.yaml`` produced by the BioDYM config web app.
+
+    Returns
+    -------
+    dict
+        Same structure as :func:`load_scenario_definitions`:
+        ``{scenario_name: [{"Parameter_Name": str, "Operation": str,
+        "New_Value": float, "start_year": int|None, "end_year": int|None}]}``.
+    """
+    data = load_yaml_config(yaml_path)
+    scenario_list = data.get("scenarios", [])
+
+    scenario_definitions: dict = {}
+    for s in scenario_list:
+        sname = str(s.get("name", "")).strip()
+        if not sname:
+            continue
+        records = []
+        for m in s.get("modifications", []):
+            pname = str(m.get("parameter_name", "")).strip()
+            if not pname:
+                continue
+            records.append({
+                "Parameter_Name": pname,
+                "Operation": str(m.get("operation", "replace") or "replace"),
+                "New_Value": float(m.get("new_value") or 0.0),
+                "start_year": m.get("start_year"),
+                "end_year": m.get("end_year"),
+                "parameter_type": str(m.get("parameter_type", "") or ""),
+            })
+        scenario_definitions[sname] = records
+
+    print(f"   ✓ Loaded {len(scenario_definitions)} scenario definition(s) from YAML.")
+    return scenario_definitions
+
+
+def load_fomp_from_yaml(yaml_path: str) -> dict:
+    """Load FOMP parameters from a web-app config YAML.
+
+    Drop-in replacement for :func:`load_fomp_parameters` when FOMP process
+    params are managed in the config web app.  The dict uses the internal
+    Excel-style key names expected by ``fomp_model.calculate_fomp()``.
+
+    Parameters
+    ----------
+    yaml_path : str
+        Path to the ``config.yaml`` produced by the BioDYM config web app.
+
+    Returns
+    -------
+    dict
+        ``{process_id: {"Inflow_fraction_f (Labile pool)": float, ...}}``
+    """
+    data = load_yaml_config(yaml_path)
+    fomp_params: dict = {}
+    for proc in data.get("processes", []):
+        fomp = proc.get("fomp")
+        if not fomp:
+            continue
+        pid = int(proc["id"])
+        outflow_2 = str(fomp.get("outflow_id_2", "") or "").strip() or None
+        fomp_params[pid] = {
+            "Inflow_fraction_f (Labile pool)": float(fomp.get("f_labile", 0.5)),
+            "decay_k1 (Labile pool)":          float(fomp.get("k_labile", 1.0)),
+            "decay_k2 (Recalcitrant pool)":    float(fomp.get("k_recalcitrant", 0.01)),
+            "outflow_id":   str(fomp.get("outflow_id", "")),
+            "outflow_id_2": outflow_2,
+        }
+    print(f"   ✓ Loaded {len(fomp_params)} FOMP process config(s) from YAML.")
+    return fomp_params
+
+
+def load_dsm_from_yaml(yaml_path: str) -> dict:
+    """Load DSM parameters from a web-app config YAML.
+
+    Drop-in replacement for :func:`load_dsm_parameters` (single-category only).
+    ``stock_configuration`` is read from the process ``stock`` field.
+
+    Parameters
+    ----------
+    yaml_path : str
+        Path to the ``config.yaml`` produced by the BioDYM config web app.
+
+    Returns
+    -------
+    dict
+        ``{process_id: {"inflow_split": [...], "lifetimes": {...}, ...}}``
+    """
+    data = load_yaml_config(yaml_path)
+    dsm_params: dict = {}
+    for proc in data.get("processes", []):
+        dsm = proc.get("dsm")
+        if not dsm:
+            continue
+        pid = int(proc["id"])
+        stock_config = str(proc.get("stock", "Stock"))
+        cats = dsm.get("categories", [])
+        if not cats:
+            # Legacy single-category flat format
+            cats = [{
+                "name": "Default",
+                "inflow_split": 1.0,
+                "lifetime_type": dsm.get("lifetime_distribution", "Normal"),
+                "lifetime_mean": dsm.get("lifetime_mean"),
+                "lifetime_std":  dsm.get("lifetime_std"),
+                "lifetime_shape": None,
+                "lifetime_scale": None,
+            }]
+        inflow_splits, types, means, stds, shapes, scales, names = [], [], [], [], [], [], []
+        for cat in cats:
+            inflow_splits.append(float(cat.get("inflow_split", 1.0)))
+            lt = str(cat.get("lifetime_type", "Normal"))
+            types.append(lt)
+            names.append(str(cat.get("name", "Default")))
+            means.append(float(cat["lifetime_mean"])  if cat.get("lifetime_mean")  is not None else None)
+            stds.append(float(cat["lifetime_std"])    if cat.get("lifetime_std")   is not None else None)
+            shapes.append(float(cat["lifetime_shape"]) if cat.get("lifetime_shape") is not None else None)
+            scales.append(float(cat["lifetime_scale"]) if cat.get("lifetime_scale") is not None else None)
+        dsm_params[pid] = {
+            "inflow_split": inflow_splits,
+            "lifetimes": {
+                "Type":   types,
+                "Mean":   means,
+                "StdDev": stds,
+                "Shape":  shapes,
+                "Scale":  scales,
+            },
+            "category_names":  names,
+            "output_splits":   [[] for _ in cats],
+            "output_flow_ids": [],
+            "parameter_based": False,
+            "stock_configuration": stock_config,
+        }
+    print(f"   ✓ Loaded {len(dsm_params)} DSM process config(s) from YAML.")
+    return dsm_params
+
+
+def load_lfg_from_yaml(yaml_path: str) -> dict:
+    """Load LFG parameters from a web-app config YAML.
+
+    Drop-in replacement for :func:`load_lfg_parameters`.
+
+    Parameters
+    ----------
+    yaml_path : str
+        Path to the ``config.yaml`` produced by the BioDYM config web app.
+
+    Returns
+    -------
+    dict
+        ``{process_id: {"fractions": [...], "MCF": float, "DOCf": float, ...}}``
+    """
+    data = load_yaml_config(yaml_path)
+    lfg_params: dict = {}
+    for proc in data.get("processes", []):
+        lfg = proc.get("lfg")
+        if not lfg:
+            continue
+        pid = int(proc["id"])
+        fractions = []
+        for frac in lfg.get("fractions", []):
+            fractions.append({
+                "name":      str(frac.get("name", "")),
+                "k_j":       float(frac.get("k_j", 0.1)),
+                "DOC_j":     float(frac.get("doc_j", 0.5)),
+                "f_input_j": float(frac.get("f_input_j", 1.0)),
+                "f_ash_j":   float(frac.get("f_ash_j", 0.05)),
+            })
+        lfg_params[pid] = {
+            "fractions":           fractions,
+            "MCF":                 float(lfg.get("mcf", 1.0)),
+            "DOCf":                float(lfg.get("doc_f", 0.5)),
+            "F_CH4":               float(lfg.get("f_ch4", 0.5)),
+            "OX":                  float(lfg.get("ox", 0.1)),
+            "phi":                 float(lfg.get("phi", 1.0)),
+            "f_capture":           float(lfg.get("f_capture", 0.0)),
+            "outflow_ch4_id":      str(lfg.get("outflow_ch4_id", "")),
+            "outflow_co2_id":      str(lfg.get("outflow_co2_id", "")),
+            "outflow_leachate_id": str(lfg.get("outflow_leachate_id", "")),
+        }
+    print(f"   ✓ Loaded {len(lfg_params)} LFG process config(s) from YAML.")
+    return lfg_params
+
+
+def load_flow_cap_from_yaml(yaml_path: str) -> dict:
+    """Load FlowCap parameters from a web-app config YAML.
+
+    Drop-in replacement for :func:`load_flow_cap_parameters`.
+
+    Parameters
+    ----------
+    yaml_path : str
+        Path to the ``config.yaml`` produced by the BioDYM config web app.
+
+    Returns
+    -------
+    dict
+        ``{process_id: {"capped_flow_id": str, "cap_series": {year: float}, ...}}``
+    """
+    data = load_yaml_config(yaml_path)
+    flow_cap_params: dict = {}
+    for proc in data.get("processes", []):
+        fc = proc.get("flowcap")
+        if not fc:
+            continue
+        pid = int(proc["id"])
+        cap_series = {int(y): float(v) for y, v in fc.get("cap_series", {}).items()}
+        overflow_id = str(fc.get("overflow_flow_id", "") or "").strip() or None
+        cap_tc_id   = str(fc.get("cap_tc_id", "") or "").strip() or None
+        flow_cap_params[pid] = {
+            "capped_flow_id":   str(fc.get("capped_flow_id", "")),
+            "overflow_flow_id": overflow_id,
+            "cap_series":       cap_series,
+            "cap_tc_id":        cap_tc_id,
+        }
+    print(f"   ✓ Loaded {len(flow_cap_params)} FlowCap config(s) from YAML.")
+    return flow_cap_params
+
+
+def load_flow_data_df_from_yaml(yaml_path: str):
+    """Load flow time-series data from a web-app config YAML as a DataFrame.
+
+    Returns a DataFrame in the format of the ``1_2_Data_Flows`` Excel sheet
+    so it can be injected into ``all_excel_data`` before calling
+    ``define_flows_and_parameters()``.
+
+    Columns: ``Flow_ID``, ``Flow_Data_Year``, ``E1_value`` (material element).
+
+    Parameters
+    ----------
+    yaml_path : str
+        Path to the ``config.yaml`` produced by the BioDYM config web app.
+
+    Returns
+    -------
+    pd.DataFrame
+        Rows sorted by Flow_ID then year.  Empty DataFrame if no flow_data.
+    """
+    data = load_yaml_config(yaml_path)
+    rows = []
+    for entry in data.get("flow_data", []):
+        fid  = str(entry.get("flow_id", "")).strip()
+        elem = str(entry.get("element", "material"))
+        if elem != "material" or not fid:
+            continue
+        for year_raw, val in entry.get("values", {}).items():
+            rows.append({
+                "Flow_ID":        fid,
+                "Flow_Data_Year": int(year_raw),
+                "E1_value":       float(val),
+            })
+    if not rows:
+        return pd.DataFrame(columns=["Flow_ID", "Flow_Data_Year", "E1_value"])
+    df = pd.DataFrame(rows).sort_values(["Flow_ID", "Flow_Data_Year"]).reset_index(drop=True)
+    print(f"   ✓ Loaded {len(df)} flow data point(s) for {df['Flow_ID'].nunique()} flow(s) from YAML.")
+    return df
+
+
+def yaml_to_excel_dataframes(yaml_path: str) -> dict:
+    """Convert a BioDYM web-app config YAML into Excel-format DataFrames.
+
+    Returns a dict keyed by sheet name (same keys as ``pd.read_excel`` with
+    ``sheet_name=None``).  Pass this dict as ``input_data`` to
+    ``system_setup.load_and_define_processes`` to run the engine without an
+    Excel file.
+
+    Parameters
+    ----------
+    yaml_path : str
+        Path to the ``config.yaml`` produced by the BioDYM config web app.
+
+    Returns
+    -------
+    dict[str, pd.DataFrame]
+        Sheet-name → DataFrame mapping for all sheets the engine consumes.
+    """
+    data = load_yaml_config(yaml_path)
+
+    model       = data.get("model") or {}
+    elements    = model.get("elements", ["material", "WC", "DM", "TC"])
+    processes   = data.get("processes", [])
+    flows       = data.get("flows", [])
+    tcs         = data.get("transfer_coefficients", [])
+    compositions = data.get("flow_compositions", [])
+    hierarchy   = data.get("element_hierarchy", [])
+
+    # Build lookup: flow_id → flow dict
+    flow_map = {f["id"]: f for f in flows}
+
+    # Build lookup: flow_id → {element: fraction}
+    comp_map: dict[str, dict] = {}
+    for fc in compositions:
+        comp_map[fc.get("flow_id", "")] = fc.get("values", {})
+
+    # Build lookup: child_element → parent_element
+    child_to_parent: dict[str, str] = {}
+    for rule in hierarchy:
+        parent = rule.get("parent", "")
+        for child in rule.get("children", []):
+            child_to_parent[child] = parent
+
+    result: dict[str, pd.DataFrame] = {}
+
+    # ── 0_Configuration ──────────────────────────────────────────────────────
+    # system_setup reads this via row.iloc[1] (key) and row.iloc[2] (value),
+    # so we need 3 columns (col0 is a label column, col1=key, col2=value).
+    elem_idx_map = {e: i + 1 for i, e in enumerate(elements)}
+    cfg_rows = []
+    cfg_rows.append({"_lbl": "", "_key": "Start_Year", "_val": model.get("start_year", 2025)})
+    cfg_rows.append({"_lbl": "", "_key": "End_Year",   "_val": model.get("end_year",   2125)})
+    for i, elem in enumerate(elements, 1):
+        cfg_rows.append({"_lbl": "", "_key": f"Element_ID_{i}", "_val": elem})
+    for child, parent in child_to_parent.items():
+        if child in elem_idx_map:
+            cfg_rows.append({
+                "_lbl": "",
+                "_key": f"Parent_Element_ID_{elem_idx_map[child]}",
+                "_val": parent,
+            })
+    result["0_Configuration"] = pd.DataFrame(cfg_rows)
+
+    # ── 2_1_Definition_Processes ─────────────────────────────────────────────
+    # system_setup uses "ID"; data_loader/load_tc_parameters uses "Process_ID"
+    proc_rows = []
+    for p in processes:
+        pid    = p.get("id")
+        logic  = p.get("logic", "Splitter")
+        stock  = p.get("stock", "No_Stock")
+        tc_cfg = p.get("tc_config", "No TC")
+        # "No TC" → NaN (engine skips TC loading for such processes)
+        tc_cfg_val = tc_cfg if tc_cfg in ("Static", "Dynamic") else None
+        proc_rows.append({
+            "ID":                 pid,
+            "Process_ID":         pid,   # alias for load_tc_parameters
+            "Process_Name":       p.get("name", f"P{pid}"),
+            "Process_Logic":      logic,
+            "Stock_Configuration": stock,
+            "TC_Configuration":   tc_cfg_val,
+        })
+    result["2_1_Definition_Processes"] = pd.DataFrame(proc_rows)
+
+    # ── 1_1_Definition_Flows ─────────────────────────────────────────────────
+    # Composition columns: Flow_E{n}_Fraction[%]  (n = 1-based element index)
+    flow_rows = []
+    for fl in flows:
+        fid  = fl.get("id", "")
+        comp = comp_map.get(fid, {})
+        row  = {
+            "Flow_ID":               fid,
+            "Flow_Name":             fl.get("name", fid),
+            "Flow_Output_Process_ID": fl.get("from_process"),
+            "Input_Process_ID":      fl.get("to_process"),
+        }
+        for idx, elem in enumerate(elements):
+            n = idx + 1  # 1-based
+            row[f"Flow_E{n}_Fraction[%]"] = comp.get(elem)
+        flow_rows.append(row)
+    result["1_1_Definition_Flows"] = pd.DataFrame(flow_rows) if flow_rows else pd.DataFrame()
+
+    # ── 2_2_static_TCs ───────────────────────────────────────────────────────
+    # New E# format: E{n}_TC_ID, E{n}_TC_Value[%]
+    # TC ID convention (CLAUDE.md):
+    #   material → TC_{from:02d}_{to:02d}
+    #   element n → TC_E{n}_{from:02d}_{to:02d}
+    static_rows = []
+    for tc in tcs:
+        if tc.get("tc_type", "static") != "static":
+            continue
+        pid    = tc.get("process_id")
+        fid    = tc.get("flow_id", "")
+        values = tc.get("values", {})
+        if not values:
+            continue
+        fl      = flow_map.get(fid, {})
+        from_p  = fl.get("from_process", 0)
+        to_p    = fl.get("to_process",   0)
+        row = {"Process_ID": pid, "Flow_ID": fid}
+        for idx, elem in enumerate(elements):
+            n = idx + 1
+            tc_id = (f"TC_{from_p:02d}_{to_p:02d}" if elem == "material"
+                     else f"TC_E{n}_{from_p:02d}_{to_p:02d}")
+            val = values.get(elem)
+            row[f"E{n}_TC_ID"]       = tc_id if val is not None else None
+            row[f"E{n}_TC_Value[%]"] = val
+        static_rows.append(row)
+    result["2_2_static_TCs"] = pd.DataFrame(static_rows) if static_rows else pd.DataFrame()
+
+    # ── 2_3_dynamic_TCs ──────────────────────────────────────────────────────
+    dyn_rows = []
+    for tc in tcs:
+        if tc.get("tc_type") != "dynamic":
+            continue
+        pid   = tc.get("process_id")
+        fid   = tc.get("flow_id", "")
+        fl    = flow_map.get(fid, {})
+        from_p = fl.get("from_process", 0)
+        to_p   = fl.get("to_process",   0)
+        for point in tc.get("time_series", []):
+            year   = point.get("year")
+            values = point.get("values", {})
+            row = {"Process_ID": pid, "Flow_ID": fid, "Year": year}
+            for idx, elem in enumerate(elements):
+                n = idx + 1
+                tc_id = (f"TC_{from_p:02d}_{to_p:02d}" if elem == "material"
+                         else f"TC_E{n}_{from_p:02d}_{to_p:02d}")
+                val = values.get(elem)
+                row[f"E{n}_TC_ID"]       = tc_id if val is not None else None
+                row[f"E{n}_TC_Value[%]"] = val
+            dyn_rows.append(row)
+    result["2_3_dynamic_TCs"] = pd.DataFrame(dyn_rows) if dyn_rows else pd.DataFrame()
+
+    # ── 1_2_Data_Flows ───────────────────────────────────────────────────────
+    result["1_2_Data_Flows"] = load_flow_data_df_from_yaml(yaml_path)
+
+    # ── Empty placeholder sheets ─────────────────────────────────────────────
+    # Must include required column names so validate_input_data passes even
+    # though there are zero rows (feature disabled in YAML-only mode).
+    result["2_4_Initial_Stock"] = pd.DataFrame(
+        columns=["Process_ID", "IS_Parameter_type", "IS_Parameter_Value"]
+    )
+    result["3_2_Definition_FOMP"] = pd.DataFrame(columns=["Process_ID"])
+    result["3_1_DSM_Parameters"]  = pd.DataFrame()
+
+    n_static = len(static_rows)
+    n_dyn    = len(dyn_rows)
+    print(
+        f"   ✓ YAML→DataFrames: {len(processes)} processes, {len(flows)} flows, "
+        f"{n_static} static-TC rows, {n_dyn} dynamic-TC rows"
+    )
+    return result
 
 
 def load_initial_stock_parameters(excel_data, elements=None):

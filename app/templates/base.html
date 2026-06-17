@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}BioDYM Config Editor{% endblock %}</title>
+  <style>
+    :root {
+      --bg:       #f8f9fa;
+      --surface:  #ffffff;
+      --border:   #dee2e6;
+      --primary:  #2c6e49;
+      --primary-hover: #245a3c;
+      --danger:   #c0392b;
+      --warn-bg:  #fff3cd;
+      --warn-border: #ffc107;
+      --ok-bg:    #d4edda;
+      --ok-border:#28a745;
+      --text:     #212529;
+      --muted:    #6c757d;
+      --radius:   6px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 15px; }
+
+    /* Nav */
+    nav { background: var(--primary); color: #fff; padding: 0 1.5rem; display: flex; align-items: center; gap: 1rem; height: 52px; }
+    nav a.brand { font-weight: 700; font-size: 1.1rem; color: #fff; text-decoration: none; }
+    nav .breadcrumb { display: flex; gap: 0.4rem; align-items: center; font-size: 0.9rem; opacity: 0.85; }
+    nav .breadcrumb a { color: #fff; text-decoration: none; }
+    nav .breadcrumb a:hover { text-decoration: underline; }
+    nav .breadcrumb span { opacity: 0.6; }
+
+    /* Layout */
+    main { max-width: 1000px; margin: 2rem auto; padding: 0 1.5rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 1.25rem; }
+    h2 { font-size: 1.15rem; margin-bottom: 0.75rem; margin-top: 1.5rem; }
+
+    /* Cards */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1.25rem; }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; font-size: 0.93rem; }
+    th { background: var(--bg); text-align: left; padding: 0.5rem 0.75rem; border-bottom: 2px solid var(--border); font-weight: 600; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f1f3f5; }
+
+    /* Forms */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .form-grid.single { grid-template-columns: 1fr; }
+    label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+    input[type=text], input[type=number], select, textarea {
+      width: 100%; padding: 0.45rem 0.65rem; border: 1px solid var(--border);
+      border-radius: var(--radius); font-size: 0.95rem; background: var(--surface);
+    }
+    input:focus, select:focus { outline: 2px solid var(--primary); border-color: var(--primary); }
+    .field { margin-bottom: 0.75rem; }
+
+    /* Buttons */
+    .btn { display: inline-block; padding: 0.45rem 1rem; border-radius: var(--radius); font-size: 0.9rem; font-weight: 600; cursor: pointer; border: none; text-decoration: none; transition: background 0.15s; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary { background: var(--border); color: var(--text); }
+    .btn-secondary:hover { background: #ced4da; }
+    .btn-danger { background: var(--danger); color: #fff; font-size: 0.82rem; padding: 0.3rem 0.65rem; }
+    .btn-danger:hover { background: #a93226; }
+    .btn-sm { font-size: 0.82rem; padding: 0.3rem 0.65rem; }
+    .btn-row { display: flex; gap: 0.5rem; align-items: center; }
+
+    /* Alerts */
+    .alert { padding: 0.75rem 1rem; border-radius: var(--radius); margin-bottom: 1rem; font-size: 0.9rem; }
+    .alert-warn { background: var(--warn-bg); border: 1px solid var(--warn-border); }
+    .alert-ok   { background: var(--ok-bg);   border: 1px solid var(--ok-border); }
+    .alert-err  { background: #f8d7da; border: 1px solid #f5c6cb; }
+    ul.errors { margin: 0; padding-left: 1.25rem; }
+
+    /* Collapsible param blocks */
+    details { border: 1px solid var(--border); border-radius: var(--radius); margin-top: 1rem; }
+    details summary { padding: 0.6rem 0.9rem; cursor: pointer; font-weight: 600; background: var(--bg); border-radius: var(--radius); user-select: none; }
+    details[open] summary { border-bottom: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; }
+    .details-body { padding: 1rem; }
+
+    /* Misc */
+    .muted { color: var(--muted); font-size: 0.88rem; }
+    .tag { display: inline-block; background: var(--bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1rem 0.45rem; font-size: 0.8rem; font-family: monospace; }
+  </style>
+</head>
+<body>
+<nav>
+  <a class="brand" href="/">BioDYM</a>
+  <div class="breadcrumb">
+    {% block breadcrumb %}{% endblock %}
+  </div>
+</nav>
+<main>
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

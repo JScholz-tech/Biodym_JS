@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Element Hierarchy — {{ cfg.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span>
+  <a href="/{{ cfg.name }}">{{ cfg.name }}</a> <span>/</span>
+  <strong>Element Hierarchy</strong>
+{% endblock %}
+
+{% block content %}
+<h1>Element Hierarchy</h1>
+
+<div class="card" style="margin-bottom:1.25rem">
+  <p class="muted" style="margin-bottom:0.75rem">
+    Define which elements are computed as sums of child elements.
+    Example: <code>material = WC + DM</code>, <code>DM = TC + Ash_content</code>.
+    Leaf elements (not listed as parents) are measured directly.
+  </p>
+  <div style="display:flex;flex-wrap:wrap;gap:0.4rem">
+    <span class="muted" style="font-size:0.85rem;align-self:center">Available elements:</span>
+    {% for elem in cfg.model.elements %}
+    <span class="tag">{{ elem }}</span>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <form method="post" action="/{{ cfg.name }}/hierarchy" id="hier-form">
+    <table id="hier-table" style="width:100%;margin-bottom:1rem">
+      <thead>
+        <tr>
+          <th style="width:35%">Parent element</th>
+          <th>Children (comma-separated)</th>
+          <th style="width:60px"></th>
+        </tr>
+      </thead>
+      <tbody id="hier-body">
+        {% for rule in cfg.element_hierarchy %}
+        <tr>
+          <td>
+            <select name="parent_{{ loop.index0 }}" style="width:100%">
+              <option value="">— select —</option>
+              {% for elem in cfg.model.elements %}
+              <option value="{{ elem }}" {% if elem == rule.parent %}selected{% endif %}>{{ elem }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <input type="text" name="children_{{ loop.index0 }}"
+                   value="{{ rule.children | join(', ') }}"
+                   placeholder="e.g. WC, DM"
+                   style="width:100%">
+          </td>
+          <td>
+            <button type="button" class="btn btn-danger btn-sm"
+                    onclick="this.closest('tr').remove(); reindex()">✕</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="btn-row">
+      <button type="button" class="btn btn-secondary" onclick="addRow()">+ Add Rule</button>
+      <button type="submit" class="btn btn-primary">Save Hierarchy</button>
+      <a href="/{{ cfg.name }}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% if cfg.element_hierarchy %}
+<div class="card">
+  <h2 style="margin-top:0">Preview</h2>
+  <ul style="list-style:none;padding:0;font-family:monospace;font-size:0.95rem">
+    {% for rule in cfg.element_hierarchy %}
+    <li style="padding:0.3rem 0;border-bottom:1px solid var(--border)">
+      <strong>{{ rule.parent }}</strong>
+      <span class="muted"> = </span>
+      {{ rule.children | join(' + ') }}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<script>
+const ELEMENTS = {{ cfg.model.elements | tojson }};
+let rowCount = {{ cfg.element_hierarchy | length }};
+
+function buildOptions(selected) {
+  return '<option value="">— select —</option>' +
+    ELEMENTS.map(e =>
+      `<option value="${e}"${e === selected ? ' selected' : ''}>${e}</option>`
+    ).join('');
+}
+
+function addRow() {
+  const tbody = document.getElementById('hier-body');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><select name="parent_${rowCount}" style="width:100%">${buildOptions('')}</select></td>
+    <td><input type="text" name="children_${rowCount}" placeholder="e.g. WC, DM" style="width:100%"></td>
+    <td><button type="button" class="btn btn-danger btn-sm"
+      onclick="this.closest('tr').remove(); reindex()">✕</button></td>`;
+  tbody.appendChild(tr);
+  rowCount++;
+}
+
+function reindex() {
+  document.querySelectorAll('#hier-body tr').forEach((tr, i) => {
+    const sel = tr.querySelector('select');
+    const inp = tr.querySelector('input');
+    if (sel) sel.name = `parent_${i}`;
+    if (inp) inp.name = `children_${i}`;
+  });
+  rowCount = document.querySelectorAll('#hier-body tr').length;
+}
+</script>
+{% endblock %}

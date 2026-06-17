@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}TCs P{{ process.id }} — {{ cfg.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span>
+  <a href="/{{ cfg.name }}">{{ cfg.name }}</a> <span>/</span>
+  <a href="/{{ cfg.name }}/tcs">TCs</a> <span>/</span>
+  <strong>P{{ process.id }} {{ process.name }}</strong>
+{% endblock %}
+
+{% block content %}
+<h1>Transfer Coefficients — P{{ process.id }} {{ process.name }}</h1>
+
+{% if is_splitter %}
+<div class="alert alert-info" style="margin-bottom:1rem;background:var(--bg);border-left:3px solid var(--primary)">
+  <strong>Splitter / DSM mode — material TC only.</strong>
+  The engine splits the material flow using the <em>material</em> column only.
+  Element composition is inherited from the inflow automatically.
+  Non-material columns are disabled and ignored on save.
+</div>
+{% else %}
+<div class="alert alert-info" style="margin-bottom:1rem;background:var(--bg);border-left:3px solid var(--primary)">
+  <strong>Transformer mode — per-element TCs.</strong>
+  Each element column is applied independently and must sum to 100 %.
+</div>
+{% endif %}
+
+{% if errors %}
+<div class="alert alert-err">
+  <strong>Validation errors — fractions do not sum to 100 %:</strong>
+  <ul class="errors" style="margin-top:0.4rem">
+    {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="card">
+  <p class="muted" style="margin-bottom:1rem">
+    Enter values in <strong>%</strong> (0 – 100).
+    {% if is_splitter %}
+    The <strong>material</strong> column must sum to 100 %. Non-material columns are greyed out.
+    {% else %}
+    Each column must sum to 100 % across all flows.
+    {% endif %}
+  </p>
+
+  <form method="post" action="/{{ cfg.name }}/tcs/{{ process.id }}" id="tc-form">
+    <div style="overflow-x:auto">
+      <table id="tc-table">
+        <thead>
+          <tr>
+            <th>Flow</th>
+            {% for elem in cfg.model.elements %}
+            {% set disabled = is_splitter and not loop.first %}
+            <th style="{{ 'color:var(--muted);' if disabled else '' }}">
+              {{ elem }} <span style="font-weight:400;font-size:0.85rem">%</span>
+              {% if disabled %}<br><span style="font-size:0.72rem;font-weight:400">(inherited)</span>{% endif %}
+            </th>
+            {% endfor %}
+            {% if cfg.references %}
+            <th style="color:var(--muted);font-size:0.8rem;min-width:64px">Ref</th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>
+              <strong>{{ row.flow.id }}</strong><br>
+              <span class="muted">{{ row.flow.name }}</span>
+            </td>
+            {% for elem in cfg.model.elements %}
+            {% set disabled = is_splitter and not loop.first %}
+            <td style="{{ 'background:var(--bg);' if disabled else '' }}">
+              <input type="number"
+                     name="tc_{{ row.flow.id }}_{{ elem }}"
+                     class="tc-input tc-col-{{ loop.index0 }}"
+                     value="{{ (row.tc_values.get(elem, 0.0) * 100) | round(4) }}"
+                     step="0.01" min="0" max="100"
+                     style="width:90px{{ ';opacity:0.4;pointer-events:none' if disabled else '' }}"
+                     {% if disabled %}disabled tabindex="-1"{% endif %}
+                     {% if not disabled %}oninput="updateSum({{ loop.index0 }})"{% endif %}>
+            </td>
+            {% endfor %}
+            {% if cfg.references %}
+            <td>
+              <select name="ref_{{ row.flow.id }}"
+                      style="width:64px;font-size:0.83rem;padding:2px 4px"
+                      title="Link a reference">
+                <option value="">—</option>
+                {% for ref in cfg.references %}
+                <option value="{{ ref.cite_key }}"
+                        title="{{ ref.authors }}{% if ref.year %} ({{ ref.year }}){% endif %}{% if ref.title %} — {{ ref.title[:60] }}{% endif %}"
+                        {% if ref.cite_key == row.tc_ref %}selected{% endif %}>[{{ loop.index }}]</option>
+                {% endfor %}
+              </select>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr style="font-weight:600;background:var(--bg)">
+            <td>Sum</td>
+            {% for elem in cfg.model.elements %}
+            {% set disabled = is_splitter and not loop.first %}
+            <td>
+              {% if disabled %}
+              <span style="color:var(--muted)">—</span>
+              {% else %}
+              <span id="sum-{{ loop.index0 }}" class="sum-display">—</span>
+              {% endif %}
+            </td>
+            {% endfor %}
+            {% if cfg.references %}<td></td>{% endif %}
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="btn-row" style="margin-top:1.25rem">
+      <button type="submit" class="btn btn-primary">Save TCs</button>
+      <a href="/{{ cfg.name }}/tcs" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+const IS_SPLITTER = {{ 'true' if is_splitter else 'false' }};
+
+function updateSum(colIdx) {
+  if (IS_SPLITTER && colIdx > 0) return;
+  const inputs = document.querySelectorAll('.tc-col-' + colIdx + ':not([disabled])');
+  let total = 0;
+  inputs.forEach(inp => { total += parseFloat(inp.value) || 0; });
+  const span = document.getElementById('sum-' + colIdx);
+  if (!span) return;
+  span.textContent = total.toFixed(2) + ' %';
+  const ok = Math.abs(total - 100.0) < 0.01;
+  span.style.color = ok ? 'var(--primary)' : 'var(--danger)';
+}
+
+// init active columns on load
+document.querySelectorAll('.tc-input:not([disabled])').forEach(inp => {
+  const cls = [...inp.classList].find(c => c.startsWith('tc-col-'));
+  if (cls) updateSum(parseInt(cls.replace('tc-col-', '')));
+});
+
+// divide by 100 before submit so server receives decimals
+document.getElementById('tc-form').addEventListener('submit', function () {
+  document.querySelectorAll('.tc-input:not([disabled])').forEach(inp => {
+    inp.value = ((parseFloat(inp.value) || 0) / 100).toFixed(6);
+  });
+});
+</script>
+{% endblock %}

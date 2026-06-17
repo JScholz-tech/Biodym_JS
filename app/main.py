@@ -1,0 +1,1630 @@
+from __future__ import annotations
+
+import re
+from pathlib import Path
+from typing import Optional
+
+from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+from app import storage
+from app.models.config_schema import (
+    BomAssemblyEntry,
+    DsmCategory,
+    BomAssemblyFlow,
+    CaseStudyConfig,
+    DsmParams,
+    DynamicTCPoint,
+    ElementHierarchyRule,
+    Flow,
+    FlowCapParams,
+    FlowComposition,
+    FlowDataEntry,
+    FompParams,
+    LfgFraction,
+    LfgParams,
+    ModelSettings,
+    Process,
+    ProcessLogic,
+    McParameter,
+    ReferenceEntry,
+    ScenarioDefinition,
+    ScenarioModification,
+    StockConfig,
+    TCConfig,
+    TransferCoefficient,
+)
+
+app = FastAPI(title="BioDYM Config Editor")
+
+_HERE = Path(__file__).parent
+app.mount("/static", StaticFiles(directory=_HERE / "static"), name="static")
+templates = Jinja2Templates(directory=_HERE / "templates")
+
+
+def _ctx(**kwargs) -> dict:
+    return kwargs
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _slug(name: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9_\-]", "_", name.strip())
+
+
+def _g(form, key: str) -> Optional[str]:
+    v = form.get(key)
+    return v.strip() if v and v.strip() else None
+
+
+def _gf(form, key: str) -> Optional[float]:
+    v = _g(form, key)
+    return float(v) if v is not None else None
+
+
+def _gi(form, key: str) -> Optional[int]:
+    v = _g(form, key)
+    return int(v) if v is not None else None
+
+
+def _parse_tcs_from_yaml(raw_tcs: list) -> list[TransferCoefficient]:
+    """Convert flat TC list from yaml_schema into TransferCoefficient objects."""
+    result = []
+    for tc in raw_tcs:
+        tc_type = tc.get("tc_type", "static")
+        if tc_type == "dynamic":
+            points = [
+                DynamicTCPoint(year=p["year"], values=p.get("values", {}))
+                for p in tc.get("time_series", [])
+            ]
+            result.append(TransferCoefficient(
+                process_id=tc["process_id"],
+                flow_id=tc["flow_id"],
+                tc_type="dynamic",
+                time_series=points,
+            ))
+        else:
+            result.append(TransferCoefficient(
+                process_id=tc["process_id"],
+                flow_id=tc["flow_id"],
+                tc_type="static",
+                values=tc.get("values", {}),
+            ))
+    return result
+
+
+def _parse_bom_from_yaml(raw_bom: list) -> list[BomAssemblyEntry]:
+    result = []
+    for entry in raw_bom:
+        pid = entry.get("process_id")
+        if pid is None:
+            continue
+        flows = [
+            BomAssemblyFlow(
+                flow_id=f["flow_id"],
+                output_flow_type=f.get("output_flow_type", ""),
+                fractions=f.get("fractions", {}),
+            )
+            for f in entry.get("flows", [])
+            if f.get("flow_id")
+        ]
+        result.append(BomAssemblyEntry(process_id=int(pid), flows=flows))
+    return result
+
+
+def _apply_extra_yaml(yaml_data: dict, cfg: "CaseStudyConfig") -> None:
+    """Populate extra fields (compositions, hierarchy, flow_data, scenarios, MC) from yaml_data."""
+    if yaml_data.get("element_hierarchy"):
+        cfg.element_hierarchy = [
+            ElementHierarchyRule(
+                parent=str(r["parent"]),
+                children=[str(c) for c in r.get("children", [])],
+            )
+            for r in yaml_data["element_hierarchy"]
+        ]
+
+    if yaml_data.get("flow_data"):
+        cfg.flow_data = [
+            FlowDataEntry(
+                flow_id=str(fd["flow_id"]),
+                element=str(fd.get("element", "material")),
+                values={int(k): float(v) for k, v in fd.get("values", {}).items()},
+            )
+            for fd in yaml_data["flow_data"]
+        ]
+
+    if yaml_data.get("flow_compositions"):
+        cfg.flow_compositions = [
+            FlowComposition(
+                flow_id=str(fc["flow_id"]),
+                values={k: float(v) for k, v in fc.get("values", {}).items()},
+            )
+            for fc in yaml_data["flow_compositions"]
+        ]
+
+    if yaml_data.get("scenarios"):
+        cfg.scenarios = []
+        for s in yaml_data["scenarios"]:
+            mods = [
+                ScenarioModification(
+                    parameter_name=m.get("parameter_name", ""),
+                    parameter_type=m.get("parameter_type", ""),
+                    operation=m.get("operation", "replace"),
+                    new_value=float(m.get("new_value") or 0.0),
+                    start_year=m.get("start_year"),
+                    end_year=m.get("end_year"),
+                )
+                for m in s.get("modifications", [])
+            ]
+            cfg.scenarios.append(ScenarioDefinition(name=str(s["name"]), modifications=mods))
+
+    if yaml_data.get("mc_parameters"):
+        cfg.mc_parameters = [
+            McParameter(
+                parameter_id=p.get("parameter_id", ""),
+                enabled=bool(p.get("enabled", True)),
+                distribution=p.get("distribution", "normal"),
+                mean=p.get("mean"),
+                std=p.get("std"),
+                min=p.get("min"),
+                max=p.get("max"),
+                mode=p.get("mode"),
+                operation=p.get("operation", "replace"),
+                start_year=p.get("start_year"),
+                end_year=p.get("end_year"),
+                flow_group=p.get("flow_group"),
+            )
+            for p in yaml_data["mc_parameters"]
+        ]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HOME — Case study list
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/")
+async def index(request: Request):
+    studies = storage.list_case_studies()
+    return templates.TemplateResponse(request, "index.html", _ctx(studies=studies))
+
+
+@app.post("/create-from-excel")
+async def create_from_excel(request: Request, name: str = Form(...), file: UploadFile = None):
+    """Create a new case study and populate it from an Excel file in one step."""
+    import sys
+    import tempfile
+
+    import pandas as pd
+
+    tools_path = Path(__file__).parent.parent / "tools"
+    if str(tools_path) not in sys.path:
+        sys.path.insert(0, str(tools_path))
+    from yaml_schema import model_to_yaml
+
+    slug = _slug(name)
+    if not slug:
+        studies = storage.list_case_studies()
+        return templates.TemplateResponse(request, "index.html",
+            _ctx(studies=studies, import_error="Invalid name."), status_code=400)
+    if storage.case_study_exists(slug):
+        studies = storage.list_case_studies()
+        return templates.TemplateResponse(request, "index.html",
+            _ctx(studies=studies, import_error=f"Case study '{slug}' already exists."), status_code=400)
+
+    tmp_path: Optional[str] = None
+    try:
+        contents = await file.read()
+        suffix = Path(file.filename or "upload.xlsx").suffix or ".xlsx"
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(contents)
+            tmp_path = tmp.name
+
+        sheets = pd.read_excel(tmp_path, sheet_name=None, header=0, engine="openpyxl")
+        yaml_data = model_to_yaml(sheets, source_file=file.filename)
+    except Exception as exc:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
+        studies = storage.list_case_studies()
+        return templates.TemplateResponse(request, "index.html",
+            _ctx(studies=studies, import_error=f"Import failed: {exc}"), status_code=422)
+    finally:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
+
+    m = yaml_data.get("model", {})
+    cfg = CaseStudyConfig(
+        name=slug,
+        model=ModelSettings(
+            start_year=m.get("start_year", 2025),
+            end_year=m.get("end_year", 2125),
+            elements=m.get("elements", ["material", "WC", "DM", "TC"]),
+        ),
+    )
+
+    _valid_logics = {e.value for e in ProcessLogic}
+    _valid_stocks = {e.value for e in StockConfig}
+    _valid_tcs = {e.value for e in TCConfig}
+
+    if yaml_data.get("processes"):
+        def _proc_from_yaml(p: dict) -> Process:
+            fomp_d = p.get("fomp")
+            dsm_d  = p.get("dsm")
+            lfg_d  = p.get("lfg")
+            fc_d   = p.get("flowcap")
+            return Process(
+                id=p["id"],
+                name=p.get("name", ""),
+                logic=ProcessLogic(p["logic"]) if p.get("logic") in _valid_logics else ProcessLogic.splitter,
+                stock=StockConfig(p["stock"]) if p.get("stock") in _valid_stocks else StockConfig.no_stock,
+                tc_config=TCConfig(p["tc_config"]) if p.get("tc_config") in _valid_tcs else TCConfig.no_tc,
+                fomp=FompParams(**fomp_d) if fomp_d else None,
+                dsm=DsmParams(**dsm_d)   if dsm_d  else None,
+                lfg=LfgParams(**lfg_d)   if lfg_d  else None,
+                flowcap=FlowCapParams(**fc_d) if fc_d else None,
+            )
+        cfg.processes = [_proc_from_yaml(p) for p in yaml_data["processes"]]
+
+    if yaml_data.get("flows"):
+        cfg.flows = [
+            Flow(
+                id=str(f["id"]),
+                name=f.get("name", str(f["id"])),
+                from_process=f.get("from_process", 0),
+                to_process=f.get("to_process", 0),
+            )
+            for f in yaml_data["flows"]
+        ]
+
+    cfg.transfer_coefficients = _parse_tcs_from_yaml(yaml_data.get("transfer_coefficients", []))
+    cfg.bom_assembly = _parse_bom_from_yaml(yaml_data.get("bom_assembly", []))
+    _apply_extra_yaml(yaml_data, cfg)
+
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{slug}", status_code=303)
+
+
+@app.post("/new")
+async def new_case_study(
+    name: str = Form(...),
+    start_year: int = Form(2025),
+    end_year: int = Form(2125),
+    elements: str = Form("material, WC, DM, TC"),
+):
+    slug = _slug(name)
+    if not slug:
+        raise HTTPException(400, "Invalid name")
+    if storage.case_study_exists(slug):
+        raise HTTPException(400, f"Case study '{slug}' already exists")
+    cfg = CaseStudyConfig(
+        name=slug,
+        model=ModelSettings(
+            start_year=start_year,
+            end_year=end_year,
+            elements=[e.strip() for e in elements.split(",") if e.strip()],
+        ),
+    )
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{slug}", status_code=303)
+
+
+@app.post("/{name}/delete")
+async def delete_case_study(name: str):
+    storage.delete_case_study(name)
+    return RedirectResponse("/", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CASE STUDY OVERVIEW
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/{name}")
+async def case_study_overview(request: Request, name: str):
+    if not storage.case_study_exists(name):
+        raise HTTPException(404, f"Case study '{name}' not found")
+    cfg = storage.load_case_study(name)
+    return templates.TemplateResponse(request, "case_study.html", _ctx(cfg=cfg))
+
+
+@app.post("/{name}/settings")
+async def update_settings(request: Request, name: str):
+    form = await request.form()
+    cfg = storage.load_case_study(name)
+    m = cfg.model
+
+    def _int(key, default):
+        try: return int(form.get(key, default))
+        except (ValueError, TypeError): return default
+
+    def _bool(key): return key in form   # checkbox: present = True, absent = False
+
+    m.start_year = _int("start_year", m.start_year)
+    m.end_year = _int("end_year", m.end_year)
+    m.unit_of_measurement = form.get("unit_of_measurement", m.unit_of_measurement).strip()
+    m.input_file = form.get("input_file", m.input_file).strip()
+    m.output_file = form.get("output_file", m.output_file).strip()
+    m.run_dsm_calculation = _bool("run_dsm_calculation")
+    m.run_fomp_calculation = _bool("run_fomp_calculation")
+    m.run_monte_carlo = _bool("run_monte_carlo")
+    m.mc_iterations = _int("mc_iterations", m.mc_iterations)
+    m.run_scenario_analysis = _bool("run_scenario_analysis")
+    m.selected_scenarios = [
+        (form.get(f"scenario_{i}", "") or "").strip() for i in range(4)
+    ]
+
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PROCESSES
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/{name}/processes")
+async def processes_list(request: Request, name: str):
+    cfg = storage.load_case_study(name)
+    return templates.TemplateResponse(
+        request, "processes.html",
+        _ctx(cfg=cfg, logic_options=list(ProcessLogic),
+             stock_options=list(StockConfig), tc_options=list(TCConfig)),
+    )
+
+
+@app.post("/{name}/processes/new")
+async def process_new(request: Request, name: str):
+    form = await request.form()
+    cfg = storage.load_case_study(name)
+
+    new_id = max((p.id for p in cfg.processes), default=0) + 1
+    logic = ProcessLogic(form.get("logic", ProcessLogic.splitter))
+    _valid_tc = {e.value for e in TCConfig}
+    tc_raw = form.get("tc_config", "No TC")
+    process = Process(
+        id=new_id,
+        name=form.get("name", f"Process {new_id}"),
+        logic=logic,
+        stock=StockConfig(form.get("stock", StockConfig.no_stock)),
+        tc_config=TCConfig(tc_raw) if tc_raw in _valid_tc else TCConfig.no_tc,
+        fomp=_parse_fomp(form) if logic == ProcessLogic.fomp else None,
+        dsm=_parse_dsm(form) if logic == ProcessLogic.dsm else None,
+        lfg=_parse_lfg(form) if logic == ProcessLogic.lfg else None,
+        flowcap=_parse_flowcap(form) if logic == ProcessLogic.flowcap else None,
+    )
+    cfg.processes.append(process)
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/processes", status_code=303)
+
+
+@app.get("/{name}/processes/{pid}/edit")
+async def process_edit_form(request: Request, name: str, pid: int):
+    cfg = storage.load_case_study(name)
+    process = next((p for p in cfg.processes if p.id == pid), None)
+    if not process:
+        raise HTTPException(404)
+    return templates.TemplateResponse(
+        request, "process_edit.html",
+        _ctx(cfg=cfg, process=process,
+             logic_options=list(ProcessLogic), stock_options=list(StockConfig),
+             tc_options=list(TCConfig)),
+    )
+
+
+@app.post("/{name}/processes/{pid}/edit")
+async def process_edit_save(request: Request, name: str, pid: int):
+    form = await request.form()
+    cfg = storage.load_case_study(name)
+    process = next((p for p in cfg.processes if p.id == pid), None)
+    if not process:
+        raise HTTPException(404)
+
+    logic = ProcessLogic(form.get("logic", process.logic))
+    _valid_tc = {e.value for e in TCConfig}
+    tc_raw = form.get("tc_config", process.tc_config.value)
+    process.name = form.get("name", process.name)
+    process.logic = logic
+    process.stock = StockConfig(form.get("stock", process.stock))
+    process.tc_config = TCConfig(tc_raw) if tc_raw in _valid_tc else TCConfig.no_tc
+    process.fomp = _parse_fomp(form) if logic == ProcessLogic.fomp else None
+    process.dsm = _parse_dsm(form) if logic == ProcessLogic.dsm else None
+    process.lfg = _parse_lfg(form) if logic == ProcessLogic.lfg else None
+    process.flowcap = _parse_flowcap(form) if logic == ProcessLogic.flowcap else None
+
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/processes", status_code=303)
+
+
+@app.post("/{name}/processes/{pid}/delete")
+async def process_delete(name: str, pid: int):
+    cfg = storage.load_case_study(name)
+    cfg.processes = [p for p in cfg.processes if p.id != pid]
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/processes", status_code=303)
+
+
+def _parse_fomp(form) -> FompParams:
+    return FompParams(
+        f_labile=float(form.get("fomp_f_labile", 0.5)),
+        k_labile=float(form.get("fomp_k_labile", 1.0)),
+        k_recalcitrant=float(form.get("fomp_k_recalcitrant", 0.01)),
+        outflow_id=form.get("fomp_outflow_id", "") or "",
+        outflow_id_2=form.get("fomp_outflow_id_2", "") or "",
+        ref=(form.get("fomp_ref") or "").strip(),
+    )
+
+
+def _parse_dsm(form) -> DsmParams:
+    categories: list[DsmCategory] = []
+    i = 0
+    while f"dsm_cat_{i}_lifetime_type" in form:
+        def _flt(key, default=None):
+            v = form.get(key, "").strip()
+            try:
+                return float(v) if v else default
+            except ValueError:
+                return default
+        categories.append(DsmCategory(
+            name=(form.get(f"dsm_cat_{i}_name") or f"Cat_{i+1}").strip(),
+            inflow_split=_flt(f"dsm_cat_{i}_inflow_split", 1.0),
+            lifetime_type=form.get(f"dsm_cat_{i}_lifetime_type", "Normal"),
+            lifetime_mean=_flt(f"dsm_cat_{i}_lifetime_mean"),
+            lifetime_std=_flt(f"dsm_cat_{i}_lifetime_std"),
+            lifetime_shape=_flt(f"dsm_cat_{i}_lifetime_shape"),
+            lifetime_scale=_flt(f"dsm_cat_{i}_lifetime_scale"),
+        ))
+        i += 1
+    if not categories:
+        categories = [DsmCategory()]
+    return DsmParams(
+        categories=categories,
+        ref=(form.get("dsm_ref") or "").strip(),
+    )
+
+
+def _parse_lfg(form) -> LfgParams:
+    import re as _re
+    fractions: list[LfgFraction] = []
+    idx = 0
+    while True:
+        name_key = f"lfg_frac_{idx}_name"
+        if name_key not in form and idx > 0:
+            break
+        if name_key in form:
+            fractions.append(LfgFraction(
+                name=form.get(name_key, "") or "",
+                k_j=float(form.get(f"lfg_frac_{idx}_k_j", 0.1) or 0.1),
+                doc_j=float(form.get(f"lfg_frac_{idx}_doc_j", 0.5) or 0.5),
+                f_input_j=float(form.get(f"lfg_frac_{idx}_f_input_j", 1.0) or 1.0),
+                f_ash_j=float(form.get(f"lfg_frac_{idx}_f_ash_j", 0.05) or 0.05),
+            ))
+        idx += 1
+        if idx > 50:
+            break
+    return LfgParams(
+        mcf=float(form.get("lfg_mcf", 1.0)),
+        doc_f=float(form.get("lfg_doc_f", 0.5)),
+        f_ch4=float(form.get("lfg_f_ch4", 0.5)),
+        ox=float(form.get("lfg_ox", 0.1)),
+        phi=float(form.get("lfg_phi", 1.0)),
+        f_capture=float(form.get("lfg_f_capture", 0.0)),
+        outflow_ch4_id=form.get("lfg_outflow_ch4_id", "") or "",
+        outflow_co2_id=form.get("lfg_outflow_co2_id", "") or "",
+        outflow_leachate_id=form.get("lfg_outflow_leachate_id", "") or "",
+        fractions=fractions,
+    )
+
+
+def _parse_flowcap(form) -> Optional[FlowCapParams]:
+    capped = form.get("flowcap_capped_flow_id", "") or ""
+    if not capped:
+        return None
+    cap_series: dict[int, float] = {}
+    idx = 0
+    while True:
+        year_key = f"flowcap_year_{idx}"
+        cap_key = f"flowcap_cap_{idx}"
+        if year_key not in form:
+            break
+        try:
+            year = int(float(form[year_key]))
+            cap = float(form.get(cap_key, 0) or 0)
+            if year:
+                cap_series[year] = cap
+        except (ValueError, TypeError):
+            pass
+        idx += 1
+        if idx > 200:
+            break
+    return FlowCapParams(
+        capped_flow_id=capped,
+        overflow_flow_id=form.get("flowcap_overflow_flow_id", "") or "",
+        cap_series=cap_series,
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FLOWS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/{name}/flows")
+async def flows_list(request: Request, name: str):
+    cfg = storage.load_case_study(name)
+    return templates.TemplateResponse(request, "flows.html", _ctx(cfg=cfg))
+
+
+@app.post("/{name}/flows/new")
+async def flow_new(request: Request, name: str):
+    form = await request.form()
+    cfg = storage.load_case_study(name)
+
+    flow_id = _g(form, "id") or f"F_{len(cfg.flows) + 1:02d}"
+    flow = Flow(
+        id=flow_id,
+        name=form.get("name", flow_id),
+        from_process=int(form.get("from_process", 0)),
+        to_process=int(form.get("to_process", 0)),
+    )
+    cfg.flows.append(flow)
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/flows", status_code=303)
+
+
+@app.get("/{name}/flows/{fid}/edit")
+async def flow_edit_form(request: Request, name: str, fid: str):
+    cfg = storage.load_case_study(name)
+    flow = next((f for f in cfg.flows if f.id == fid), None)
+    if not flow:
+        raise HTTPException(404)
+    return templates.TemplateResponse(request, "flow_edit.html", _ctx(cfg=cfg, flow=flow))
+
+
+@app.post("/{name}/flows/{fid}/edit")
+async def flow_edit_save(request: Request, name: str, fid: str):
+    form = await request.form()
+    cfg = storage.load_case_study(name)
+    flow = next((f for f in cfg.flows if f.id == fid), None)
+    if not flow:
+        raise HTTPException(404)
+
+    flow.name = form.get("name", flow.name)
+    flow.from_process = int(form.get("from_process", flow.from_process))
+    flow.to_process = int(form.get("to_process", flow.to_process))
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/flows", status_code=303)
+
+
+@app.post("/{name}/flows/{fid}/delete")
+async def flow_delete(name: str, fid: str):
+    cfg = storage.load_case_study(name)
+    cfg.flows = [f for f in cfg.flows if f.id != fid]
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/flows", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TRANSFER COEFFICIENTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/{name}/tcs")
+async def tcs_overview(request: Request, name: str):
+    cfg = storage.load_case_study(name)
+    # Only Splitter, Transformer, and DSM processes use TCs in the engine
+    _tc_eligible = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm}
+    tc_processes = [p for p in cfg.processes if p.logic in _tc_eligible]
+    return templates.TemplateResponse(request, "tcs.html", _ctx(cfg=cfg, tc_processes=tc_processes))
+
+
+@app.get("/{name}/tcs/{pid}")
+async def tc_edit_form(request: Request, name: str, pid: int):
+    cfg = storage.load_case_study(name)
+    process = next((p for p in cfg.processes if p.id == pid), None)
+    if not process:
+        raise HTTPException(404)
+
+    outgoing_flows = [f for f in cfg.flows if f.from_process == pid]
+    existing_tcs = {tc.flow_id: tc for tc in cfg.transfer_coefficients if tc.process_id == pid}
+    is_dynamic = process.tc_config == TCConfig.dynamic
+
+    if is_dynamic:
+        # Build per-flow rows: flat list of {flow_id, year, tc_values}
+        dyn_rows = []
+        for flow in outgoing_flows:
+            tc = existing_tcs.get(flow.id)
+            points = tc.time_series if tc else []
+            for pt in points:
+                dyn_rows.append({
+                    "flow_id": flow.id,
+                    "year": pt.year,
+                    "tc_values": pt.values,
+                })
+        return templates.TemplateResponse(
+            request, "tc_edit_dynamic.html",
+            _ctx(cfg=cfg, process=process, rows=dyn_rows, outgoing_flows=outgoing_flows),
+        )
+    else:
+        rows = []
+        for flow in outgoing_flows:
+            tc = existing_tcs.get(flow.id)
+            rows.append({"flow": flow, "tc_values": tc.values if tc else {},
+                         "tc_ref": tc.ref if tc else ""})
+        is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
+        return templates.TemplateResponse(
+            request, "tc_edit.html",
+            _ctx(cfg=cfg, process=process, rows=rows, is_splitter=is_splitter),
+        )
+
+
+@app.post("/{name}/tcs/{pid}")
+async def tc_save(request: Request, name: str, pid: int):
+    form = await request.form()
+    cfg = storage.load_case_study(name)
+    elements = cfg.model.elements
+    process = next((p for p in cfg.processes if p.id == pid), None)
+    if not process:
+        raise HTTPException(404)
+
+    outgoing_flows = [f for f in cfg.flows if f.from_process == pid]
+    cfg.transfer_coefficients = [tc for tc in cfg.transfer_coefficients if tc.process_id != pid]
+
+    if process.tc_config == TCConfig.dynamic:
+        # Dynamic TC save.
+        # Year fields:  tc_{flow_id}_year_{idx}
+        # Value fields: tc_{flow_id}_idx_{idx}_{elem}
+        import re as _re
+        # First collect all year values keyed by (flow_id, idx)
+        year_map: dict[tuple[str, str], int] = {}
+        for key in form.keys():
+            m = _re.match(r"^tc_(.+?)_year_(\d+)$", key)
+            if not m:
+                continue
+            fid, idx = m.group(1), m.group(2)
+            raw = form.get(key, "")
+            try:
+                year_map[(fid, idx)] = int(float(raw))
+            except (ValueError, TypeError):
+                pass
+
+        # Then collect element values keyed by (flow_id, idx, elem)
+        val_data: dict[tuple[str, str], dict[str, float]] = {}
+        for key in form.keys():
+            m = _re.match(r"^tc_(.+?)_idx_(\d+)_(.+)$", key)
+            if not m:
+                continue
+            fid, idx, elem = m.group(1), m.group(2), m.group(3)
+            raw = form.get(key, "")
+            try:
+                val = float(raw) if raw else 0.0
+            except ValueError:
+                val = 0.0
+            val_data.setdefault((fid, idx), {})[elem] = val
+
+        # Build time series per flow
+        for flow in outgoing_flows:
+            # Collect (year, values) pairs where year is known
+            points: list[DynamicTCPoint] = []
+            for (fid, idx), year in year_map.items():
+                if fid != flow.id:
+                    continue
+                values = val_data.get((fid, idx), {})
+                if year and values:
+                    points.append(DynamicTCPoint(year=year, values=values))
+            points.sort(key=lambda p: p.year)
+            cfg.transfer_coefficients.append(
+                TransferCoefficient(
+                    process_id=pid, flow_id=flow.id,
+                    tc_type="dynamic", time_series=points,
+                )
+            )
+        storage.save_case_study(cfg)
+        return RedirectResponse(f"/{name}/tcs", status_code=303)
+
+    # Static TC save
+    errors = []
+    for flow in outgoing_flows:
+        values = {}
+        for elem in elements:
+            key = f"tc_{flow.id}_{elem}"
+            raw = form.get(key, "")
+            try:
+                values[elem] = float(raw) if raw else 0.0
+            except ValueError:
+                values[elem] = 0.0
+        ref = (form.get(f"ref_{flow.id}") or "").strip()
+        cfg.transfer_coefficients.append(
+            TransferCoefficient(process_id=pid, flow_id=flow.id,
+                                tc_type="static", values=values, ref=ref)
+        )
+
+    is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
+    validate_elements = elements[:1] if is_splitter else elements
+    for elem in validate_elements:
+        total = sum(
+            tc.values.get(elem, 0.0)
+            for tc in cfg.transfer_coefficients
+            if tc.process_id == pid
+        )
+        if abs(total - 1.0) > 1e-6:
+            errors.append(f"{elem}: sum = {total:.4f} (must be 1.0)")
+
+    if errors:
+        existing_tcs = {tc.flow_id: tc for tc in cfg.transfer_coefficients if tc.process_id == pid}
+        rows = [{"flow": f,
+                 "tc_values": existing_tcs.get(f.id, TransferCoefficient(process_id=pid, flow_id=f.id, tc_type="static", values={})).values,
+                 "tc_ref": existing_tcs.get(f.id, TransferCoefficient(process_id=pid, flow_id=f.id, tc_type="static", values={})).ref}
+                for f in outgoing_flows]
+        return templates.TemplateResponse(
+            request, "tc_edit.html",
+            _ctx(cfg=cfg, process=process, rows=rows, errors=errors, is_splitter=is_splitter),
+            status_code=422,
+        )
+
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/tcs", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SCENARIO MANAGER
+# ══════════════════════════════════════════════════════════════════════════════
+
+_SCENARIO_OPERATIONS = ["replace", "multiply", "add"]
+_SCENARIO_PARAM_TYPES = ["", "Flow", "TC", "DSM", "FOMP", "IS"]
+
+
+def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
+    """Build the list of known, selectable parameters for the scenario editor."""
+    params: list[dict] = []
+    unit = cfg.model.unit_of_measurement or "Mg"
+
+    # ── Flows ──────────────────────────────────────────────────────────────────
+    proc_names = {p.id: p.name for p in cfg.processes}
+    for flow in cfg.flows:
+        src = proc_names.get(flow.from_process, f"P{flow.from_process}")
+        dst = proc_names.get(flow.to_process, f"P{flow.to_process}")
+        params.append({
+            "name": flow.id,
+            "label": f"{flow.id} — {flow.name} ({src} → {dst})",
+            "group": "Flows",
+            "type": "Flow",
+            "hint": f"{unit}/yr",
+            "step": "any",
+            "min": "0",
+            "max": "",
+        })
+
+    # ── Transfer Coefficients ──────────────────────────────────────────────────
+    # Iterate processes → outgoing flows so entries are generated even when no
+    # TC is stored (e.g. Transformer with tc_config=Dynamic and empty 2_3 sheet).
+    # BioDYM naming: material → TC_{from:02d}_{to:02d}
+    #                element n (n≥1, 1=WC) → TC_E{n}_{from:02d}_{to:02d}
+    _tc_eligible = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm}
+    # Build TC lookup: (process_id, flow_id) → first matching TC (for current values)
+    _tc_lookup: dict[tuple, "TransferCoefficient"] = {}
+    for _tc in cfg.transfer_coefficients:
+        _key = (_tc.process_id, _tc.flow_id)
+        if _key not in _tc_lookup:
+            _tc_lookup[_key] = _tc
+
+    seen_flow_proc: set[tuple] = set()
+    for proc in cfg.processes:
+        if proc.logic not in _tc_eligible:
+            continue
+        outgoing = [f for f in cfg.flows if f.from_process == proc.id]
+        for flow in outgoing:
+            pair = (proc.id, flow.id)
+            if pair in seen_flow_proc:
+                continue
+            seen_flow_proc.add(pair)
+
+            from_p = flow.from_process
+            to_p = flow.to_process
+            src = proc_names.get(from_p, f"P{from_p}")
+            dst = proc_names.get(to_p, f"P{to_p}")
+            mat_tc_name = f"TC_{from_p:02d}_{to_p:02d}"
+            stored_tc = _tc_lookup.get((proc.id, flow.id))
+
+            if proc.logic == ProcessLogic.transformer:
+                # One entry per element: material → no E-prefix; element n (1-based) → TC_E{n}
+                for e_idx, elem in enumerate(cfg.model.elements):
+                    if e_idx == 0:
+                        tc_pname = mat_tc_name
+                    else:
+                        tc_pname = f"TC_E{e_idx}_{from_p:02d}_{to_p:02d}"
+                    cur = stored_tc.values.get(elem) if stored_tc and stored_tc.values else None
+                    cur_str = f"  [current: {cur:.3f}]" if cur is not None else ""
+                    params.append({
+                        "name": tc_pname,
+                        "label": f"{tc_pname} — {flow.name} | {elem} (E{e_idx}){cur_str}",
+                        "group": "TCs — Transformer (per element)",
+                        "type": "TC",
+                        "hint": f"fraction 0–1  ({elem})",
+                        "step": "0.001",
+                        "min": "0",
+                        "max": "1",
+                    })
+            else:
+                # Splitter / DSM: material TC only
+                cur = stored_tc.values.get("material") if stored_tc and stored_tc.values else None
+                cur_str = f"  [current: {cur:.3f}]" if cur is not None else ""
+                params.append({
+                    "name": mat_tc_name,
+                    "label": f"{mat_tc_name} — {flow.name} | material{cur_str}",
+                    "group": "TCs — Splitter / DSM (material)",
+                    "type": "TC",
+                    "hint": "fraction 0–1  (material)",
+                    "step": "0.001",
+                    "min": "0",
+                    "max": "1",
+                })
+
+    # ── DSM Parameters ─────────────────────────────────────────────────────────
+    for proc in cfg.processes:
+        if proc.logic != ProcessLogic.dsm:
+            continue
+        pid, pn = proc.id, proc.name
+        params.extend([
+            {"name": f"P{pid}_DSM_Lifetime_Mean_Cat_1", "label": f"P{pid} {pn} — Lifetime Mean",    "group": "DSM", "type": "DSM", "hint": "years",  "step": "0.1",   "min": "0", "max": ""},
+            {"name": f"P{pid}_DSM_Lifetime_Std_Cat_1",  "label": f"P{pid} {pn} — Lifetime Std Dev", "group": "DSM", "type": "DSM", "hint": "years",  "step": "0.1",   "min": "0", "max": ""},
+        ])
+
+    # ── FOMP Parameters ────────────────────────────────────────────────────────
+    for proc in cfg.processes:
+        if proc.logic != ProcessLogic.fomp:
+            continue
+        pid, pn = proc.id, proc.name
+        params.extend([
+            {"name": f"P{pid}_decay_k_labile",        "label": f"P{pid} {pn} — k labile",          "group": "FOMP", "type": "FOMP", "hint": "yr⁻¹",         "step": "0.001",  "min": "0", "max": ""},
+            {"name": f"P{pid}_decay_k_recalcitrant",  "label": f"P{pid} {pn} — k recalcitrant",    "group": "FOMP", "type": "FOMP", "hint": "yr⁻¹",         "step": "0.0001", "min": "0", "max": ""},
+            {"name": f"P{pid}_Inflow_fraction_labile","label": f"P{pid} {pn} — Inflow frac labile","group": "FOMP", "type": "FOMP", "hint": "fraction 0–1", "step": "0.001",  "min": "0", "max": "1"},
+        ])
+
+    # ── LFG site parameters ────────────────────────────────────────────────────
+    for proc in cfg.processes:
+        if proc.logic != ProcessLogic.lfg or not proc.lfg:
+            continue
+        pid, pn = proc.id, proc.name
+        for pkey, plabel, phint in [
+            ("MCF",   "MCF",        "0–1"),
+            ("DOCf",  "DOCf",       "0–1"),
+            ("F_CH4", "F CH4",      "0–1"),
+            ("OX",    "Oxidation",  "0–1"),
+            ("phi",   "φ (phi)",    "0–1"),
+        ]:
+            params.append({
+                "name": f"P{pid}_{pkey}",
+                "label": f"P{pid} {pn} — LFG {plabel}",
+                "group": "LFG",
+                "type": "Flow",
+                "hint": phint,
+                "step": "0.01",
+                "min": "0",
+                "max": "1",
+            })
+
+    return params
+
+
+@app.get("/{name}/scenarios")
+async def scenarios_list(request: Request, name: str):
+    cfg = storage.load_case_study(name)
+    return templates.TemplateResponse(
+        request, "scenarios.html",
+        _ctx(cfg=cfg, operations=_SCENARIO_OPERATIONS, param_types=_SCENARIO_PARAM_TYPES),
+    )
+
+
+@app.post("/{name}/scenarios/new")
+async def scenario_new(request: Request, name: str):
+    form = await request.form()
+    scenario_name = (form.get("scenario_name") or "").strip()
+    if not scenario_name:
+        raise HTTPException(400, "Scenario name is required")
+    cfg = storage.load_case_study(name)
+    if any(s.name == scenario_name for s in cfg.scenarios):
+        raise HTTPException(400, f"Scenario '{scenario_name}' already exists")
+    cfg.scenarios.append(ScenarioDefinition(name=scenario_name))
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/scenarios/{scenario_name}", status_code=303)
+
+
+@app.get("/{name}/scenarios/{sname}")
+async def scenario_edit_form(request: Request, name: str, sname: str):
+    cfg = storage.load_case_study(name)
+    scenario = next((s for s in cfg.scenarios if s.name == sname), None)
+    if not scenario:
+        raise HTTPException(404)
+    import json as _json
+    params_json = _json.dumps(_build_scenario_params(cfg))
+    return templates.TemplateResponse(
+        request, "scenario_edit.html",
+        _ctx(cfg=cfg, scenario=scenario,
+             operations=_SCENARIO_OPERATIONS, param_types=_SCENARIO_PARAM_TYPES,
+             params_json=params_json),
+    )
+
+
+@app.post("/{name}/scenarios/{sname}")
+async def scenario_save(request: Request, name: str, sname: str):
+    form = await request.form()
+    cfg = storage.load_case_study(name)
+    scenario = next((s for s in cfg.scenarios if s.name == sname), None)
+    if not scenario:
+        raise HTTPException(404)
+
+    # Collect all mod indices present in form
+    import re as _re
+    indices = sorted({
+        int(m.group(1))
+        for k in form.keys()
+        for m in [_re.match(r"^mod_(\d+)_", k)]
+        if m
+    })
+
+    mods = []
+    for i in indices:
+        pname = (form.get(f"mod_{i}_parameter_name") or "").strip()
+        if not pname:
+            continue
+        def _opt_int(key):
+            v = form.get(key, "").strip()
+            try: return int(v) if v else None
+            except ValueError: return None
+        mods.append(ScenarioModification(
+            parameter_name=pname,
+            parameter_type=(form.get(f"mod_{i}_parameter_type") or "").strip(),
+            operation=form.get(f"mod_{i}_operation", "replace"),
+            new_value=float(form.get(f"mod_{i}_new_value", 0) or 0),
+            start_year=_opt_int(f"mod_{i}_start_year"),
+            end_year=_opt_int(f"mod_{i}_end_year"),
+            ref=(form.get(f"mod_{i}_ref") or "").strip(),
+        ))
+
+    scenario.modifications = mods
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/scenarios", status_code=303)
+
+
+@app.post("/{name}/scenarios/{sname}/delete")
+async def scenario_delete(request: Request, name: str, sname: str):
+    cfg = storage.load_case_study(name)
+    cfg.scenarios = [s for s in cfg.scenarios if s.name != sname]
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/scenarios", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ZOTERO INTEGRATION
+# ══════════════════════════════════════════════════════════════════════════════
+
+_ZOTERO_RPC = "http://localhost:23119/better-bibtex/json-rpc"
+
+
+def _zotero_search(query: str) -> list[dict]:
+    """Query local Better BibTeX JSON-RPC. Returns [] when Zotero is not running."""
+    try:
+        import httpx
+        r = httpx.post(
+            _ZOTERO_RPC,
+            json={"jsonrpc": "2.0", "method": "item.search",
+                  "params": {"terms": query}, "id": 1},
+            timeout=3.0,
+        )
+        data = r.json()
+        return data.get("result", []) or []
+    except Exception:
+        return []
+
+
+def _fmt_authors(item: dict) -> str:
+    authors = item.get("author", [])
+    if not authors:
+        return ""
+    if len(authors) == 1:
+        return authors[0].get("family", "")
+    if len(authors) == 2:
+        return f"{authors[0].get('family','')} & {authors[1].get('family','')}"
+    return f"{authors[0].get('family', '')} et al."
+
+
+def _fmt_year(item: dict) -> str:
+    issued = item.get("issued", {})
+    parts = issued.get("date-parts", [[]])[0]
+    return str(parts[0]) if parts else ""
+
+
+def _item_to_ref(item: dict, note: str = "") -> "ReferenceEntry":
+    return ReferenceEntry(
+        cite_key=item.get("citekey") or item.get("citation-key", ""),
+        title=item.get("title", ""),
+        authors=_fmt_authors(item),
+        year=_fmt_year(item),
+        item_type=item.get("type", ""),
+        doi=item.get("DOI", ""),
+        note=note,
+    )
+
+
+@app.get("/api/zotero/search")
+async def zotero_search(q: str = ""):
+    if not q.strip():
+        return []
+    items = _zotero_search(q.strip())
+    return [
+        {
+            "cite_key": it.get("citekey") or it.get("citation-key", ""),
+            "title": it.get("title", ""),
+            "authors": _fmt_authors(it),
+            "year": _fmt_year(it),
+            "item_type": it.get("type", ""),
+            "doi": it.get("DOI", ""),
+        }
+        for it in items
+        if it.get("citekey") or it.get("citation-key")
+    ]
+
+
+@app.get("/{name}/references")
+async def references_get(request: Request, name: str, saved: bool = False):
+    if not storage.case_study_exists(name):
+        raise HTTPException(404)
+    cfg = storage.load_case_study(name)
+    return templates.TemplateResponse(
+        request, "references.html",
+        _ctx(cfg=cfg, saved=saved),
+    )
+
+
+@app.post("/{name}/references/add")
+async def references_add(request: Request, name: str):
+    form = await request.form()
+    cfg = storage.load_case_study(name)
+    cite_key = (form.get("cite_key") or "").strip()
+    if not cite_key:
+        raise HTTPException(400, "cite_key is required")
+    if any(r.cite_key == cite_key for r in cfg.references):
+        return RedirectResponse(f"/{name}/references?saved=1", status_code=303)
+    cfg.references.append(ReferenceEntry(
+        cite_key=cite_key,
+        title=(form.get("title") or "").strip(),
+        authors=(form.get("authors") or "").strip(),
+        year=(form.get("year") or "").strip(),
+        item_type=(form.get("item_type") or "").strip(),
+        doi=(form.get("doi") or "").strip(),
+        note=(form.get("note") or "").strip(),
+    ))
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/references?saved=1", status_code=303)
+
+
+@app.post("/{name}/references/note")
+async def references_note(request: Request, name: str):
+    """Update the note on an existing reference."""
+    form = await request.form()
+    cfg = storage.load_case_study(name)
+    cite_key = (form.get("cite_key") or "").strip()
+    note = (form.get("note") or "").strip()
+    for ref in cfg.references:
+        if ref.cite_key == cite_key:
+            ref.note = note
+            break
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/references?saved=1", status_code=303)
+
+
+@app.post("/{name}/references/delete")
+async def references_delete(request: Request, name: str):
+    form = await request.form()
+    cfg = storage.load_case_study(name)
+    cite_key = (form.get("cite_key") or "").strip()
+    cfg.references = [r for r in cfg.references if r.cite_key != cite_key]
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/references", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EXPORT / IMPORT
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/{name}/export")
+async def export_yaml(name: str):
+    cfg = storage.load_case_study(name)
+    from app.storage import _config_path
+    path = _config_path(name)
+    return FileResponse(path, media_type="application/x-yaml", filename=f"{name}_config.yaml")
+
+
+@app.get("/{name}/import")
+async def import_form(request: Request, name: str):
+    cfg = storage.load_case_study(name)
+    return templates.TemplateResponse(request, "import.html", _ctx(cfg=cfg))
+
+
+@app.post("/{name}/import")
+async def import_excel(request: Request, name: str, file: UploadFile):
+    import sys
+    import tempfile
+
+    import pandas as pd
+
+    cfg = storage.load_case_study(name)
+    suffix = Path(file.filename or "upload.xlsx").suffix.lower()
+
+    # ── YAML import: load directly into CaseStudyConfig ──────────────────────
+    if suffix in (".yaml", ".yml"):
+        try:
+            import yaml as _yaml
+            contents = await file.read()
+            raw = _yaml.safe_load(contents.decode("utf-8")) or {}
+            raw.setdefault("name", name)
+            imported = CaseStudyConfig.model_validate(raw)
+            # Keep the current case study name; everything else is replaced
+            imported.name = name
+            storage.save_case_study(imported)
+        except Exception as exc:
+            return templates.TemplateResponse(
+                request, "import.html",
+                _ctx(cfg=cfg, error=f"YAML import failed: {exc}"),
+                status_code=422,
+            )
+        return RedirectResponse(f"/{name}", status_code=303)
+
+    # ── Excel import ──────────────────────────────────────────────────────────
+    tools_path = Path(__file__).parent.parent / "tools"
+    if str(tools_path) not in sys.path:
+        sys.path.insert(0, str(tools_path))
+    from yaml_schema import model_to_yaml
+
+    tmp_path: Optional[str] = None
+    try:
+        contents = await file.read()
+        with tempfile.NamedTemporaryFile(suffix=suffix or ".xlsx", delete=False) as tmp:
+            tmp.write(contents)
+            tmp_path = tmp.name
+
+        sheets = pd.read_excel(tmp_path, sheet_name=None, header=0, engine="openpyxl")
+        yaml_data = model_to_yaml(sheets, source_file=file.filename)
+    except Exception as exc:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
+        return templates.TemplateResponse(
+            request, "import.html",
+            _ctx(cfg=cfg, error=f"Import failed: {exc}"),
+            status_code=422,
+        )
+    finally:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
+
+    _valid_logics = {e.value for e in ProcessLogic}
+    _valid_stocks = {e.value for e in StockConfig}
+    _valid_tcs = {e.value for e in TCConfig}
+
+    if "model" in yaml_data:
+        m = yaml_data["model"]
+        cfg.model.start_year = m.get("start_year", cfg.model.start_year)
+        cfg.model.end_year = m.get("end_year", cfg.model.end_year)
+        if "elements" in m:
+            cfg.model.elements = m["elements"]
+
+    if yaml_data.get("processes"):
+        def _proc_from_yaml(p: dict) -> Process:
+            fomp_d = p.get("fomp")
+            dsm_d  = p.get("dsm")
+            lfg_d  = p.get("lfg")
+            fc_d   = p.get("flowcap")
+            return Process(
+                id=p["id"],
+                name=p.get("name", ""),
+                logic=ProcessLogic(p["logic"]) if p.get("logic") in _valid_logics else ProcessLogic.splitter,
+                stock=StockConfig(p["stock"]) if p.get("stock") in _valid_stocks else StockConfig.no_stock,
+                tc_config=TCConfig(p["tc_config"]) if p.get("tc_config") in _valid_tcs else TCConfig.no_tc,
+                fomp=FompParams(**fomp_d) if fomp_d else None,
+                dsm=DsmParams(**dsm_d)   if dsm_d  else None,
+                lfg=LfgParams(**lfg_d)   if lfg_d  else None,
+                flowcap=FlowCapParams(**fc_d) if fc_d else None,
+            )
+        cfg.processes = [_proc_from_yaml(p) for p in yaml_data["processes"]]
+
+    if yaml_data.get("flows"):
+        cfg.flows = [
+            Flow(
+                id=str(f["id"]),
+                name=f.get("name", str(f["id"])),
+                from_process=f.get("from_process", 0),
+                to_process=f.get("to_process", 0),
+            )
+            for f in yaml_data["flows"]
+        ]
+
+    cfg.transfer_coefficients = _parse_tcs_from_yaml(yaml_data.get("transfer_coefficients", []))
+    cfg.bom_assembly = _parse_bom_from_yaml(yaml_data.get("bom_assembly", []))
+    _apply_extra_yaml(yaml_data, cfg)
+
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ELEMENT HIERARCHY
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _rules_to_paths(rules: list) -> list[list[str]]:
+    """Convert ElementHierarchyRule list to path-rows for the matrix editor."""
+    parent_to_children: dict[str, list] = {}
+    child_to_parent: dict[str, str] = {}
+    for rule in rules:
+        parent_to_children[rule.parent] = list(rule.children)
+        for child in rule.children:
+            child_to_parent[child] = rule.parent
+
+    all_elems: set[str] = set(parent_to_children.keys())
+    for rule in rules:
+        all_elems.update(rule.children)
+
+    leaves = [e for e in all_elems if e not in parent_to_children]
+    if not leaves and all_elems:
+        leaves = list(all_elems)
+
+    def get_path(elem: str) -> list[str]:
+        path: list[str] = []
+        cur: str | None = elem
+        while cur:
+            path.insert(0, cur)
+            cur = child_to_parent.get(cur)
+        return path
+
+    # Pad all paths to exactly 4 cells
+    paths = [get_path(leaf) + ["", "", "", ""] for leaf in sorted(leaves)]
+    paths = [p[:4] for p in paths]
+    paths.sort()
+    return paths
+
+
+@app.get("/{name}/elements")
+async def elements_form(request: Request, name: str):
+    if not storage.case_study_exists(name):
+        raise HTTPException(404)
+    cfg = storage.load_case_study(name)
+    import json as _json
+    paths_json = _json.dumps(_rules_to_paths(cfg.element_hierarchy))
+    elements_json = _json.dumps(cfg.model.elements)
+    return templates.TemplateResponse(
+        request, "elements.html",
+        _ctx(cfg=cfg, paths_json=paths_json, elements_json=elements_json),
+    )
+
+
+@app.post("/{name}/elements")
+async def elements_save(request: Request, name: str):
+    from collections import defaultdict as _defaultdict
+    form = await request.form()
+    cfg = storage.load_case_study(name)
+
+    # ── Element list ─────────────────────────────────────────────────────────
+    elements: list[str] = []
+    idx = 0
+    while True:
+        key = f"element_{idx}"
+        if key not in form:
+            break
+        val = (form[key] or "").strip()
+        if val:
+            elements.append(val)
+        idx += 1
+        if idx > 200:
+            break
+    if elements:
+        cfg.model.elements = elements
+
+    # ── Level names ──────────────────────────────────────────────────────────
+    cfg.model.hierarchy_level_names = [
+        (form.get(f"level_name_{i}") or f"Level {i+1}").strip()
+        for i in range(4)
+    ]
+
+    # ── Path rows → hierarchy rules ──────────────────────────────────────────
+    parent_to_children: dict[str, set] = _defaultdict(set)
+    idx = 0
+    while True:
+        if f"path_{idx}_l1" not in form:
+            break
+        cells = [(form.get(f"path_{idx}_l{l}") or "").strip() for l in range(1, 5)]
+        # Collect consecutive non-empty pairs as parent→child
+        for i in range(len(cells) - 1):
+            if cells[i] and cells[i + 1]:
+                parent_to_children[cells[i]].add(cells[i + 1])
+        idx += 1
+        if idx > 500:
+            break
+
+    cfg.element_hierarchy = [
+        ElementHierarchyRule(parent=p, children=sorted(ch))
+        for p, ch in parent_to_children.items()
+    ]
+
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/elements", status_code=303)
+
+
+# Keep /hierarchy as alias for backwards compatibility
+@app.get("/{name}/hierarchy")
+async def hierarchy_redirect(name: str):
+    return RedirectResponse(f"/{name}/elements", status_code=301)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MC PARAMETERS
+# ══════════════════════════════════════════════════════════════════════════════
+
+_MC_DISTRIBUTIONS = ["normal", "lognormal", "uniform", "triangular"]
+_MC_OPERATIONS    = ["replace", "multiply", "add"]
+
+# Fields active for each distribution type
+_DIST_FIELDS = {
+    "normal":      {"mean", "std", "min", "max"},
+    "lognormal":   {"mean", "std", "min", "max"},
+    "uniform":     {"min", "max"},
+    "triangular":  {"min", "mode", "max"},
+}
+
+
+@app.get("/{name}/mc_parameters")
+async def mc_params_form(request: Request, name: str):
+    import json as _json
+    if not storage.case_study_exists(name):
+        raise HTTPException(404)
+    cfg = storage.load_case_study(name)
+    params_json = _json.dumps(_build_scenario_params(cfg))
+    return templates.TemplateResponse(
+        request, "mc_parameters.html",
+        _ctx(cfg=cfg, params_json=params_json,
+             distributions=_MC_DISTRIBUTIONS,
+             operations=_MC_OPERATIONS)
+    )
+
+
+@app.post("/{name}/mc_parameters")
+async def mc_params_save(request: Request, name: str):
+    import re as _re
+    if not storage.case_study_exists(name):
+        raise HTTPException(404)
+    form   = await request.form()
+    cfg    = storage.load_case_study(name)
+
+    indices: set[int] = set()
+    for key in form.keys():
+        m = _re.match(r"^mc_(\d+)_", key)
+        if m:
+            indices.add(int(m.group(1)))
+
+    def _f(i: int, key: str):
+        v = (form.get(f"mc_{i}_{key}") or "").strip()
+        try:    return float(v) if v else None
+        except: return None
+
+    def _iv(i: int, key: str):
+        v = (form.get(f"mc_{i}_{key}") or "").strip()
+        try:    return int(v) if v else None
+        except: return None
+
+    mc_params: list[McParameter] = []
+    for i in sorted(indices):
+        pid = (form.get(f"mc_{i}_parameter_id") or "").strip()
+        if not pid:
+            continue
+        dist = (form.get(f"mc_{i}_distribution") or "normal")
+        active = _DIST_FIELDS.get(dist, set())
+        mc_params.append(McParameter(
+            parameter_id=pid,
+            enabled=(f"mc_{i}_enabled" in form),
+            distribution=dist,
+            mean=    _f(i, "mean")   if "mean" in active else None,
+            std=     _f(i, "std")    if "std"  in active else None,
+            min=     _f(i, "min")    if "min"  in active else None,
+            max=     _f(i, "max")    if "max"  in active else None,
+            mode=    _f(i, "mode")   if "mode" in active else None,
+            operation=(form.get(f"mc_{i}_operation") or "replace"),
+            start_year=_iv(i, "start_year"),
+            end_year=  _iv(i, "end_year"),
+            flow_group=(form.get(f"mc_{i}_flow_group") or None) or None,
+            ref=(form.get(f"mc_{i}_ref") or "").strip(),
+        ))
+
+    cfg.mc_parameters = mc_params
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/mc_parameters", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FLOW COMPOSITIONS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/{name}/compositions")
+async def compositions_form(request: Request, name: str):
+    import json as _json
+    if not storage.case_study_exists(name):
+        raise HTTPException(404)
+    cfg = storage.load_case_study(name)
+    # Only include flows from Input-logic processes (system boundary)
+    input_pids = {p.id for p in cfg.processes if p.logic == ProcessLogic.input}
+    input_pids.add(0)  # process 0 is always the boundary
+    input_flows = [f for f in cfg.flows if f.from_process in input_pids]
+    existing = {fc.flow_id: fc for fc in cfg.flow_compositions}
+    rows = [{"flow": f, "comp_values": existing[f.id].values if f.id in existing else {}}
+            for f in input_flows]
+    flow_refs = {f.id: existing[f.id].ref if f.id in existing else "" for f in input_flows}
+    hier_json = [{"parent": r.parent, "children": r.children}
+                 for r in cfg.element_hierarchy]
+    # Hierarchy matrix paths (same as elements page)
+    paths_json = _json.dumps(_rules_to_paths(cfg.element_hierarchy))
+    # Per-flow composition values as % (×100) keyed by flow id
+    flow_comps_json = _json.dumps({
+        row["flow"].id: {
+            e: round(row["comp_values"].get(e, 0.0) * 100, 4)
+            for e in cfg.model.elements
+        }
+        for row in rows
+    })
+    flow_list_json = _json.dumps([
+        {"id": row["flow"].id, "name": row["flow"].name}
+        for row in rows
+    ])
+    return templates.TemplateResponse(
+        request, "compositions.html",
+        _ctx(cfg=cfg, rows=rows, hier_json=hier_json,
+             paths_json=paths_json,
+             flow_comps_json=flow_comps_json,
+             flow_list_json=flow_list_json,
+             flow_refs=flow_refs)
+    )
+
+
+@app.post("/{name}/compositions")
+async def compositions_save(request: Request, name: str):
+    form = await request.form()
+    cfg = storage.load_case_study(name)
+    elements = cfg.model.elements
+    # Only process input flows; preserve compositions for non-input flows
+    input_pids = {p.id for p in cfg.processes if p.logic == ProcessLogic.input}
+    input_pids.add(0)
+    input_flows = [f for f in cfg.flows if f.from_process in input_pids]
+    # Keep existing compositions for flows not shown on this page
+    kept = [fc for fc in cfg.flow_compositions
+            if fc.flow_id not in {f.id for f in input_flows}]
+    new_comps: list[FlowComposition] = []
+    for flow in input_flows:
+        values: dict[str, float] = {}
+        for elem in elements:
+            key = f"comp_{flow.id}_{elem}"
+            raw = form.get(key, "")
+            try:
+                v = float(raw) if raw else 0.0
+            except ValueError:
+                v = 0.0
+            values[elem] = v
+        ref = (form.get(f"ref_{flow.id}") or "").strip()
+        if any(v != 0.0 for v in values.values()):
+            new_comps.append(FlowComposition(flow_id=flow.id, values=values, ref=ref))
+    cfg.flow_compositions = kept + new_comps
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/compositions", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BOM ASSEMBLY
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/{name}/bom/{pid}")
+async def bom_edit_form(request: Request, name: str, pid: int):
+    if not storage.case_study_exists(name):
+        raise HTTPException(404)
+    cfg = storage.load_case_study(name)
+    process = next((p for p in cfg.processes if p.id == pid), None)
+    if not process:
+        raise HTTPException(404)
+    entry = next((e for e in cfg.bom_assembly if e.process_id == pid), None)
+    outgoing_flows = [f for f in cfg.flows if f.from_process == pid]
+    rows = []
+    flow_map = {bf.flow_id: bf for bf in (entry.flows if entry else [])}
+    for flow in outgoing_flows:
+        bf = flow_map.get(flow.id)
+        rows.append({
+            "flow": flow,
+            "output_flow_type": bf.output_flow_type if bf else "",
+            "frac_values": bf.fractions if bf else {},
+        })
+    return templates.TemplateResponse(request, "bom_edit.html",
+                                      _ctx(cfg=cfg, process=process, rows=rows))
+
+
+@app.post("/{name}/bom/{pid}")
+async def bom_save(request: Request, name: str, pid: int):
+    form = await request.form()
+    cfg = storage.load_case_study(name)
+    process = next((p for p in cfg.processes if p.id == pid), None)
+    if not process:
+        raise HTTPException(404)
+    elements = cfg.model.elements
+    outgoing_flows = [f for f in cfg.flows if f.from_process == pid]
+    bom_flows: list[BomAssemblyFlow] = []
+    for flow in outgoing_flows:
+        flow_type = (form.get(f"bom_{flow.id}_type") or "").strip()
+        fractions: dict[str, float] = {}
+        for elem in elements:
+            raw = form.get(f"bom_{flow.id}_{elem}", "") or ""
+            try:
+                v = float(raw) if raw else 0.0
+            except ValueError:
+                v = 0.0
+            if v:
+                fractions[elem] = v
+        bom_flows.append(BomAssemblyFlow(
+            flow_id=flow.id,
+            output_flow_type=flow_type,
+            fractions=fractions,
+        ))
+    cfg.bom_assembly = [e for e in cfg.bom_assembly if e.process_id != pid]
+    cfg.bom_assembly.append(BomAssemblyEntry(process_id=pid, flows=bom_flows))
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/bom/{pid}", status_code=303)
+
+
+# ── Flow Data (input time series) ──────────────────────────────────────────
+
+def _input_flows(cfg: CaseStudyConfig):
+    """Return flows whose source process has logic='Input'."""
+    input_pids = {p.id for p in cfg.processes if p.logic == ProcessLogic.input}
+    return [f for f in cfg.flows if f.from_process in input_pids]
+
+
+@app.get("/{name}/flow_data")
+async def get_flow_data(request: Request, name: str, saved: bool = False):
+    cfg = storage.load_case_study(name)
+    if cfg is None:
+        raise HTTPException(404, f"Case study '{name}' not found")
+    flows = _input_flows(cfg)
+    flow_data_map = {fd.flow_id: dict(sorted(fd.values.items())) for fd in cfg.flow_data}
+    return templates.TemplateResponse(
+        request, "flow_data.html",
+        _ctx(cfg=cfg, input_flows=flows, flow_data_map=flow_data_map, saved=saved),
+    )
+
+
+@app.post("/{name}/flow_data")
+async def post_flow_data(request: Request, name: str):
+    cfg = storage.load_case_study(name)
+    if cfg is None:
+        raise HTTPException(404, f"Case study '{name}' not found")
+    form = await request.form()
+
+    flows = _input_flows(cfg)
+    input_flow_ids = {f.id for f in flows}
+
+    new_entries: list[FlowDataEntry] = []
+    j = 0
+    while True:
+        fid = form.get(f"fd_{j}_id")
+        if fid is None:
+            break
+        values: dict[int, float] = {}
+        i = 0
+        while True:
+            y_raw = form.get(f"fd_{j}_y_{i}")
+            v_raw = form.get(f"fd_{j}_v_{i}")
+            if y_raw is None:
+                break
+            try:
+                year = int(float(y_raw))
+                val  = float(v_raw or 0)
+                values[year] = val
+            except (ValueError, TypeError):
+                pass
+            i += 1
+        if values:
+            new_entries.append(FlowDataEntry(flow_id=fid, element="material", values=values))
+        j += 1
+
+    # Keep non-input-flow entries; replace input-flow entries with submitted data
+    cfg.flow_data = [fd for fd in cfg.flow_data if fd.flow_id not in input_flow_ids]
+    cfg.flow_data.extend(new_entries)
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/flow_data?saved=1", status_code=303)

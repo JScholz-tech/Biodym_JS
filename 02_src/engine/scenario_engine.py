@@ -28,6 +28,7 @@ def run_scenario_analysis(
     lfg_params=None,
     bom_params=None,
     flow_cap_params=None,
+    scenario_definitions=None,
 ) -> Tuple[Dict, Dict]:
     """Orchestrates the entire scenario analysis process.
 
@@ -81,8 +82,9 @@ def run_scenario_analysis(
         f"Found {len(scenario_names_to_run)} scenarios to run: {scenario_names_to_run}"
     )
 
-    # Load scenario definitions from Excel
-    scenario_definitions = data_loader.load_scenario_definitions(all_excel_data)
+    # Load scenario definitions — from pre-loaded dict (YAML) or Excel
+    if scenario_definitions is None:
+        scenario_definitions = data_loader.load_scenario_definitions(all_excel_data)
 
     # Run each scenario
     all_scenario_results = {}

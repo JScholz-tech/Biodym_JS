@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Scenarios — {{ cfg.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span>
+  <a href="/{{ cfg.name }}">{{ cfg.name }}</a> <span>/</span>
+  <strong>Scenarios</strong>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+  <h1 style="margin:0">Scenario Manager</h1>
+</div>
+
+<div class="card" style="margin-bottom:1.25rem">
+  <p class="muted">
+    Scenarios define parameter modifications applied on top of the baseline system.
+    Each modification targets a flow (<code>F_…</code>), transfer coefficient (<code>TC_…</code>),
+    DSM/FOMP parameter (<code>P##_DSM_…</code>), or initial stock (<code>P##_IS_…</code>).
+    Select which scenarios to run under <strong>Model Settings → Scenario Names</strong>.
+  </p>
+</div>
+
+{% if cfg.scenarios %}
+<div class="card" style="padding:0;margin-bottom:1.5rem">
+  <table>
+    <thead>
+      <tr>
+        <th>Scenario Name</th>
+        <th>Modifications</th>
+        <th>In Selected Scenarios</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in cfg.scenarios %}
+      {% set is_selected = s.name in cfg.model.selected_scenarios %}
+      <tr>
+        <td><strong>{{ s.name }}</strong></td>
+        <td>
+          {% if s.modifications %}
+          <span class="muted">{{ s.modifications | length }} modification{{ 's' if s.modifications | length != 1 else '' }}</span>
+          {% else %}
+          <span class="muted">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if is_selected %}
+          <span style="color:var(--primary)">✓ selected</span>
+          {% else %}
+          <span class="muted">—</span>
+          {% endif %}
+        </td>
+        <td>
+          <div class="btn-row">
+            <a href="/{{ cfg.name }}/scenarios/{{ s.name | urlencode }}" class="btn btn-secondary btn-sm">Edit</a>
+            <form method="post" action="/{{ cfg.name }}/scenarios/{{ s.name | urlencode }}/delete"
+                  style="display:inline"
+                  onsubmit="return confirm('Delete scenario {{ s.name }}?')">
+              <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert-warn" style="margin-bottom:1.25rem">
+  No scenarios defined yet. Add one below.
+</div>
+{% endif %}
+
+<div class="card">
+  <h2 style="margin-top:0">Add Scenario</h2>
+  <form method="post" action="/{{ cfg.name }}/scenarios/new" style="display:flex;gap:0.75rem;align-items:flex-end">
+    <div class="field" style="flex:1;margin-bottom:0">
+      <label>Scenario Name</label>
+      <input type="text" name="scenario_name" required placeholder="e.g. Increased_Recycling">
+    </div>
+    <button type="submit" class="btn btn-primary">Create</button>
+  </form>
+  <p class="muted" style="margin-top:0.6rem;font-size:0.83rem">
+    Use underscores instead of spaces — the name must match the entry in Model Settings → Scenario Names.
+  </p>
+</div>
+{% endblock %}

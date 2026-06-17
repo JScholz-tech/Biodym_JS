@@ -901,7 +901,7 @@ def export_sankey_json(mfa_system_results, year, element, filepath,
         "metadata": {
             "year":    year,
             "element": element,
-            "unit":    "Mg",
+            "unit":    mfa_system_results.Unit or "Mg",
             "source":  "BioDYM",
         },
         "nodes": nodes,
@@ -998,7 +998,7 @@ def export_sankey_html(mfa_system_results, year, element, filepath,
                   thickness=sankey_config.NODE_THICKNESS),
         link=dict(source=sources, target=targets, value=values,
                   customdata=hover,
-                  hovertemplate="%{customdata}<br />%{value:.1f} Mg<extra></extra>",
+                  hovertemplate=f"%{{customdata}}<br />%{{value:.1f}} {mfa_system_results.Unit or 'Mg'}<extra></extra>",
                   color=[link_color] * len(sources)),
     ))
 

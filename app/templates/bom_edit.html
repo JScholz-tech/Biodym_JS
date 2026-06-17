@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}BOM Assembly P{{ process.id }} — {{ cfg.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span>
+  <a href="/{{ cfg.name }}">{{ cfg.name }}</a> <span>/</span>
+  <a href="/{{ cfg.name }}/processes">Processes</a> <span>/</span>
+  <strong>BOM P{{ process.id }} {{ process.name }}</strong>
+{% endblock %}
+
+{% block content %}
+<h1>BOM Assembly — P{{ process.id }} {{ process.name }}</h1>
+
+{% if not rows %}
+<div class="alert alert-warn">No outgoing flows defined for this process. Add flows first.</div>
+{% else %}
+
+<div class="card">
+  <p class="muted" style="margin-bottom:1rem">
+    For each outgoing flow, set the output type and the element fractions for <code>target_Product</code> flows.
+    Fraction columns are only relevant for product flows — leave at 0 for waste flows.
+  </p>
+
+  <form method="post" action="/{{ cfg.name }}/bom/{{ process.id }}">
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th style="min-width:180px">Flow</th>
+            <th style="min-width:150px">Output Flow Type</th>
+            {% for elem in cfg.model.elements %}
+            <th>{{ elem }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>
+              <strong>{{ row.flow.id }}</strong><br>
+              <span class="muted">{{ row.flow.name }}</span>
+            </td>
+            <td>
+              <select name="bom_{{ row.flow.id }}_type" style="width:100%"
+                      onchange="toggleFractions(this, '{{ row.flow.id }}')">
+                <option value="">—</option>
+                <option value="target_Product" {% if row.output_flow_type == "target_Product" %}selected{% endif %}>target_Product</option>
+                <option value="waste_flow" {% if row.output_flow_type == "waste_flow" %}selected{% endif %}>waste_flow</option>
+                <option value="secondary_output" {% if row.output_flow_type == "secondary_output" %}selected{% endif %}>secondary_output</option>
+              </select>
+            </td>
+            {% for elem in cfg.model.elements %}
+            <td class="frac-cell-{{ row.flow.id | replace('.','_') | replace('-','_') }}">
+              <input type="number"
+                     name="bom_{{ row.flow.id }}_{{ elem }}"
+                     value="{{ row.frac_values.get(elem, 0.0) }}"
+                     step="0.0001" min="0" max="1" style="width:80px"
+                     {% if row.output_flow_type != "target_Product" %}disabled{% endif %}>
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="btn-row" style="margin-top:1.25rem">
+      <button type="submit" class="btn btn-primary">Save BOM Assembly</button>
+      <a href="/{{ cfg.name }}/processes" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+<script>
+function toggleFractions(select, flowId) {
+  const safe = flowId.replace(/[.\-]/g, '_');
+  const isProduct = select.value === 'target_Product';
+  document.querySelectorAll('.frac-cell-' + safe + ' input').forEach(inp => {
+    inp.disabled = !isProduct;
+    if (!isProduct) inp.value = '0';
+  });
+}
+</script>
+{% endblock %}

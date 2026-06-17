@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Processes — {{ cfg.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span>
+  <a href="/{{ cfg.name }}">{{ cfg.name }}</a> <span>/</span>
+  <strong>Processes</strong>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+  <h1 style="margin:0">Processes</h1>
+</div>
+
+{% if cfg.processes %}
+<div class="card" style="padding:0;margin-bottom:1.5rem">
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Logic</th>
+        <th>Stock</th>
+        <th>TC Config</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in cfg.processes %}
+      <tr>
+        <td><span class="tag">{{ p.id }}</span></td>
+        <td><strong>{{ p.name }}</strong></td>
+        <td><span class="tag">{{ p.logic.value }}</span></td>
+        <td><span class="muted">{{ p.stock.value }}</span></td>
+        <td><span class="muted">{{ p.tc_config.value }}</span></td>
+        <td>
+          <div class="btn-row">
+            <a href="/{{ cfg.name }}/processes/{{ p.id }}/edit" class="btn btn-secondary btn-sm">Edit</a>
+            {% if p.logic.value == "BOM_Assembler" %}
+            <a href="/{{ cfg.name }}/bom/{{ p.id }}" class="btn btn-secondary btn-sm">BOM</a>
+            {% endif %}
+            <form method="post" action="/{{ cfg.name }}/processes/{{ p.id }}/delete" style="display:inline"
+                  onsubmit="return confirm('Delete process {{ p.name }}?')">
+              <button type="submit" class="btn btn-danger">Delete</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert-warn">No processes yet — add one below.</div>
+{% endif %}
+
+<div class="card">
+  <h2 style="margin-top:0">Add Process</h2>
+  <form method="post" action="/{{ cfg.name }}/processes/new">
+    <div class="form-grid">
+      <div class="field">
+        <label>Name</label>
+        <input type="text" name="name" required placeholder="Pedosphere">
+      </div>
+      <div class="field">
+        <label>Logic Type</label>
+        <select name="logic" id="add-logic-select" onchange="toggleParamBlocks('add', this.value)">
+          {% for opt in logic_options %}
+          <option value="{{ opt.value }}">{{ opt.value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Stock Configuration</label>
+        <select name="stock">
+          {% for opt in stock_options %}
+          <option value="{{ opt.value }}">{{ opt.value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>TC Configuration</label>
+        <select name="tc_config">
+          {% for opt in tc_options %}
+          <option value="{{ opt.value }}">{{ opt.value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <details id="add-fomp-block" style="display:none">
+      <summary>FOMP Parameters</summary>
+      <div class="details-body">
+        <div class="form-grid">
+          <div class="field"><label>f labile</label><input type="number" name="fomp_f_labile" value="0.5" step="0.001" min="0" max="1"></div>
+          <div class="field"><label>k labile (yr⁻¹)</label><input type="number" name="fomp_k_labile" value="1.0" step="0.001" min="0"></div>
+          <div class="field"><label>k recalcitrant (yr⁻¹)</label><input type="number" name="fomp_k_recalcitrant" value="0.01" step="0.0001" min="0"></div>
+        </div>
+      </div>
+    </details>
+
+    <details id="add-dsm-block" style="display:none">
+      <summary>DSM Parameters</summary>
+      <div class="details-body">
+        <p class="muted" style="margin:0 0 0.75rem;font-size:0.88rem">
+          Each row is one material category. For Normal/LogNormal fill Mean &amp; Std Dev. For Weibull fill Shape &amp; Scale.
+        </p>
+        <div style="overflow-x:auto">
+        <table id="add-dsm-cat-table" style="width:100%;margin-bottom:0.5rem;font-size:0.88rem">
+          <thead>
+            <tr><th>Name</th><th>Inflow split</th><th>Distribution</th><th>Mean (yr)</th><th>Std Dev (yr)</th><th>Shape</th><th>Scale</th><th></th></tr>
+          </thead>
+          <tbody id="add-dsm-cat-body">
+            <tr>
+              <td><input type="text"   name="dsm_cat_0_name"           value="Default" style="width:110px"></td>
+              <td><input type="number" name="dsm_cat_0_inflow_split"   value="1.0" step="0.01" min="0" max="1" style="width:65px"></td>
+              <td><select name="dsm_cat_0_lifetime_type" style="width:105px"><option>Normal</option><option>LogNormal</option><option>Weibull</option></select></td>
+              <td><input type="number" name="dsm_cat_0_lifetime_mean"  value="20.0" step="0.1" min="0" style="width:70px"></td>
+              <td><input type="number" name="dsm_cat_0_lifetime_std"   value="5.0"  step="0.1" min="0" style="width:70px"></td>
+              <td><input type="number" name="dsm_cat_0_lifetime_shape" placeholder="—" step="0.01" min="0" style="width:65px"></td>
+              <td><input type="number" name="dsm_cat_0_lifetime_scale" placeholder="—" step="0.1"  min="0" style="width:65px"></td>
+              <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove(); reindexAddDsmCats()">✕</button></td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addNewDsmCat()">+ Add Category</button>
+      </div>
+    </details>
+
+    <details id="add-lfg-block" style="display:none">
+      <summary>LFG Parameters</summary>
+      <div class="details-body">
+        <div class="form-grid">
+          <div class="field"><label>MCF</label><input type="number" name="lfg_mcf" value="1.0" step="0.01" min="0" max="1"></div>
+          <div class="field"><label>DOCf</label><input type="number" name="lfg_doc_f" value="0.5" step="0.01" min="0" max="1"></div>
+          <div class="field"><label>F CH4</label><input type="number" name="lfg_f_ch4" value="0.5" step="0.01" min="0" max="1"></div>
+          <div class="field"><label>OX</label><input type="number" name="lfg_ox" value="0.1" step="0.01" min="0" max="1"></div>
+          <div class="field"><label>φ (phi)</label><input type="number" name="lfg_phi" value="1.0" step="0.01" min="0" max="1"></div>
+          <div class="field"><label>f capture</label><input type="number" name="lfg_f_capture" value="0.0" step="0.01" min="0" max="1"></div>
+        </div>
+      </div>
+    </details>
+
+    <div style="margin-top:1rem">
+      <button type="submit" class="btn btn-primary">Add Process</button>
+    </div>
+  </form>
+</div>
+
+<script>
+function toggleParamBlocks(prefix, logic) {
+  ['fomp','dsm','lfg','flowcap'].forEach(t => {
+    const el = document.getElementById(prefix + '-' + t + '-block');
+    if (el) {
+      el.style.display = (logic.toLowerCase() === t) ? 'block' : 'none';
+      if (logic.toLowerCase() === t) el.open = true;
+    }
+  });
+}
+toggleParamBlocks('add', document.getElementById('add-logic-select').value);
+
+let addDsmCatCount = 1;
+function addNewDsmCat() {
+  const tbody = document.getElementById('add-dsm-cat-body');
+  const i = addDsmCatCount++;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text"   name="dsm_cat_${i}_name"           placeholder="Category" style="width:110px"></td>
+    <td><input type="number" name="dsm_cat_${i}_inflow_split"   value="0.0" step="0.01" min="0" max="1" style="width:65px"></td>
+    <td><select name="dsm_cat_${i}_lifetime_type" style="width:105px"><option>Normal</option><option>LogNormal</option><option>Weibull</option></select></td>
+    <td><input type="number" name="dsm_cat_${i}_lifetime_mean"  placeholder="—" step="0.1" min="0" style="width:70px"></td>
+    <td><input type="number" name="dsm_cat_${i}_lifetime_std"   placeholder="—" step="0.1" min="0" style="width:70px"></td>
+    <td><input type="number" name="dsm_cat_${i}_lifetime_shape" placeholder="—" step="0.01" min="0" style="width:65px"></td>
+    <td><input type="number" name="dsm_cat_${i}_lifetime_scale" placeholder="—" step="0.1"  min="0" style="width:65px"></td>
+    <td><button type="button" class="btn btn-danger btn-sm"
+      onclick="this.closest('tr').remove(); reindexAddDsmCats()">✕</button></td>`;
+  tbody.appendChild(tr);
+}
+function reindexAddDsmCats() {
+  document.querySelectorAll('#add-dsm-cat-body tr').forEach((tr, i) => {
+    ['name','inflow_split','lifetime_type','lifetime_mean','lifetime_std','lifetime_shape','lifetime_scale'].forEach(f => {
+      const inp = tr.querySelector(`[name$="_${f}"]`);
+      if (inp) inp.name = `dsm_cat_${i}_${f}`;
+    });
+  });
+  addDsmCatCount = document.querySelectorAll('#add-dsm-cat-body tr').length;
+}
+</script>
+{% endblock %}

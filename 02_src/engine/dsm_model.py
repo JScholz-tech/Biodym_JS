@@ -320,9 +320,15 @@ def _calculate_outflow_from_initial_stock_cohort(
                    "Mean": np.array([mean_val]),
                    "StdDev": np.array([std_val])}
 
-    print(f"  -> Cohort lt_dict: Type={lt_dict['Type']}, "
-          f"Mean={lt_dict.get('Mean', [None])[0]:.1f}, "
-          f"StdDev={lt_dict.get('StdDev', [None])[0] if 'StdDev' in lt_dict else 'N/A'}")
+    if lt_dict["Type"] == "Weibull":
+        print(f"  -> Cohort lt_dict: Type=Weibull, "
+              f"Shape(k)={lt_dict['Shape'][0]:.4f}, Scale(lambda)={lt_dict['Scale'][0]:.4f}")
+    else:
+        _mean_v = lt_dict.get("Mean", [None])[0]
+        _std_v  = lt_dict.get("StdDev", [None])[0] if "StdDev" in lt_dict else None
+        _mean_s = f"{_mean_v:.1f}" if _mean_v is not None else "N/A"
+        _std_s  = f"{_std_v:.1f}"  if _std_v  is not None else "N/A"
+        print(f"  -> Cohort lt_dict: Type={lt_dict['Type']}, Mean={_mean_s}, StdDev={_std_s}")
 
     stock_ts = np.zeros((num_years, num_elements))
     outflow_ts = np.zeros((num_years, num_elements))

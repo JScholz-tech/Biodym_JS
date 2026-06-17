@@ -45,6 +45,19 @@ import numpy as np
 import pandas as pd
 
 
+class _CapParam:
+    """Minimal parameter-like object stored in ParameterDict for FlowCap caps.
+
+    apply_scenario only needs a .Values numpy array, so no full ODYM Parameter
+    import is required here.  No __slots__ — deepcopy must work correctly when
+    the scenario engine copies mfa_system_configured.
+    """
+
+    def __init__(self, name: str, values: np.ndarray):
+        self.Name = name
+        self.Values = values
+
+
 # ---------------------------------------------------------------------------
 # Public loader — called by data_loader.load_flow_cap_parameters()
 # ---------------------------------------------------------------------------
@@ -80,18 +93,46 @@ def load_flow_cap_parameters(excel_data, debug_mode=False):
         print(f"    INFO: Sheet '{sheet_name}' is empty.")
         return {}
 
-    required_cols = ["Process_ID", "Output_flow_type", "Flow_ID"]
-    missing = [c for c in required_cols if c not in df.columns]
-    if missing:
-        print(f"    ERROR: Missing required columns in '{sheet_name}': {missing}")
+    df.columns = df.columns.str.strip()   # remove leading/trailing whitespace from header cells
+    print(f"    Columns found: {list(df.columns)}")
+
+    # Flow_ID is the only truly required column
+    if "Flow_ID" not in df.columns:
+        print(f"    ERROR: Missing required column 'Flow_ID' in '{sheet_name}'.")
         return {}
 
-    df = df.dropna(subset=["Process_ID", "Output_flow_type", "Flow_ID"])
-    df["Process_ID"] = df["Process_ID"].astype(int)
+    has_process_id    = "Process_ID"      in df.columns
+    has_flow_type     = "Output_flow_type" in df.columns
+
+    if not has_flow_type:
+        print(f"    INFO: 'Output_flow_type' column missing — all rows with cap values treated as 'Capped_Output'.")
+    if not has_process_id:
+        print(f"    INFO: 'Process_ID' column missing — will infer from Flow_ID (first process index).")
+
+    # Infer Process_ID from Flow_ID when the column is absent.
+    # F_02_04 → process 2 (the originating process of the capped output flow).
+    if has_process_id:
+        df = df.dropna(subset=["Process_ID", "Flow_ID"])
+        df["Process_ID"] = df["Process_ID"].astype(int)
+    else:
+        df = df.dropna(subset=["Flow_ID"])
+        def _pid_from_flow(fid):
+            try:
+                return int(str(fid).split("_")[1])
+            except (IndexError, ValueError):
+                return None
+        df["Process_ID"] = df["Flow_ID"].apply(_pid_from_flow)
+        df = df.dropna(subset=["Process_ID"])
+        df["Process_ID"] = df["Process_ID"].astype(int)
+
+    # Add a synthetic Output_flow_type when absent
+    if not has_flow_type:
+        df["Output_flow_type"] = "Capped_Output"
 
     # Accept "Flow" or legacy "Cap_Value[UoM]" as the cap value column
-    cap_col  = next((c for c in ["Flow", "Cap_Value[UoM]"] if c in df.columns), None)
-    year_col = "Year" if "Year" in df.columns else None
+    cap_col    = next((c for c in ["Flow", "Cap_Value[UoM]"] if c in df.columns), None)
+    year_col   = "Year"     if "Year"     in df.columns else None
+    cap_tc_col = "Cap_TC_ID" if "Cap_TC_ID" in df.columns else None
 
     flow_cap_params = {}
 
@@ -100,6 +141,7 @@ def load_flow_cap_parameters(excel_data, debug_mode=False):
             "capped_flow_id":   None,
             "overflow_flow_id": None,
             "cap_series":       {},
+            "cap_tc_id":        None,   # optional: ParameterDict key for scenario switching
         }
 
         capped_rows   = group[group["Output_flow_type"].str.strip() == "Capped_Output"]
@@ -108,6 +150,12 @@ def load_flow_cap_parameters(excel_data, debug_mode=False):
         # --- Capped_Output rows ---
         if not capped_rows.empty:
             config["capped_flow_id"] = str(capped_rows.iloc[0]["Flow_ID"]).strip()
+
+            # Read Cap_TC_ID from first Capped_Output row if column exists
+            if cap_tc_col:
+                raw_tc = capped_rows.iloc[0].get(cap_tc_col)
+                if raw_tc and isinstance(raw_tc, str) and raw_tc.strip() not in ("", "N.A.", "N/A"):
+                    config["cap_tc_id"] = raw_tc.strip()
 
             for _, row in capped_rows.iterrows():
                 cap_val  = row.get(cap_col)  if cap_col  else None
@@ -151,13 +199,53 @@ def load_flow_cap_parameters(excel_data, debug_mode=False):
 
         flow_cap_params[process_id] = config
         n_pts = len(config["cap_series"])
+        tc_info = f", cap_tc_id={config['cap_tc_id']}" if config["cap_tc_id"] else ""
         print(f"    Loaded FlowCap for Process {process_id}: "
               f"{n_pts} cap data point(s), "
               f"capped={config['capped_flow_id']}, "
-              f"overflow={config['overflow_flow_id']}")
+              f"overflow={config['overflow_flow_id']}{tc_info}")
 
     print(f"--> FlowCap: loaded {len(flow_cap_params)} process(es).")
     return flow_cap_params
+
+
+# ---------------------------------------------------------------------------
+# ParameterDict registration — call once after system setup, before solver
+# ---------------------------------------------------------------------------
+
+def register_cap_parameters(mfa_system, flow_cap_params) -> None:
+    """Register FlowCap cap time series in mfa_system.ParameterDict.
+
+    For every process that has a ``cap_tc_id`` set, this creates a
+    ``_CapParam`` entry in ParameterDict keyed by the cap_tc_id string
+    (e.g. ``"TC_Cap_02"``).  The scenario engine's ``apply_scenario``
+    function then finds and modifies it like any other dynamic parameter.
+
+    Call this once after ``system_setup.define_flows_and_parameters`` and
+    before the solver loop — same pattern as ``load_tc_parameters`` /
+    ``ParameterDict.update()``.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        The configured system whose ParameterDict will be updated in place.
+    flow_cap_params : dict
+        As returned by ``load_flow_cap_parameters()``.
+    """
+    time_items  = mfa_system.IndexTable.Classification["Time"].Items
+    time_vector = np.array(time_items, dtype=float)
+    num_years   = len(time_vector)
+
+    for process_id, params in flow_cap_params.items():
+        cap_tc_id = params.get("cap_tc_id")
+        if not cap_tc_id:
+            continue
+        if cap_tc_id in mfa_system.ParameterDict:
+            continue  # already registered (e.g. re-run without kernel restart)
+        cap_array = _resolve_cap(params["cap_series"], time_vector, num_years)
+        mfa_system.ParameterDict[cap_tc_id] = _CapParam(cap_tc_id, cap_array)
+        print(f"  Registered FlowCap cap '{cap_tc_id}' in ParameterDict "
+              f"(Process {process_id}, {num_years} years).")
 
 
 # ---------------------------------------------------------------------------
@@ -197,7 +285,13 @@ def calculate_flow_cap(mfa_system, flow_cap_processes, flow_cap_params):
         num_years, num_elements = inflows[0].shape
         total_inflow = sum(inflows)   # (num_years, num_elements)
 
-        cap_values = _resolve_cap(params["cap_series"], time_vector, num_years)
+        # Prefer ParameterDict (allows scenario engine to override cap values)
+        cap_tc_id = params.get("cap_tc_id")
+        if cap_tc_id and cap_tc_id in mfa_system.ParameterDict:
+            raw = mfa_system.ParameterDict[cap_tc_id].Values
+            cap_values = np.asarray(raw, dtype=float).ravel()[:num_years]
+        else:
+            cap_values = _resolve_cap(params["cap_series"], time_vector, num_years)
 
         # ratio[t] = min(1, cap[t] / inflow_material[t])
         # When inflow == 0 the ratio stays 1.0 (nothing to route).

@@ -477,3 +477,70 @@ def extract_workflow_dimensions(config_obj, input_data: dict) -> dict:
         "run_scenario": run_scenario,
         "selected_scenario": selected_scenario,
     }
+
+
+def load_config_from_yaml(yaml_path: str):
+    """Build a Config object from a BioDYM web-app config YAML.
+
+    Produces the same Config object that ``load_configuration`` returns from
+    Excel, so the rest of the workflow is unaware of the difference.
+
+    Parameters
+    ----------
+    yaml_path : str
+        Path to the ``config.yaml`` produced by the BioDYM config web app.
+
+    Returns
+    -------
+    Config
+        Configuration object with all standard attributes set.
+    """
+    import yaml as _yaml
+
+    with open(yaml_path, encoding="utf-8") as f:
+        raw = _yaml.safe_load(f) or {}
+
+    model = raw.get("model") or {}
+    elements = model.get("elements", ["material", "WC", "DM", "TC"])
+    elements_str = ", ".join(elements)
+
+    run_dsm  = bool(model.get("run_dsm_calculation", True))
+    run_fomp = bool(model.get("run_fomp_calculation", True))
+    run_lfg  = bool(model.get("run_lfg_calculation", True))
+    run_mc   = bool(model.get("run_monte_carlo", False))
+    run_scen = bool(model.get("run_scenario_analysis", False))
+
+    selected = model.get("selected_scenarios") or []
+
+    config_dict = {
+        # Time range
+        "Start_Year": int(model.get("start_year", 2025)),
+        "End_Year":   int(model.get("end_year",   2125)),
+        # Elements — all three aliases checked by extract_workflow_dimensions
+        "Elements":                   elements_str,
+        "Elements_comma_separated":   elements_str,
+        "Element_list":               elements_str,
+        # Unit
+        "Unit":                 model.get("unit_of_measurement", "Mg"),
+        "Unit_of_Measurement":  model.get("unit_of_measurement", "Mg"),
+        # Calculation flags
+        "RUN_MONTE_CARLO":       run_mc,
+        "Run_Monte_Carlo":       run_mc,
+        "MC_Iterations":         int(model.get("mc_iterations", 1000)),
+        "Run_DSM_Calculation":   run_dsm,
+        "RUN_DSM_CALCULATION":   run_dsm,
+        "Run_FOMP_Calculation":  run_fomp,
+        "RUN_FOMP_CALCULATION":  run_fomp,
+        "RUN_LFG_CALCULATION":   run_lfg,
+        "Run_Scenario_Analysis": run_scen,
+        # Scenario names
+        "Selected_Scenario_Name 1": selected[0] if len(selected) > 0 else "",
+        "Selected_Scenario_Name 2": selected[1] if len(selected) > 1 else "",
+        "Selected_Scenario_Name 3": selected[2] if len(selected) > 2 else "",
+        "Selected_Scenario_Name 4": selected[3] if len(selected) > 3 else "",
+        # Defaults
+        "Min_Flow_Threshold": 0.0,
+        "Show_Zero_Flows":    False,
+    }
+
+    return create_config_object(config_dict)

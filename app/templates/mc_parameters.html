@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+{% block title %}MC Parameters — {{ cfg.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span>
+  <a href="/{{ cfg.name }}">{{ cfg.name }}</a> <span>/</span>
+  <strong>MC Parameters</strong>
+{% endblock %}
+
+{% block content %}
+<h1>Monte Carlo Parameters</h1>
+
+<div class="card" style="margin-bottom:1.25rem">
+  <p class="muted" style="margin:0">
+    Define which parameters are varied in the Monte Carlo simulation and their uncertainty distributions.
+    Each row corresponds to one uncertain parameter. Select a distribution and fill in the relevant
+    statistics — irrelevant fields are greyed out automatically.
+    Parameters are only included in the MC run when <strong>Enabled</strong> is checked.
+  </p>
+</div>
+
+<div class="card">
+  <form method="post" action="/{{ cfg.name }}/mc_parameters" id="mc-form">
+
+    <div style="overflow-x:auto">
+      <table id="mc-table" style="min-width:1100px">
+        <thead>
+          <tr>
+            <th style="width:28px">On</th>
+            <th style="min-width:220px">Parameter</th>
+            <th style="min-width:120px">Distribution</th>
+            <th style="min-width:90px">Mean</th>
+            <th style="min-width:90px">Std Dev (σ)</th>
+            <th style="min-width:90px">Min</th>
+            <th style="min-width:90px">Mode</th>
+            <th style="min-width:90px">Max</th>
+            <th style="min-width:100px">Operation</th>
+            <th style="min-width:80px">Start Yr</th>
+            <th style="min-width:80px">End Yr</th>
+            {% if cfg.references %}<th style="min-width:70px;color:var(--muted)">Ref</th>{% endif %}
+            <th style="width:36px"></th>
+          </tr>
+        </thead>
+        <tbody id="mc-body">
+          {% for p in cfg.mc_parameters %}
+          {% set i = loop.index0 %}
+          <tr>
+            <td style="text-align:center">
+              <input type="checkbox" name="mc_{{ i }}_enabled"
+                     {% if p.enabled %}checked{% endif %}>
+            </td>
+            <td>
+              <input type="hidden" name="mc_{{ i }}_parameter_id"
+                     class="param-hidden" value="{{ p.parameter_id }}">
+              <select class="param-sel" style="width:100%;margin-bottom:3px"
+                      onchange="onParamSelect(this)">
+                <option value="">— select —</option>
+              </select>
+              <input type="text" class="param-custom"
+                     style="width:100%;display:none;font-family:monospace;font-size:0.88rem"
+                     placeholder="e.g. TC_05_06  or  P04_decay_k1"
+                     value="{{ p.parameter_id }}"
+                     oninput="this.closest('td').querySelector('.param-hidden').value=this.value">
+            </td>
+            <td>
+              <select name="mc_{{ i }}_distribution" class="dist-sel" style="width:100%"
+                      onchange="applyDist(this.closest('tr'))">
+                {% for d in distributions %}
+                <option value="{{ d }}" {% if d == p.distribution %}selected{% endif %}>{{ d }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            {# ── Distribution fields ── #}
+            <td class="f-mean">
+              <input type="number" name="mc_{{ i }}_mean"
+                     class="dist-inp" value="{{ p.mean if p.mean is not none else '' }}"
+                     step="any" placeholder="—" style="width:82px">
+            </td>
+            <td class="f-std">
+              <input type="number" name="mc_{{ i }}_std"
+                     class="dist-inp" value="{{ p.std if p.std is not none else '' }}"
+                     step="any" min="0" placeholder="—" style="width:82px">
+            </td>
+            <td class="f-min">
+              <input type="number" name="mc_{{ i }}_min"
+                     class="dist-inp" value="{{ p.min if p.min is not none else '' }}"
+                     step="any" placeholder="—" style="width:82px">
+            </td>
+            <td class="f-mode">
+              <input type="number" name="mc_{{ i }}_mode"
+                     class="dist-inp" value="{{ p.mode if p.mode is not none else '' }}"
+                     step="any" placeholder="—" style="width:82px">
+            </td>
+            <td class="f-max">
+              <input type="number" name="mc_{{ i }}_max"
+                     class="dist-inp" value="{{ p.max if p.max is not none else '' }}"
+                     step="any" placeholder="—" style="width:82px">
+            </td>
+            <td>
+              <select name="mc_{{ i }}_operation" style="width:100%">
+                {% for op in operations %}
+                <option value="{{ op }}" {% if op == p.operation %}selected{% endif %}>{{ op }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td>
+              <input type="number" name="mc_{{ i }}_start_year"
+                     value="{{ p.start_year if p.start_year is not none else '' }}"
+                     step="1" min="1900" max="2300" placeholder="—" style="width:74px">
+            </td>
+            <td>
+              <input type="number" name="mc_{{ i }}_end_year"
+                     value="{{ p.end_year if p.end_year is not none else '' }}"
+                     step="1" min="1900" max="2300" placeholder="—" style="width:74px">
+            </td>
+            {% if cfg.references %}
+            <td>
+              <select name="mc_{{ i }}_ref" style="width:64px;font-size:0.83rem;padding:2px 4px">
+                <option value="">—</option>
+                {% for ref in cfg.references %}
+                <option value="{{ ref.cite_key }}"
+                        title="{{ ref.authors }}{% if ref.year %} ({{ ref.year }}){% endif %}{% if ref.title %} — {{ ref.title[:80] }}{% endif %}"
+                        {% if p.ref == ref.cite_key %}selected{% endif %}>[{{ loop.index }}]</option>
+                {% endfor %}
+              </select>
+            </td>
+            {% endif %}
+            <td>
+              <button type="button" class="btn btn-danger btn-sm"
+                      onclick="removeRow(this)">✕</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <button type="button" class="btn btn-secondary" style="margin-top:0.75rem"
+            onclick="addRow()">+ Add Parameter</button>
+
+    <div class="btn-row" style="margin-top:1.25rem">
+      <button type="submit" class="btn btn-primary">Save MC Parameters</button>
+      <a href="/{{ cfg.name }}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{# ── Distribution legend ── #}
+<div class="card" style="margin-top:1rem">
+  <h3 style="margin-top:0;font-size:0.95rem">Distribution field guide</h3>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.5rem 2rem;font-size:0.88rem">
+    <div><span class="tag">normal</span> &nbsp; Mean, σ &nbsp;<span class="muted">(+ optional Min / Max clamps)</span></div>
+    <div><span class="tag">lognormal</span> &nbsp; Mean, σ &nbsp;<span class="muted">(+ optional Min / Max clamps)</span></div>
+    <div><span class="tag">uniform</span> &nbsp; Min, Max</div>
+    <div><span class="tag">triangular</span> &nbsp; Min, Mode, Max</div>
+  </div>
+</div>
+
+<script>
+const OPERATIONS  = {{ operations | tojson }};
+const DISTS       = {{ distributions | tojson }};
+const PARAMS      = {{ params_json | safe }};
+const REFS        = {{ cfg.references | map(attribute='cite_key') | list | tojson }};
+const REF_LABELS  = {{ cfg.references | map(attribute='authors') | list | tojson }};
+const REF_YEARS   = {{ cfg.references | map(attribute='year') | list | tojson }};
+
+function refOptions(sel) {
+  if (!REFS.length) return '';
+  let html = '<option value="">—</option>';
+  REFS.forEach((ck, idx) => {
+    const label = `[${idx+1}] ${REF_LABELS[idx]}${REF_YEARS[idx] ? ' (' + REF_YEARS[idx] + ')' : ''}`;
+    html += `<option value="${ck}"${ck === sel ? ' selected' : ''}>${label}</option>`;
+  });
+  return html;
+}
+
+// Which cells are active for each distribution
+const DIST_FIELDS = {
+  normal:      new Set(['mean','std','min','max']),
+  lognormal:   new Set(['mean','std','min','max']),
+  uniform:     new Set(['min','max']),
+  triangular:  new Set(['min','mode','max']),
+};
+// Which fields are required (vs optional) per distribution
+const DIST_REQUIRED = {
+  normal:     new Set(['mean','std']),
+  lognormal:  new Set(['mean','std']),
+  uniform:    new Set(['min','max']),
+  triangular: new Set(['min','mode','max']),
+};
+const ALL_FIELDS = ['mean','std','min','mode','max'];
+
+// ── Parameter dropdown ─────────────────────────────────────────────────────────
+const GROUPS = {};
+PARAMS.forEach(p => { if (!GROUPS[p.group]) GROUPS[p.group] = []; GROUPS[p.group].push(p); });
+
+function buildSelectOptions(selected) {
+  let html = '<option value="">— select —</option>';
+  Object.entries(GROUPS).forEach(([g, items]) => {
+    html += `<optgroup label="${g}">`;
+    items.forEach(p => {
+      html += `<option value="${p.name}"${p.name === selected ? ' selected' : ''}>${p.label}</option>`;
+    });
+    html += '</optgroup>';
+  });
+  const isCustom = selected && !PARAMS.find(p => p.name === selected);
+  html += `<option value="__custom__"${isCustom ? ' selected' : ''}>✏ Custom…</option>`;
+  return html;
+}
+
+function onParamSelect(sel) {
+  const tr     = sel.closest('tr');
+  const hidden = tr.querySelector('.param-hidden');
+  const custom = tr.querySelector('.param-custom');
+  if (sel.value === '__custom__') {
+    custom.style.display = 'block'; custom.value = ''; hidden.value = ''; custom.focus();
+  } else {
+    custom.style.display = 'none'; hidden.value = sel.value;
+  }
+}
+
+// ── Distribution → show/hide/dim fields ───────────────────────────────────────
+function applyDist(tr) {
+  const dist    = tr.querySelector('.dist-sel').value;
+  const active  = DIST_FIELDS[dist]   || new Set();
+  const required= DIST_REQUIRED[dist] || new Set();
+
+  ALL_FIELDS.forEach(f => {
+    const cell = tr.querySelector(`.f-${f}`);
+    const inp  = cell ? cell.querySelector('input') : null;
+    if (!cell || !inp) return;
+
+    if (!active.has(f)) {
+      // Not used by this distribution: grey out and disable
+      inp.disabled = true;
+      inp.value    = '';
+      cell.style.opacity = '0.3';
+    } else if (!required.has(f)) {
+      // Optional (e.g. Min/Max bounds on normal)
+      inp.disabled = false;
+      cell.style.opacity = '0.65';
+      inp.placeholder = 'opt.';
+    } else {
+      // Required
+      inp.disabled = false;
+      cell.style.opacity = '1';
+      inp.placeholder = '—';
+    }
+  });
+}
+
+// ── Init all existing rows ─────────────────────────────────────────────────────
+document.querySelectorAll('#mc-body tr').forEach(tr => {
+  // Init parameter dropdown
+  const hidden   = tr.querySelector('.param-hidden');
+  const sel      = tr.querySelector('.param-sel');
+  const custom   = tr.querySelector('.param-custom');
+  const curName  = hidden ? hidden.value : '';
+  if (sel) sel.innerHTML = buildSelectOptions(curName);
+  const isCustom = curName && !PARAMS.find(p => p.name === curName);
+  if (isCustom) { sel.value = '__custom__'; custom.style.display = 'block'; }
+  // Init distribution field visibility
+  applyDist(tr);
+});
+
+// ── Add / remove rows ──────────────────────────────────────────────────────────
+let rowCount = document.querySelectorAll('#mc-body tr').length;
+
+function distOptions(sel) {
+  return DISTS.map(d => `<option value="${d}"${d === sel ? ' selected' : ''}>${d}</option>`).join('');
+}
+function opOptions(sel) {
+  return OPERATIONS.map(o => `<option value="${o}"${o === sel ? ' selected' : ''}>${o}</option>`).join('');
+}
+function numCell(cls, name) {
+  return `<td class="${cls}"><input type="number" name="${name}" class="dist-inp"
+    step="any" placeholder="—" style="width:82px"></td>`;
+}
+
+function addRow() {
+  const tbody = document.getElementById('mc-body');
+  const i     = rowCount++;
+  const tr    = document.createElement('tr');
+  tr.innerHTML = `
+    <td style="text-align:center">
+      <input type="checkbox" name="mc_${i}_enabled" checked>
+    </td>
+    <td>
+      <input type="hidden" name="mc_${i}_parameter_id" class="param-hidden" value="">
+      <select class="param-sel" style="width:100%;margin-bottom:3px" onchange="onParamSelect(this)">
+        ${buildSelectOptions('')}
+      </select>
+      <input type="text" class="param-custom"
+             style="width:100%;display:none;font-family:monospace;font-size:0.88rem"
+             placeholder="e.g. TC_05_06"
+             oninput="this.closest('td').querySelector('.param-hidden').value=this.value">
+    </td>
+    <td>
+      <select name="mc_${i}_distribution" class="dist-sel" style="width:100%"
+              onchange="applyDist(this.closest('tr'))">${distOptions('normal')}</select>
+    </td>
+    ${numCell('f-mean',  `mc_${i}_mean`)}
+    ${numCell('f-std',   `mc_${i}_std`)}
+    ${numCell('f-min',   `mc_${i}_min`)}
+    ${numCell('f-mode',  `mc_${i}_mode`)}
+    ${numCell('f-max',   `mc_${i}_max`)}
+    <td><select name="mc_${i}_operation" style="width:100%">${opOptions('replace')}</select></td>
+    <td><input type="number" name="mc_${i}_start_year" step="1" min="1900" max="2300"
+               placeholder="—" style="width:74px"></td>
+    <td><input type="number" name="mc_${i}_end_year"   step="1" min="1900" max="2300"
+               placeholder="—" style="width:74px"></td>
+    ${REFS.length ? `<td><select name="mc_${i}_ref" style="width:64px;font-size:0.83rem;padding:2px 4px">${refOptions('')}</select></td>` : ''}
+    <td><button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)">✕</button></td>`;
+  tbody.appendChild(tr);
+  applyDist(tr);
+}
+
+function removeRow(btn) {
+  btn.closest('tr').remove();
+  reindex();
+}
+
+function reindex() {
+  document.querySelectorAll('#mc-body tr').forEach((tr, i) => {
+    tr.querySelectorAll('input[name], select[name]').forEach(el => {
+      el.name = el.name.replace(/^mc_\d+_/, `mc_${i}_`);
+    });
+  });
+  rowCount = document.querySelectorAll('#mc-body tr').length;
+}
+</script>
+{% endblock %}

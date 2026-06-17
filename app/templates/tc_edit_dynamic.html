@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Dynamic TCs P{{ process.id }} — {{ cfg.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span>
+  <a href="/{{ cfg.name }}">{{ cfg.name }}</a> <span>/</span>
+  <a href="/{{ cfg.name }}/tcs">TCs</a> <span>/</span>
+  <strong>P{{ process.id }} {{ process.name }} (Dynamic)</strong>
+{% endblock %}
+
+{% block content %}
+<h1>Dynamic Transfer Coefficients — P{{ process.id }} {{ process.name }}</h1>
+
+{% if errors %}
+<div class="alert alert-err">
+  <strong>Validation errors:</strong>
+  <ul class="errors" style="margin-top:0.4rem">
+    {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="card">
+  <p class="muted" style="margin-bottom:1rem">
+    Dynamic TCs vary by year. Each row is a (flow, year) pair. Enter values in <strong>%</strong> (0 – 100).
+    For each year, fractions across all flows must sum to 100 %. The engine interpolates between defined years.
+  </p>
+
+  <form method="post" action="/{{ cfg.name }}/tcs/{{ process.id }}" id="dyn-form">
+    <input type="hidden" name="tc_type" value="dynamic">
+
+    {% for flow in outgoing_flows %}
+    {% set flow_rows = rows | selectattr("flow_id", "equalto", flow.id) | list %}
+    <h3 style="margin-top:1.5rem;margin-bottom:0.5rem">{{ flow.id }} — {{ flow.name }}</h3>
+    <div style="overflow-x:auto;margin-bottom:1rem">
+      <table class="dynamic-tc-table" data-flow="{{ flow.id }}">
+        <thead>
+          <tr>
+            <th>Year</th>
+            {% for elem in cfg.model.elements %}
+            <th>{{ elem }} <span style="font-weight:400;font-size:0.85rem">%</span></th>
+            {% endfor %}
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody-{{ flow.id | replace('.','_') | replace('-','_') }}">
+          {% for row in flow_rows %}
+          <tr>
+            <td>
+              <input type="number" name="tc_{{ flow.id }}_year_{{ loop.index0 }}"
+                     class="year-input" value="{{ row.year }}" step="1" min="1900" max="2300"
+                     style="width:80px">
+            </td>
+            {% for elem in cfg.model.elements %}
+            <td>
+              <input type="number"
+                     name="tc_{{ flow.id }}_idx_{{ loop.index0 }}_{{ elem }}"
+                     class="dyn-input dyn-{{ flow.id | replace('.','_') | replace('-','_') }}-{{ loop.index0 }}"
+                     value="{{ (row.tc_values.get(elem, 0.0) * 100) | round(4) }}"
+                     step="0.01" min="0" max="100" style="width:90px"
+                     oninput="updateDynSum('{{ flow.id }}', {{ loop.index0 }})">
+            </td>
+            {% endfor %}
+            <td>
+              <button type="button" class="btn btn-danger btn-sm"
+                      onclick="this.closest('tr').remove()">✕</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr style="font-weight:600;background:var(--bg)">
+            <td>Sum</td>
+            {% for elem in cfg.model.elements %}
+            <td><span id="dsum-{{ flow.id | replace('.','_') | replace('-','_') }}-{{ loop.index0 }}">—</span></td>
+            {% endfor %}
+            <td>
+              <button type="button" class="btn btn-secondary btn-sm"
+                      onclick="addDynRow('{{ flow.id }}', {{ cfg.model.elements | length }})">+ Year</button>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% endfor %}
+
+    <div class="btn-row" style="margin-top:1.5rem">
+      <button type="submit" class="btn btn-primary">Save Dynamic TCs</button>
+      <a href="/{{ cfg.name }}/tcs" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+const ELEMENTS = {{ cfg.model.elements | tojson }};
+
+function addDynRow(flowId, numElems) {
+  const safeId = flowId.replace(/[.\-]/g, '_');
+  const tbody = document.getElementById('tbody-' + safeId);
+  const rowIdx = tbody.querySelectorAll('tr').length;
+  const row = document.createElement('tr');
+
+  let html = `<td><input type="number" name="tc_${flowId}_year_${rowIdx}"
+    class="year-input" value="" step="1" min="1900" max="2300" style="width:80px"></td>`;
+  for (let i = 0; i < numElems; i++) {
+    html += `<td><input type="number" name="tc_${flowId}_idx_${rowIdx}_${ELEMENTS[i]}"
+      class="dyn-input dyn-${safeId}-${i}"
+      value="0" step="0.01" min="0" max="100" style="width:90px"
+      oninput="updateDynSum('${flowId}', ${i})"></td>`;
+  }
+  html += `<td><button type="button" class="btn btn-danger btn-sm"
+    onclick="this.closest('tr').remove()">✕</button></td>`;
+  row.innerHTML = html;
+  tbody.appendChild(row);
+}
+
+function updateDynSum(flowId, colIdx) {
+  const safeId = flowId.replace(/[.\-]/g, '_');
+  const inputs = document.querySelectorAll('.dyn-' + safeId + '-' + colIdx);
+  let total = 0;
+  inputs.forEach(inp => { total += parseFloat(inp.value) || 0; });
+  const span = document.getElementById('dsum-' + safeId + '-' + colIdx);
+  if (!span) return;
+  span.textContent = total.toFixed(2) + ' %';
+  span.style.color = Math.abs(total - 100.0) < 0.01 ? 'var(--primary)' : 'var(--danger)';
+}
+
+// init sums on load
+document.querySelectorAll('.dyn-input').forEach(inp => {
+  const cls = [...inp.classList].find(c => /^dyn-.+-\d+$/.test(c));
+  if (!cls) return;
+  const parts = cls.split('-');
+  const colIdx = parseInt(parts[parts.length - 1]);
+  const table = inp.closest('table');
+  if (table) updateDynSum(table.dataset.flow, colIdx);
+});
+
+// divide by 100 before submit so server receives decimals
+document.getElementById('dyn-form').addEventListener('submit', function () {
+  document.querySelectorAll('.dyn-input').forEach(inp => {
+    inp.value = ((parseFloat(inp.value) || 0) / 100).toFixed(6);
+  });
+});
+</script>
+{% endblock %}
