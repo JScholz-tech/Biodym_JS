@@ -84,7 +84,7 @@
 # Use the **bioDYM SystemDefiner** web app to create and configure your case study before running this notebook:
 #
 # ```bash
-# uv run python -m app
+# uv run python -m systemdefiner
 # ```
 #
 # Opens at **http://localhost:8001** — define your system, then export a `config.yaml` and set `input_file` below to that path.
