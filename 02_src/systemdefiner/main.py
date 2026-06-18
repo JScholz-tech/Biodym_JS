@@ -1625,6 +1625,7 @@ async def compositions_save(request: Request, name: str):
 
 @app.get("/{name}/bom/{pid}")
 async def bom_edit_form(request: Request, name: str, pid: int):
+    import json as _json
     if not storage.case_study_exists(name):
         raise HTTPException(404)
     cfg = storage.load_case_study(name)
@@ -1642,8 +1643,25 @@ async def bom_edit_form(request: Request, name: str, pid: int):
             "output_flow_type": bf.output_flow_type if bf else "",
             "frac_values": bf.fractions if bf else {},
         })
-    return templates.TemplateResponse(request, "bom_edit.html",
-                                      _ctx(cfg=cfg, process=process, rows=rows))
+    # Hierarchy-matrix context (same layout as Flow Compositions). BOM stores
+    # parent-relative fractions, so display % = stored fraction × 100 (no cascade).
+    hier_json = [{"parent": r.parent, "children": r.children} for r in cfg.element_hierarchy]
+    paths_json = _json.dumps(_rules_to_paths(cfg.element_hierarchy))
+    bom_comps_json = _json.dumps({
+        row["flow"].id: {e: round(row["frac_values"].get(e, 0.0) * 100, 4)
+                         for e in cfg.model.elements}
+        for row in rows
+    })
+    flow_list_json = _json.dumps([
+        {"id": row["flow"].id, "name": row["flow"].name, "type": row["output_flow_type"]}
+        for row in rows
+    ])
+    return templates.TemplateResponse(
+        request, "bom_edit.html",
+        _ctx(cfg=cfg, process=process, rows=rows,
+             hier_json=hier_json, paths_json=paths_json,
+             bom_comps_json=bom_comps_json, flow_list_json=flow_list_json),
+    )
 
 
 @app.post("/{name}/bom/{pid}")

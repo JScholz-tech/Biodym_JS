@@ -14,71 +14,212 @@
 <div class="alert alert-warn">No outgoing flows defined for this process. Add flows first.</div>
 {% else %}
 
-<div class="card">
-  <p class="muted" style="margin-bottom:1rem">
-    For each outgoing flow, set the output type and the element fractions for <code>target_Product</code> flows.
-    Fraction columns are only relevant for product flows — leave at 0 for waste flows.
+<div class="card" style="margin-bottom:1.25rem">
+  <p class="muted" style="margin:0">
+    For each outgoing flow, choose its output type. A <code>target_Product</code> flow defines the
+    <strong>target outflow composition</strong> as element fractions — entered the same way as
+    <a href="/{{ cfg.name }}/compositions">Flow Compositions</a>: each level is
+    <strong>% of its parent</strong>, mirroring the
+    <a href="/{{ cfg.name }}/elements">element hierarchy</a>.
+    The <strong>gap</strong> under each parent is <em>100 % − sum(children %)</em>.
+    Residue is routed to an <code>Unused_Material</code> flow.
   </p>
-
-  <form method="post" action="/{{ cfg.name }}/bom/{{ process.id }}">
-    <div style="overflow-x:auto">
-      <table>
-        <thead>
-          <tr>
-            <th style="min-width:180px">Flow</th>
-            <th style="min-width:150px">Output Flow Type</th>
-            {% for elem in cfg.model.elements %}
-            <th>{{ elem }}</th>
-            {% endfor %}
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in rows %}
-          <tr>
-            <td>
-              <strong>{{ row.flow.id }}</strong><br>
-              <span class="muted">{{ row.flow.name }}</span>
-            </td>
-            <td>
-              <select name="bom_{{ row.flow.id }}_type" style="width:100%"
-                      onchange="toggleFractions(this, '{{ row.flow.id }}')">
-                <option value="">—</option>
-                <option value="target_Product" {% if row.output_flow_type == "target_Product" %}selected{% endif %}>target_Product</option>
-                <option value="waste_flow" {% if row.output_flow_type == "waste_flow" %}selected{% endif %}>waste_flow</option>
-                <option value="secondary_output" {% if row.output_flow_type == "secondary_output" %}selected{% endif %}>secondary_output</option>
-              </select>
-            </td>
-            {% for elem in cfg.model.elements %}
-            <td class="frac-cell-{{ row.flow.id | replace('.','_') | replace('-','_') }}">
-              <input type="number"
-                     name="bom_{{ row.flow.id }}_{{ elem }}"
-                     value="{{ row.frac_values.get(elem, 0.0) }}"
-                     step="0.0001" min="0" max="1" style="width:80px"
-                     {% if row.output_flow_type != "target_Product" %}disabled{% endif %}>
-            </td>
-            {% endfor %}
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="btn-row" style="margin-top:1.25rem">
-      <button type="submit" class="btn btn-primary">Save BOM Assembly</button>
-      <a href="/{{ cfg.name }}/processes" class="btn btn-secondary">Cancel</a>
-    </div>
-  </form>
 </div>
+
+<form method="post" action="/{{ cfg.name }}/bom/{{ process.id }}" id="bom-form">
+  {% for row in rows %}
+  {% set safe_fid = row.flow.id | replace('.','_') | replace('-','_') | replace('/','_') %}
+  <div class="card" style="margin-bottom:1.25rem">
+    <div style="display:flex;align-items:baseline;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
+      <h3 style="margin:0;font-size:1rem">
+        <strong>{{ row.flow.id }}</strong>
+        <span class="muted" style="font-weight:400"> — {{ row.flow.name }}</span>
+      </h3>
+      <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.85rem;
+                    font-weight:400;text-transform:none;letter-spacing:0;margin-left:auto">
+        Output type:
+        <select name="bom_{{ row.flow.id }}_type" data-fid="{{ row.flow.id }}"
+                onchange="toggleMatrix('{{ row.flow.id }}')" style="font-size:0.85rem;padding:2px 6px">
+          <option value="">—</option>
+          <option value="target_Product"  {% if row.output_flow_type == "target_Product" %}selected{% endif %}>target_Product</option>
+          <option value="Unused_Material"  {% if row.output_flow_type == "Unused_Material" %}selected{% endif %}>Unused_Material (residue)</option>
+          <option value="waste_flow"       {% if row.output_flow_type == "waste_flow" %}selected{% endif %}>waste_flow</option>
+          <option value="secondary_output" {% if row.output_flow_type == "secondary_output" %}selected{% endif %}>secondary_output</option>
+        </select>
+      </label>
+    </div>
+    <div id="bommatrix_{{ safe_fid }}" style="overflow-x:auto"></div>
+  </div>
+  {% endfor %}
+
+  <div class="btn-row">
+    <button type="submit" class="btn btn-primary">Save BOM Assembly</button>
+    <a href="/{{ cfg.name }}/processes" class="btn btn-secondary">Cancel</a>
+  </div>
+</form>
 {% endif %}
 
 <script>
-function toggleFractions(select, flowId) {
-  const safe = flowId.replace(/[.\-]/g, '_');
-  const isProduct = select.value === 'target_Product';
-  document.querySelectorAll('.frac-cell-' + safe + ' input').forEach(inp => {
-    inp.disabled = !isProduct;
-    if (!isProduct) inp.value = '0';
+const ELEMENTS    = {{ cfg.model.elements | tojson }};
+const HIERARCHY   = {{ hier_json | tojson }};
+const LEVEL_NAMES = {{ cfg.model.hierarchy_level_names | tojson }};
+const INIT_PATHS  = {{ paths_json | safe }};
+const BOM_COMPS   = {{ bom_comps_json | safe }};   // parent-relative % (fraction × 100)
+const FLOW_LIST   = {{ flow_list_json | safe }};
+
+// ── Structure maps ────────────────────────────────────────────────────────────
+const PARENT_CHILDREN = {};
+HIERARCHY.forEach(r => { PARENT_CHILDREN[r.parent] = r.children; });
+const ROOT_ELEM = HIERARCHY.length > 0 ? ELEMENTS[0] : null;
+
+const SORTED_PATHS = [...INIT_PATHS].sort((a, b) => {
+  for (let i = 0; i < 4; i++) { if (a[i] < b[i]) return -1; if (a[i] > b[i]) return 1; }
+  return 0;
+});
+
+function safeId(fid) { return fid.replace(/[.\-\/]/g, '_'); }
+function getPct(fid, elem) {
+  const inp = document.getElementById(`bi_${safeId(fid)}_${elem}`);
+  return inp ? (parseFloat(inp.value) || 0) : 0;
+}
+
+// ── Column spans for merged hierarchy cells (same as Flow Compositions) ────────
+function computeSpans(paths) {
+  const N = paths.length, L = 4;
+  const spans = Array.from({length: N}, () => Array(L).fill(1));
+  for (let row = 1; row < N; row++) {
+    for (let col = 0; col < L; col++) {
+      const val = paths[row][col];
+      if (!val) continue;
+      const sameVal    = val === paths[row-1][col];
+      const leftMerged = (col === 0) || (spans[row][col-1] === 0);
+      if (sameVal && leftMerged) {
+        spans[row][col] = 0;
+        for (let r = row - 1; r >= 0; r--) { if (spans[r][col] > 0) { spans[r][col]++; break; } }
+      }
+    }
+  }
+  return spans;
+}
+
+// ── Gap: children should sum to 100 % of their parent ─────────────────────────
+function updateGaps(fid) {
+  ELEMENTS.forEach(e => {
+    if (!PARENT_CHILDREN[e]) return;
+    const gapEl = document.getElementById(`bgap_${safeId(fid)}_${e}`);
+    if (!gapEl) return;
+    const childSum = (PARENT_CHILDREN[e] || []).reduce((s, c) => s + getPct(fid, c), 0);
+    const gap  = 100 - childSum;
+    const ok   = Math.abs(gap) < 0.01;
+    const col  = gap < -0.01 ? 'var(--danger)' : ok ? 'var(--primary)' : '#e07b20';
+    const sign = gap > 0.005 ? '+' : '';
+    gapEl.innerHTML =
+      `<div style="font-size:0.78rem;color:${col};margin-top:4px;white-space:nowrap">` +
+      `${ok ? '✓' : '✗'}&thinsp;gap: ${sign}${gap.toFixed(2)}&thinsp;%</div>`;
   });
 }
+
+// ── Build the composition matrix HTML for one flow (values are parent-rel %) ──
+function buildMatrix(flow) {
+  const fid = flow.id, safe = safeId(fid);
+  const stored = BOM_COMPS[fid] || {};
+
+  const thSt   = 'padding:6px 12px;border:1px solid var(--border);background:var(--bg);' +
+                 'text-align:left;font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em';
+  const tdSt   = 'padding:10px 12px;border:1px solid var(--border);vertical-align:top;min-width:140px';
+  const tdDash = 'padding:10px 12px;border:1px solid var(--border);vertical-align:middle;' +
+                 'text-align:center;color:var(--muted);min-width:100px';
+
+  function inputCell(elem, isRoot, isParent) {
+    const val = isRoot ? '100.00' : (stored[elem] !== undefined ? stored[elem] : 0).toFixed(2);
+    const lblCol  = isParent ? 'var(--muted)' : 'var(--text)';
+    const roAttr  = isRoot ? 'readonly tabindex="-1"' : '';
+    const roStyle = isRoot ? 'background:var(--bg);color:var(--muted);border-style:dashed;cursor:default;' : '';
+    // Root (material) is the total mass — display only, NOT submitted as a BOM fraction.
+    const nameAttr = isRoot ? '' : `name="bom_${fid}_${elem}"`;
+    let h = `<div style="font-size:0.8rem;font-weight:600;color:${lblCol};margin-bottom:5px">${elem}</div>`;
+    h += `<input type="number" id="bi_${safe}_${elem}" ${nameAttr} class="bom-pct"` +
+         ` value="${val}" step="0.01" min="0" max="100" style="width:88px;${roStyle}" ${roAttr}` +
+         ` oninput="updateGaps('${fid}')"> <span style="font-size:0.85rem;color:var(--muted)">%</span>`;
+    if (isParent) h += `<div id="bgap_${safe}_${elem}"></div>`;
+    return h;
+  }
+
+  if (!SORTED_PATHS.length) {
+    // No hierarchy: flat element list
+    let html = `<table style="border-collapse:collapse"><thead><tr>` +
+      `<th style="${thSt}">Element</th><th style="${thSt}">% of material</th></tr></thead><tbody>`;
+    ELEMENTS.forEach(e => {
+      const isRoot = (e === ROOT_ELEM);
+      html += `<tr><td style="${tdSt}">${e}</td><td style="${tdSt}">${inputCell(e, isRoot, false)}</td></tr>`;
+    });
+    return html + '</tbody></table>';
+  }
+
+  const spans = computeSpans(SORTED_PATHS), N = SORTED_PATHS.length;
+  let html = `<table style="border-collapse:collapse"><thead><tr>`;
+  LEVEL_NAMES.forEach(n => { html += `<th style="${thSt}">${n}</th>`; });
+  html += '</tr></thead><tbody>';
+  for (let row = 0; row < N; row++) {
+    html += '<tr>';
+    for (let col = 0; col < 4; col++) {
+      if (spans[row][col] === 0) continue;
+      const elem = SORTED_PATHS[row][col], rs = spans[row][col];
+      if (!elem) { html += `<td rowspan="${rs}" style="${tdDash}">—</td>`; continue; }
+      const isParent = Object.prototype.hasOwnProperty.call(PARENT_CHILDREN, elem);
+      const isRoot   = (elem === ROOT_ELEM);
+      html += `<td rowspan="${rs}" style="${tdSt}">${inputCell(elem, isRoot, isParent)}</td>`;
+    }
+    html += '</tr>';
+  }
+  // Elements not in any hierarchy path
+  const covered = new Set(SORTED_PATHS.flat().filter(Boolean));
+  const uncovered = ELEMENTS.filter(e => !covered.has(e));
+  if (uncovered.length) {
+    html += `<tr><td colspan="4" style="${tdSt};color:var(--muted);font-size:0.8rem;font-style:italic">` +
+            `Other elements (not in hierarchy)</td></tr>`;
+    uncovered.forEach(e => {
+      html += `<tr><td colspan="3" style="${tdSt};color:var(--muted)">${e}</td>` +
+              `<td style="${tdSt}">${inputCell(e, e === ROOT_ELEM, false)}</td></tr>`;
+    });
+  }
+  return html + '</tbody></table>';
+}
+
+// ── Show the matrix only for target_Product flows ─────────────────────────────
+function currentType(fid) {
+  const sel = document.querySelector(`select[name="bom_${fid}_type"]`);
+  return sel ? sel.value : '';
+}
+function toggleMatrix(fid) {
+  const cont = document.getElementById(`bommatrix_${safeId(fid)}`);
+  if (!cont) return;
+  if (currentType(fid) === 'target_Product') {
+    cont.style.display = '';
+    updateGaps(fid);
+  } else {
+    cont.style.display = 'none';
+  }
+}
+
+// ── Submit: write parent-relative fraction (%/100) into the named inputs ──────
+// Non-target flows contribute no fractions.
+document.getElementById('bom-form').addEventListener('submit', function () {
+  FLOW_LIST.forEach(flow => {
+    const safe = safeId(flow.id), isTarget = currentType(flow.id) === 'target_Product';
+    ELEMENTS.forEach(e => {
+      const inp = document.getElementById(`bi_${safe}_${e}`);
+      if (!inp || !inp.name) return;   // skip root (no name) / missing
+      inp.value = isTarget ? ((parseFloat(inp.value) || 0) / 100).toFixed(6) : '';
+    });
+  });
+});
+
+// ── Render & init ─────────────────────────────────────────────────────────────
+FLOW_LIST.forEach(flow => {
+  const cont = document.getElementById(`bommatrix_${safeId(flow.id)}`);
+  if (cont) cont.innerHTML = buildMatrix(flow);
+  toggleMatrix(flow.id);
+});
 </script>
 {% endblock %}

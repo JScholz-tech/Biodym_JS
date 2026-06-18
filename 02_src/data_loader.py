@@ -2529,11 +2529,48 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
         )
     )
 
+    # ── 3_3_Definition_BOM_Assembly ────────────────────────────────────────────
+    # One row per output flow per BOM_Assembler process. target_Product flows
+    # carry the parent-relative element fractions as inline E{n}_TC_Value[%]
+    # values (the engine reads these and cascades them to absolute via the
+    # element hierarchy). Material (n=1) is the total mass, never a BOM fraction.
+    proc_tc_cfg = {
+        p.get("id"): (p.get("tc_config") if p.get("tc_config") in ("Static", "Dynamic") else "No TC")
+        for p in processes
+    }
+    bom_rows = []
+    for entry in data.get("bom_assembly", []):
+        pid = entry.get("process_id")
+        tc_cfg = proc_tc_cfg.get(pid, "No TC")
+        for bf in entry.get("flows", []):
+            fid = bf.get("flow_id", "")
+            if not fid:
+                continue
+            ftype = bf.get("output_flow_type", "")
+            row = {
+                "Process_ID":       pid,
+                "Flow_ID":          fid,
+                "Output_flow_type": ftype,
+                "TC_Configuration": tc_cfg,
+            }
+            if ftype == "target_Product":
+                fracs = bf.get("fractions", {})
+                for idx, elem in enumerate(elements):
+                    if elem == "material":
+                        continue
+                    row[f"E{idx + 1}_TC_Value[%]"] = fracs.get(elem)
+            bom_rows.append(row)
+    result["3_3_Definition_BOM_Assembly"] = (
+        pd.DataFrame(bom_rows) if bom_rows else
+        pd.DataFrame(columns=["Process_ID", "Flow_ID", "Output_flow_type", "TC_Configuration"])
+    )
+
     n_static = len(static_rows)
     n_dyn    = len(dyn_rows)
     print(
         f"   ✓ YAML→DataFrames: {len(processes)} processes, {len(flows)} flows, "
-        f"{n_static} static-TC rows, {n_dyn} dynamic-TC rows, {len(mc_rows)} MC params"
+        f"{n_static} static-TC rows, {n_dyn} dynamic-TC rows, {len(mc_rows)} MC params, "
+        f"{len(bom_rows)} BOM rows"
     )
     return result
 
