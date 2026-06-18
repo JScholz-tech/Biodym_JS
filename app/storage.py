@@ -7,7 +7,7 @@ import yaml
 
 from app.models.config_schema import CaseStudyConfig
 
-CASE_STUDIES_DIR = Path("case_studies")
+CASE_STUDIES_DIR = Path("01_data/01_input/case_studies")
 _locks: dict[str, threading.Lock] = {}
 _locks_lock = threading.Lock()
 
