@@ -543,6 +543,29 @@ def _parse_flowcap(form) -> Optional[FlowCapParams]:
 # FLOWS
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _process_name(cfg, pid: int) -> str:
+    """Return a process's name (falls back to ``P{id}`` if unnamed/unknown)."""
+    p = next((p for p in cfg.processes if p.id == pid), None)
+    return p.name if p and p.name else f"P{pid}"
+
+
+def _next_flow_id(cfg, from_p: int, to_p: int) -> str:
+    """Auto-generate a flow ID as ``F_{from}_{to}`` (Excel convention, e.g. F_12_16).
+
+    Process IDs are zero-padded to at least two digits. If a flow with that ID
+    already exists (e.g. a second flow between the same two processes), a numeric
+    suffix is appended: ``F_12_16``, ``F_12_16_2``, ``F_12_16_3``, …
+    """
+    base = f"F_{from_p:02d}_{to_p:02d}"
+    existing = {str(f.id) for f in cfg.flows}
+    if base not in existing:
+        return base
+    i = 2
+    while f"{base}_{i}" in existing:
+        i += 1
+    return f"{base}_{i}"
+
+
 @app.get("/{name}/flows")
 async def flows_list(request: Request, name: str):
     cfg = storage.load_case_study(name)
@@ -554,12 +577,27 @@ async def flow_new(request: Request, name: str):
     form = await request.form()
     cfg = storage.load_case_study(name)
 
-    flow_id = _g(form, "id") or f"F_{len(cfg.flows) + 1:02d}"
+    from_p = int(form.get("from_process", 0))
+    to_p = int(form.get("to_process", 0))
+
+    # Manual ID overrides; blank → auto-generate F_{from}_{to}.
+    requested = _g(form, "id")
+    if requested and any(str(f.id) == requested for f in cfg.flows):
+        return templates.TemplateResponse(
+            request, "flows.html",
+            _ctx(cfg=cfg, flow_error=f"Flow ID '{requested}' already exists."),
+            status_code=400,
+        )
+    flow_id = requested or _next_flow_id(cfg, from_p, to_p)
+
+    # Blank name → "{from process}_{to process}".
+    flow_name = _g(form, "name") or f"{_process_name(cfg, from_p)}_{_process_name(cfg, to_p)}"
+
     flow = Flow(
         id=flow_id,
-        name=form.get("name", flow_id),
-        from_process=int(form.get("from_process", 0)),
-        to_process=int(form.get("to_process", 0)),
+        name=flow_name,
+        from_process=from_p,
+        to_process=to_p,
     )
     cfg.flows.append(flow)
     storage.save_case_study(cfg)
