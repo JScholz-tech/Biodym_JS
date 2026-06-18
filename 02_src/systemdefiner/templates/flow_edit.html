@@ -10,6 +10,10 @@
 {% block content %}
 <h1>Edit Flow — {{ flow.id }}</h1>
 
+{% if flow_error %}
+<div class="alert alert-err">{{ flow_error }}</div>
+{% endif %}
+
 <div class="card">
   <form method="post" action="/{{ cfg.name }}/flows/{{ flow.id }}/edit">
     <div class="form-grid">
@@ -19,8 +23,9 @@
       </div>
       <div class="field">
         <label>Flow ID</label>
-        <input type="text" value="{{ flow.id }}" disabled class="muted">
-        <div class="muted" style="margin-top:0.3rem">ID cannot be changed after creation.</div>
+        <input type="text" name="id" value="{{ flow.id }}" pattern="[A-Za-z0-9_\-]+" required
+               title="Letters, numbers, underscores, dashes only">
+        <div class="muted" style="margin-top:0.3rem">Changing the ID updates all references (TCs, flow data, compositions, BOM, process outflows).</div>
       </div>
       <div class="field">
         <label>From Process</label>

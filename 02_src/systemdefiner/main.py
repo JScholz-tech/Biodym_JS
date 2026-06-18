@@ -566,6 +566,53 @@ def _next_flow_id(cfg, from_p: int, to_p: int) -> str:
     return f"{base}_{i}"
 
 
+def _rename_flow_id(cfg, old_id: str, new_id: str) -> None:
+    """Propagate a flow-ID rename to every place that references a flow ID.
+
+    Keeps transfer coefficients, flow data, compositions, BOM flows, and the
+    process outflow pointers (FOMP / LFG / FlowCap) consistent, plus any
+    scenario / MC parameters keyed exactly by the old flow ID.
+    """
+    for tc in cfg.transfer_coefficients:
+        if tc.flow_id == old_id:
+            tc.flow_id = new_id
+    for fc in cfg.flow_compositions:
+        if fc.flow_id == old_id:
+            fc.flow_id = new_id
+    for fd in cfg.flow_data:
+        if fd.flow_id == old_id:
+            fd.flow_id = new_id
+    for entry in cfg.bom_assembly:
+        for bf in entry.flows:
+            if bf.flow_id == old_id:
+                bf.flow_id = new_id
+    for p in cfg.processes:
+        if p.fomp:
+            if p.fomp.outflow_id == old_id:
+                p.fomp.outflow_id = new_id
+            if p.fomp.outflow_id_2 == old_id:
+                p.fomp.outflow_id_2 = new_id
+        if p.lfg:
+            if p.lfg.outflow_ch4_id == old_id:
+                p.lfg.outflow_ch4_id = new_id
+            if p.lfg.outflow_co2_id == old_id:
+                p.lfg.outflow_co2_id = new_id
+            if p.lfg.outflow_leachate_id == old_id:
+                p.lfg.outflow_leachate_id = new_id
+        if p.flowcap:
+            if p.flowcap.capped_flow_id == old_id:
+                p.flowcap.capped_flow_id = new_id
+            if p.flowcap.overflow_flow_id == old_id:
+                p.flowcap.overflow_flow_id = new_id
+    for sc in cfg.scenarios:
+        for mod in sc.modifications:
+            if mod.parameter_name == old_id:
+                mod.parameter_name = new_id
+    for mc in cfg.mc_parameters:
+        if mc.parameter_id == old_id:
+            mc.parameter_id = new_id
+
+
 @app.get("/{name}/flows")
 async def flows_list(request: Request, name: str):
     cfg = storage.load_case_study(name)
@@ -620,6 +667,25 @@ async def flow_edit_save(request: Request, name: str, fid: str):
     flow = next((f for f in cfg.flows if f.id == fid), None)
     if not flow:
         raise HTTPException(404)
+
+    # Flow ID is editable; a change cascades to all references.
+    new_id = _g(form, "id") or fid
+    if new_id != fid:
+        if not re.fullmatch(r"[A-Za-z0-9_\-]+", new_id):
+            return templates.TemplateResponse(
+                request, "flow_edit.html",
+                _ctx(cfg=cfg, flow=flow,
+                     flow_error="Invalid Flow ID — letters, numbers, underscores and dashes only."),
+                status_code=400,
+            )
+        if any(str(f.id) == new_id for f in cfg.flows if f is not flow):
+            return templates.TemplateResponse(
+                request, "flow_edit.html",
+                _ctx(cfg=cfg, flow=flow, flow_error=f"Flow ID '{new_id}' already exists."),
+                status_code=400,
+            )
+        _rename_flow_id(cfg, fid, new_id)
+        flow.id = new_id
 
     flow.name = form.get("name", flow.name)
     flow.from_process = int(form.get("from_process", flow.from_process))
