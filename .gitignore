@@ -111,6 +111,13 @@ skills-lock.json
 *.egg-info/
 
 # -----------------------------------------------------------------------------
+# tools/ — WIP / experimental utilities (not part of the shipped package)
+# -----------------------------------------------------------------------------
+# Marimo dashboards and BUF/CUF explorers — kept locally, not tracked.
+# NOTE: yaml_schema.py moved to 02_src/systemdefiner/ (SystemDefiner dependency).
+tools/
+
+# -----------------------------------------------------------------------------
 # 01_data - Input Files (only template is tracked)
 # -----------------------------------------------------------------------------
 # Exclude everything in input folder except the template subfolder

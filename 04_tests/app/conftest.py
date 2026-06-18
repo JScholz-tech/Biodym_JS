@@ -10,13 +10,10 @@ import pandas as pd
 import pytest
 from starlette.testclient import TestClient
 
-# Ensure tools/ is importable (yaml_schema)
+# Project root on path for top-level helpers
 _ROOT = Path(__file__).parent.parent.parent
-# Project root must be on path for `app` and `tools` packages
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
-if str(_ROOT / "tools") not in sys.path:
-    sys.path.insert(0, str(_ROOT / "tools"))
 
 
 # ── Isolation: redirect storage to a tmp directory ───────────────────────────

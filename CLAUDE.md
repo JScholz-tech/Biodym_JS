@@ -4,11 +4,12 @@
 - **Run anything**: always prefix with `uv run` (e.g. `uv run python`, `uv run jupyter`)
 - **Sync notebook**: `uv run jupytext --to notebook <file>.py`
 - **Launch dashboard (Voilà — primary)**: `uv run voila 01_BioDYM_Dashboard.ipynb`
-- **Launch dashboard (Marimo — WIP)**: `uv run marimo run tools/marimo_dashboard.py`
-- **Edit Marimo dashboard**: `uv run marimo edit tools/marimo_dashboard.py`
-- **Execute notebook**: `uv run jupyter nbconvert --to notebook --execute <file>.ipynb`
-- **Run explorer tools**: `uv run marimo run tools/buf_explorer.py` (or `cuf_explorer.py`)
 - **Launch bioDYM SystemDefiner**: `uv run python -m systemdefiner` → opens at http://localhost:8001
+- **Execute notebook**: `uv run jupyter nbconvert --to notebook --execute <file>.ipynb`
+- **Launch dashboard (Marimo — WIP, local-only)**: `uv run marimo run tools/marimo_dashboard.py`
+- **Edit Marimo dashboard**: `uv run marimo edit tools/marimo_dashboard.py`
+- **Run explorer tools (local-only)**: `uv run marimo run tools/buf_explorer.py` (or `cuf_explorer.py`)
+- **NOTE**: `tools/` is gitignored (WIP/experimental, not part of the shipped package). The files exist locally but are not tracked — do NOT rely on them in `02_src/` code.
 
 ## Notebook workflow (Jupytext)
 - The `.py` file is the **source of truth** — always edit `.py`, never `.ipynb` directly
@@ -21,14 +22,14 @@
 ## Project structure
 ```
 01_BioDYM_Dashboard.ipynb — Voilà dashboard (primary); launch with `uv run voila 01_BioDYM_Dashboard.ipynb`
-tools/
-  marimo_dashboard.py  — Marimo dashboard (WIP); launch with `uv run marimo run tools/marimo_dashboard.py`
-  buf_explorer.py      — Marimo: BUF (Biomass Utilisation Factor) interactive calculator
-  cuf_explorer.py      — Marimo: CUF (Carbon Utilisation Factor) interactive calculator
+tools/                   — WIP/experimental, gitignored (local-only): marimo_dashboard.py, buf_explorer.py, cuf_explorer.py
 02_src/
   config.py            — load_configuration() + extract_workflow_dimensions()
-  data_loader.py       — load_*_parameters() functions
+  data_loader.py       — load_*_parameters() functions + yaml_to_excel_dataframes() (YAML-only mode)
   system_setup.py      — define_model_scope / initialize_mfa_system / load_and_define_processes / define_flows_and_parameters
+  systemdefiner/       — bioDYM SystemDefiner FastAPI web app (`uv run python -m systemdefiner`, port 8001)
+    main.py            — routes; storage.py — case-study persistence (01_data/01_input/case_studies/)
+    yaml_schema.py     — model_to_yaml() etc. — YAML config schema (SystemDefiner dependency; moved from tools/)
   analysis/
     cuf.py             — CUF (Carbon Utilization Factor) post-processing
   engine/

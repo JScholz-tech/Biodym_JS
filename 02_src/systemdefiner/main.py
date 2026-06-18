@@ -198,10 +198,7 @@ async def create_from_excel(request: Request, name: str = Form(...), file: Uploa
 
     import pandas as pd
 
-    tools_path = Path(__file__).parent.parent / "tools"
-    if str(tools_path) not in sys.path:
-        sys.path.insert(0, str(tools_path))
-    from yaml_schema import model_to_yaml
+    from systemdefiner.yaml_schema import model_to_yaml
 
     slug = _slug(name)
     if not slug:
@@ -1180,10 +1177,7 @@ async def import_excel(request: Request, name: str, file: UploadFile):
         return RedirectResponse(f"/{name}", status_code=303)
 
     # ── Excel import ──────────────────────────────────────────────────────────
-    tools_path = Path(__file__).parent.parent / "tools"
-    if str(tools_path) not in sys.path:
-        sys.path.insert(0, str(tools_path))
-    from yaml_schema import model_to_yaml
+    from systemdefiner.yaml_schema import model_to_yaml
 
     tmp_path: Optional[str] = None
     try:

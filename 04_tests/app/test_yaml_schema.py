@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Unit tests for tools/yaml_schema.py :: model_to_yaml()."""
+"""Unit tests for 02_src/systemdefiner/yaml_schema.py :: model_to_yaml()."""
 from __future__ import annotations
 
 import math
@@ -7,7 +7,7 @@ import math
 import pandas as pd
 import pytest
 
-from yaml_schema import model_to_yaml
+from systemdefiner.yaml_schema import model_to_yaml
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
