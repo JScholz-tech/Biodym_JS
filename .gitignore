@@ -99,6 +99,18 @@ Writing project/
 case_studies/
 
 # -----------------------------------------------------------------------------
+# Claude Code / tool session artifacts
+# -----------------------------------------------------------------------------
+.agents/
+__marimo__/
+*/__marimo__/
+server.log
+skills-lock.json
+
+# Python build artifacts
+*.egg-info/
+
+# -----------------------------------------------------------------------------
 # 01_data - Input Files (only template is tracked)
 # -----------------------------------------------------------------------------
 # Exclude everything in input folder except the template subfolder
