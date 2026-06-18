@@ -37,7 +37,7 @@ from app.models.config_schema import (
     TransferCoefficient,
 )
 
-app = FastAPI(title="BioDYM Config Editor")
+app = FastAPI(title="bioDYM SystemDefiner")
 
 _HERE = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=_HERE / "static"), name="static")

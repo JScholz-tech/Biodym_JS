@@ -79,15 +79,25 @@
 #
 # **Welcome to BioDYM!** This notebook performs a complete Material Flow Analysis from data loading to results export.
 #
+# ### bioDYM SystemDefiner
+#
+# Use the **bioDYM SystemDefiner** web app to create and configure your case study before running this notebook:
+#
+# ```bash
+# uv run python -m app
+# ```
+#
+# Opens at **http://localhost:8001** — define your system, then export a `config.yaml` and set `input_file` below to that path.
+#
 # ### Getting Started
 #
-# 1. **Required Input**: Only the **Excel file path** needs to be set (see Section 1.2 below)
+# 1. **Required Input**: Set the **Excel or YAML file path** in Section 1.2 below
 # 2. **Full Documentation**: See [README.md](README.md) for detailed setup instructions
 # 3. **Example Data**: Template files are provided in `01_data/01_input/`
 #
 # ### Prerequisites
 # - Python 3.12+ with dependencies installed (`uv sync`)
-# - Excel input file following the BioDYM template structure
+# - Excel input file following the BioDYM template, or a YAML config exported from bioDYM SystemDefiner
 #
 # ### Support
 # - **Documentation**: `05_docs/` folder
