@@ -253,7 +253,7 @@ class TestCreateFromExcel:
                     data={"name": "CS2"},
                     files={"file": ("test.xlsx", minimal_excel, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
                     follow_redirects=True)
-        from app import storage
+        from systemdefiner import storage
         cfg = storage.load_case_study("CS2")
         assert len(cfg.processes) > 0
 
@@ -333,7 +333,7 @@ class TestImport:
         client.post(f"/{n}/import",
                     files={"file": ("test.xlsx", excel_with_nan_rows, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
                     follow_redirects=True)
-        from app import storage
+        from systemdefiner import storage
         cfg = storage.load_case_study(n)
         for p in cfg.processes:
             assert p.name and p.name.lower() != "nan"
@@ -343,7 +343,7 @@ class TestImport:
         client.post(f"/{n}/import",
                     files={"file": ("test.xlsx", excel_with_nan_rows, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
                     follow_redirects=True)
-        from app import storage
+        from systemdefiner import storage
         cfg = storage.load_case_study(n)
         # No duplicate F_13_13 placeholder flows
         flow_ids = [f.id for f in cfg.flows]

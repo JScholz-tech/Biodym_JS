@@ -239,7 +239,7 @@ class TestFullWorkflow:
         data = _export_yaml(client)
 
         # ── Validate YAML schema round-trip ───────────────────────────────────
-        from app.models.config_schema import CaseStudyConfig
+        from systemdefiner.models.config_schema import CaseStudyConfig
         cfg = CaseStudyConfig.model_validate(data)
 
         # ── §1 Model settings ─────────────────────────────────────────────────

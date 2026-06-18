@@ -34,8 +34,14 @@ dependencies = [
     "xlwt>=1.3.0",
 ]
 
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["02_src"]
+
 [tool.pytest.ini_options]
 norecursedirs = ["Archive", ".*", "*/Archive", "03_studies"]
 testpaths = ["04_tests"]
 
- 

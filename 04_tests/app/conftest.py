@@ -32,7 +32,7 @@ def isolated_case_studies(tmp_path, monkeypatch):
 @pytest.fixture
 def client():
     """Synchronous TestClient for the FastAPI app."""
-    from app.main import app
+    from systemdefiner.main import app
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c
 
@@ -40,7 +40,7 @@ def client():
 @pytest.fixture
 def client_raises():
     """TestClient that re-raises server exceptions (for checking 500s explicitly)."""
-    from app.main import app
+    from systemdefiner.main import app
     with TestClient(app, raise_server_exceptions=True) as c:
         yield c
 

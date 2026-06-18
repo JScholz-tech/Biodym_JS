@@ -9,8 +9,8 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app import storage
-from app.models.config_schema import (
+from systemdefiner import storage
+from systemdefiner.models.config_schema import (
     BomAssemblyEntry,
     DsmCategory,
     BomAssemblyFlow,
@@ -1139,7 +1139,7 @@ async def references_delete(request: Request, name: str):
 @app.get("/{name}/export")
 async def export_yaml(name: str):
     cfg = storage.load_case_study(name)
-    from app.storage import _config_path
+    from systemdefiner.storage import _config_path
     path = _config_path(name)
     return FileResponse(path, media_type="application/x-yaml", filename=f"{name}_config.yaml")
 

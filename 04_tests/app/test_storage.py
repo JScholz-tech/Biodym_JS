@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.models.config_schema import (
+from systemdefiner.models.config_schema import (
     CaseStudyConfig,
     Flow,
     ModelSettings,
@@ -13,7 +13,7 @@ from app.models.config_schema import (
     StockConfig,
     TransferCoefficient,
 )
-from app import storage
+from systemdefiner import storage
 
 
 def _make_cfg(name: str = "test", **model_kwargs) -> CaseStudyConfig:

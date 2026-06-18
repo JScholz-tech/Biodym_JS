@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.models.config_schema import (
+from systemdefiner.models.config_schema import (
     CaseStudyConfig,
     DsmParams,
     Flow,
