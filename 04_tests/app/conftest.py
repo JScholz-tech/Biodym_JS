@@ -24,7 +24,7 @@ if str(_ROOT / "tools") not in sys.path:
 @pytest.fixture(autouse=True)
 def isolated_case_studies(tmp_path, monkeypatch):
     """Patch storage.CASE_STUDIES_DIR so every test uses a fresh temp dir."""
-    import app.storage as storage_mod
+    import systemdefiner.storage as storage_mod
     monkeypatch.setattr(storage_mod, "CASE_STUDIES_DIR", tmp_path / "case_studies")
     return tmp_path / "case_studies"
 
