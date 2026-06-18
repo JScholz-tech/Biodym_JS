@@ -25,7 +25,8 @@ def build_parameter_overview_df(mc_params_df):
         Formatted overview with columns: Parameter, Category, Distribution,
         Min, Max, Mean, StdDev, Mode.
     """
-    df = mc_params_df.dropna(subset=["Parameter_Name"]).copy()
+    id_col = "MC_Parameter_ID" if "MC_Parameter_ID" in mc_params_df.columns else "Parameter_Name"
+    df = mc_params_df.dropna(subset=[id_col]).copy()
 
     def classify(name):
         if name.startswith("TC_"):
@@ -38,9 +39,9 @@ def build_parameter_overview_df(mc_params_df):
             return "FOMP Parameter"
         return "Other"
 
-    df["Category"] = df["Parameter_Name"].apply(classify)
+    df["Category"] = df[id_col].apply(classify)
     df = df.rename(
-        columns={"Parameter_Name": "Parameter", "Distribution_Type": "Distribution"}
+        columns={id_col: "Parameter", "Distribution_Type": "Distribution"}
     )
     df["Distribution"] = df["Distribution"].str.capitalize()
 

@@ -2502,11 +2502,38 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
     result["3_2_Definition_FOMP"] = pd.DataFrame(columns=["Process_ID"])
     result["3_1_DSM_Parameters"]  = pd.DataFrame()
 
+    # ── 4_1_Uncertainty_Parameters ────────────────────────────────────────────
+    mc_params_yaml = data.get("mc_parameters", [])
+    mc_rows = []
+    for p in mc_params_yaml:
+        enabled = p.get("enabled", True)
+        mc_rows.append({
+            "MC_Parameter_ID":        p.get("parameter_id", ""),
+            "MC_Parameter_Selection": "✓" if enabled else None,
+            "Distribution_Type":      p.get("distribution", "normal"),
+            "Mean":                   p.get("mean"),
+            "StdDev":                 p.get("std"),
+            "Min":                    p.get("min"),
+            "Max":                    p.get("max"),
+            "Mode":                   p.get("mode"),
+            "MC_Operation":           p.get("operation", "set"),
+            "MC_Start_Year":          p.get("start_year"),
+            "MC_End_Year":            p.get("end_year"),
+            "MC_Flow_Group":          p.get("flow_group"),
+        })
+    result["4_1_Uncertainty_Parameters"] = (
+        pd.DataFrame(mc_rows) if mc_rows else pd.DataFrame(
+            columns=["MC_Parameter_ID", "MC_Parameter_Selection", "Distribution_Type",
+                     "Mean", "StdDev", "Min", "Max", "Mode",
+                     "MC_Operation", "MC_Start_Year", "MC_End_Year", "MC_Flow_Group"]
+        )
+    )
+
     n_static = len(static_rows)
     n_dyn    = len(dyn_rows)
     print(
         f"   ✓ YAML→DataFrames: {len(processes)} processes, {len(flows)} flows, "
-        f"{n_static} static-TC rows, {n_dyn} dynamic-TC rows"
+        f"{n_static} static-TC rows, {n_dyn} dynamic-TC rows, {len(mc_rows)} MC params"
     )
     return result
 

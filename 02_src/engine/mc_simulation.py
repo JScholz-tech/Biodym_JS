@@ -37,6 +37,9 @@ def validate_mc_parameters(mc_params_df, mfa_system, uncertainty_params=None):
     """
     warnings = []
     validated_params = mc_params_df.copy()
+    # Normalise column name: new sheets use MC_Parameter_ID, legacy uses Parameter_Name
+    if "MC_Parameter_ID" in validated_params.columns and "Parameter_Name" not in validated_params.columns:
+        validated_params = validated_params.rename(columns={"MC_Parameter_ID": "Parameter_Name"})
 
     # Check for dynamic TC conflicts
     dynamic_tc_processes = set()
