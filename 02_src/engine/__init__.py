@@ -9,5 +9,7 @@ from . import solver
 from . import mc_simulation
 from . import scenario_engine
 from . import initial_stock_engine
+from . import bom_assembler
+from . import flow_cap
 
-__all__ = ["solver", "mc_simulation", "scenario_engine", "initial_stock_engine"]
+__all__ = ["solver", "mc_simulation", "scenario_engine", "initial_stock_engine", "bom_assembler", "flow_cap"]

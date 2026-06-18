@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block title %}Flow Compositions — {{ cfg.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span>
+  <a href="/{{ cfg.name }}">{{ cfg.name }}</a> <span>/</span>
+  <strong>Flow Compositions</strong>
+{% endblock %}
+
+{% block content %}
+<h1>Flow Compositions</h1>
+
+{% if not rows %}
+<div class="alert alert-warn">
+  No input flows found. Flows from processes with logic type <code>Input</code> appear here.
+  Add processes and flows first.
+</div>
+{% else %}
+
+<div class="card" style="margin-bottom:1.25rem">
+  <p class="muted" style="margin:0">
+    Element fractions for each <strong>input flow</strong> as <strong>%</strong> of total flow mass.
+    The layout mirrors the hierarchy defined in
+    <a href="/{{ cfg.name }}/elements">Elements &amp; Hierarchy</a>.
+    {% if cfg.element_hierarchy %}
+    The <strong>gap</strong> shown below each parent cell is
+    <em>parent % − sum(children %)</em> — should be 0 % when consistent.
+    {% endif %}
+  </p>
+</div>
+
+<form method="post" action="/{{ cfg.name }}/compositions" id="comp-form">
+
+  {% for row in rows %}
+  {% set safe_fid = row.flow.id | replace('.','_') | replace('-','_') | replace('/','_') %}
+  <div class="card" style="margin-bottom:1.25rem">
+    <div style="display:flex;align-items:baseline;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap">
+      <h3 style="margin:0;font-size:1rem">
+        <strong>{{ row.flow.id }}</strong>
+        <span class="muted" style="font-weight:400"> — {{ row.flow.name }}</span>
+      </h3>
+      {% if cfg.references %}
+      <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.83rem;
+                    font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);margin-left:auto">
+        Source:
+        <select name="ref_{{ row.flow.id }}"
+                style="font-size:0.83rem;padding:2px 6px"
+                title="Link a reference to this flow composition">
+          <option value="">—</option>
+          {% for ref in cfg.references %}
+          <option value="{{ ref.cite_key }}"
+                  title="{{ ref.authors }}{% if ref.year %} ({{ ref.year }}){% endif %}{% if ref.title %} — {{ ref.title[:80] }}{% endif %}"
+                  {% if ref.cite_key == flow_refs.get(row.flow.id, '') %}selected{% endif %}>[{{ loop.index }}] {{ ref.authors }}{% if ref.year %} ({{ ref.year }}){% endif %}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endif %}
+    </div>
+    <div id="matrix_{{ safe_fid }}" style="overflow-x:auto"></div>
+  </div>
+  {% endfor %}
+
+  <div class="btn-row">
+    <button type="submit" class="btn btn-primary">Save Compositions</button>
+    <a href="/{{ cfg.name }}" class="btn btn-secondary">Cancel</a>
+  </div>
+</form>
+{% endif %}
+
+<script>
+const ELEMENTS    = {{ cfg.model.elements | tojson }};
+const HIERARCHY   = {{ hier_json | tojson }};
+const LEVEL_NAMES = {{ cfg.model.hierarchy_level_names | tojson }};
+const INIT_PATHS  = {{ paths_json | safe }};
+const FLOW_COMPS  = {{ flow_comps_json | safe }};  // absolute % (fraction × 100) from server
+const FLOW_LIST   = {{ flow_list_json | safe }};
+
+// ── Structure maps ────────────────────────────────────────────────────────────
+const PARENT_CHILDREN = {};
+HIERARCHY.forEach(r => { PARENT_CHILDREN[r.parent] = r.children; });
+
+const CHILD_PARENT = {};
+HIERARCHY.forEach(r => { r.children.forEach(c => { CHILD_PARENT[c] = r.parent; }); });
+
+// Root element (top of hierarchy = first in list)
+const ROOT_ELEM = HIERARCHY.length > 0 ? ELEMENTS[0] : null;
+
+// Topological order of parents (BFS from root, top-down)
+const TOP_DOWN_PARENTS = (function () {
+  if (!ROOT_ELEM) return [];
+  const order = [], queue = [ROOT_ELEM], visited = new Set();
+  while (queue.length) {
+    const curr = queue.shift();
+    if (visited.has(curr)) continue;
+    visited.add(curr);
+    if (PARENT_CHILDREN[curr]) { order.push(curr); PARENT_CHILDREN[curr].forEach(c => queue.push(c)); }
+  }
+  return order;
+})();
+
+// ── Span computation (identical to elements.html preview) ─────────────────────
+function computeSpans(paths) {
+  const N = paths.length, L = 4;
+  const spans = Array.from({length: N}, () => Array(L).fill(1));
+  for (let row = 1; row < N; row++) {
+    for (let col = 0; col < L; col++) {
+      const val = paths[row][col];
+      if (!val) continue;
+      const sameVal    = val === paths[row-1][col];
+      const leftMerged = (col === 0) || (spans[row][col-1] === 0);
+      if (sameVal && leftMerged) {
+        spans[row][col] = 0;
+        for (let r = row - 1; r >= 0; r--) { if (spans[r][col] > 0) { spans[r][col]++; break; } }
+      }
+    }
+  }
+  return spans;
+}
+
+const SORTED_PATHS = [...INIT_PATHS].sort((a, b) => {
+  for (let i = 0; i < 4; i++) { if (a[i] < b[i]) return -1; if (a[i] > b[i]) return 1; }
+  return 0;
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function safeId(fid) { return fid.replace(/[.\-\/]/g, '_'); }
+
+function getPct(fid, elem) {
+  const inp = document.getElementById(`ci_${safeId(fid)}_${elem}`);
+  return inp ? (parseFloat(inp.value) || 0) : 0;
+}
+
+// ── Convert stored absolute % → parent-relative % for display ────────────────
+// At each level children sum to 100 % of their parent, not 100 % of material.
+// Example: DM = 70 % (of material), TC = 25 % (of DM) — not 25 % of material.
+function toParentRel(fid) {
+  const abs = FLOW_COMPS[fid] || {};   // absolute % from server
+  const rel = {};
+
+  if (!ROOT_ELEM) {
+    // No hierarchy: display as-is
+    ELEMENTS.forEach(e => { rel[e] = abs[e] || 0; });
+    return rel;
+  }
+
+  rel[ROOT_ELEM] = 100; // root is always 100 % of itself
+
+  // Top-down: child_parent_rel = child_abs / parent_abs × 100
+  TOP_DOWN_PARENTS.forEach(parent => {
+    const parentAbs = (parent === ROOT_ELEM) ? 100 : (abs[parent] || 0);
+    (PARENT_CHILDREN[parent] || []).forEach(child => {
+      rel[child] = parentAbs > 1e-6 ? (abs[child] || 0) / parentAbs * 100 : 0;
+    });
+  });
+
+  // Elements outside the hierarchy keep their absolute value
+  ELEMENTS.forEach(e => { if (!(e in rel)) rel[e] = abs[e] || 0; });
+  return rel;
+}
+
+// ── Convert current parent-relative inputs → absolute fractions (0–1) for save
+function toAbsFractions(fid) {
+  const safe = safeId(fid);
+  const abs = {};
+
+  if (!ROOT_ELEM) {
+    ELEMENTS.forEach(e => {
+      const inp = document.getElementById(`ci_${safe}_${e}`);
+      abs[e] = inp ? (parseFloat(inp.value) || 0) / 100 : 0;
+    });
+    return abs;
+  }
+
+  // Read display values (parent-relative %)
+  const rel = {};
+  ELEMENTS.forEach(e => { rel[e] = getPct(fid, e); });
+
+  abs[ROOT_ELEM] = 1.0; // root = 100 % → fraction 1.0
+
+  // Top-down: child_abs = child_rel / 100 × parent_abs
+  TOP_DOWN_PARENTS.forEach(parent => {
+    const parentAbs = abs[parent] || 0;
+    (PARENT_CHILDREN[parent] || []).forEach(child => {
+      abs[child] = (rel[child] / 100) * parentAbs;
+    });
+  });
+
+  // Non-hierarchy elements: treat their % as absolute
+  ELEMENTS.forEach(e => { if (!(e in abs)) abs[e] = (rel[e] || 0) / 100; });
+  return abs;
+}
+
+// ── Gap: at each parent level, children should sum to exactly 100 % ───────────
+function updateGaps(fid) {
+  ELEMENTS.forEach(e => {
+    if (!PARENT_CHILDREN[e]) return;
+    const gapEl = document.getElementById(`gap_${safeId(fid)}_${e}`);
+    if (!gapEl) return;
+    const childSum = (PARENT_CHILDREN[e] || []).reduce((s, c) => s + getPct(fid, c), 0);
+    const gap  = 100 - childSum;   // how much is left to reach 100 % of this parent
+    const ok   = Math.abs(gap) < 0.01;
+    const col  = gap < -0.01 ? 'var(--danger)' : ok ? 'var(--primary)' : '#e07b20';
+    const sign = gap > 0.005 ? '+' : '';
+    gapEl.innerHTML =
+      `<div style="font-size:0.78rem;color:${col};margin-top:4px;white-space:nowrap">` +
+      `${ok ? '✓' : '✗'}&thinsp;gap: ${sign}${gap.toFixed(2)}&thinsp;%</div>`;
+  });
+}
+
+// ── Build the composition matrix HTML for one flow ────────────────────────────
+function buildFlowMatrix(flow) {
+  const fid  = flow.id, safe = safeId(fid);
+  const relV = toParentRel(fid);   // parent-relative % values for display
+
+  const thSt   = 'padding:6px 12px;border:1px solid var(--border);background:var(--bg);' +
+                 'text-align:left;font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em';
+  const tdSt   = 'padding:10px 12px;border:1px solid var(--border);vertical-align:top;min-width:140px';
+  const tdDash = 'padding:10px 12px;border:1px solid var(--border);vertical-align:middle;' +
+                 'text-align:center;color:var(--muted);min-width:100px';
+
+  const coveredElems = new Set(SORTED_PATHS.flat().filter(Boolean));
+
+  if (!SORTED_PATHS.length) {
+    // No hierarchy: flat 2-column table, values are absolute %
+    let html = `<table style="border-collapse:collapse"><thead><tr>` +
+      `<th style="${thSt}">Element</th><th style="${thSt}">Value</th></tr></thead><tbody>`;
+    ELEMENTS.forEach(e => {
+      html += `<tr><td style="${tdSt}">${e}</td><td style="${tdSt}">` +
+        `<input type="number" id="ci_${safe}_${e}" name="comp_${fid}_${e}" class="comp-pct"` +
+        ` value="${(relV[e] || 0).toFixed(2)}" step="0.01" min="0" max="100" style="width:88px"` +
+        ` oninput="updateGaps('${fid}')"> %</td></tr>`;
+    });
+    return html + '</tbody></table>';
+  }
+
+  const spans = computeSpans(SORTED_PATHS);
+  const N = SORTED_PATHS.length;
+
+  let html = `<table style="border-collapse:collapse"><thead><tr>`;
+  LEVEL_NAMES.forEach(n => { html += `<th style="${thSt}">${n}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  for (let row = 0; row < N; row++) {
+    html += '<tr>';
+    for (let col = 0; col < 4; col++) {
+      if (spans[row][col] === 0) continue;
+      const elem = SORTED_PATHS[row][col], rs = spans[row][col];
+
+      if (!elem) { html += `<td rowspan="${rs}" style="${tdDash}">—</td>`; continue; }
+
+      const isParent = Object.prototype.hasOwnProperty.call(PARENT_CHILDREN, elem);
+      const isRoot   = (elem === ROOT_ELEM);
+      const val      = (relV[elem] !== undefined ? relV[elem] : 0).toFixed(2);
+
+      // Root cell: always 100 %, read-only
+      const roAttr  = isRoot ? 'readonly tabindex="-1"' : '';
+      const roStyle = isRoot ? 'background:var(--bg);color:var(--muted);border-style:dashed;cursor:default;' : '';
+      // Parent (non-root): label in muted colour, still editable
+      const lblCol  = isParent ? 'var(--muted)' : 'var(--text)';
+
+      html += `<td rowspan="${rs}" style="${tdSt}">`;
+      html += `<div style="font-size:0.8rem;font-weight:600;color:${lblCol};margin-bottom:5px">${elem}</div>`;
+      html += `<input type="number" id="ci_${safe}_${elem}" name="comp_${fid}_${elem}"` +
+              ` class="comp-pct" data-flow="${fid}" data-elem="${elem}"` +
+              ` value="${val}" step="0.01" min="0" max="100"` +
+              ` style="width:88px;${roStyle}" ${roAttr}` +
+              ` oninput="updateGaps('${fid}')">` +
+              ` <span style="font-size:0.85rem;color:var(--muted)">%</span>`;
+      if (isParent) html += `<div id="gap_${safe}_${elem}"></div>`;
+      html += '</td>';
+    }
+    html += '</tr>';
+  }
+
+  // Fallback rows for elements not in any hierarchy path
+  const uncovered = ELEMENTS.filter(e => !coveredElems.has(e));
+  if (uncovered.length) {
+    html += `<tr><td colspan="4" style="${tdSt};color:var(--muted);font-size:0.8rem;font-style:italic">` +
+            `Other elements (not in hierarchy)</td></tr>`;
+    uncovered.forEach(e => {
+      html += `<tr><td colspan="3" style="${tdSt};color:var(--muted)">${e}</td><td style="${tdSt}">` +
+              `<input type="number" id="ci_${safe}_${e}" name="comp_${fid}_${e}"` +
+              ` class="comp-pct" data-flow="${fid}" data-elem="${e}"` +
+              ` value="${(relV[e] || 0).toFixed(2)}" step="0.01" min="0" max="100" style="width:88px"` +
+              ` oninput="updateGaps('${fid}')"> %</td></tr>`;
+    });
+  }
+  return html + '</tbody></table>';
+}
+
+// ── Submit: convert parent-relative display values → absolute fractions (0–1) ─
+document.getElementById('comp-form').addEventListener('submit', function () {
+  FLOW_LIST.forEach(flow => {
+    const abs  = toAbsFractions(flow.id);
+    const safe = safeId(flow.id);
+    ELEMENTS.forEach(e => {
+      const inp = document.getElementById(`ci_${safe}_${e}`);
+      if (inp) inp.value = (abs[e] || 0).toFixed(6);
+    });
+  });
+});
+
+// ── Render and init ────────────────────────────────────────────────────────────
+FLOW_LIST.forEach(flow => {
+  const cont = document.getElementById(`matrix_${safeId(flow.id)}`);
+  if (cont) cont.innerHTML = buildFlowMatrix(flow);
+  updateGaps(flow.id);
+});
+</script>
+{% endblock %}

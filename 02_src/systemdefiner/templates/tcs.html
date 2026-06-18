@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Transfer Coefficients — {{ cfg.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span>
+  <a href="/{{ cfg.name }}">{{ cfg.name }}</a> <span>/</span>
+  <strong>Transfer Coefficients</strong>
+{% endblock %}
+
+{% block content %}
+<h1>Transfer Coefficients</h1>
+
+{% if not tc_processes %}
+<div class="alert alert-warn">
+  No processes with outgoing flows found. Add processes and flows first, then define TCs here.
+</div>
+{% else %}
+<p class="muted" style="margin-bottom:1.25rem">
+  Select a process to edit its transfer coefficients. Each element's fractions across all outgoing flows must sum to 1.0.
+</p>
+<div class="card" style="padding:0">
+  <table>
+    <thead>
+      <tr>
+        <th>Process</th>
+        <th>Logic</th>
+        <th>TC Type</th>
+        <th>TC Mode</th>
+        <th>Outgoing Flows</th>
+        <th>TC Rows Defined</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in tc_processes %}
+      {% set outgoing = cfg.flows | selectattr("from_process", "equalto", p.id) | list %}
+      {% set defined  = cfg.transfer_coefficients | selectattr("process_id", "equalto", p.id) | list %}
+      <tr>
+        <td><strong>P{{ p.id }} — {{ p.name }}</strong></td>
+        <td><span class="tag">{{ p.logic.value }}</span></td>
+        <td>
+          {% if p.tc_config.value == "Dynamic" %}
+          <span class="tag" style="background:var(--primary);color:#fff">Dynamic</span>
+          {% elif p.tc_config.value == "Static" %}
+          <span class="tag">Static</span>
+          {% else %}
+          <span class="muted">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if p.logic.value == "Splitter" or p.logic.value == "DSM" %}
+          <span class="tag" title="Engine uses material TC only; element composition is inherited from inflow">material only</span>
+          {% elif p.logic.value == "Transformer" %}
+          <span class="tag" style="background:var(--primary);color:#fff" title="Engine applies TC independently per element">per element</span>
+          {% else %}
+          <span class="muted">—</span>
+          {% endif %}
+        </td>
+        <td>{{ outgoing | length }}</td>
+        <td>
+          {% if defined | length == outgoing | length %}
+          <span style="color:var(--primary)">✓ {{ defined | length }}</span>
+          {% else %}
+          <span style="color:var(--danger)">{{ defined | length }} / {{ outgoing | length }}</span>
+          {% endif %}
+        </td>
+        <td><a href="/{{ cfg.name }}/tcs/{{ p.id }}" class="btn btn-secondary btn-sm">Edit TCs</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

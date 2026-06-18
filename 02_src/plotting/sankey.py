@@ -123,6 +123,8 @@ def _prepare_sankey_data(
     fomp_params,
     node_pad,
     node_thickness,
+    bom_params=None,
+    lfg_params=None,
 ):
     """Prepare node and link data for Plotly Sankey.
 
@@ -163,12 +165,17 @@ def _prepare_sankey_data(
     node_colors = []
     for p in filtered_processes:
         has_stocks = f"S_{p.ID}" in mfa_system_results.StockDict
-        is_dsm = dsm_params and p.ID in dsm_params
-        is_fomp = fomp_params and p.ID in fomp_params
+        is_special = (
+            (dsm_params and p.ID in dsm_params)
+            or (fomp_params and p.ID in fomp_params)
+            or (bom_params and p.ID in bom_params)
+            or (lfg_params and p.ID in lfg_params)
+        )
 
-        if is_dsm or is_fomp:
+        if is_special:
             process_type = detect_biodym_process_type(
-                p.ID, dsm_params=dsm_params, fomp_params=fomp_params
+                p.ID, dsm_params=dsm_params, fomp_params=fomp_params,
+                bom_params=bom_params, lfg_params=lfg_params,
             )
             node_colors.append(get_process_color(process_type))
         elif has_stocks:
@@ -311,6 +318,14 @@ def _create_sankey_legend(element_items, color_manager):
                     <div style="width: 20px; height: 20px; background-color: {get_process_color("fomp")}; margin-right: 5px;"></div>
                     <span>FOMP Process</span>
                 </div>
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 20px; height: 20px; background-color: {get_process_color("bom_assembler")}; margin-right: 5px;"></div>
+                    <span>BOM Assembler</span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <div style="width: 20px; height: 20px; background-color: {get_process_color("lfg")}; margin-right: 5px;"></div>
+                    <span>LFG Process</span>
+                </div>
             </div>
         </div>
         <div>
@@ -328,6 +343,8 @@ def plot_interactive_sankey(
     mfa_system_results,
     dsm_params=None,
     fomp_params=None,
+    bom_params=None,
+    lfg_params=None,
     color_manager: Optional[ElementColorManager] = None,
     width=sankey_config.WINDOW_WIDTH,
     height=sankey_config.WINDOW_HEIGHT,
@@ -442,6 +459,8 @@ def plot_interactive_sankey(
             fomp_params,
             node_pad,
             node_thickness,
+            bom_params=bom_params,
+            lfg_params=lfg_params,
         )
 
         # Set link colors based on element
@@ -567,6 +586,8 @@ def plot_element_multiplot_sankey(
     mfa_system_results,
     dsm_params=None,
     fomp_params=None,
+    bom_params=None,
+    lfg_params=None,
     elements_to_plot=None,
     subplot_height=sankey_config.WINDOW_HEIGHT,
     subplot_width=sankey_config.WINDOW_WIDTH,
@@ -742,6 +763,8 @@ def plot_element_multiplot_sankey(
                 fomp_params,
                 node_pad,
                 node_thickness,
+                bom_params=bom_params,
+                lfg_params=lfg_params,
             )
 
             # Set link colors
@@ -793,7 +816,7 @@ def plot_element_multiplot_sankey(
 # ---------------------------------------------------------------------------
 
 def export_sankey_json(mfa_system_results, year, element, filepath,
-                       dsm_params=None, fomp_params=None, min_flow=0.0):
+                       dsm_params=None, fomp_params=None, bom_params=None, lfg_params=None, min_flow=0.0):
     """Export Sankey data as a D3-compatible JSON file.
 
     The output follows the standard D3 Sankey JSON format (nodes + links),
@@ -846,7 +869,10 @@ def export_sankey_json(mfa_system_results, year, element, filepath,
 
     nodes = []
     for p in process_list:
-        proc_type = detect_biodym_process_type(p.ID, dsm_params=dsm_params, fomp_params=fomp_params)
+        proc_type = detect_biodym_process_type(
+            p.ID, dsm_params=dsm_params, fomp_params=fomp_params,
+            bom_params=bom_params, lfg_params=lfg_params,
+        )
         color = get_process_color(proc_type)
         nodes.append({
             "id":    p.ID,
@@ -875,7 +901,7 @@ def export_sankey_json(mfa_system_results, year, element, filepath,
         "metadata": {
             "year":    year,
             "element": element,
-            "unit":    "Mg",
+            "unit":    mfa_system_results.Unit or "Mg",
             "source":  "BioDYM",
         },
         "nodes": nodes,
@@ -891,8 +917,8 @@ def export_sankey_json(mfa_system_results, year, element, filepath,
 
 
 def export_sankey_html(mfa_system_results, year, element, filepath,
-                       dsm_params=None, fomp_params=None, min_flow=0.0,
-                       title=None):
+                       dsm_params=None, fomp_params=None, bom_params=None, lfg_params=None,
+                       min_flow=0.0, title=None):
     """Export an interactive standalone Sankey HTML file (no Python required to view).
 
     The output is a self-contained HTML file with the Plotly Sankey diagram
@@ -947,7 +973,10 @@ def export_sankey_html(mfa_system_results, year, element, filepath,
 
     node_labels = [p.Name for p in process_list]
     node_colors = [
-        get_process_color(detect_biodym_process_type(p.ID, dsm_params=dsm_params, fomp_params=fomp_params))
+        get_process_color(detect_biodym_process_type(
+            p.ID, dsm_params=dsm_params, fomp_params=fomp_params,
+            bom_params=bom_params, lfg_params=lfg_params,
+        ))
         for p in process_list
     ]
 
@@ -969,7 +998,7 @@ def export_sankey_html(mfa_system_results, year, element, filepath,
                   thickness=sankey_config.NODE_THICKNESS),
         link=dict(source=sources, target=targets, value=values,
                   customdata=hover,
-                  hovertemplate="%{customdata}<br />%{value:.1f} Mg<extra></extra>",
+                  hovertemplate=f"%{{customdata}}<br />%{{value:.1f}} {mfa_system_results.Unit or 'Mg'}<extra></extra>",
                   color=[link_color] * len(sources)),
     ))
 
@@ -1116,6 +1145,7 @@ def export_mfa_diagram_xlsx(
     filepath,
     dsm_params=None,
     fomp_params=None,
+    bom_params=None,
     lfg_params=None,
     process_logic_map=None,
     node_positions=None,
@@ -1174,6 +1204,8 @@ def export_mfa_diagram_xlsx(
         dsm_params = {}
     if fomp_params is None:
         fomp_params = {}
+    if bom_params is None:
+        bom_params = {}
     if lfg_params is None:
         lfg_params = {}
     if node_positions is None:
@@ -1199,7 +1231,8 @@ def export_mfa_diagram_xlsx(
             if logic:
                 return str(logic).strip()
         return detect_biodym_process_type(
-            proc_id, dsm_params=dsm_params, fomp_params=fomp_params
+            proc_id, dsm_params=dsm_params, fomp_params=fomp_params,
+            bom_params=bom_params, lfg_params=lfg_params,
         )
 
     # --- Collect nodes with stock values ---

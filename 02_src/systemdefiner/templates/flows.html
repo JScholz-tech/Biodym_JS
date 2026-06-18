@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Flows — {{ cfg.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span>
+  <a href="/{{ cfg.name }}">{{ cfg.name }}</a> <span>/</span>
+  <strong>Flows</strong>
+{% endblock %}
+
+{% block content %}
+<h1>Flows</h1>
+
+{% if cfg.flows %}
+<div class="card" style="padding:0;margin-bottom:1.5rem">
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>From</th>
+        <th>To</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set proc_map = {} %}
+      {% for p in cfg.processes %}{% set _ = proc_map.update({p.id: p.name}) %}{% endfor %}
+      {% for f in cfg.flows %}
+      <tr>
+        <td><span class="tag">{{ f.id }}</span></td>
+        <td><strong>{{ f.name }}</strong></td>
+        <td><span class="muted">P{{ f.from_process }} {{ proc_map.get(f.from_process, '') }}</span></td>
+        <td><span class="muted">P{{ f.to_process }} {{ proc_map.get(f.to_process, '') }}</span></td>
+        <td>
+          <div class="btn-row">
+            <a href="/{{ cfg.name }}/flows/{{ f.id }}/edit" class="btn btn-secondary btn-sm">Edit</a>
+            <form method="post" action="/{{ cfg.name }}/flows/{{ f.id }}/delete" style="display:inline"
+                  onsubmit="return confirm('Delete flow {{ f.id }}?')">
+              <button type="submit" class="btn btn-danger">Delete</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert-warn">No flows yet — add one below.</div>
+{% endif %}
+
+<div class="card">
+  <h2 style="margin-top:0">Add Flow</h2>
+  <form method="post" action="/{{ cfg.name }}/flows/new">
+    <div class="form-grid">
+      <div class="field">
+        <label>Flow ID</label>
+        <input type="text" name="id" placeholder="F_01" pattern="[A-Za-z0-9_\-]+" title="Letters, numbers, underscores, dashes only">
+        <div class="muted" style="margin-top:0.3rem">Leave blank to auto-generate.</div>
+      </div>
+      <div class="field">
+        <label>Name</label>
+        <input type="text" name="name" placeholder="Straw harvest">
+      </div>
+      <div class="field">
+        <label>From Process</label>
+        <select name="from_process" required>
+          <option value="">— select —</option>
+          {% for p in cfg.processes %}
+          <option value="{{ p.id }}">P{{ p.id }} — {{ p.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>To Process</label>
+        <select name="to_process" required>
+          <option value="">— select —</option>
+          {% for p in cfg.processes %}
+          <option value="{{ p.id }}">P{{ p.id }} — {{ p.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Add Flow</button>
+  </form>
+</div>
+{% endblock %}

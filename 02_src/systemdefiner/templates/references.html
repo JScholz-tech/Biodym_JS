@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}References — {{ cfg.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span>
+  <a href="/{{ cfg.name }}">{{ cfg.name }}</a> <span>/</span>
+  <strong>References</strong>
+{% endblock %}
+
+{% block content %}
+<h1>References</h1>
+
+<div class="card" style="margin-bottom:1.25rem">
+  <p class="muted" style="margin:0">
+    Search your local <strong>Zotero</strong> library and attach references to this case study.
+    Cite keys travel with <code>config.yaml</code> so anyone with the same library can resolve them.
+    Zotero must be running for search to work.
+  </p>
+</div>
+
+{% if saved %}
+<div class="alert alert-ok">Saved.</div>
+{% endif %}
+
+<!-- ── Zotero search ──────────────────────────────────────────────────────── -->
+<div class="card" style="margin-bottom:1.25rem">
+  <h2 style="margin-top:0">Search Zotero</h2>
+
+  <div style="display:flex;gap:0.5rem;margin-bottom:1rem">
+    <input id="zotero-q" type="text" placeholder="Author, title, keyword…"
+           style="flex:1" onkeydown="if(event.key==='Enter'){searchZotero();event.preventDefault();}">
+    <button class="btn btn-primary" onclick="searchZotero()">Search</button>
+  </div>
+
+  <div id="zotero-status" class="muted" style="font-size:0.88rem;margin-bottom:0.5rem"></div>
+
+  <div id="zotero-results"></div>
+</div>
+
+<!-- ── Saved references ───────────────────────────────────────────────────── -->
+<div class="card">
+  <h2 style="margin-top:0">
+    Saved references
+    <span class="tag" style="font-size:0.85rem;font-weight:400;margin-left:0.4rem">
+      {{ cfg.references | length }}
+    </span>
+  </h2>
+
+  {% if not cfg.references %}
+  <p class="muted">No references yet — search above to add some.</p>
+  {% else %}
+
+  <div id="ref-list">
+  {% for ref in cfg.references %}
+  <div class="ref-card" style="border:1px solid var(--border);border-radius:6px;padding:0.75rem 1rem;margin-bottom:0.75rem">
+
+    <div style="display:flex;align-items:baseline;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.35rem">
+      <code style="font-size:0.9rem;color:var(--primary)">@{{ ref.cite_key }}</code>
+      {% if ref.year %}<span class="tag">{{ ref.year }}</span>{% endif %}
+      {% if ref.item_type %}<span class="muted" style="font-size:0.8rem">{{ ref.item_type }}</span>{% endif %}
+    </div>
+
+    {% if ref.authors or ref.title %}
+    <div style="font-size:0.93rem;margin-bottom:0.25rem">
+      {% if ref.authors %}<strong>{{ ref.authors }}</strong>{% if ref.year %} ({{ ref.year }}){% endif %}. {% endif %}
+      {% if ref.title %}{{ ref.title }}{% endif %}
+    </div>
+    {% endif %}
+
+    {% if ref.doi %}
+    <div style="font-size:0.83rem;margin-bottom:0.35rem">
+      <span class="muted">DOI:</span>
+      <a href="https://doi.org/{{ ref.doi }}" target="_blank" style="font-family:monospace">{{ ref.doi }}</a>
+    </div>
+    {% endif %}
+
+    <!-- inline note editor -->
+    <form method="post" action="/{{ cfg.name }}/references/note"
+          style="display:flex;gap:0.4rem;align-items:center;margin-top:0.4rem">
+      <input type="hidden" name="cite_key" value="{{ ref.cite_key }}">
+      <input type="text" name="note" value="{{ ref.note }}"
+             placeholder="Note: which parameter / table this supports"
+             style="flex:1;font-size:0.85rem">
+      <button type="submit" class="btn btn-secondary btn-sm">Save note</button>
+    </form>
+
+    <form method="post" action="/{{ cfg.name }}/references/delete"
+          style="margin-top:0.4rem;text-align:right"
+          onsubmit="return confirm('Remove @{{ ref.cite_key }}?')">
+      <input type="hidden" name="cite_key" value="{{ ref.cite_key }}">
+      <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+    </form>
+
+  </div>
+  {% endfor %}
+  </div>
+
+  {% endif %}
+</div>
+
+<!-- hidden add form (submitted by JS) -->
+<form id="add-form" method="post" action="/{{ cfg.name }}/references/add" style="display:none">
+  <input type="hidden" name="cite_key"   id="af-cite_key">
+  <input type="hidden" name="title"      id="af-title">
+  <input type="hidden" name="authors"    id="af-authors">
+  <input type="hidden" name="year"       id="af-year">
+  <input type="hidden" name="item_type"  id="af-item_type">
+  <input type="hidden" name="doi"        id="af-doi">
+  <input type="hidden" name="note"       id="af-note" value="">
+</form>
+
+<script>
+const ALREADY = new Set({{ cfg.references | map(attribute='cite_key') | list | tojson }});
+
+async function searchZotero() {
+  const q = document.getElementById('zotero-q').value.trim();
+  if (!q) return;
+  const status = document.getElementById('zotero-status');
+  const results = document.getElementById('zotero-results');
+  status.textContent = 'Searching…';
+  results.innerHTML = '';
+  try {
+    const resp = await fetch(`/api/zotero/search?q=${encodeURIComponent(q)}`);
+    const items = await resp.json();
+    status.textContent = items.length ? `${items.length} result(s)` : 'No results. Is Zotero running?';
+    results.innerHTML = items.map(it => renderResult(it)).join('');
+  } catch(e) {
+    status.textContent = 'Could not reach Zotero — make sure it is open.';
+  }
+}
+
+function renderResult(it) {
+  const added = ALREADY.has(it.cite_key);
+  const label = [it.authors, it.year ? `(${it.year})` : '', it.title].filter(Boolean).join(' ');
+  // Store JSON in data-item with HTML-encoded quotes so the attribute doesn't break
+  const dataItem = JSON.stringify(it).replace(/"/g, '&quot;');
+  return `
+  <div style="border:1px solid var(--border);border-radius:6px;padding:0.65rem 0.9rem;
+              margin-bottom:0.5rem;display:flex;align-items:baseline;gap:0.75rem;flex-wrap:wrap">
+    <code style="color:var(--primary);font-size:0.88rem;flex-shrink:0">@${it.cite_key}</code>
+    <span style="flex:1;font-size:0.88rem">${label || it.cite_key}</span>
+    ${it.doi ? `<span class="muted" style="font-size:0.78rem">${it.doi}</span>` : ''}
+    <button class="btn btn-secondary btn-sm" ${added ? 'disabled' : ''}
+            data-item="${dataItem}" onclick="addRefBtn(this)">
+      ${added ? '✓ Added' : '+ Add'}
+    </button>
+  </div>`;
+}
+
+function addRefBtn(btn) {
+  const it = JSON.parse(btn.dataset.item);
+  document.getElementById('af-cite_key').value  = it.cite_key  || '';
+  document.getElementById('af-title').value     = it.title     || '';
+  document.getElementById('af-authors').value   = it.authors   || '';
+  document.getElementById('af-year').value      = it.year      || '';
+  document.getElementById('af-item_type').value = it.item_type || '';
+  document.getElementById('af-doi').value       = it.doi       || '';
+  document.getElementById('add-form').submit();
+}
+
+// submit search on Enter in the input
+document.getElementById('zotero-q').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); searchZotero(); }
+});
+</script>
+{% endblock %}

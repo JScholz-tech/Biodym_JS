@@ -79,15 +79,25 @@
 #
 # **Welcome to BioDYM!** This notebook performs a complete Material Flow Analysis from data loading to results export.
 #
+# ### bioDYM SystemDefiner
+#
+# Use the **bioDYM SystemDefiner** web app to create and configure your case study before running this notebook:
+#
+# ```bash
+# uv run python -m app
+# ```
+#
+# Opens at **http://localhost:8001** — define your system, then export a `config.yaml` and set `input_file` below to that path.
+#
 # ### Getting Started
 #
-# 1. **Required Input**: Only the **Excel file path** needs to be set (see Section 1.2 below)
+# 1. **Required Input**: Set the **Excel or YAML file path** in Section 1.2 below
 # 2. **Full Documentation**: See [README.md](README.md) for detailed setup instructions
 # 3. **Example Data**: Template files are provided in `01_data/01_input/`
 #
 # ### Prerequisites
 # - Python 3.12+ with dependencies installed (`uv sync`)
-# - Excel input file following the BioDYM template structure
+# - Excel input file following the BioDYM template, or a YAML config exported from bioDYM SystemDefiner
 #
 # ### Support
 # - **Documentation**: `05_docs/` folder
@@ -200,30 +210,70 @@ except Exception as e:
 
 # ## 1.2 Data Input Configuration
 #
-# ⚠️ **IMPORTANT**: Set your Excel file path below - this is the only required change to run the analysis!
+# Set `input_file` to your BioDYM Excel (.xlsx / .xlsm) **or** to a YAML
+# config produced by the BioDYM config web app (.yaml / .yml).
+#
+# Excel mode:  input_file = "01_data/01_input/myfile.xlsm"
+# YAML mode:   input_file = "case_studies/my_study/config.yaml"
+#              (Excel path is read from model.input_file inside the YAML)
 
 input_file = "01_data/01_input/251104_BioDYM_ODYM_´CE-RISE.xlsm"
-print(format_file_path(input_file))
-if not os.path.exists(input_file):
-    raise FileNotFoundError(f"Input file not found: {input_file}")
+
+# Optional: when input_file is a YAML and model.input_file inside it is empty
+# or incorrect, set this to your Excel path to override it.
+excel_file_override = None  # e.g. "01_data/01_input/myfile.xlsm"
+
+# Optional: combine an Excel-based run with a separate YAML from the web app.
+# Set automatically below when input_file is a YAML. Set manually when you
+# want to use YAML scenarios/MC alongside an Excel-defined system.
+yaml_config_file = None  # e.g. "case_studies/my_study/config.yaml"
+
+# --- detect whether input_file is YAML or Excel and configure accordingly ---
+_yaml_only_mode = False
+_input_suffix = os.path.splitext(input_file)[1].lower()
+if _input_suffix in (".yaml", ".yml"):
+    import yaml as _yaml_mod
+    with open(input_file, encoding="utf-8") as _f:
+        _yaml_raw = _yaml_mod.safe_load(_f) or {}
+    yaml_config_file = input_file
+    _excel_from_yaml = (_yaml_raw.get("model") or {}).get("input_file", "")
+    input_file = excel_file_override or _excel_from_yaml or None
+    if input_file and os.path.exists(input_file):
+        print(f"📋 YAML config: {yaml_config_file}")
+        print(format_file_path(input_file))
+    else:
+        _yaml_only_mode = True
+        input_file = None
+        print(f"📋 YAML-only mode: {yaml_config_file}")
+        print("   All model data synthesized from YAML — no Excel file needed.")
+else:
+    print(format_file_path(input_file))
+    if not os.path.exists(input_file):
+        raise FileNotFoundError(f"Excel file not found: {input_file}")
 
 # ## 1.3 System Configuration Extraction
 
-print(format_header("EXTRACTING CONFIGURATION FROM EXCEL"))
-
-# Load the full dataset once. NOTE: Uses decimal=',' for European standard.
-input_data = pd.read_excel(
-    input_file,
-    sheet_name=None,
-    header=0,
-    engine="openpyxl",
-    na_values=["N.A.", "NA", "n/a"],
-    decimal=",",
-)
-print(format_success(f"Excel file loaded: {len(input_data)} sheets"))
-
-config_obj = config.load_configuration(input_file)
-print(format_success("Configuration object loaded."))
+if _yaml_only_mode:
+    print(format_header("EXTRACTING CONFIGURATION FROM YAML"))
+    input_data = data_loader.yaml_to_excel_dataframes(yaml_config_file)
+    print(format_success(f"YAML synthesized: {len(input_data)} sheet-equivalent DataFrames"))
+    config_obj = config.load_config_from_yaml(yaml_config_file)
+    print(format_success("Configuration object loaded from YAML."))
+else:
+    print(format_header("EXTRACTING CONFIGURATION FROM EXCEL"))
+    # Load the full dataset once. NOTE: Uses decimal=',' for European standard.
+    input_data = pd.read_excel(
+        input_file,
+        sheet_name=None,
+        header=0,
+        engine="openpyxl",
+        na_values=["N.A.", "NA", "n/a"],
+        decimal=",",
+    )
+    print(format_success(f"Excel file loaded: {len(input_data)} sheets"))
+    config_obj = config.load_configuration(input_file)
+    print(format_success("Configuration object loaded."))
+plotting.set_mass_unit_from_config(config_obj)
 
 dims              = config.extract_workflow_dimensions(config_obj, input_data)
 start_year        = dims["start_year"]
@@ -253,12 +303,24 @@ model_classification, index_table = system_setup.define_model_scope(
 index_table
 
 print(format_step(Icons.SYSTEM, "2.2", "Initializing MFA system..."))
-mfa_system_base = system_setup.initialize_mfa_system(model_classification, index_table)
+_cfg_unit = next(
+    (getattr(config_obj, a) for a in ("Unit", "Unit_of_Measurement", "UoM", "Mass_Unit")
+     if isinstance(getattr(config_obj, a, None), str) and getattr(config_obj, a, "").strip()),
+    "Mg",
+)
+mfa_system_base = system_setup.initialize_mfa_system(
+    model_classification, index_table, unit=_cfg_unit
+)
 
 print(format_step(Icons.DATA_LOADING, "2.3", "Loading processes and data..."))
 mfa_system_base, all_excel_data = system_setup.load_and_define_processes(
     mfa_system_base, input_data, data_loader, debug_mode=DEBUG_MODE
 )
+
+if yaml_config_file and not _yaml_only_mode:
+    _flow_df = data_loader.load_flow_data_df_from_yaml(yaml_config_file)
+    if not _flow_df.empty:
+        all_excel_data["1_2_Data_Flows"] = _flow_df
 
 print(format_step(Icons.DATA_LOADING, "2.4", "Defining flows and parameters..."))
 mfa_system_configured, _, flow_tc_map, process_logic_map = (
@@ -283,15 +345,23 @@ mfa_system_configured.ParameterDict.update(
     tc_params
 )  # Add the new TC params to the system
 
-# Load other special model parameters
-dsm_params = data_loader.load_dsm_parameters(all_excel_data, debug_mode=DEBUG_MODE)
-if config_obj.RUN_FOMP_CALCULATION:
-    fomp_params = data_loader.load_fomp_parameters(
-        all_excel_data, debug_mode=DEBUG_MODE
-    )
+# Load other special model parameters — from YAML web-app config or Excel
+if yaml_config_file:
+    dsm_params      = data_loader.load_dsm_from_yaml(yaml_config_file)
+    fomp_params     = (data_loader.load_fomp_from_yaml(yaml_config_file)
+                       if config_obj.RUN_FOMP_CALCULATION else {})
+    lfg_params      = data_loader.load_lfg_from_yaml(yaml_config_file)
+    flow_cap_params = data_loader.load_flow_cap_from_yaml(yaml_config_file)
 else:
-    fomp_params = {}
-lfg_params = data_loader.load_lfg_parameters(all_excel_data, debug_mode=DEBUG_MODE)
+    dsm_params = data_loader.load_dsm_parameters(all_excel_data, debug_mode=DEBUG_MODE)
+    fomp_params = (data_loader.load_fomp_parameters(all_excel_data, debug_mode=DEBUG_MODE)
+                   if config_obj.RUN_FOMP_CALCULATION else {})
+    lfg_params      = data_loader.load_lfg_parameters(all_excel_data, debug_mode=DEBUG_MODE)
+    flow_cap_params = data_loader.load_flow_cap_parameters(all_excel_data, debug_mode=DEBUG_MODE)
+bom_params = data_loader.load_bom_parameters(
+    all_excel_data, elements=mfa_system_configured.Elements, debug_mode=DEBUG_MODE
+)
+data_loader.register_flow_cap_parameters(mfa_system_configured, flow_cap_params)
 
 # Filter fomp_params and lfg_params against process_logic_map so the Excel
 # Process_Logic column acts as the authoritative enable/disable switch.
@@ -302,9 +372,12 @@ if process_logic_map:
     lfg_params  = {pid: p for pid, p in lfg_params.items()
                    if process_logic_map.get(pid) == "LFG"}
 
-uncertainty_params = data_loader.load_uncertainty_definitions(
-    all_excel_data, debug_mode=DEBUG_MODE
-)
+if yaml_config_file:
+    uncertainty_params = data_loader.load_uncertainty_definitions_from_yaml(yaml_config_file)
+else:
+    uncertainty_params = data_loader.load_uncertainty_definitions(
+        all_excel_data, debug_mode=DEBUG_MODE
+    )
 
 print(format_success("All parameters loaded and configured."))
 
@@ -317,6 +390,8 @@ mfa_results_baseline, dsm_details_baseline, solver_info_baseline = solver.run_mf
     flow_tc_map=flow_tc_map,
     process_logic_map=process_logic_map,
     lfg_params=lfg_params,
+    bom_params=bom_params,
+    flow_cap_params=flow_cap_params,
 )
 fomp_details_baseline = solver_info_baseline.get("fomp_details", {})
 print(format_success("Baseline calculation completed successfully!"))
@@ -403,7 +478,7 @@ print(f"\n{Icons.ARROW} Traditional Sankey Diagram (Auto-Layout)")
 print("   • Single element selection with dropdown")
 print("   • Automatic node positioning via topological sort")
 print("   • Interactive filtering by year, process, and flow threshold")
-plotting.plot_interactive_sankey(mfa_results_baseline, dsm_params, fomp_params)
+plotting.plot_interactive_sankey(mfa_results_baseline, dsm_params, fomp_params, bom_params=bom_params)
 
 # ## 3.2 Additional Visualizations
 print(f"\n{Icons.ARROW} Additional Visualizations")
@@ -524,6 +599,19 @@ if lfg_params:
 else:
     print(f"   {Icons.INFO} No LFG processes found - skipping LFG analysis")
 
+# ### 3.2.4 BOM Assembler Analysis
+#
+# Assembly efficiency and flow breakdown for all BOM_Assembler processes.
+# Shows assembled product vs. residue per element and assembly efficiency (%).
+# Skipped automatically when no BOM Assembler processes are configured.
+if bom_params:
+    print(f"\n{Icons.ARROW} BOM Assembler Analysis:")
+    print("   • Assembled product vs. residue (stacked) per element")
+    print("   • Assembly efficiency (%) — fraction of inflow becoming product")
+    plotting.plot_bom_assembly_flows(mfa_results_baseline, bom_params)
+else:
+    print(f"   {Icons.INFO} No BOM Assembler processes found - skipping BOM analysis")
+
 
 # # 4. Scenario & Uncertainty Manager
 
@@ -532,6 +620,12 @@ print(format_header("SCENARIO ANALYSIS"))
 
 # Import the new scenario engine
 from engine import scenario_engine
+
+# Load scenario definitions — from YAML (web app) or Excel sheet
+_scenario_defs_preloaded = (
+    data_loader.load_scenario_definitions_from_yaml(yaml_config_file)
+    if yaml_config_file else None
+)
 
 # Run scenario analysis using the new engine
 all_scenario_results, scenario_definitions = scenario_engine.run_scenario_analysis(
@@ -542,6 +636,10 @@ all_scenario_results, scenario_definitions = scenario_engine.run_scenario_analys
     fomp_params=fomp_params,
     flow_tc_map=flow_tc_map,
     process_logic_map=process_logic_map,
+    lfg_params=lfg_params,
+    bom_params=bom_params,
+    flow_cap_params=flow_cap_params,
+    scenario_definitions=_scenario_defs_preloaded,
 )
 
 # Mass balance verification for baseline and all scenarios

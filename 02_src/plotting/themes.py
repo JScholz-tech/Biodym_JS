@@ -21,12 +21,19 @@ Usage
 # Module-level active theme — default is 'exploratory' (wide, annotated)
 _ACTIVE_THEME = "exploratory"
 
+# Config-driven unit override — set by set_mass_unit_from_config().
+# When not None, get_mass_display() always returns (1.0, _CONFIG_UNIT),
+# regardless of which theme is active or in what order set_theme() is called.
+_CONFIG_UNIT: str | None = None
+
 THEMES = {
-    # JIE single-column: 7×4.5 in canvas at 96 dpi = 672×432 px.
-    # On export (quality='publication', scale≈4.17) → ~2800×1800 px ≈ 7×4.5" at 400 DPI.
+    # JIE (Springer Nature): single-column text area = 174 mm wide, max height 234 mm.
+    # At 96 dpi screen: 174/25.4*96 = 658 px wide, 234/25.4*96 = 884 px max height.
+    # Combination art (color + text) requires ≥600 DPI → export scale = 600/96 = 6.25
+    # → final export: 658*6.25 = 4113 px wide = 174 mm at 600 DPI. Use SVG/EPS for vector.
     "jie": {
-        "width": 900,
-        "height": 600,
+        "width": 658,
+        "height": 440,
         "font_axis": 14,
         "font_tick": 14,
         "font_legend": 14,
@@ -199,16 +206,51 @@ def apply_theme(layout: dict) -> dict:
 def get_mass_display() -> tuple:
     """Return (scale_factor, unit_string) for the active theme.
 
-    Plot functions should multiply raw Mg values by scale_factor and use
+    Plot functions should multiply raw data values by scale_factor and use
     unit_string in axis labels and hover templates.
+
+    If set_mass_unit_from_config() has been called, the config unit always
+    takes precedence over the theme unit (scale=1.0, unit=config_unit).
 
     Returns
     -------
     (scale, unit) : tuple[float, str]
-        e.g. (1e-3, 'Gg') for 'jie', (1.0, 'Mg') for 'exploratory'
+        e.g. (1e-3, 'Gg') for 'jie' theme, (1.0, 'Mg') for 'exploratory',
+        or (1.0, 'kg') if config unit is 'kg'.
     """
+    if _CONFIG_UNIT is not None:
+        return 1.0, _CONFIG_UNIT
     _t = get_active_theme()
     return _t.get("mass_scale", 1.0), _t.get("mass_unit", "Mg")
+
+
+def set_mass_unit_from_config(config_obj) -> None:
+    """Set the config-driven unit override from the configuration object.
+
+    Call once after load_configuration(). The unit is stored at module level
+    so it survives subsequent set_theme() calls — order of calls does not matter.
+
+    Checks these attribute names in order (matching common Excel column names):
+    ``Unit``, ``Unit_of_Measurement``, ``UoM``, ``Mass_Unit``.
+    A blank, NaN, or missing value is a no-op.
+
+    Parameters
+    ----------
+    config_obj : Config
+        Loaded configuration object (e.g. 'kg', 'Mg', 'Gg').
+    """
+    global _CONFIG_UNIT
+    _candidates = ("Unit", "Unit_of_Measurement", "UoM", "Mass_Unit")
+    unit = None
+    for attr in _candidates:
+        val = getattr(config_obj, attr, None)
+        if val and isinstance(val, str) and val.strip():
+            unit = val.strip()
+            break
+    if unit is None:
+        return
+    _CONFIG_UNIT = unit
+    print(f"  [themes] mass_unit set to '{_CONFIG_UNIT}' from config (overrides theme)")
 
 
 def y_label(element: str, rate: bool = False) -> str:
@@ -256,11 +298,13 @@ ELEMENT_COLORS = {
 
 # Process Type Colors (for BioDYM process logic)
 PROCESS_COLORS = {
-    "regular": "#2E86AB",  # Blue - standard MFA processes
-    "splitter": "#A23B72",  # Pink - splitter processes
-    "transformer": "#F18F01",  # Orange - transformer processes
-    "dsm": "#28A745",  # Green - Dynamic Stock Model processes
-    "fomp": "#C73E1D",  # Red - First-Order Mineralization Process
+    "regular": "#2E86AB",       # Blue - standard MFA processes
+    "splitter": "#A23B72",      # Pink - splitter processes
+    "transformer": "#F18F01",   # Orange - transformer processes
+    "dsm": "#28A745",           # Green - Dynamic Stock Model processes
+    "fomp": "#C73E1D",          # Red - First-Order Mineralization Process
+    "bom_assembler": "#7B2D8B", # Purple - BOM Assembler (constrained assembly)
+    "lfg": "#1A7A4A",           # Dark green - Landfill Gas processes
 }
 
 # Stock Colors — muted Okabe-Ito variants for stock visualization
@@ -309,11 +353,14 @@ BACKGROUND_COLORS = {"white": "#FFFFFF", "light_gray": "#FAFAFA"}
 # =============================================================================
 
 # High-resolution export settings
+# JIE publication: SVG (vector, preferred by Springer) or PNG at scale=6.25 → 600 DPI at 174mm.
 EXPORT_SETTINGS = {
     "png": {"width": 1200, "height": 900, "scale": 3, "format": "png"},
     "pdf": {"width": 1200, "height": 900, "format": "pdf"},
     "svg": {"width": 1200, "height": 900, "format": "svg"},
     "print": {"width": 1200, "height": 900, "scale": 4, "format": "png"},
+    "jie_svg": {"width": 658, "height": 440, "format": "svg"},           # vector, preferred
+    "jie_png": {"width": 658, "height": 440, "scale": 6.25, "format": "png"},  # 600 DPI
 }
 
 # =============================================================================
@@ -542,50 +589,53 @@ def get_stock_color(element_name=None):
 
 
 def detect_biodym_process_type(
-    process_id, process_logic_map=None, dsm_params=None, fomp_params=None
+    process_id,
+    process_logic_map=None,
+    dsm_params=None,
+    fomp_params=None,
+    bom_params=None,
+    lfg_params=None,
 ):
     """Automatically detects the BioDYM process type based on configuration.
-
-    This function determines the classification of a given process (e.g.,
-    'dsm', 'fomp', 'splitter', 'transformer', 'regular') by checking
-    its presence in special model configurations (DSM, FOMP) or its defined
-    logic type.
 
     Parameters
     ----------
     process_id : int
         The unique identifier of the process.
     process_logic_map : dict, optional
-        A dictionary mapping process IDs to their logic types (e.g.,
-        {'1': 'splitter'}). Defaults to None.
+        Maps process IDs to their logic type strings.
     dsm_params : dict, optional
-        A dictionary containing the configuration parameters for all DSM
-        processes. If a process_id is a key in this dict, it's a DSM process.
-        Defaults to None.
+        DSM process configurations (keyed by process ID).
     fomp_params : dict, optional
-        A dictionary containing the configuration parameters for all FOMP
-        processes. If a process_id is a key in this dict, it's a FOMP process.
-        Defaults to None.
+        FOMP process configurations (keyed by process ID).
+    bom_params : dict, optional
+        BOM Assembler configurations (keyed by process ID).
+    lfg_params : dict, optional
+        LFG process configurations (keyed by process ID).
 
     Returns
     -------
     str
-        A string indicating the detected process type ('regular', 'splitter',
-        'transformer', 'dsm', 'fomp').
+        One of: 'regular', 'splitter', 'transformer', 'dsm', 'fomp',
+        'bom_assembler', 'lfg'.
     """
-    # Check for special models first (DSM and FOMP)
+    # Params dicts take priority — they are authoritative for active processes
     if dsm_params and process_id in dsm_params:
         return "dsm"
     if fomp_params and process_id in fomp_params:
         return "fomp"
+    if bom_params and process_id in bom_params:
+        return "bom_assembler"
+    if lfg_params and process_id in lfg_params:
+        return "lfg"
 
-    # Check process logic from the system
+    # Fall back to process_logic_map for processes not in params dicts
     if process_logic_map and process_id in process_logic_map:
-        logic_type = process_logic_map[process_id].lower()
-        if logic_type in ["splitter", "transformer"]:
+        logic_type = str(process_logic_map[process_id]).strip().lower()
+        known = {"splitter", "transformer", "dsm", "fomp", "bom_assembler", "lfg"}
+        if logic_type in known:
             return logic_type
 
-    # Default to regular process
     return "regular"
 
 

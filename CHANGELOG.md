@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-06-18
+
+### Added
+- **bioDYM SystemDefiner** — interactive web app for configuring case studies visually
+  (`uv run python -m systemdefiner`, opens at http://localhost:8001)
+  - Full YAML-based system definition: processes, flows, TCs, DSM/FOMP/LFG/FlowCap/BOM parameters
+  - Scenario and Monte Carlo parameter management with named-parameter dropdowns
+  - Zotero reference manager integration (linked to every TC, flow, and parameter)
+  - Export to `config.yaml`; import from BioDYM Excel Systemmanager
+  - Case studies stored under `01_data/01_input/case_studies/` (gitignored — user-local data)
+- **YAML-only workflow** — engine runs entirely from a `config.yaml` without an Excel file
+  (`yaml_to_excel_dataframes()` synthesises all DataFrames; `load_config_from_yaml()` builds config)
+- **LFG module** (`02_src/engine/lfg_model.py`) — N-pool first-order decay landfill gas model
+  (UNFCCC AM-Tool-04); supports CH4 capture fraction, oxidation factor, UNFCCC φ correction
+- **BOM Assembler** process logic — product composition tracking through a bill-of-materials
+- **FlowCap** process logic — capacity-limited flow routing with year/flow time series
+- **Multi-category DSM** — multiple lifetime cohorts per DSM process with per-category
+  Inflow Split, Mean/StdDev (Normal/LogNormal) or Shape/Scale (Weibull) parameters
+- **Voilà dashboard YAML support** — `01_BioDYM_Dashboard.ipynb` now accepts a `.yaml` path
+  in the file input field (YAML-only or YAML + Excel hybrid)
+- **MC parameter improvements**: per-category DSM Shape/Scale in dropdown; correct
+  "set/multiply/add" operation terminology (separate from scenario "replace/multiply/add")
+- Named element columns (`E{n}` format) in TC Excel sheets with legacy fallback
+- Initial stock engine improvements: cohort-based age distribution; depletion model
+
+### Changed
+- `app/` renamed and relocated → `02_src/systemdefiner/` (all source code in `02_src/`)
+- Launch command: `uv run python -m systemdefiner` (was `python -m app`)
+- `case_studies/` moved to `01_data/01_input/case_studies/` and gitignored
+- Web app branding updated to "bioDYM SystemDefiner" throughout
+- `pyproject.toml`: added `[build-system]` (setuptools) so `02_src/` packages are
+  installable; added `httpx`, `pydantic`, `jupytext` as explicit dependencies
+
+### Fixed
+- DSM Weibull TypeError: `load_dsm_from_yaml()` stored `None` for missing mean/std
+  (now defaults to `0.0`); guard added in `_calculate_outflow_from_initial_stock`
+- MC parameter dropdown showing "Custom…" for all entries (FOMP naming, TC E-numbering,
+  DSM Shape/Scale were missing or mis-keyed)
+- `validate_mc_parameters()` and `build_parameter_overview_df()` now accept both
+  `MC_Parameter_ID` (new) and `Parameter_Name` (legacy Excel) column names
+- `yaml_to_excel_dataframes()` now generates `4_1_Uncertainty_Parameters` sheet
+  so the notebook MC condition passes in YAML-only mode
+- `recalculate_hierarchical_elements` removed from Splitter/Transformer branches
+  (caused double-counting in element mass balance)
+
+---
+
 ## [1.0.0] - 2026-02-24
 
 ### Added

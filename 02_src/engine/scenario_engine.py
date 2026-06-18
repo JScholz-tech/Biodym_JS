@@ -25,6 +25,10 @@ def run_scenario_analysis(
     flow_tc_map,
     process_logic_map,
     initial_stock_configs=None,
+    lfg_params=None,
+    bom_params=None,
+    flow_cap_params=None,
+    scenario_definitions=None,
 ) -> Tuple[Dict, Dict]:
     """Orchestrates the entire scenario analysis process.
 
@@ -78,8 +82,9 @@ def run_scenario_analysis(
         f"Found {len(scenario_names_to_run)} scenarios to run: {scenario_names_to_run}"
     )
 
-    # Load scenario definitions from Excel
-    scenario_definitions = data_loader.load_scenario_definitions(all_excel_data)
+    # Load scenario definitions — from pre-loaded dict (YAML) or Excel
+    if scenario_definitions is None:
+        scenario_definitions = data_loader.load_scenario_definitions(all_excel_data)
 
     # Run each scenario
     all_scenario_results = {}
@@ -94,6 +99,9 @@ def run_scenario_analysis(
             flow_tc_map=flow_tc_map,
             process_logic_map=process_logic_map,
             initial_stock_configs=initial_stock_configs,
+            lfg_params=lfg_params,
+            bom_params=bom_params,
+            flow_cap_params=flow_cap_params,
         )
 
         if scenario_result is not None:
@@ -154,6 +162,9 @@ def _run_single_scenario(
     flow_tc_map: Dict,
     process_logic_map: Dict,
     initial_stock_configs: Optional[Dict] = None,
+    lfg_params: Optional[Dict] = None,
+    bom_params: Optional[Dict] = None,
+    flow_cap_params: Optional[Dict] = None,
 ) -> Optional[object]:
     """Runs the MFA calculation for a single, specified scenario.
 
@@ -199,6 +210,16 @@ def _run_single_scenario(
     # Create a deep copy of the configured system for this scenario
     mfa_system_scenario = copy.deepcopy(mfa_system_configured)
 
+    # Re-register FlowCap cap parameters on the copied system.
+    # deepcopy may or may not preserve _CapParam objects depending on the Python
+    # version and ODYM internals.  Calling register_cap_parameters is idempotent:
+    # if the key already exists in ParameterDict it is a no-op; if it was lost
+    # during copy it restores a fresh baseline array that apply_scenario then
+    # modifies with the scenario values.
+    if flow_cap_params:
+        from engine import flow_cap as _fc
+        _fc.register_cap_parameters(mfa_system_scenario, flow_cap_params)
+
     # Apply scenario modifications (now returns modified parameters too)
     (
         mfa_system_scenario,
@@ -231,6 +252,9 @@ def _run_single_scenario(
             scenario_config_obj,
             flow_tc_map=flow_tc_map,
             process_logic_map=process_logic_map,
+            lfg_params=lfg_params or {},
+            bom_params=bom_params or {},
+            flow_cap_params=flow_cap_params or {},
         )
 
         print(f"✅ Scenario '{scenario_name}' calculation completed successfully!")
@@ -374,6 +398,7 @@ def check_mass_balance(mfa_system_results, label: str = "System") -> pd.DataFram
     pd.DataFrame
         Summary with columns: Element, Max_Abs_Error, Sum_Abs_Error, Status.
     """
+    unit = getattr(mfa_system_results, "Unit", "Mg")
     element_items = [e.lower() for e in mfa_system_results.Elements]
     num_processes = len(mfa_system_results.ProcessList)
     num_elements = len(element_items)
@@ -432,12 +457,12 @@ def check_mass_balance(mfa_system_results, label: str = "System") -> pd.DataFram
 
     # Print summary
     if all_pass:
-        print(f"   ✅ Mass balance check [{label}]: PASSED (all elements < 1e-6 Mg)")
+        print(f"   ✅ Mass balance check [{label}]: PASSED (all elements < 1e-6 {unit})")
     else:
         print(f"   ⚠️ Mass balance check [{label}]:")
         for _, row in df.iterrows():
             marker = "✅" if row["Status"] == "PASS" else "⚠️"
-            print(f"      {marker} {row['Element']}: max error = {row['Max_Abs_Error_Mg']:.2e} Mg")
+            print(f"      {marker} {row['Element']}: max error = {row['Max_Abs_Error_Mg']:.2e} {unit}")
 
     return df
 

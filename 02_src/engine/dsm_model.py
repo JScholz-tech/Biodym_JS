@@ -201,7 +201,8 @@ def _calculate_outflow_from_initial_stock(
         - outflow_from_initial_stock_ts (np.ndarray): Time series of the outflow from the initial stock.
     """
     print("\n--- Initial Stock Processing ---")
-    avg_lifetime = np.mean(mean_lifetimes) if mean_lifetimes else 0
+    valid_lifetimes = [m for m in mean_lifetimes if m is not None and not np.isnan(float(m))]
+    avg_lifetime = np.mean(valid_lifetimes) if valid_lifetimes else 0
     decay_rate_k = 1 / avg_lifetime if avg_lifetime > 0 else 0
     outflow_from_initial_stock_ts = np.zeros((num_years, num_elements))
     decaying_stock_ts = np.zeros((num_years, num_elements))
@@ -249,7 +250,7 @@ def _calculate_outflow_from_initial_stock_cohort(
     tuple
         (stock_ts, outflow_ts) - Time series of stock and outflow with all elements
     """
-    from odym.modules.dynamic_stock_model import DynamicStockModel
+    from dynamic_stock_model import DynamicStockModel
     from .age_cohort_utils import (
         generate_age_cohorts,
         apply_element_composition_to_cohorts,
@@ -265,6 +266,8 @@ def _calculate_outflow_from_initial_stock_cohort(
         distribution_type=cohort_params["distribution_type"],
         max_age=cohort_params["max_age"],
         decay_constant=cohort_params["decay_constant"],
+        mean_age=cohort_params.get("mean_age"),
+        std_age=cohort_params.get("std_age"),
     )
 
     # Apply element composition to all cohorts
@@ -272,32 +275,90 @@ def _calculate_outflow_from_initial_stock_cohort(
         material_cohorts, cohort_params["element_fractions"]
     )
 
-    # Initialize output arrays
+    max_age = cohort_params["max_age"]
+
+    # ODYM's compute_evolution_initialstock places the initial stock at index
+    # SwitchTime in the time array.  To make SwitchTime=max_age correspond to
+    # the first simulation year (t=0), we build an extended time vector that
+    # prepends max_age "past" steps.  We then take only the [max_age:] slice.
+    n_extended = num_years + max_age
+    t_extended = np.arange(n_extended)
+
+    # Build a normalised single-category lt_dict for ODYM.
+    # params["lifetimes"]["Type"] comes from _parse_parameter_based_dsm as a list
+    # (e.g. ["Normal"]).  ODYM's __init__ tiles all keys EXCEPT "Type", so passing
+    # a list as Type means lt["Type"] == "Normal" is always False → sf stays zeros
+    # → NaN via 0/0 in compute_evolution_initialstock.  Extract the first element.
+    lt_raw = params.get("lifetimes", {})
+    type_raw = lt_raw.get("Type", "Normal")
+    lt_type = (type_raw[0] if isinstance(type_raw, list) else type_raw) or "Normal"
+    if isinstance(lt_type, str):
+        lt_type = lt_type.capitalize()
+
+    lt_means  = lt_raw.get("Mean",   [0.0])
+    lt_stds   = lt_raw.get("StdDev", [0.0])
+    lt_shapes = lt_raw.get("Shape",  [None])
+    lt_scales = lt_raw.get("Scale",  [None])
+    mean_val  = float(lt_means[0])  if lt_means  and lt_means[0]  is not None else 0.0
+    std_val   = float(lt_stds[0])   if lt_stds   and lt_stds[0]   is not None else 0.0
+
+    if lt_type == "Weibull":
+        shape_val = lt_shapes[0] if lt_shapes and lt_shapes[0] is not None else None
+        scale_val = lt_scales[0] if lt_scales and lt_scales[0] is not None else None
+        if shape_val is not None and scale_val is not None:
+            lt_dict = {"Type": "Weibull",
+                       "Shape": np.array([float(shape_val)]),
+                       "Scale": np.array([float(scale_val)])}
+        else:
+            k, lam = _weibull_shape_scale_from_mean_std(mean_val, std_val)
+            lt_dict = {"Type": "Weibull",
+                       "Shape": np.array([k]),
+                       "Scale": np.array([lam])}
+    elif std_val == 0 or lt_type == "Fixed":
+        lt_dict = {"Type": "Fixed", "Mean": np.array([mean_val])}
+    else:
+        lt_dict = {"Type": lt_type,
+                   "Mean": np.array([mean_val]),
+                   "StdDev": np.array([std_val])}
+
+    if lt_dict["Type"] == "Weibull":
+        print(f"  -> Cohort lt_dict: Type=Weibull, "
+              f"Shape(k)={lt_dict['Shape'][0]:.4f}, Scale(lambda)={lt_dict['Scale'][0]:.4f}")
+    else:
+        _mean_v = lt_dict.get("Mean", [None])[0]
+        _std_v  = lt_dict.get("StdDev", [None])[0] if "StdDev" in lt_dict else None
+        _mean_s = f"{_mean_v:.1f}" if _mean_v is not None else "N/A"
+        _std_s  = f"{_std_v:.1f}"  if _std_v  is not None else "N/A"
+        print(f"  -> Cohort lt_dict: Type={lt_dict['Type']}, Mean={_mean_s}, StdDev={_std_s}")
+
     stock_ts = np.zeros((num_years, num_elements))
     outflow_ts = np.zeros((num_years, num_elements))
 
-    # Process each element separately (ODYM handles one element at a time)
     for elem_idx in range(num_elements):
-        # Create ODYM DSM for this element
-        dsm = DynamicStockModel(t=time_vector, lt=params.get("lifetimes", {}))
-
-        # Initial stock for this element (age cohorts)
+        dsm_obj = DynamicStockModel(t=t_extended, lt=lt_dict)
         initial_stock_elem = initial_stock_cohort_matrix[:, elem_idx]
 
-        # Compute evolution using ODYM method
-        max_age = cohort_params["max_age"]
-        dsm.compute_evolution_initialstock(
+        dsm_obj.compute_evolution_initialstock(
             InitialStock=initial_stock_elem, SwitchTime=max_age
         )
+        # compute_evolution_initialstock pre-fills o_c with zeros, so
+        # compute_o_c_from_s_c() would be a no-op.  Instead derive outflow
+        # directly from the stock derivative: o[t] = max(0, s[t-1] - s[t]).
+        dsm_obj.compute_stock_total()
+        s_full = dsm_obj.s  # length = n_extended
 
-        # Compute outflow cohorts
-        dsm.compute_o_c_from_s_c()
+        stock_ts[:, elem_idx] = s_full[max_age:]
 
-        # Sum across cohorts to get total stock and outflow
-        if hasattr(dsm, "s"):
-            stock_ts[:, elem_idx] = dsm.s
-        if hasattr(dsm, "o"):
-            outflow_ts[:, elem_idx] = dsm.o
+        # Outflow = non-negative stock decrease per year
+        o_full = np.zeros(n_extended)
+        o_full[1:] = np.maximum(0.0, s_full[:-1] - s_full[1:])
+        outflow_ts[:, elem_idx] = o_full[max_age:]
+
+    if stock_ts[:, 0].max() > 0:
+        print(f"  -> Cohort initial stock: S[0]={stock_ts[0, 0]:.1f}, "
+              f"S[-1]={stock_ts[-1, 0]:.1f}, outflow[1]={outflow_ts[1, 0]:.2f}")
+    else:
+        print("  -> WARNING: cohort stock is all zeros — check lt_dict or age cohort params")
 
     return stock_ts, outflow_ts
 
@@ -350,7 +411,9 @@ def _distribute_and_assign_outflows(
     ]
 
     # --- TC lookup and normalization (material split drives all elements) ---
-    tc_values = []
+    # First pass: collect defined TC values; mark undefined flows with None.
+    tc_values_raw = []
+    any_tc_defined = False
     for flow in outflow_flows:
         tc_ids = flow_tc_map.get(flow.Name, {})
         tc_param_name = tc_ids.get("material")
@@ -361,10 +424,26 @@ def _distribute_and_assign_outflows(
                 tc_value = np.full(num_years, float(tc_value))
             else:
                 tc_value = np.asarray(tc_value).reshape(-1)
+            any_tc_defined = True
         else:
-            print(f"  -> Warning: No TC defined for DSM outflow {flow.Name}, using equal split")
-            tc_value = np.full(num_years, 1.0 / max(len(outflow_flows), 1))
-        tc_values.append(tc_value)
+            tc_value = None  # resolved in second pass
+        tc_values_raw.append(tc_value)
+
+    # Second pass: resolve None placeholders.
+    # - If at least one flow has a TC → undefined flows receive 0 (they are simply
+    #   not part of the split; the defined TCs are normalised among themselves).
+    # - If NO flow has any TC → fall back to equal split across all flows.
+    tc_values = []
+    for i, tc_val in enumerate(tc_values_raw):
+        if tc_val is not None:
+            tc_values.append(tc_val)
+        elif any_tc_defined:
+            print(f"  -> Info: No TC for DSM outflow {outflow_flows[i].Name}; "
+                  f"assigning 0 (other TCs are defined and sum to 1).")
+            tc_values.append(np.zeros(num_years))
+        else:
+            print(f"  -> Info: No TCs defined for any DSM outflow; using equal split.")
+            tc_values.append(np.full(num_years, 1.0 / max(len(outflow_flows), 1)))
 
     tc_array = np.vstack(tc_values)          # (num_flows, num_years)
     tc_sums = tc_array.sum(axis=0)           # (num_years,)

@@ -4,7 +4,7 @@ Plotting Subpackage for BioDYM.
 """
 
 # Import key plotting functions for easy access
-from .themes import set_theme, get_active_theme, get_theme, apply_theme, get_mass_display, y_label
+from .themes import set_theme, get_active_theme, get_theme, apply_theme, get_mass_display, y_label, set_mass_unit_from_config
 from .sankey import plot_interactive_sankey
 from .enhanced_sankey import plot_enhanced_sankey, plot_element_multiplot_sankey
 from .dynamics import (
@@ -26,6 +26,7 @@ from .dynamics import (
     plot_lfg_stock_details,
     plot_lfg_fraction_breakdown,
     plot_lfg_ipcc_vs_mfa_comparison,
+    plot_bom_assembly_flows,
 )
 from .validation import plot_optimized_mass_balance_error, plot_total_mass_balance_error, plot_dynamic_process_balance
 from .monte_carlo import (
@@ -56,6 +57,7 @@ __all__ = [
     "apply_theme",
     "get_mass_display",
     "y_label",
+    "set_mass_unit_from_config",
     "plot_interactive_sankey",
     "plot_enhanced_sankey",
     "plot_element_multiplot_sankey",
@@ -89,6 +91,7 @@ __all__ = [
     "plot_lfg_stock_details",
     "plot_lfg_fraction_breakdown",
     "plot_lfg_ipcc_vs_mfa_comparison",
+    "plot_bom_assembly_flows",
     "export_sankey_json",
     "export_sankey_html",
     "export_sankey_csv",

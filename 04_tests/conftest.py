@@ -15,6 +15,11 @@ test_dir = os.path.dirname(os.path.abspath(__file__))
 # Navigate to the project root directory
 project_root = os.path.dirname(test_dir)
 
+# Add project root first so `app` resolves to the real FastAPI package,
+# not to any 04_tests/app/ subdirectory.
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 # Add 02_src directory to path
 src_path = os.path.join(project_root, "02_src")
 if src_path not in sys.path:

@@ -3171,3 +3171,139 @@ def plot_lfg_fraction_breakdown(mfa_system_results, lfg_params):
     display(controls)
     display(fig)
     update_plot(process_ids[0], "ch4", False)
+
+
+# ---------------------------------------------------------------------------
+# BOM Assembler
+# ---------------------------------------------------------------------------
+
+def plot_bom_assembly_flows(mfa_system_results, bom_params):
+    """Interactive assembly efficiency plot for BOM_Assembler processes.
+
+    Shows — per process and element:
+      • Assembled product (target_Product flows, stacked)
+      • Residue / unused material (Unused_Material flows, stacked)
+      • Total inflow as a reference line
+      • Assembly efficiency (%) on a secondary y-axis
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        Solved MFA system with calculated flow values.
+    bom_params : dict
+        BOM configuration as returned by ``data_loader.load_bom_parameters()``.
+    """
+    if not bom_params:
+        print("No BOM Assembler processes found to plot.")
+        return
+
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+    from ipywidgets import Dropdown, HBox, VBox, Layout
+    from IPython.display import display
+
+    time_items = list(mfa_system_results.IndexTable.Classification["Time"].Items)
+    elements = mfa_system_results.Elements
+    n_time = len(time_items)
+
+    # Colours consistent with Sankey theme
+    _ASSEMBLED_COLOR = "#7B2D8B"   # purple — matches BOM_Assembler Sankey node
+    _RESIDUE_COLOR   = "#B0B0B0"   # grey
+    _INFLOW_COLOR    = "#333333"   # near-black reference line
+    _EFFICIENCY_COLOR = "#F18F01"  # orange for efficiency trace
+
+    # Build process name map
+    process_name = {p.ID: p.Name for p in mfa_system_results.ProcessList}
+
+    process_ids = list(bom_params.keys())
+    process_opts = [(f"{process_name.get(pid, str(pid))} (P{pid})", pid) for pid in process_ids]
+    process_dropdown = Dropdown(
+        options=process_opts, description="Process:", layout=Layout(width="320px")
+    )
+    element_dropdown = Dropdown(
+        options=elements, value=elements[0], description="Element:", layout=Layout(width="200px")
+    )
+
+    fig = go.FigureWidget(
+        make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            row_heights=[0.65, 0.35],
+            vertical_spacing=0.08,
+            subplot_titles=["Mass Flow (Mg)", "Assembly Efficiency (%)"],
+        )
+    )
+    # Add dummy traces for legend ordering
+    fig.add_trace(go.Bar(name="Assembled product", marker_color=_ASSEMBLED_COLOR,
+                         x=time_items, y=[0]*n_time, showlegend=True), row=1, col=1)
+    fig.add_trace(go.Bar(name="Unused material (residue)", marker_color=_RESIDUE_COLOR,
+                         x=time_items, y=[0]*n_time, showlegend=True), row=1, col=1)
+    fig.add_trace(go.Scatter(name="Total inflow", line=dict(color=_INFLOW_COLOR, width=2, dash="dash"),
+                             x=time_items, y=[0]*n_time, showlegend=True), row=1, col=1)
+    fig.add_trace(go.Scatter(name="Efficiency (%)", line=dict(color=_EFFICIENCY_COLOR, width=2),
+                             x=time_items, y=[0]*n_time, showlegend=True), row=2, col=1)
+
+    fig.update_layout(
+        barmode="stack",
+        height=600,
+        template="plotly_white",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        margin=dict(l=60, r=40, t=80, b=40),
+    )
+    fig.update_yaxes(title_text="Mass (Mg)", row=1, col=1)
+    fig.update_yaxes(title_text="Efficiency (%)", range=[0, 105], row=2, col=1)
+
+    def update_plot(process_id, element):
+        cfg = bom_params[process_id]
+        elem_idx = elements.index(element)
+
+        # --- Sum all inflows ---
+        inflow_vals = sum(
+            (f.Values[:, elem_idx] for f in mfa_system_results.FlowDict.values()
+             if f.P_End == process_id),
+            start=__import__("numpy").zeros(n_time),
+        )
+
+        # --- Sum target_Product flows ---
+        target_fids = [tf["flow_id"] for tf in cfg.get("target_flows", [])]
+        assembled_vals = sum(
+            (mfa_system_results.FlowDict[fid].Values[:, elem_idx]
+             for fid in target_fids if fid in mfa_system_results.FlowDict),
+            start=__import__("numpy").zeros(n_time),
+        )
+
+        # --- Sum Unused_Material flows ---
+        residue_fids = cfg.get("residue_flows", [])
+        residue_vals = sum(
+            (mfa_system_results.FlowDict[fid].Values[:, elem_idx]
+             for fid in residue_fids if fid in mfa_system_results.FlowDict),
+            start=__import__("numpy").zeros(n_time),
+        )
+
+        # --- Assembly efficiency ---
+        import numpy as np
+        with np.errstate(divide="ignore", invalid="ignore"):
+            efficiency = np.where(inflow_vals > 0, assembled_vals / inflow_vals * 100, 0.0)
+
+        pname = process_name.get(process_id, str(process_id))
+        with fig.batch_update():
+            fig.data[0].x = time_items
+            fig.data[0].y = assembled_vals.tolist()
+            fig.data[1].x = time_items
+            fig.data[1].y = residue_vals.tolist()
+            fig.data[2].x = time_items
+            fig.data[2].y = inflow_vals.tolist()
+            fig.data[3].x = time_items
+            fig.data[3].y = efficiency.tolist()
+            fig.layout.title = f"BOM Assembly — {pname} | Element: {element}"
+
+    def on_change(_):
+        update_plot(process_dropdown.value, element_dropdown.value)
+
+    process_dropdown.observe(on_change, "value")
+    element_dropdown.observe(on_change, "value")
+
+    controls = HBox([process_dropdown, element_dropdown], layout=Layout(gap="10px"))
+    display(controls)
+    display(fig)
+    update_plot(process_ids[0], elements[0])

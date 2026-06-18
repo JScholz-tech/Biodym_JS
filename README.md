@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-43%2F43%20passing-brightgreen)](04_tests/)
+[![Tests](https://img.shields.io/badge/tests-194%2F197%20passing-brightgreen)](04_tests/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
 BioDYM is a comprehensive Material Flow Analysis (MFA) tool designed for analyzing bio-based material systems. Built on the [ODYM framework](https://github.com/IndEcol/ODYM), it tracks material flows, stocks, and transformations through time with special features for organic waste management and biomass cascading.
@@ -11,15 +11,18 @@ BioDYM is a comprehensive Material Flow Analysis (MFA) tool designed for analyzi
 
 **To get started in 5 minutes:**
 
-1. **Install** (choose one):
-   - UV: `uv sync` (fast, recommended)
-   - Anaconda: `conda env create -f environment.yml && conda activate biodym_env`
+1. **Install**: `uv sync` (or `conda env create -f environment.yml && conda activate biodym_env`)
 
-2. **Open Jupyter**: `jupyter lab` (or `uv run jupyter lab` for UV users)
+2. **Define your system** *(optional — skip if using an Excel Systemmanager)*:
+   `uv run python -m systemdefiner` → opens **bioDYM SystemDefiner** at http://localhost:8001
+   Configure your case study visually and export a `config.yaml`.
 
-3. **Run the workflow**: Open `00_BioDYM_Workflow.ipynb`, add the filepath of the biodym Systemmanager Template and select "Kernel → Restart & Run All"
+3. **Open Jupyter**: `uv run jupyter lab`
 
-4. **Explore**: Interactive visualizations appear automatically - no coding required!
+4. **Run the workflow**: Open `00_BioDYM_Workflow.ipynb`, set `input_file` to your Excel
+   Systemmanager **or** your exported `config.yaml`, then "Kernel → Restart & Run All"
+
+5. **Explore**: Interactive visualizations appear automatically — no coding required!
 
 **Need help?** See [Getting Help](#-getting-help) section below.
 
@@ -33,9 +36,12 @@ BioDYM is a comprehensive Material Flow Analysis (MFA) tool designed for analyzi
 - **First-Order Mineralization (FOMP)** - Simulate organic matter decomposition (e.g., carbon in soil)
 
 ### Process Logic & Configuration
-- **Excel-based Configuration** - Pure data input via Excel files, no programming required
+- **bioDYM SystemDefiner** - Visual web app for defining case studies and exporting YAML configs
+  (`uv run python -m systemdefiner` → http://localhost:8001)
+- **YAML-only workflow** - Run the full engine from a `config.yaml` without an Excel file
+- **Excel-based Configuration** - Pure data input via Excel Systemmanager, no programming required
 - **Interactive Jupyter Notebook** - Step-by-step analysis workflow with guided execution
-- **Process Logic Types** - Splitter and Transformer processes for different material transformations
+- **Process Logic Types** - Splitter, Transformer, DSM, FOMP, LFG, BOM, FlowCap, and more
 - **Stock-Outflow Transfer Coefficients** - Custom ODYM extension for stock-driven flows
 
 ### Analysis & Visualization

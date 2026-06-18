@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+{% block title %}{{ cfg.name }} — bioDYM-SD{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span> <strong>{{ cfg.name }}</strong>
+{% endblock %}
+
+{% block content %}
+<h1>{{ cfg.name }}</h1>
+
+{# ── Jinja helpers for section 4 counts ───────────────────────────────── #}
+{% set dsm_count  = cfg.processes | selectattr("dsm")     | list | length %}
+{% set fomp_count = cfg.processes | selectattr("fomp")    | list | length %}
+{% set lfg_count  = cfg.processes | selectattr("lfg")     | list | length %}
+{% set fc_count   = cfg.processes | selectattr("flowcap") | list | length %}
+{% set adv_any    = dsm_count + fomp_count + lfg_count + fc_count %}
+
+{# ── §1 Model Configuration ────────────────────────────────────────────── #}
+<details class="card" data-section="1" style="padding:0;margin-bottom:1.25rem" open>
+  <summary style="display:flex;align-items:baseline;gap:0.75rem;padding:0.75rem 1.25rem;cursor:pointer;background:var(--bg);border-radius:var(--radius);user-select:none">
+    <span style="background:var(--primary);color:#fff;border-radius:3px;padding:0.1rem 0.5rem;font-size:0.8rem;font-weight:700;font-family:monospace">1</span>
+    <span style="font-size:1.05rem;font-weight:700">Model Configuration</span>
+    <span class="muted" style="font-size:0.85rem;font-weight:400">Timeframe · Element hierarchy · Calculation settings</span>
+  </summary>
+  <div style="padding:1.25rem">
+
+    <form method="post" action="/{{ cfg.name }}/settings">
+      <div class="form-grid">
+        <div class="field">
+          <label>Start Year</label>
+          <input type="number" name="start_year" value="{{ cfg.model.start_year }}" min="1900" max="2200">
+        </div>
+        <div class="field">
+          <label>End Year</label>
+          <input type="number" name="end_year" value="{{ cfg.model.end_year }}" min="1900" max="2200">
+        </div>
+        <div class="field">
+          <label>Unit of Measurement</label>
+          <input type="text" name="unit_of_measurement" value="{{ cfg.model.unit_of_measurement }}" placeholder="Mg">
+        </div>
+        <div class="field">
+          <label>MC Iterations</label>
+          <input type="number" name="mc_iterations" value="{{ cfg.model.mc_iterations }}" min="1" max="100000">
+        </div>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:1.25rem;margin-top:0.75rem">
+        <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.93rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text)">
+          <input type="checkbox" name="run_dsm_calculation" {% if cfg.model.run_dsm_calculation %}checked{% endif %}>
+          Run DSM Calculation
+        </label>
+        <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.93rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text)">
+          <input type="checkbox" name="run_fomp_calculation" {% if cfg.model.run_fomp_calculation %}checked{% endif %}>
+          Run FOMP Calculation
+        </label>
+        <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.93rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text)">
+          <input type="checkbox" name="run_monte_carlo" {% if cfg.model.run_monte_carlo %}checked{% endif %}>
+          Run Monte Carlo
+        </label>
+        <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.93rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text)">
+          <input type="checkbox" name="run_scenario_analysis" {% if cfg.model.run_scenario_analysis %}checked{% endif %}>
+          Run Scenario Analysis
+        </label>
+      </div>
+
+      <div style="margin-top:0.75rem">
+        <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.4rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.03em">
+          Scenario Names (up to 4)
+        </label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
+          {% for i in range(4) %}
+          <input type="text" name="scenario_{{ i }}"
+                 value="{{ cfg.model.selected_scenarios[i] if cfg.model.selected_scenarios | length > i else '' }}"
+                 placeholder="Scenario {{ i + 1 }} name">
+          {% endfor %}
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:1rem;margin-top:1rem">
+        <button type="submit" class="btn btn-primary">Save Settings</button>
+        <span class="muted" style="font-size:0.85rem">
+          Elements ({{ cfg.model.elements | length }}):
+          {% for e in cfg.model.elements %}<span class="tag" style="margin-right:0.2rem">{{ e }}</span>{% endfor %}
+          — <a href="/{{ cfg.name }}/elements">edit elements &amp; hierarchy</a>
+        </span>
+      </div>
+    </form>
+
+    {# Elements & Hierarchy tile #}
+    <div style="margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border)">
+      <div style="display:grid;grid-template-columns:1fr;max-width:300px">
+        <div>
+          <div class="muted" style="margin-bottom:0.4rem;text-transform:uppercase;font-size:0.8rem;font-weight:600">Elements &amp; Hierarchy</div>
+          <div style="font-size:1.8rem;font-weight:700">{{ cfg.model.elements | length }}
+            <span style="font-size:1rem;font-weight:400;color:var(--muted)">elem / {{ cfg.element_hierarchy | length }} rules</span>
+          </div>
+          <a href="/{{ cfg.name }}/elements" class="btn btn-secondary btn-sm" style="margin-top:0.6rem">Edit</a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</details>
+
+{# ── §2 Processes & Stocks ─────────────────────────────────────────────── #}
+<details class="card" data-section="2" style="padding:0;margin-bottom:1.25rem" open>
+  <summary style="display:flex;align-items:baseline;gap:0.75rem;padding:0.75rem 1.25rem;cursor:pointer;background:var(--bg);border-radius:var(--radius);user-select:none">
+    <span style="background:var(--primary);color:#fff;border-radius:3px;padding:0.1rem 0.5rem;font-size:0.8rem;font-weight:700;font-family:monospace">2</span>
+    <span style="font-size:1.05rem;font-weight:700">Processes &amp; Stocks</span>
+    <span class="muted" style="font-size:0.85rem;font-weight:400">Process logic · Transfer coefficients · Stocks</span>
+  </summary>
+  <div style="padding:1.25rem">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+
+      <div>
+        <div class="muted" style="margin-bottom:0.4rem;text-transform:uppercase;font-size:0.8rem;font-weight:600">Processes</div>
+        <div style="font-size:1.8rem;font-weight:700">{{ cfg.processes | length }}</div>
+        <a href="/{{ cfg.name }}/processes" class="btn btn-secondary btn-sm" style="margin-top:0.6rem">Manage</a>
+      </div>
+
+      <div>
+        <div class="muted" style="margin-bottom:0.4rem;text-transform:uppercase;font-size:0.8rem;font-weight:600">Transfer Coefficients</div>
+        <div style="font-size:1.8rem;font-weight:700">{{ cfg.transfer_coefficients | length }}</div>
+        <a href="/{{ cfg.name }}/tcs" class="btn btn-secondary btn-sm" style="margin-top:0.6rem">Manage</a>
+      </div>
+
+    </div>
+  </div>
+</details>
+
+{# ── §3 Flows & Input Data ─────────────────────────────────────────────── #}
+<details class="card" data-section="3" style="padding:0;margin-bottom:1.25rem" open>
+  <summary style="display:flex;align-items:baseline;gap:0.75rem;padding:0.75rem 1.25rem;cursor:pointer;background:var(--bg);border-radius:var(--radius);user-select:none">
+    <span style="background:var(--primary);color:#fff;border-radius:3px;padding:0.1rem 0.5rem;font-size:0.8rem;font-weight:700;font-family:monospace">3</span>
+    <span style="font-size:1.05rem;font-weight:700">Flows &amp; Input Data</span>
+    <span class="muted" style="font-size:0.85rem;font-weight:400">Flows · Compositions · Dynamic quantities</span>
+  </summary>
+  <div style="padding:1.25rem">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem">
+
+      <div>
+        <div class="muted" style="margin-bottom:0.4rem;text-transform:uppercase;font-size:0.8rem;font-weight:600">Flows</div>
+        <div style="font-size:1.8rem;font-weight:700">{{ cfg.flows | length }}</div>
+        <a href="/{{ cfg.name }}/flows" class="btn btn-secondary btn-sm" style="margin-top:0.6rem">Manage</a>
+      </div>
+
+      <div>
+        <div class="muted" style="margin-bottom:0.4rem;text-transform:uppercase;font-size:0.8rem;font-weight:600">Flow Compositions</div>
+        <div style="font-size:1.8rem;font-weight:700">{{ cfg.flow_compositions | length }}</div>
+        <a href="/{{ cfg.name }}/compositions" class="btn btn-secondary btn-sm" style="margin-top:0.6rem">Edit</a>
+      </div>
+
+      <div>
+        <div class="muted" style="margin-bottom:0.4rem;text-transform:uppercase;font-size:0.8rem;font-weight:600">Flow Data</div>
+        <div style="font-size:1.8rem;font-weight:700">{{ cfg.flow_data | length }}
+          <span style="font-size:1rem;font-weight:400;color:var(--muted)">input flows</span>
+        </div>
+        <a href="/{{ cfg.name }}/flow_data" class="btn btn-secondary btn-sm" style="margin-top:0.6rem">Edit</a>
+      </div>
+
+    </div>
+  </div>
+</details>
+
+{# ── §4 Advanced Models ────────────────────────────────────────────────── #}
+<details class="card" data-section="4" style="padding:0;margin-bottom:1.25rem"
+         {% if adv_any > 0 %}open{% endif %}>
+  <summary style="display:flex;align-items:baseline;gap:0.75rem;padding:0.75rem 1.25rem;cursor:pointer;background:var(--bg);border-radius:var(--radius);user-select:none">
+    <span style="background:var(--primary);color:#fff;border-radius:3px;padding:0.1rem 0.5rem;font-size:0.8rem;font-weight:700;font-family:monospace">4</span>
+    <span style="font-size:1.05rem;font-weight:700">Advanced Models</span>
+    <span class="muted" style="font-size:0.85rem;font-weight:400">DSM · FOMP · LFG · FlowCap · BOM Assembly</span>
+  </summary>
+  <div style="padding:1.25rem">
+
+    {# Module summary rows #}
+    <table style="width:auto;min-width:380px;margin-bottom:1rem">
+      <thead>
+        <tr>
+          <th style="padding:0.35rem 0.75rem;font-size:0.8rem">Module</th>
+          <th style="padding:0.35rem 0.75rem;font-size:0.8rem">Active processes</th>
+          <th style="padding:0.35rem 0.75rem;font-size:0.8rem"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>DSM</strong> <span class="muted" style="font-size:0.8rem">Dynamic Stock Model</span></td>
+          <td style="text-align:center">
+            {% if dsm_count > 0 %}
+            <span style="font-weight:700;font-size:1.1rem">{{ dsm_count }}</span>
+            {% else %}
+            <span class="muted">—</span>
+            {% endif %}
+          </td>
+          <td><a href="/{{ cfg.name }}/processes" class="btn btn-secondary btn-sm">→ Processes</a></td>
+        </tr>
+        <tr>
+          <td><strong>FOMP</strong> <span class="muted" style="font-size:0.8rem">First-Order Multiphasic Decay</span></td>
+          <td style="text-align:center">
+            {% if fomp_count > 0 %}
+            <span style="font-weight:700;font-size:1.1rem">{{ fomp_count }}</span>
+            {% else %}
+            <span class="muted">—</span>
+            {% endif %}
+          </td>
+          <td><a href="/{{ cfg.name }}/processes" class="btn btn-secondary btn-sm">→ Processes</a></td>
+        </tr>
+        <tr>
+          <td><strong>LFG</strong> <span class="muted" style="font-size:0.8rem">Landfill Gas (UNFCCC N-pool)</span></td>
+          <td style="text-align:center">
+            {% if lfg_count > 0 %}
+            <span style="font-weight:700;font-size:1.1rem">{{ lfg_count }}</span>
+            {% else %}
+            <span class="muted">—</span>
+            {% endif %}
+          </td>
+          <td><a href="/{{ cfg.name }}/processes" class="btn btn-secondary btn-sm">→ Processes</a></td>
+        </tr>
+        <tr>
+          <td><strong>FlowCap</strong> <span class="muted" style="font-size:0.8rem">Capacity-limited routing</span></td>
+          <td style="text-align:center">
+            {% if fc_count > 0 %}
+            <span style="font-weight:700;font-size:1.1rem">{{ fc_count }}</span>
+            {% else %}
+            <span class="muted">—</span>
+            {% endif %}
+          </td>
+          <td><a href="/{{ cfg.name }}/processes" class="btn btn-secondary btn-sm">→ Processes</a></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="muted" style="font-size:0.85rem;margin-bottom:1rem">
+      DSM, FOMP, LFG and FlowCap parameters are configured individually per process via the Processes page.
+    </p>
+
+    {# BOM Assembly tile #}
+    <div style="border-top:1px solid var(--border);padding-top:1rem">
+      <div class="muted" style="margin-bottom:0.4rem;text-transform:uppercase;font-size:0.8rem;font-weight:600">BOM Assembly</div>
+      <div style="font-size:1.8rem;font-weight:700">{{ cfg.bom_assembly | length }}</div>
+      <a href="/{{ cfg.name }}/processes" class="btn btn-secondary btn-sm" style="margin-top:0.6rem">Via Processes</a>
+    </div>
+
+  </div>
+</details>
+
+{# ── §5 Scenario & Uncertainty Management ─────────────────────────────── #}
+<details class="card" data-section="5" style="padding:0;margin-bottom:1.25rem"
+         {% if cfg.model.run_scenario_analysis or cfg.model.run_monte_carlo %}open{% endif %}>
+  <summary style="display:flex;align-items:baseline;gap:0.75rem;padding:0.75rem 1.25rem;cursor:pointer;background:var(--bg);border-radius:var(--radius);user-select:none">
+    <span style="background:var(--primary);color:#fff;border-radius:3px;padding:0.1rem 0.5rem;font-size:0.8rem;font-weight:700;font-family:monospace">5</span>
+    <span style="font-size:1.05rem;font-weight:700">Scenario &amp; Uncertainty Management</span>
+    <span class="muted" style="font-size:0.85rem;font-weight:400">Scenarios · Monte Carlo distributions</span>
+  </summary>
+  <div style="padding:1.25rem">
+
+    {# Tiles row #}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem">
+      <div>
+        <div class="muted" style="margin-bottom:0.4rem;text-transform:uppercase;font-size:0.8rem;font-weight:600">Scenarios</div>
+        <div style="font-size:1.8rem;font-weight:700">{{ cfg.scenarios | length }}
+          <span style="font-size:1rem;font-weight:400;color:var(--muted)">defined</span>
+        </div>
+        <a href="/{{ cfg.name }}/scenarios" class="btn btn-secondary btn-sm" style="margin-top:0.6rem">Manage</a>
+      </div>
+      <div>
+        <div class="muted" style="margin-bottom:0.4rem;text-transform:uppercase;font-size:0.8rem;font-weight:600">MC Parameters</div>
+        <div style="font-size:1.8rem;font-weight:700">{{ cfg.mc_parameters | length }}
+          <span style="font-size:1rem;font-weight:400;color:var(--muted)">defined</span>
+        </div>
+        <a href="/{{ cfg.name }}/mc_parameters" class="btn btn-secondary btn-sm" style="margin-top:0.6rem">Manage</a>
+      </div>
+    </div>
+
+    {# Scenario Analysis detail #}
+    <div style="border-top:1px solid var(--border);padding-top:1.25rem;margin-bottom:1.25rem">
+      <h3 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.75rem">
+        Scenario Analysis
+        <span class="tag" style="{{ 'background:var(--primary);color:#fff' if cfg.model.run_scenario_analysis else '' }}">
+          {{ 'Enabled' if cfg.model.run_scenario_analysis else 'Disabled' }}
+        </span>
+      </h3>
+      <div style="display:flex;gap:2rem;align-items:flex-start;flex-wrap:wrap">
+        <div>
+          <div class="muted" style="font-size:0.85rem;margin-bottom:0.4rem">Selected scenarios to run</div>
+          {% set active = cfg.model.selected_scenarios | select | list %}
+          {% if active %}
+          <ol style="margin:0;padding-left:1.25rem;line-height:1.8">
+            {% for s in cfg.model.selected_scenarios %}
+            {% if s %}
+            <li>
+              <strong>{{ s }}</strong>
+              {% if cfg.scenarios | selectattr("name","equalto",s) | list %}
+              — <span style="color:var(--primary);font-size:0.85rem">✓ defined</span>
+              {% else %}
+              — <span style="color:var(--danger);font-size:0.85rem">not found in scenario list</span>
+              {% endif %}
+            </li>
+            {% endif %}
+            {% endfor %}
+          </ol>
+          {% else %}
+          <span class="muted">No scenarios selected — set names in section 1 (Model Configuration) above.</span>
+          {% endif %}
+        </div>
+        <div style="margin-left:auto">
+          <a href="/{{ cfg.name }}/scenarios" class="btn btn-secondary btn-sm">Manage Scenarios</a>
+        </div>
+      </div>
+    </div>
+
+    {# Monte Carlo detail #}
+    <div style="border-top:1px solid var(--border);padding-top:1.25rem;opacity:{{ '1' if cfg.model.run_monte_carlo else '0.7' }}">
+      <h3 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.75rem">
+        Monte Carlo Simulation
+        <span class="tag" style="{{ 'background:var(--primary);color:#fff' if cfg.model.run_monte_carlo else '' }}">
+          {{ 'Enabled' if cfg.model.run_monte_carlo else 'Disabled' }}
+        </span>
+      </h3>
+      <div style="display:flex;gap:2rem;flex-wrap:wrap;align-items:center">
+        <div>
+          <span class="muted">Iterations: </span>
+          <strong>{{ cfg.model.mc_iterations }}</strong>
+        </div>
+        <div class="muted" style="font-size:0.88rem">
+          Enable and set iteration count in <a href="/{{ cfg.name }}">Model Configuration (section 1)</a>.
+        </div>
+        <a href="/{{ cfg.name }}/mc_parameters" class="btn btn-secondary btn-sm">Manage MC Parameters</a>
+      </div>
+    </div>
+
+  </div>
+</details>
+
+{# ── §6 Reference Manager ──────────────────────────────────────────────── #}
+<details class="card" data-section="6" style="padding:0;margin-bottom:1.25rem"
+         {% if cfg.references | length > 0 %}open{% endif %}>
+  <summary style="display:flex;align-items:baseline;gap:0.75rem;padding:0.75rem 1.25rem;cursor:pointer;background:var(--bg);border-radius:var(--radius);user-select:none">
+    <span style="background:var(--primary);color:#fff;border-radius:3px;padding:0.1rem 0.5rem;font-size:0.8rem;font-weight:700;font-family:monospace">6</span>
+    <span style="font-size:1.05rem;font-weight:700">Reference Manager</span>
+    <span class="muted" style="font-size:0.85rem;font-weight:400">Source references for every data point</span>
+  </summary>
+  <div style="padding:1.25rem">
+    <div>
+      <div class="muted" style="margin-bottom:0.4rem;text-transform:uppercase;font-size:0.8rem;font-weight:600">References</div>
+      <div style="font-size:1.8rem;font-weight:700">{{ cfg.references | length }}
+        <span style="font-size:1rem;font-weight:400;color:var(--muted)">sources</span>
+      </div>
+      <a href="/{{ cfg.name }}/references" class="btn btn-secondary btn-sm" style="margin-top:0.6rem">Manage</a>
+      {% if cfg.references | length == 0 %}
+      <p class="muted" style="margin-top:0.75rem;font-size:0.88rem">
+        Add references via Zotero search on the References page. References can then be linked to any TC, flow composition, DSM/FOMP parameter, scenario modification, or MC parameter.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+</details>
+
+{# ── Export & Import (utility, unnumbered) ─────────────────────────────── #}
+<div class="card">
+  <h2 style="margin-top:0">Export &amp; Import</h2>
+  <div class="btn-row">
+    <a href="/{{ cfg.name }}/export" class="btn btn-primary">Download config.yaml</a>
+    <a href="/{{ cfg.name }}/import" class="btn btn-secondary">Import from Excel</a>
+  </div>
+  <div class="muted" style="margin-top:0.6rem">
+    The YAML file is stored at <code>01_data/01_input/case_studies/{{ cfg.name }}/config.yaml</code>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('details[data-section]').forEach(d => {
+  const key = 'biodym-sec-' + d.dataset.section;
+  const saved = localStorage.getItem(key);
+  if (saved === 'open')   d.open = true;
+  if (saved === 'closed') d.open = false;
+  d.addEventListener('toggle', () => {
+    localStorage.setItem(key, d.open ? 'open' : 'closed');
+  });
+});
+</script>
+{% endblock %}

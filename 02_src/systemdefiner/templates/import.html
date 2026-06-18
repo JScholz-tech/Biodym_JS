@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Import — {{ cfg.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span>
+  <a href="/{{ cfg.name }}">{{ cfg.name }}</a> <span>/</span>
+  <strong>Import</strong>
+{% endblock %}
+
+{% block content %}
+<h1>Import Configuration</h1>
+
+<div class="card" style="margin-bottom:1rem">
+  <h3 style="margin-top:0">From YAML <span class="tag">Recommended</span></h3>
+  <p style="margin-bottom:0.75rem">
+    Upload a <code>config.yaml</code> previously exported from this app.
+    The entire configuration (processes, flows, TCs, scenarios, MC parameters, etc.) is restored exactly.
+  </p>
+  <div class="alert alert-warn" style="margin-bottom:1rem">
+    This replaces the current configuration for <strong>{{ cfg.name }}</strong>. Make sure you have a backup.
+  </div>
+
+  {% if error %}
+  <div class="alert alert-err" style="margin-bottom:1rem">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="/{{ cfg.name }}/import" enctype="multipart/form-data">
+    <div class="field" style="max-width:420px">
+      <label>YAML File (.yaml / .yml)</label>
+      <input type="file" name="file" accept=".yaml,.yml" required>
+    </div>
+    <div class="btn-row" style="margin-top:1rem">
+      <button type="submit" class="btn btn-primary">Import YAML</button>
+      <a href="/{{ cfg.name }}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">From Excel</h3>
+  <p style="margin-bottom:0.75rem">
+    Upload an existing BioDYM <code>.xlsx</code> or <code>.xlsm</code> file.
+    Processes, flows, transfer coefficients and model settings are imported.
+    Scenarios, MC parameters and element hierarchy must be configured separately.
+  </p>
+
+  <form method="post" action="/{{ cfg.name }}/import" enctype="multipart/form-data">
+    <div class="field" style="max-width:420px">
+      <label>Excel File (.xlsx / .xlsm)</label>
+      <input type="file" name="file" accept=".xlsx,.xlsm" required>
+    </div>
+    <div class="btn-row" style="margin-top:1rem">
+      <button type="submit" class="btn btn-secondary">Import Excel</button>
+      <a href="/{{ cfg.name }}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -10,12 +10,12 @@ import numpy as np
 
 
 def generate_age_cohorts(
-    total_stock, distribution_type, max_age, decay_constant=None
+    total_stock, distribution_type, max_age, decay_constant=None,
+    mean_age=None, std_age=None,
 ):
     """Generate age-cohort distribution for initial stock.
 
-    This function distributes a total initial stock quantity across different
-    age cohorts according to the specified distribution type.
+    Distributes a total initial stock quantity across age cohorts (0 … max_age-1).
 
     Parameters
     ----------
@@ -23,74 +23,81 @@ def generate_age_cohorts(
         Total quantity of initial stock to distribute across ages.
     distribution_type : str
         Type of age distribution:
-        - "uniform": Equal amounts at each age
-        - "exponential": Exponentially decreasing with age (more recent items)
+        - "uniform"     : Equal amounts at each age
+        - "exponential" : Exponentially decreasing with age (more recent items)
+        - "normal"      : Normal (Gaussian) distribution; requires mean_age, std_age
+        - "lognormal"   : Log-normal distribution; requires mean_age, std_age
     max_age : int
         Maximum age of items in the initial stock (in years).
+        For normal/lognormal this is the cutoff — set to mean + 3*std or higher.
     decay_constant : float, optional
-        Decay constant for exponential distribution (in years).
-        If None, defaults to max_age/3.
-        Only used when distribution_type = "exponential".
+        Decay constant for "exponential" (years). Defaults to max_age/3.
+    mean_age : float, optional
+        Mean age of items in the existing stock. Required for "normal"/"lognormal".
+    std_age : float, optional
+        Std dev of ages. Required for "normal"/"lognormal".
 
     Returns
     -------
     np.ndarray
         1D array of length max_age containing the stock quantity at each age.
         Index 0 = age 0-1 years, Index 1 = age 1-2 years, etc.
-
-    Raises
-    ------
-    ValueError
-        If distribution_type is not "uniform" or "exponential".
-        If total_stock <= 0.
-        If max_age <= 0.
-
-    Examples
-    --------
-    >>> # Uniform distribution: 100 Mg over 10 years
-    >>> cohorts = generate_age_cohorts(100, "uniform", 10)
-    >>> cohorts
-    array([10., 10., 10., 10., 10., 10., 10., 10., 10., 10.])
-
-    >>> # Exponential distribution: more recent items
-    >>> cohorts = generate_age_cohorts(100, "exponential", 10, decay_constant=3)
-    >>> cohorts[0] > cohorts[9]  # More young items than old
-    True
     """
-    # Validation
     if total_stock <= 0:
         raise ValueError(f"total_stock must be positive, got {total_stock}")
     if max_age <= 0:
         raise ValueError(f"max_age must be positive, got {max_age}")
 
     distribution_type = distribution_type.lower()
+    ages = np.arange(max_age, dtype=float)
 
     if distribution_type == "uniform":
-        # Equal amount at each age
         cohorts = np.ones(max_age) * (total_stock / max_age)
 
     elif distribution_type == "exponential":
-        # Exponentially distributed ages (more recent ages have more stock)
         if decay_constant is None:
             decay_constant = max_age / 3
-
         if decay_constant <= 0:
             raise ValueError(f"decay_constant must be positive, got {decay_constant}")
-
-        # Generate weights using exponential decay
-        ages = np.arange(max_age)
         weights = np.exp(-ages / decay_constant)
+        cohorts = total_stock * weights / weights.sum()
 
-        # Normalize weights to sum to 1
-        weights = weights / weights.sum()
+    elif distribution_type == "normal":
+        if mean_age is None or std_age is None:
+            raise ValueError("Normal distribution requires mean_age and std_age")
+        if std_age <= 0:
+            raise ValueError(f"std_age must be positive, got {std_age}")
+        weights = np.exp(-0.5 * ((ages - float(mean_age)) / float(std_age)) ** 2)
+        if weights.sum() == 0:
+            raise ValueError(
+                f"Normal distribution with mean_age={mean_age}, std_age={std_age}, "
+                f"max_age={max_age} produced zero weights — increase max_age"
+            )
+        cohorts = total_stock * weights / weights.sum()
 
-        # Distribute total stock according to weights
-        cohorts = total_stock * weights
+    elif distribution_type == "lognormal":
+        if mean_age is None or std_age is None:
+            raise ValueError("LogNormal distribution requires mean_age and std_age")
+        if std_age <= 0:
+            raise ValueError(f"std_age must be positive, got {std_age}")
+        mean_a, std_a = float(mean_age), float(std_age)
+        # Convert normal-space mean/std to log-space parameters
+        sigma_ln = np.sqrt(np.log(1.0 + (std_a / mean_a) ** 2))
+        mu_ln = np.log(mean_a) - 0.5 * sigma_ln ** 2
+        ages_pos = np.maximum(ages, 0.5)  # avoid log(0) for age-0 cohort
+        weights = (
+            np.exp(-0.5 * ((np.log(ages_pos) - mu_ln) / sigma_ln) ** 2) / ages_pos
+        )
+        if weights.sum() == 0:
+            raise ValueError(
+                f"LogNormal distribution produced zero weights — check mean_age/std_age/max_age"
+            )
+        cohorts = total_stock * weights / weights.sum()
 
     else:
         raise ValueError(
             f"Unknown distribution type: '{distribution_type}'. "
-            f"Must be 'uniform' or 'exponential'."
+            f"Must be 'uniform', 'exponential', 'normal', or 'lognormal'."
         )
 
     return cohorts
@@ -198,10 +205,11 @@ def validate_age_cohort_parameters(config, process_id):
 
     # Validate distribution type
     distribution_type = str(distribution_type).lower()
-    if distribution_type not in ["uniform", "exponential"]:
+    _supported = ["uniform", "exponential", "normal", "lognormal"]
+    if distribution_type not in _supported:
         raise ValueError(
             f"Process {process_id}: Invalid age distribution type '{distribution_type}'. "
-            f"Must be 'uniform' or 'exponential'."
+            f"Must be one of: {', '.join(_supported)}."
         )
 
     # Validate max age
@@ -214,7 +222,7 @@ def validate_age_cohort_parameters(config, process_id):
             f"Process {process_id}: Invalid max_age '{max_age}'. Must be a positive integer."
         ) from e
 
-    # Get decay constant (optional)
+    # Get decay constant (optional, exponential only)
     decay_constant = config.get("cohort_decay_constant")
     if decay_constant is not None:
         try:
@@ -224,6 +232,20 @@ def validate_age_cohort_parameters(config, process_id):
                 f"  -> WARNING: Invalid decay_constant for Process {process_id}, using default (max_age/3)"
             )
             decay_constant = None
+
+    # Get mean/std age (required for normal/lognormal)
+    mean_age = config.get("cohort_mean_age")
+    std_age = config.get("cohort_std_age")
+    if mean_age is not None:
+        try:
+            mean_age = float(mean_age)
+        except (ValueError, TypeError):
+            mean_age = None
+    if std_age is not None:
+        try:
+            std_age = float(std_age)
+        except (ValueError, TypeError):
+            std_age = None
 
     # Build element fractions array from config
     elements = config.get("elements", ["material", "WC", "DM", "CC"])
@@ -239,5 +261,7 @@ def validate_age_cohort_parameters(config, process_id):
         "distribution_type": distribution_type,
         "max_age": max_age,
         "decay_constant": decay_constant,
+        "mean_age": mean_age,
+        "std_age": std_age,
         "element_fractions": element_fractions,
     }

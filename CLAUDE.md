@@ -8,6 +8,7 @@
 - **Edit Marimo dashboard**: `uv run marimo edit tools/marimo_dashboard.py`
 - **Execute notebook**: `uv run jupyter nbconvert --to notebook --execute <file>.ipynb`
 - **Run explorer tools**: `uv run marimo run tools/buf_explorer.py` (or `cuf_explorer.py`)
+- **Launch bioDYM SystemDefiner**: `uv run python -m systemdefiner` → opens at http://localhost:8001
 
 ## Notebook workflow (Jupytext)
 - The `.py` file is the **source of truth** — always edit `.py`, never `.ipynb` directly

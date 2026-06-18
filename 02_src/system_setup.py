@@ -120,7 +120,7 @@ def define_model_scope(
     return model_classification, index_table
 
 
-def initialize_mfa_system(model_classification, index_table):
+def initialize_mfa_system(model_classification, index_table, unit="Mg"):
     """Initializes the main MFAsystem object based on the defined scope.
 
     Parameters
@@ -129,6 +129,10 @@ def initialize_mfa_system(model_classification, index_table):
         The ModelClassification dictionary created by `define_model_scope`.
     index_table : pd.DataFrame
         The IndexTable DataFrame created by `define_model_scope`.
+    unit : str, optional
+        Mass unit label stored on the ODYM system object (e.g. 'Mg', 'kg').
+        Defaults to 'Mg'. Pass ``getattr(config_obj, 'Unit', 'Mg')`` from
+        the loaded configuration to make it config-driven.
 
     Returns
     -------
@@ -142,7 +146,7 @@ def initialize_mfa_system(model_classification, index_table):
     mfa_system = msc.MFAsystem(
         Name="RyeStrawMFA",
         Geogr_Scope="Case_Study_Region",
-        Unit="Mg",
+        Unit=unit,
         ProcessList=[],
         FlowDict={},
         StockDict={},
@@ -520,9 +524,6 @@ def _apply_initial_stock(mfa_system, all_excel_data):
         from engine import initial_stock_engine
 
         mfa_system = initial_stock_engine.apply_initial_stock_values(
-            mfa_system, initial_stock_configs
-        )
-        mfa_system = initial_stock_engine.process_initial_stock_outflows(
             mfa_system, initial_stock_configs
         )
 

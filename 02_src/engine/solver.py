@@ -16,7 +16,8 @@ import copy
 from . import dsm_model
 from . import fomp_model
 from . import lfg_model
-from .element_utils import recalculate_hierarchical_elements
+from . import bom_assembler as _bom_assembler
+from . import flow_cap as _flow_cap
 
 
 def _topological_sort_flows(mfa_system):
@@ -111,7 +112,8 @@ def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None
     # Skip DSM and FOMP processes — both models write correct stock values directly
     special_processes = dsm_processes | fomp_processes
 
-    print("--> Calculating final stock balances for non-DSM processes...")
+    print(f"--> Calculating final stock balances for non-DSM processes...")
+    print(f"    special_processes (skip list): {sorted(special_processes)}")
 
     for pid in {p.ID for p in mfa_system.ProcessList}:
         if f"S_{pid}" in mfa_system.StockDict:
@@ -128,14 +130,19 @@ def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None
             total_outflows = (
                 sum(outflows) if outflows else np.zeros_like(stock_s.Values)
             )
-            dS_values = total_inflows - total_outflows
-            stock_ds.Values = dS_values
-
-            # Skip stock recalculation for DSM and FOMP processes — they already have
-            # their absolute stocks written directly by their respective models.
+            # DSM/FOMP processes write their own correct absolute stock values.
+            # Derive dS from the stock derivative so that an initial stock at t=0
+            # is reflected as a positive dS[0] rather than a large phantom outflow.
             if pid in special_processes:
+                dS_values = np.zeros_like(stock_s.Values)
+                dS_values[1:, :] = stock_s.Values[1:, :] - stock_s.Values[:-1, :]
+                dS_values[0, :] = stock_s.Values[0, :]
+                stock_ds.Values = dS_values
                 print(f"  -> Skipping stock recalculation for Process {pid} (DSM/FOMP)")
                 continue
+
+            dS_values = total_inflows - total_outflows
+            stock_ds.Values = dS_values
 
             initial_stock_vector = stock_s.Values[0, :].copy()
             # S[t] = initial_stock + cumulative_sum(dS[0:t+1])
@@ -152,44 +159,6 @@ def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None
         print(f"⚠️ Balance validation warning: {e}")
 
     return mfa_system
-
-
-# --- BioDYM Extension: Stock-Outflow TCs ---
-# This function is a custom addition to ODYM for handling
-# outflows directly from initial stocks.
-def process_initial_stocks(mfa_system):
-    """Processes initial stock outflows using the dedicated initial stock engine.
-
-    Notes
-    -----
-    This function is a BioDYM-specific extension to the standard ODYM framework
-    that allows for outflows to be generated directly from a process's initial
-    stock, which is not a standard ODYM feature.
-
-    Parameters
-    ----------
-    mfa_system : odym.MFAsystem
-        The MFA system object.
-
-    Returns
-    -------
-    odym.MFAsystem
-        The MFA system, potentially modified by the initial stock engine.
-    """
-    print("--> Processing initial stock outflows...")
-
-    # Check if initial stock configurations were loaded
-    if (
-        hasattr(mfa_system, "initial_stock_outflows")
-        and mfa_system.initial_stock_outflows
-    ):
-        # Get initial stock configurations (we need to reload them)
-        # This is a temporary solution - in the future, we should store the configs in mfa_system
-        print("  -> Initial stock outflows already processed during setup")
-        return mfa_system
-    else:
-        print("  -> No initial stock outflows found")
-        return mfa_system
 
 
 def enhanced_input_validation(input_flows, dsm_processes):
@@ -328,15 +297,6 @@ def _calculate_tc_driven_flows(
                             outflow_vector[:, mat_idx] * element_fraction
                         )
 
-                    # FIX: Recalculate hierarchical elements based on their parent
-                    # This ensures elements like CC (% of DM) are correctly recalculated
-                    # after DM changes, rather than being calculated as % of material
-                    element_hierarchy = getattr(mfa_system, "_element_hierarchy", {})
-                    if element_hierarchy:
-                        outflow_vector = recalculate_hierarchical_elements(
-                            outflow_vector, elements, element_hierarchy, mfa_system
-                        )
-
             elif process_logic == "Pass-through":
                 # Pass-through: Copy total inflow directly to outflow (no transformation)
                 outflow_vector = total_inflow_vector.copy()
@@ -364,14 +324,6 @@ def _calculate_tc_driven_flows(
                 )
                 if not element_hierarchy:
                     element_hierarchy = getattr(mfa_system, "_element_hierarchy", {})
-
-                # FIX: Recalculate hierarchical elements based on their parent
-                # This must happen BEFORE summing material, so hierarchical elements
-                # are correct when we sum top-level elements
-                if element_hierarchy:
-                    outflow_vector = recalculate_hierarchical_elements(
-                        outflow_vector, elements, element_hierarchy, mfa_system
-                    )
 
                 # Recalculate total material as sum of TOP-LEVEL elements only
                 # (excludes hierarchical elements like CC which is % of DM, not material)
@@ -440,7 +392,16 @@ def _calculate_dsm_flows(mfa_system, dsm_processes, dsm_params, iteration, flow_
         total_inflow_sum = sum(np.sum(f.Values) for f in inflows_to_dsm)
 
         inflow_names = [f.Name for f in inflows_to_dsm]
-        is_ready = total_inflow_sum > 0
+
+        # Also run when initial stock exists, even if no new inflows yet
+        _stock_cfg = dsm_params.get(process_id, {}).get("stock_configuration", "Stock")
+        if _stock_cfg in ("Stock_with_InitialStock_Cohort", "Stock_with_InitialStock_Decay"):
+            _s_chk = mfa_system.StockDict.get(f"S_{process_id}")
+            _has_initial = _s_chk is not None and float(_s_chk.Values[0, 0]) > 0
+        else:
+            _has_initial = False
+
+        is_ready = total_inflow_sum > 0 or _has_initial
         if not is_ready:
             continue
 
@@ -675,6 +636,8 @@ def run_mfa_calculation(
     tc_updates=None,
     flow_updates=None,
     lfg_params=None,
+    bom_params=None,
+    flow_cap_params=None,
 ):
     """This function is the iterative solver for the MFA system.
 
@@ -806,19 +769,24 @@ def run_mfa_calculation(
 
     if lfg_params is None:
         lfg_params = {}
+    if bom_params is None:
+        bom_params = {}
+    if flow_cap_params is None:
+        flow_cap_params = {}
 
     dsm_details = {}
     fomp_details = {}
-    dsm_processes = set(dsm_params.keys())
-    fomp_processes = set(fomp_params.keys())
-    lfg_processes = set(lfg_params.keys())
+    dsm_processes      = set(dsm_params.keys())
+    fomp_processes     = set(fomp_params.keys())
+    lfg_processes      = set(lfg_params.keys())
+    bom_processes      = set(bom_params.keys())
+    flow_cap_processes = set(flow_cap_params.keys())
 
     # Cross-check against process_logic_map so that the Excel Process_Logic
     # column acts as the authoritative switch.  DSM is already filtered at
     # load time (load_dsm_parameters filters by Process_Logic == "DSM");
-    # FOMP and LFG are loaded from their dedicated sheets without that filter,
-    # so we apply it here.  A process with params in "3_3_Definition_LFG" but
-    # Process_Logic != "LFG" will be silently excluded.
+    # FOMP, LFG, BOM_Assembler, and FlowCap are loaded from their dedicated
+    # sheets without that filter, so we apply it here.
     if process_logic_map:
         fomp_processes = {
             pid for pid in fomp_processes
@@ -828,8 +796,19 @@ def run_mfa_calculation(
             pid for pid in lfg_processes
             if process_logic_map.get(pid) == "LFG"
         }
+        bom_processes = {
+            pid for pid in bom_processes
+            if process_logic_map.get(pid) == "BOM_Assembler"
+        }
+        flow_cap_processes = {
+            pid for pid in flow_cap_processes
+            if process_logic_map.get(pid) == "FlowCap"
+        }
 
-    special_processes = dsm_processes.union(fomp_processes).union(lfg_processes)
+    special_processes = (
+        dsm_processes.union(fomp_processes).union(lfg_processes)
+        .union(bom_processes).union(flow_cap_processes)
+    )
 
     # Pre-sort flows in topological order so upstream flows are calculated
     # before downstream flows within each pass. This reduces the number of
@@ -856,13 +835,6 @@ def run_mfa_calculation(
         )
         pass_changes.append(tc_changed)
 
-        # --- 1.5. Update Initial Stock Flows ---
-        from . import initial_stock_engine
-
-        mfa_system = initial_stock_engine.update_initial_stock_flows_during_solver(
-            mfa_system
-        )
-
         dsm_changed = False
         if config.RUN_DSM_CALCULATION:
             dsm_changed, dsm_run_details = _calculate_dsm_flows(
@@ -886,14 +858,33 @@ def run_mfa_calculation(
             )
             pass_changes.append(lfg_changed)
 
+        # --- 2.5. BOM Assembler processes ---
+        bom_changed = False
+        if bom_processes:
+            element_hierarchy = getattr(mfa_system, "_element_hierarchy", None)
+            bom_changed = _bom_assembler.calculate_bom_assembly(
+                mfa_system, bom_processes, bom_params, element_hierarchy
+            )
+            pass_changes.append(bom_changed)
+
+        # --- 2.6. FlowCap processes ---
+        flow_cap_changed = False
+        if flow_cap_processes:
+            flow_cap_changed = _flow_cap.calculate_flow_cap(
+                mfa_system, flow_cap_processes, flow_cap_params
+            )
+            pass_changes.append(flow_cap_changed)
+
         # Record per-iteration diagnostics
         convergence_log.append({
-            "iteration":    i + 1,
-            "tc_changed":   bool(tc_changed),
-            "dsm_changed":  bool(dsm_changed),
-            "fomp_changed": bool(fomp_changed),
-            "lfg_changed":  bool(lfg_changed),
-            "any_changed":  any(pass_changes),
+            "iteration":       i + 1,
+            "tc_changed":      bool(tc_changed),
+            "dsm_changed":     bool(dsm_changed),
+            "fomp_changed":    bool(fomp_changed),
+            "lfg_changed":     bool(lfg_changed),
+            "bom_changed":     bool(bom_changed),
+            "flow_cap_changed": bool(flow_cap_changed),
+            "any_changed":     any(pass_changes),
         })
 
         # --- Convergence Check ---
@@ -917,7 +908,9 @@ def run_mfa_calculation(
 
     # --- Final balance calculation ---
     mfa_system = calculate_final_balances(
-        mfa_system, dsm_processes, fomp_processes.union(lfg_processes)
+        mfa_system,
+        dsm_processes,
+        fomp_processes.union(lfg_processes).union(bom_processes).union(flow_cap_processes),
     )
 
     # ODYM validation after complete calculation

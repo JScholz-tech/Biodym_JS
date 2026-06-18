@@ -94,6 +94,22 @@ scenarios/
 # Writing project (private publication materials)
 Writing project/
 
+# Web app case studies (user data, not tracked)
+# Moved from root case_studies/ → 01_data/01_input/case_studies/
+case_studies/
+
+# -----------------------------------------------------------------------------
+# Claude Code / tool session artifacts
+# -----------------------------------------------------------------------------
+.agents/
+__marimo__/
+*/__marimo__/
+server.log
+skills-lock.json
+
+# Python build artifacts
+*.egg-info/
+
 # -----------------------------------------------------------------------------
 # 01_data - Input Files (only template is tracked)
 # -----------------------------------------------------------------------------

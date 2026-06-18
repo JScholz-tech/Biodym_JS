@@ -37,6 +37,9 @@ def validate_mc_parameters(mc_params_df, mfa_system, uncertainty_params=None):
     """
     warnings = []
     validated_params = mc_params_df.copy()
+    # Normalise column name: new sheets use MC_Parameter_ID, legacy uses Parameter_Name
+    if "MC_Parameter_ID" in validated_params.columns and "Parameter_Name" not in validated_params.columns:
+        validated_params = validated_params.rename(columns={"MC_Parameter_ID": "Parameter_Name"})
 
     # Check for dynamic TC conflicts
     dynamic_tc_processes = set()
@@ -328,6 +331,14 @@ def apply_dsm_parameter_updates(dsm_params, sampled_params):
                     updated_dsm_params[process_id]["lifetimes"]["StdDev"][
                         category_idx
                     ] = sampled_value
+            elif param_base == "DSM_Lifetime_Shape":
+                shapes = updated_dsm_params[process_id]["lifetimes"].setdefault("Shape", [None] * len(updated_dsm_params[process_id]["inflow_split"]))
+                if category_idx < len(shapes):
+                    shapes[category_idx] = sampled_value
+            elif param_base == "DSM_Lifetime_Scale":
+                scales = updated_dsm_params[process_id]["lifetimes"].setdefault("Scale", [None] * len(updated_dsm_params[process_id]["inflow_split"]))
+                if category_idx < len(scales):
+                    scales[category_idx] = sampled_value
             elif param_base == "DSM_Inflow_Split":
                 if category_idx < len(updated_dsm_params[process_id]["inflow_split"]):
                     updated_dsm_params[process_id]["inflow_split"][

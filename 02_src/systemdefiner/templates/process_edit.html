@@ -1,0 +1,381 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ process.name }} — {{ cfg.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span>
+  <a href="/{{ cfg.name }}">{{ cfg.name }}</a> <span>/</span>
+  <a href="/{{ cfg.name }}/processes">Processes</a> <span>/</span>
+  <strong>Edit P{{ process.id }}</strong>
+{% endblock %}
+
+{% block content %}
+<h1>Edit Process — {{ process.name }}</h1>
+
+<div class="card">
+  <form method="post" action="/{{ cfg.name }}/processes/{{ process.id }}/edit">
+    <div class="form-grid">
+      <div class="field">
+        <label>Name</label>
+        <input type="text" name="name" value="{{ process.name }}" required>
+      </div>
+      <div class="field">
+        <label>Logic Type</label>
+        <select name="logic" id="edit-logic-select" onchange="toggleParamBlocks(this.value)">
+          {% for opt in logic_options %}
+          <option value="{{ opt.value }}" {% if opt == process.logic %}selected{% endif %}>{{ opt.value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Stock Configuration</label>
+        <select name="stock">
+          {% for opt in stock_options %}
+          <option value="{{ opt.value }}" {% if opt == process.stock %}selected{% endif %}>{{ opt.value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>TC Configuration</label>
+        <select name="tc_config">
+          {% for opt in tc_options %}
+          <option value="{{ opt.value }}" {% if opt == process.tc_config %}selected{% endif %}>{{ opt.value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <details id="edit-fomp-block">
+      <summary>FOMP Parameters</summary>
+      <div class="details-body">
+        <div class="form-grid">
+          <div class="field">
+            <label>f labile</label>
+            <input type="number" name="fomp_f_labile"
+                   value="{{ process.fomp.f_labile if process.fomp else 0.5 }}"
+                   step="0.001" min="0" max="1">
+          </div>
+          <div class="field">
+            <label>k labile (yr⁻¹)</label>
+            <input type="number" name="fomp_k_labile"
+                   value="{{ process.fomp.k_labile if process.fomp else 1.0 }}"
+                   step="0.001" min="0">
+          </div>
+          <div class="field">
+            <label>k recalcitrant (yr⁻¹)</label>
+            <input type="number" name="fomp_k_recalcitrant"
+                   value="{{ process.fomp.k_recalcitrant if process.fomp else 0.01 }}"
+                   step="0.0001" min="0">
+          </div>
+        </div>
+        <div class="form-grid" style="margin-top:0.75rem">
+          <div class="field">
+            <label>Carbon outflow (CO₂ / degraded C)</label>
+            <select name="fomp_outflow_id">
+              <option value="">— none —</option>
+              {% for f in cfg.flows %}
+              <option value="{{ f.id }}" {% if process.fomp and process.fomp.outflow_id == f.id %}selected{% endif %}>{{ f.id }} – {{ f.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Secondary outflow (optional)</label>
+            <select name="fomp_outflow_id_2">
+              <option value="">— none —</option>
+              {% for f in cfg.flows %}
+              <option value="{{ f.id }}" {% if process.fomp and process.fomp.outflow_id_2 and process.fomp.outflow_id_2 == f.id %}selected{% endif %}>{{ f.id }} – {{ f.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% if cfg.references %}
+          <div class="field">
+            <label>Source reference</label>
+            <select name="fomp_ref" style="font-size:0.88rem">
+              <option value="">—</option>
+              {% for ref in cfg.references %}
+              <option value="{{ ref.cite_key }}"
+                      title="{{ ref.authors }}{% if ref.year %} ({{ ref.year }}){% endif %}{% if ref.title %} — {{ ref.title[:80] }}{% endif %}"
+                      {% if process.fomp and process.fomp.ref == ref.cite_key %}selected{% endif %}>[{{ loop.index }}] {{ ref.authors }}{% if ref.year %} ({{ ref.year }}){% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </details>
+
+    <details id="edit-dsm-block">
+      <summary>DSM Parameters</summary>
+      <div class="details-body">
+        <p class="muted" style="margin:0 0 0.75rem;font-size:0.88rem">
+          Each row is one material category. Inflow split fractions must sum to 1.
+          For Normal/LogNormal fill Mean &amp; Std Dev. For Weibull fill Shape &amp; Scale.
+        </p>
+        <div style="overflow-x:auto">
+        <table id="edit-dsm-cat-table" style="width:100%;margin-bottom:0.5rem;font-size:0.88rem">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Inflow split</th>
+              <th>Distribution</th>
+              <th>Mean (yr)</th>
+              <th>Std Dev (yr)</th>
+              <th>Shape</th>
+              <th>Scale</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="edit-dsm-cat-body">
+            {% if process.dsm and process.dsm.categories %}
+            {% for cat in process.dsm.categories %}
+            <tr>
+              <td><input type="text"   name="dsm_cat_{{ loop.index0 }}_name"           value="{{ cat.name }}"           style="width:120px"></td>
+              <td><input type="number" name="dsm_cat_{{ loop.index0 }}_inflow_split"   value="{{ cat.inflow_split }}"   step="0.01" min="0" max="1" style="width:70px"></td>
+              <td>
+                <select name="dsm_cat_{{ loop.index0 }}_lifetime_type" style="width:110px">
+                  {% for d in ["Normal","LogNormal","Weibull"] %}
+                  <option value="{{ d }}" {% if cat.lifetime_type == d %}selected{% endif %}>{{ d }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td><input type="number" name="dsm_cat_{{ loop.index0 }}_lifetime_mean"  value="{{ cat.lifetime_mean  if cat.lifetime_mean  is not none else '' }}" step="0.1" min="0" style="width:75px" placeholder="—"></td>
+              <td><input type="number" name="dsm_cat_{{ loop.index0 }}_lifetime_std"   value="{{ cat.lifetime_std   if cat.lifetime_std   is not none else '' }}" step="0.1" min="0" style="width:75px" placeholder="—"></td>
+              <td><input type="number" name="dsm_cat_{{ loop.index0 }}_lifetime_shape" value="{{ cat.lifetime_shape if cat.lifetime_shape is not none else '' }}" step="0.01" min="0" style="width:70px" placeholder="—"></td>
+              <td><input type="number" name="dsm_cat_{{ loop.index0 }}_lifetime_scale" value="{{ cat.lifetime_scale if cat.lifetime_scale is not none else '' }}" step="0.1"  min="0" style="width:70px" placeholder="—"></td>
+              <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove(); reindexDsmCats()">✕</button></td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr>
+              <td><input type="text"   name="dsm_cat_0_name"           value="Default" style="width:120px"></td>
+              <td><input type="number" name="dsm_cat_0_inflow_split"   value="1.0"    step="0.01" min="0" max="1" style="width:70px"></td>
+              <td><select name="dsm_cat_0_lifetime_type" style="width:110px"><option>Normal</option><option>LogNormal</option><option>Weibull</option></select></td>
+              <td><input type="number" name="dsm_cat_0_lifetime_mean"  value="20.0"   step="0.1" min="0" style="width:75px"></td>
+              <td><input type="number" name="dsm_cat_0_lifetime_std"   value="5.0"    step="0.1" min="0" style="width:75px"></td>
+              <td><input type="number" name="dsm_cat_0_lifetime_shape" placeholder="—" step="0.01" min="0" style="width:70px"></td>
+              <td><input type="number" name="dsm_cat_0_lifetime_scale" placeholder="—" step="0.1"  min="0" style="width:70px"></td>
+              <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove(); reindexDsmCats()">✕</button></td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addDsmCat()">+ Add Category</button>
+        {% if cfg.references %}
+        <div class="field" style="margin-top:0.75rem;max-width:400px">
+          <label>Source reference</label>
+          <select name="dsm_ref" style="font-size:0.88rem">
+            <option value="">—</option>
+            {% for ref in cfg.references %}
+            <option value="{{ ref.cite_key }}"
+                    title="{{ ref.authors }}{% if ref.year %} ({{ ref.year }}){% endif %}{% if ref.title %} — {{ ref.title[:80] }}{% endif %}"
+                    {% if process.dsm and process.dsm.ref == ref.cite_key %}selected{% endif %}>[{{ loop.index }}] {{ ref.authors }}{% if ref.year %} ({{ ref.year }}){% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+      </div>
+    </details>
+
+    <details id="edit-lfg-block">
+      <summary>LFG Parameters</summary>
+      <div class="details-body">
+        <div class="form-grid">
+          <div class="field"><label>MCF</label><input type="number" name="lfg_mcf" value="{{ process.lfg.mcf if process.lfg else 1.0 }}" step="0.01" min="0" max="1"></div>
+          <div class="field"><label>DOCf</label><input type="number" name="lfg_doc_f" value="{{ process.lfg.doc_f if process.lfg else 0.5 }}" step="0.01" min="0" max="1"></div>
+          <div class="field"><label>F CH4</label><input type="number" name="lfg_f_ch4" value="{{ process.lfg.f_ch4 if process.lfg else 0.5 }}" step="0.01" min="0" max="1"></div>
+          <div class="field"><label>OX</label><input type="number" name="lfg_ox" value="{{ process.lfg.ox if process.lfg else 0.1 }}" step="0.01" min="0" max="1"></div>
+          <div class="field"><label>φ (phi)</label><input type="number" name="lfg_phi" value="{{ process.lfg.phi if process.lfg else 1.0 }}" step="0.01" min="0" max="1"></div>
+          <div class="field"><label>f capture</label><input type="number" name="lfg_f_capture" value="{{ process.lfg.f_capture if process.lfg else 0.0 }}" step="0.01" min="0" max="1"></div>
+        </div>
+        <div class="form-grid" style="margin-top:0.75rem">
+          <div class="field">
+            <label>Outflow — CH₄</label>
+            <select name="lfg_outflow_ch4_id">
+              <option value="">— none —</option>
+              {% for f in cfg.flows %}
+              <option value="{{ f.id }}" {% if process.lfg and process.lfg.outflow_ch4_id == f.id %}selected{% endif %}>{{ f.id }} – {{ f.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Outflow — CO₂</label>
+            <select name="lfg_outflow_co2_id">
+              <option value="">— none —</option>
+              {% for f in cfg.flows %}
+              <option value="{{ f.id }}" {% if process.lfg and process.lfg.outflow_co2_id == f.id %}selected{% endif %}>{{ f.id }} – {{ f.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Outflow — Leachate / water</label>
+            <select name="lfg_outflow_leachate_id">
+              <option value="">— none —</option>
+              {% for f in cfg.flows %}
+              <option value="{{ f.id }}" {% if process.lfg and process.lfg.outflow_leachate_id == f.id %}selected{% endif %}>{{ f.id }} – {{ f.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <h4 style="margin:1rem 0 0.5rem">Waste Fractions</h4>
+        <table id="edit-lfg-frac-table" style="width:100%;margin-bottom:0.5rem">
+          <thead>
+            <tr>
+              <th>Name</th><th>k_j (yr⁻¹)</th><th>DOC_j</th><th>f_input_j</th><th>f_ash_j</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="edit-lfg-frac-body">
+            {% if process.lfg and process.lfg.fractions %}
+            {% for frac in process.lfg.fractions %}
+            <tr>
+              <td><input type="text"   name="lfg_frac_{{ loop.index0 }}_name"      value="{{ frac.name }}"      style="width:120px"></td>
+              <td><input type="number" name="lfg_frac_{{ loop.index0 }}_k_j"       value="{{ frac.k_j }}"       step="0.001" min="0" style="width:80px"></td>
+              <td><input type="number" name="lfg_frac_{{ loop.index0 }}_doc_j"     value="{{ frac.doc_j }}"     step="0.01"  min="0" max="1" style="width:80px"></td>
+              <td><input type="number" name="lfg_frac_{{ loop.index0 }}_f_input_j" value="{{ frac.f_input_j }}" step="0.01"  min="0" max="1" style="width:80px"></td>
+              <td><input type="number" name="lfg_frac_{{ loop.index0 }}_f_ash_j"   value="{{ frac.f_ash_j }}"   step="0.001" min="0" max="1" style="width:80px"></td>
+              <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove(); reindexLfgFracs()">✕</button></td>
+            </tr>
+            {% endfor %}
+            {% endif %}
+          </tbody>
+        </table>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addLfgFrac()">+ Add Fraction</button>
+      </div>
+    </details>
+
+    <details id="edit-flowcap-block">
+      <summary>FlowCap Parameters</summary>
+      <div class="details-body">
+        <div class="form-grid">
+          <div class="field">
+            <label>Capped flow (routed output)</label>
+            <select name="flowcap_capped_flow_id">
+              <option value="">— none —</option>
+              {% for f in cfg.flows %}
+              <option value="{{ f.id }}" {% if process.flowcap and process.flowcap.capped_flow_id == f.id %}selected{% endif %}>{{ f.id }} – {{ f.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Overflow flow (excess above cap)</label>
+            <select name="flowcap_overflow_flow_id">
+              <option value="">— none —</option>
+              {% for f in cfg.flows %}
+              <option value="{{ f.id }}" {% if process.flowcap and process.flowcap.overflow_flow_id == f.id %}selected{% endif %}>{{ f.id }} – {{ f.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <h4 style="margin:1rem 0 0.5rem">Capacity Series (Year → Mg/yr)</h4>
+        <table style="width:auto;margin-bottom:0.5rem">
+          <thead><tr><th>Year</th><th>Cap (Mg/yr)</th><th></th></tr></thead>
+          <tbody id="edit-cap-body">
+            {% if process.flowcap %}
+            {% for year, cap in process.flowcap.cap_series.items() %}
+            <tr>
+              <td><input type="number" name="flowcap_year_{{ loop.index0 }}" value="{{ year }}" step="1" min="1900" max="2300" style="width:80px"></td>
+              <td><input type="number" name="flowcap_cap_{{ loop.index0 }}"  value="{{ cap }}"  step="0.01" min="0" style="width:120px"></td>
+              <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">✕</button></td>
+            </tr>
+            {% endfor %}
+            {% endif %}
+          </tbody>
+        </table>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addCapRow()">+ Add Year</button>
+      </div>
+    </details>
+
+    <div style="margin-top:1.25rem" class="btn-row">
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+      <a href="/{{ cfg.name }}/processes" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+const LOGIC_BLOCK_MAP = {
+  'fomp':     'edit-fomp-block',
+  'dsm':      'edit-dsm-block',
+  'lfg':      'edit-lfg-block',
+  'flowcap':  'edit-flowcap-block',
+};
+function toggleParamBlocks(logic) {
+  Object.entries(LOGIC_BLOCK_MAP).forEach(([key, id]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const match = logic.toLowerCase() === key;
+    el.style.display = match ? 'block' : 'none';
+    if (match) el.open = true;
+  });
+}
+toggleParamBlocks(document.getElementById('edit-logic-select').value);
+
+// DSM categories
+let dsmCatCount = document.querySelectorAll('#edit-dsm-cat-body tr').length;
+function addDsmCat() {
+  const tbody = document.getElementById('edit-dsm-cat-body');
+  const i = dsmCatCount++;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text"   name="dsm_cat_${i}_name"           placeholder="Category name" style="width:120px"></td>
+    <td><input type="number" name="dsm_cat_${i}_inflow_split"   value="0.0" step="0.01" min="0" max="1" style="width:70px"></td>
+    <td><select name="dsm_cat_${i}_lifetime_type" style="width:110px">
+      <option>Normal</option><option>LogNormal</option><option>Weibull</option>
+    </select></td>
+    <td><input type="number" name="dsm_cat_${i}_lifetime_mean"  placeholder="—" step="0.1"  min="0" style="width:75px"></td>
+    <td><input type="number" name="dsm_cat_${i}_lifetime_std"   placeholder="—" step="0.1"  min="0" style="width:75px"></td>
+    <td><input type="number" name="dsm_cat_${i}_lifetime_shape" placeholder="—" step="0.01" min="0" style="width:70px"></td>
+    <td><input type="number" name="dsm_cat_${i}_lifetime_scale" placeholder="—" step="0.1"  min="0" style="width:70px"></td>
+    <td><button type="button" class="btn btn-danger btn-sm"
+      onclick="this.closest('tr').remove(); reindexDsmCats()">✕</button></td>`;
+  tbody.appendChild(tr);
+}
+function reindexDsmCats() {
+  document.querySelectorAll('#edit-dsm-cat-body tr').forEach((tr, i) => {
+    ['name','inflow_split','lifetime_type','lifetime_mean','lifetime_std','lifetime_shape','lifetime_scale'].forEach(f => {
+      const inp = tr.querySelector(`[name$="_${f}"]`);
+      if (inp) inp.name = `dsm_cat_${i}_${f}`;
+    });
+  });
+  dsmCatCount = document.querySelectorAll('#edit-dsm-cat-body tr').length;
+}
+
+// LFG fractions
+let lfgFracCount = document.querySelectorAll('#edit-lfg-frac-body tr').length;
+function addLfgFrac() {
+  const tbody = document.getElementById('edit-lfg-frac-body');
+  const i = lfgFracCount++;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text"   name="lfg_frac_${i}_name"      placeholder="Fraction name" style="width:120px"></td>
+    <td><input type="number" name="lfg_frac_${i}_k_j"       value="0.1"  step="0.001" min="0" style="width:80px"></td>
+    <td><input type="number" name="lfg_frac_${i}_doc_j"     value="0.5"  step="0.01"  min="0" max="1" style="width:80px"></td>
+    <td><input type="number" name="lfg_frac_${i}_f_input_j" value="1.0"  step="0.01"  min="0" max="1" style="width:80px"></td>
+    <td><input type="number" name="lfg_frac_${i}_f_ash_j"   value="0.05" step="0.001" min="0" max="1" style="width:80px"></td>
+    <td><button type="button" class="btn btn-danger btn-sm"
+      onclick="this.closest('tr').remove(); reindexLfgFracs()">✕</button></td>`;
+  tbody.appendChild(tr);
+}
+function reindexLfgFracs() {
+  document.querySelectorAll('#edit-lfg-frac-body tr').forEach((tr, i) => {
+    ['name','k_j','doc_j','f_input_j','f_ash_j'].forEach(f => {
+      const inp = tr.querySelector(`[name$="_${f}"]`);
+      if (inp) inp.name = `lfg_frac_${i}_${f}`;
+    });
+  });
+  lfgFracCount = document.querySelectorAll('#edit-lfg-frac-body tr').length;
+}
+
+// FlowCap capacity series
+let capRowCount = document.querySelectorAll('#edit-cap-body tr').length;
+function addCapRow() {
+  const tbody = document.getElementById('edit-cap-body');
+  const i = capRowCount++;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="number" name="flowcap_year_${i}" step="1" min="1900" max="2300" style="width:80px"></td>
+    <td><input type="number" name="flowcap_cap_${i}"  step="0.01" min="0" style="width:120px"></td>
+    <td><button type="button" class="btn btn-danger btn-sm"
+      onclick="this.closest('tr').remove()">✕</button></td>`;
+  tbody.appendChild(tr);
+}
+</script>
+{% endblock %}
