@@ -187,7 +187,7 @@ class FlowComposition(BaseModel):
 class ScenarioModification(BaseModel):
     parameter_name: str = ""
     parameter_type: str = ""   # "Flow","TC","DSM","FOMP","IS", or "" for auto-detect
-    operation: str = "replace" # "replace", "multiply", "add"
+    operation: str = "set"  # "set", "multiply", "add"
     new_value: float = 0.0
     start_year: Optional[int] = None
     end_year: Optional[int] = None
@@ -208,7 +208,7 @@ class McParameter(BaseModel):
     min: Optional[float] = None         # uniform / triangular / optional bound
     max: Optional[float] = None         # uniform / triangular / optional bound
     mode: Optional[float] = None        # triangular
-    operation: str = "replace"          # replace | multiply | add
+    operation: str = "set"              # set | multiply | add
     start_year: Optional[int] = None
     end_year: Optional[int] = None
     flow_group: Optional[str] = None    # MC_Flow_Group (optional)

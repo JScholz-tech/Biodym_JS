@@ -660,10 +660,12 @@ def model_to_yaml(excel_data: dict, source_file: str = "") -> dict:
             dist_raw = row.get("Distribution_Type", "normal")
             distribution = str(dist_raw).lower().strip() if pd.notna(dist_raw) else "normal"
 
-            op_raw = row.get(_op_col, "replace")
-            operation = str(op_raw).strip().lower() if pd.notna(op_raw) else "replace"
-            if operation not in ("replace", "multiply", "add"):
-                operation = "replace"
+            op_raw = row.get(_op_col, "set")
+            operation = str(op_raw).strip().lower() if pd.notna(op_raw) else "set"
+            if operation == "replace":
+                operation = "set"
+            if operation not in ("set", "multiply", "add"):
+                operation = "set"
 
             start_year = _int(row.get("MC_Start_Year")) or _int(row.get("start_year"))
             end_year   = _int(row.get("MC_End_Year"))   or _int(row.get("end_year"))

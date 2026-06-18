@@ -171,7 +171,7 @@ def _apply_extra_yaml(yaml_data: dict, cfg: "CaseStudyConfig") -> None:
                 min=p.get("min"),
                 max=p.get("max"),
                 mode=p.get("mode"),
-                operation=p.get("operation", "replace"),
+                operation=p.get("operation", "set"),
                 start_year=p.get("start_year"),
                 end_year=p.get("end_year"),
                 flow_group=p.get("flow_group"),
@@ -823,17 +823,20 @@ def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
             stored_tc = _tc_lookup.get((proc.id, flow.id))
 
             if proc.logic == ProcessLogic.transformer:
-                # One entry per element: material → no E-prefix; element n (1-based) → TC_E{n}
+                # TC naming mirrors yaml_to_excel_dataframes: n = idx+1 (1-based)
+                # material (idx=0): TC_from_to (no E prefix)
+                # element idx≥1:   TC_E{idx+1}_from_to  (E2 for WC, E3 for DM, E4 for CC …)
                 for e_idx, elem in enumerate(cfg.model.elements):
+                    n = e_idx + 1
                     if e_idx == 0:
                         tc_pname = mat_tc_name
                     else:
-                        tc_pname = f"TC_E{e_idx}_{from_p:02d}_{to_p:02d}"
+                        tc_pname = f"TC_E{n}_{from_p:02d}_{to_p:02d}"
                     cur = stored_tc.values.get(elem) if stored_tc and stored_tc.values else None
                     cur_str = f"  [current: {cur:.3f}]" if cur is not None else ""
                     params.append({
                         "name": tc_pname,
-                        "label": f"{tc_pname} — {flow.name} | {elem} (E{e_idx}){cur_str}",
+                        "label": f"{tc_pname} — {flow.name} | {elem} (E{n}){cur_str}",
                         "group": "TCs — Transformer (per element)",
                         "type": "TC",
                         "hint": f"fraction 0–1  ({elem})",
@@ -858,23 +861,32 @@ def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
 
     # ── DSM Parameters ─────────────────────────────────────────────────────────
     for proc in cfg.processes:
-        if proc.logic != ProcessLogic.dsm:
+        if proc.logic != ProcessLogic.dsm or not proc.dsm:
             continue
         pid, pn = proc.id, proc.name
-        params.extend([
-            {"name": f"P{pid}_DSM_Lifetime_Mean_Cat_1", "label": f"P{pid} {pn} — Lifetime Mean",    "group": "DSM", "type": "DSM", "hint": "years",  "step": "0.1",   "min": "0", "max": ""},
-            {"name": f"P{pid}_DSM_Lifetime_Std_Cat_1",  "label": f"P{pid} {pn} — Lifetime Std Dev", "group": "DSM", "type": "DSM", "hint": "years",  "step": "0.1",   "min": "0", "max": ""},
-        ])
+        cats = proc.dsm.categories if proc.dsm.categories else []
+        n_cats = max(len(cats), 1)
+        for ci in range(1, n_cats + 1):
+            cat_label = cats[ci - 1].name if ci <= len(cats) else f"Cat {ci}"
+            params.extend([
+                {"name": f"P{pid:02d}_DSM_Inflow_Split_[%]_Cat_{ci}", "label": f"P{pid:02d} {pn} — Inflow Split Cat {ci} ({cat_label})",    "group": "DSM", "type": "DSM", "hint": "fraction 0–1", "step": "0.01",  "min": "0", "max": "1"},
+                {"name": f"P{pid:02d}_DSM_Lifetime_Mean_Cat_{ci}",     "label": f"P{pid:02d} {pn} — Lifetime Mean Cat {ci} ({cat_label})",   "group": "DSM", "type": "DSM", "hint": "years",      "step": "0.1",   "min": "0", "max": ""},
+                {"name": f"P{pid:02d}_DSM_Lifetime_StdDev_Cat_{ci}",   "label": f"P{pid:02d} {pn} — Lifetime Std Dev Cat {ci} ({cat_label})","group": "DSM", "type": "DSM", "hint": "years",      "step": "0.1",   "min": "0", "max": ""},
+                {"name": f"P{pid:02d}_DSM_Lifetime_Shape_Cat_{ci}",    "label": f"P{pid:02d} {pn} — Weibull Shape Cat {ci} ({cat_label})",   "group": "DSM", "type": "DSM", "hint": "shape k>0",  "step": "0.01",  "min": "0", "max": ""},
+                {"name": f"P{pid:02d}_DSM_Lifetime_Scale_Cat_{ci}",    "label": f"P{pid:02d} {pn} — Weibull Scale Cat {ci} ({cat_label})",   "group": "DSM", "type": "DSM", "hint": "scale λ>0",  "step": "0.1",   "min": "0", "max": ""},
+            ])
 
     # ── FOMP Parameters ────────────────────────────────────────────────────────
+    # Names match the Excel MC_Parameter_ID convention so imported YAMLs resolve
     for proc in cfg.processes:
         if proc.logic != ProcessLogic.fomp:
             continue
         pid, pn = proc.id, proc.name
         params.extend([
-            {"name": f"P{pid}_decay_k_labile",        "label": f"P{pid} {pn} — k labile",          "group": "FOMP", "type": "FOMP", "hint": "yr⁻¹",         "step": "0.001",  "min": "0", "max": ""},
-            {"name": f"P{pid}_decay_k_recalcitrant",  "label": f"P{pid} {pn} — k recalcitrant",    "group": "FOMP", "type": "FOMP", "hint": "yr⁻¹",         "step": "0.0001", "min": "0", "max": ""},
-            {"name": f"P{pid}_Inflow_fraction_labile","label": f"P{pid} {pn} — Inflow frac labile","group": "FOMP", "type": "FOMP", "hint": "fraction 0–1", "step": "0.001",  "min": "0", "max": "1"},
+            {"name": f"P{pid:02d}_Inflow_fraction_f (Labile pool)",      "label": f"P{pid:02d} {pn} — Inflow frac labile",      "group": "FOMP", "type": "FOMP", "hint": "fraction 0–1", "step": "0.001",  "min": "0", "max": "1"},
+            {"name": f"P{pid:02d}_decay_k1 (Labile pool)",               "label": f"P{pid:02d} {pn} — k labile",                "group": "FOMP", "type": "FOMP", "hint": "yr⁻¹",         "step": "0.001",  "min": "0", "max": ""},
+            {"name": f"P{pid:02d}_Inflow_fraction_f (Recalcitrant pool)", "label": f"P{pid:02d} {pn} — Inflow frac recalcitrant", "group": "FOMP", "type": "FOMP", "hint": "fraction 0–1", "step": "0.001",  "min": "0", "max": "1"},
+            {"name": f"P{pid:02d}_decay_k2 (Recalcitrant pool)",          "label": f"P{pid:02d} {pn} — k recalcitrant",          "group": "FOMP", "type": "FOMP", "hint": "yr⁻¹",         "step": "0.0001", "min": "0", "max": ""},
         ])
 
     # ── LFG site parameters ────────────────────────────────────────────────────
@@ -1356,7 +1368,7 @@ async def hierarchy_redirect(name: str):
 # ══════════════════════════════════════════════════════════════════════════════
 
 _MC_DISTRIBUTIONS = ["normal", "lognormal", "uniform", "triangular"]
-_MC_OPERATIONS    = ["replace", "multiply", "add"]
+_MC_OPERATIONS    = ["set", "multiply", "add"]
 
 # Fields active for each distribution type
 _DIST_FIELDS = {
@@ -1422,7 +1434,7 @@ async def mc_params_save(request: Request, name: str):
             min=     _f(i, "min")    if "min"  in active else None,
             max=     _f(i, "max")    if "max"  in active else None,
             mode=    _f(i, "mode")   if "mode" in active else None,
-            operation=(form.get(f"mc_{i}_operation") or "replace"),
+            operation=(form.get(f"mc_{i}_operation") or "set"),
             start_year=_iv(i, "start_year"),
             end_year=  _iv(i, "end_year"),
             flow_group=(form.get(f"mc_{i}_flow_group") or None) or None,

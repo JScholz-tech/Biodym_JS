@@ -1297,9 +1297,11 @@ def _parse_category_based_dsm(process_data):
     if "Category_ID" in process_data.columns:
         process_data = process_data.sort_values(by="Category_ID")
 
-    # Extract lifetime data for validation
-    lifetime_means = list(process_data["Lifetime_Mean"])
-    lifetime_stddevs = list(process_data["Lifetime_StdDev"])
+    # Extract lifetime data for validation (sanitize None/NaN → 0.0)
+    lifetime_means = [float(v) if v is not None and pd.notna(v) else 0.0
+                      for v in process_data["Lifetime_Mean"]]
+    lifetime_stddevs = [float(v) if v is not None and pd.notna(v) else 0.0
+                        for v in process_data["Lifetime_StdDev"]]
     category_names = list(process_data["Category_Name"])
 
     # Optional Weibull-specific columns
@@ -2191,8 +2193,8 @@ def load_dsm_from_yaml(yaml_path: str) -> dict:
             lt = str(cat.get("lifetime_type", "Normal"))
             types.append(lt)
             names.append(str(cat.get("name", "Default")))
-            means.append(float(cat["lifetime_mean"])  if cat.get("lifetime_mean")  is not None else None)
-            stds.append(float(cat["lifetime_std"])    if cat.get("lifetime_std")   is not None else None)
+            means.append(float(cat["lifetime_mean"]) if cat.get("lifetime_mean") is not None else 0.0)
+            stds.append(float(cat["lifetime_std"])   if cat.get("lifetime_std")  is not None else 0.0)
             shapes.append(float(cat["lifetime_shape"]) if cat.get("lifetime_shape") is not None else None)
             scales.append(float(cat["lifetime_scale"]) if cat.get("lifetime_scale") is not None else None)
         dsm_params[pid] = {

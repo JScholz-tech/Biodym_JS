@@ -654,7 +654,7 @@ mc_parameters:
   min: 0.8003
   max: 0.8979
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -667,7 +667,7 @@ mc_parameters:
   min: 10.0
   max: 20.0
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -680,7 +680,7 @@ mc_parameters:
   min: 0.1997
   max: 0.1021
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -693,7 +693,7 @@ mc_parameters:
   min: 0.01
   max: 0.09
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -706,7 +706,7 @@ mc_parameters:
   min: 0.16
   max: 0.01
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -719,7 +719,7 @@ mc_parameters:
   min: 38.519999999999996
   max: 31.319999999999997
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -732,7 +732,7 @@ mc_parameters:
   min: 0.84
   max: 0.99
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -745,7 +745,7 @@ mc_parameters:
   min: 0.001224
   max: 0.003024
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -758,7 +758,7 @@ mc_parameters:
   min: 0.5009741602067184
   max: 0.570825322997416
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -771,7 +771,7 @@ mc_parameters:
   min: 0.0
   max: 0.0
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -784,7 +784,7 @@ mc_parameters:
   min: 0.42917467700258405
   max: 0.49902583979328163
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -797,7 +797,7 @@ mc_parameters:
   min: 0.2254
   max: 0.2569
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -810,7 +810,7 @@ mc_parameters:
   min: 0.392
   max: 0.4478
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -823,7 +823,7 @@ mc_parameters:
   min: 0.2953
   max: 0.3926
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -836,7 +836,7 @@ mc_parameters:
   min: null
   max: null
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -849,7 +849,7 @@ mc_parameters:
   min: null
   max: null
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -862,7 +862,7 @@ mc_parameters:
   min: null
   max: null
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -875,7 +875,7 @@ mc_parameters:
   min: null
   max: null
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -888,7 +888,7 @@ mc_parameters:
   min: null
   max: null
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null
@@ -901,7 +901,7 @@ mc_parameters:
   min: null
   max: null
   mode: null
-  operation: replace
+  operation: set
   start_year: null
   end_year: null
   flow_group: null

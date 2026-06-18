@@ -328,6 +328,14 @@ def apply_dsm_parameter_updates(dsm_params, sampled_params):
                     updated_dsm_params[process_id]["lifetimes"]["StdDev"][
                         category_idx
                     ] = sampled_value
+            elif param_base == "DSM_Lifetime_Shape":
+                shapes = updated_dsm_params[process_id]["lifetimes"].setdefault("Shape", [None] * len(updated_dsm_params[process_id]["inflow_split"]))
+                if category_idx < len(shapes):
+                    shapes[category_idx] = sampled_value
+            elif param_base == "DSM_Lifetime_Scale":
+                scales = updated_dsm_params[process_id]["lifetimes"].setdefault("Scale", [None] * len(updated_dsm_params[process_id]["inflow_split"]))
+                if category_idx < len(scales):
+                    scales[category_idx] = sampled_value
             elif param_base == "DSM_Inflow_Split":
                 if category_idx < len(updated_dsm_params[process_id]["inflow_split"]):
                     updated_dsm_params[process_id]["inflow_split"][

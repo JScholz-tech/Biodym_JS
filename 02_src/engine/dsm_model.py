@@ -201,7 +201,8 @@ def _calculate_outflow_from_initial_stock(
         - outflow_from_initial_stock_ts (np.ndarray): Time series of the outflow from the initial stock.
     """
     print("\n--- Initial Stock Processing ---")
-    avg_lifetime = np.mean(mean_lifetimes) if mean_lifetimes else 0
+    valid_lifetimes = [m for m in mean_lifetimes if m is not None and not np.isnan(float(m))]
+    avg_lifetime = np.mean(valid_lifetimes) if valid_lifetimes else 0
     decay_rate_k = 1 / avg_lifetime if avg_lifetime > 0 else 0
     outflow_from_initial_stock_ts = np.zeros((num_years, num_elements))
     decaying_stock_ts = np.zeros((num_years, num_elements))
