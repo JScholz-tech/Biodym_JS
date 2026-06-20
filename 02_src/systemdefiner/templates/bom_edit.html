@@ -43,8 +43,10 @@
           <option value="">—</option>
           <option value="target_Product"  {% if row.output_flow_type == "target_Product" %}selected{% endif %}>target_Product</option>
           <option value="Unused_Material"  {% if row.output_flow_type == "Unused_Material" %}selected{% endif %}>Unused_Material (residue)</option>
-          <option value="waste_flow"       {% if row.output_flow_type == "waste_flow" %}selected{% endif %}>waste_flow</option>
-          <option value="secondary_output" {% if row.output_flow_type == "secondary_output" %}selected{% endif %}>secondary_output</option>
+          {# Preserve any legacy value the engine no longer routes, so it isn't silently lost #}
+          {% if row.output_flow_type and row.output_flow_type not in ["target_Product", "Unused_Material"] %}
+          <option value="{{ row.output_flow_type }}" selected>{{ row.output_flow_type }} (legacy — not routed)</option>
+          {% endif %}
         </select>
       </label>
     </div>

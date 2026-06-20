@@ -420,7 +420,9 @@ async def process_new(request: Request, name: str):
     )
     cfg.processes.append(process)
     storage.save_case_study(cfg)
-    return RedirectResponse(f"/{name}/processes", status_code=303)
+    # Land on the full editor so module parameters (FOMP/DSM/LFG/FlowCap) can
+    # be configured in one complete place rather than a duplicated add form.
+    return RedirectResponse(f"/{name}/processes/{new_id}/edit", status_code=303)
 
 
 @app.get("/{name}/processes/{pid}/edit")
