@@ -19,7 +19,23 @@ def _lock_for(name: str) -> threading.Lock:
         return _locks[name]
 
 
+def _is_safe_name(name: str) -> bool:
+    """Reject names that could escape CASE_STUDIES_DIR (path traversal)."""
+    if not name or name in (".", ".."):
+        return False
+    if "/" in name or "\\" in name or "\0" in name:
+        return False
+    base = CASE_STUDIES_DIR.resolve()
+    try:
+        target = (base / name).resolve()
+    except (OSError, ValueError):
+        return False
+    return target.parent == base
+
+
 def _config_path(name: str) -> Path:
+    if not _is_safe_name(name):
+        raise ValueError(f"Invalid case-study name: {name!r}")
     return CASE_STUDIES_DIR / name / "config.yaml"
 
 
@@ -71,6 +87,8 @@ def save_case_study(config: CaseStudyConfig) -> None:
 
 def delete_case_study(name: str) -> None:
     import shutil
+    if not _is_safe_name(name):
+        raise ValueError(f"Invalid case-study name: {name!r}")
     path = CASE_STUDIES_DIR / name
     if path.exists():
         shutil.rmtree(path)
@@ -79,4 +97,6 @@ def delete_case_study(name: str) -> None:
 
 
 def case_study_exists(name: str) -> bool:
+    if not _is_safe_name(name):
+        return False
     return _config_path(name).exists()

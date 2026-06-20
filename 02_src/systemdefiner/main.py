@@ -434,7 +434,7 @@ async def process_edit_save(request: Request, name: str, pid: int):
 @app.post("/{name}/processes/{pid}/delete")
 async def process_delete(name: str, pid: int):
     cfg = storage.load_case_study(name)
-    cfg.processes = [p for p in cfg.processes if p.id != pid]
+    _delete_process_cascade(cfg, pid)
     storage.save_case_study(cfg)
     return RedirectResponse(f"/{name}/processes", status_code=303)
 
@@ -613,6 +613,58 @@ def _rename_flow_id(cfg, old_id: str, new_id: str) -> None:
             mc.parameter_id = new_id
 
 
+def _purge_flow_references(cfg, flow_ids: set) -> None:
+    """Remove every reference to the given flow IDs across the config.
+
+    Used when flows disappear (e.g. their process is deleted) so nothing is
+    left pointing at a flow that no longer exists.
+    """
+    if not flow_ids:
+        return
+    cfg.transfer_coefficients = [tc for tc in cfg.transfer_coefficients if tc.flow_id not in flow_ids]
+    cfg.flow_compositions = [fc for fc in cfg.flow_compositions if fc.flow_id not in flow_ids]
+    cfg.flow_data = [fd for fd in cfg.flow_data if fd.flow_id not in flow_ids]
+    for entry in cfg.bom_assembly:
+        entry.flows = [bf for bf in entry.flows if bf.flow_id not in flow_ids]
+    for p in cfg.processes:
+        if p.fomp:
+            if p.fomp.outflow_id in flow_ids:
+                p.fomp.outflow_id = ""
+            if p.fomp.outflow_id_2 in flow_ids:
+                p.fomp.outflow_id_2 = None
+        if p.lfg:
+            if p.lfg.outflow_ch4_id in flow_ids:
+                p.lfg.outflow_ch4_id = ""
+            if p.lfg.outflow_co2_id in flow_ids:
+                p.lfg.outflow_co2_id = ""
+            if p.lfg.outflow_leachate_id in flow_ids:
+                p.lfg.outflow_leachate_id = ""
+        if p.flowcap:
+            if p.flowcap.capped_flow_id in flow_ids:
+                p.flowcap.capped_flow_id = ""
+            if p.flowcap.overflow_flow_id in flow_ids:
+                p.flowcap.overflow_flow_id = ""
+    for sc in cfg.scenarios:
+        sc.modifications = [m for m in sc.modifications if m.parameter_name not in flow_ids]
+    cfg.mc_parameters = [mc for mc in cfg.mc_parameters if mc.parameter_id not in flow_ids]
+
+
+def _delete_process_cascade(cfg, pid: int) -> None:
+    """Delete a process and everything that depends on it.
+
+    Removes the process, every flow touching it (in or out), its transfer
+    coefficients and BOM entry, and then purges all remaining references to the
+    now-removed flows (TCs, flow data, compositions, BOM flows, FOMP/LFG/FlowCap
+    outflow pointers, scenario/MC parameters).
+    """
+    orphan_flow_ids = {f.id for f in cfg.flows if f.from_process == pid or f.to_process == pid}
+    cfg.processes = [p for p in cfg.processes if p.id != pid]
+    cfg.flows = [f for f in cfg.flows if f.from_process != pid and f.to_process != pid]
+    cfg.transfer_coefficients = [tc for tc in cfg.transfer_coefficients if tc.process_id != pid]
+    cfg.bom_assembly = [e for e in cfg.bom_assembly if e.process_id != pid]
+    _purge_flow_references(cfg, orphan_flow_ids)
+
+
 @app.get("/{name}/flows")
 async def flows_list(request: Request, name: str):
     cfg = storage.load_case_study(name)
@@ -698,6 +750,7 @@ async def flow_edit_save(request: Request, name: str, fid: str):
 async def flow_delete(name: str, fid: str):
     cfg = storage.load_case_study(name)
     cfg.flows = [f for f in cfg.flows if f.id != fid]
+    _purge_flow_references(cfg, {fid})
     storage.save_case_study(cfg)
     return RedirectResponse(f"/{name}/flows", status_code=303)
 
