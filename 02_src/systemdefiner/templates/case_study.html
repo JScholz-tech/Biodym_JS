@@ -64,16 +64,36 @@
       </div>
 
       <div style="margin-top:0.75rem">
-        <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.4rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.03em">
-          Scenario Names (up to 4)
+        <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.2rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.03em">
+          Scenarios to run (up to 4)
         </label>
+        <div class="muted" style="font-size:0.83rem;margin-bottom:0.5rem">
+          Choose from scenarios defined in the Scenario Manager (section 5 below).
+          <a href="/{{ cfg.name }}/scenarios">+ Manage scenarios</a>
+        </div>
+        {% if cfg.scenarios %}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
           {% for i in range(4) %}
-          <input type="text" name="scenario_{{ i }}"
-                 value="{{ cfg.model.selected_scenarios[i] if cfg.model.selected_scenarios | length > i else '' }}"
-                 placeholder="Scenario {{ i + 1 }} name">
+          {% set cur = cfg.model.selected_scenarios[i] if cfg.model.selected_scenarios | length > i else '' %}
+          <select name="scenario_{{ i }}">
+            <option value="">— none —</option>
+            {% for s in cfg.scenarios %}
+            <option value="{{ s.name }}" {% if s.name == cur %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+            {# preserve a previously-selected name that is no longer defined #}
+            {% if cur and not (cfg.scenarios | selectattr("name", "equalto", cur) | list) %}
+            <option value="{{ cur }}" selected>{{ cur }} (not defined)</option>
+            {% endif %}
+          </select>
           {% endfor %}
         </div>
+        {% else %}
+        <div class="alert alert-warn" style="font-size:0.85rem;margin:0">
+          No scenarios defined yet —
+          <a href="/{{ cfg.name }}/scenarios">create one in the Scenario Manager</a>,
+          then select it here.
+        </div>
+        {% endif %}
       </div>
 
       <div style="display:flex;align-items:center;gap:1rem;margin-top:1rem">
