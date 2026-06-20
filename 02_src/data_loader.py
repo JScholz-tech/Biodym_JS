@@ -2493,12 +2493,45 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
     # ── 1_2_Data_Flows ───────────────────────────────────────────────────────
     result["1_2_Data_Flows"] = load_flow_data_df_from_yaml(yaml_path)
 
+    # ── 2_4_Initial_Stock ──────────────────────────────────────────────────────
+    # Tall format: one row per (process, parameter). The initial-stock engine
+    # reads Basic_Material_Quantity[UoM], Basic_E{n}_Fraction[%] (absolute, of
+    # material), and the Cohort_* params. Material (n=1) is the total, not a
+    # fraction.
+    is_rows = []
+    for entry in data.get("initial_stocks", []):
+        pid = entry.get("process_id")
+        if pid is None:
+            continue
+
+        def _is_row(ptype, value):
+            is_rows.append({"Process_ID": pid, "IS_Parameter_type": ptype, "IS_Parameter_Value": value})
+
+        _is_row("Basic_Material_Quantity[UoM]", entry.get("material_quantity", 0.0))
+        comp = entry.get("composition", {})
+        for idx, elem in enumerate(elements):
+            if elem == "material":
+                continue
+            if elem in comp:
+                _is_row(f"Basic_E{idx + 1}_Fraction[%]", comp[elem])
+        if entry.get("cohort_age_distribution_type"):
+            _is_row("Cohort_Age_Distribution_Type", entry["cohort_age_distribution_type"])
+        if entry.get("cohort_mean_age") is not None:
+            _is_row("Cohort_Mean_Age[years]", entry["cohort_mean_age"])
+        if entry.get("cohort_std_age") is not None:
+            _is_row("Cohort_StdDev_Age[years]", entry["cohort_std_age"])
+        if entry.get("cohort_max_age") is not None:
+            _is_row("Cohort_Max_Age[years]", entry["cohort_max_age"])
+        if entry.get("cohort_decay_constant") is not None:
+            _is_row("Cohort_Decay_Constant[years]", entry["cohort_decay_constant"])
+    result["2_4_Initial_Stock"] = (
+        pd.DataFrame(is_rows) if is_rows else
+        pd.DataFrame(columns=["Process_ID", "IS_Parameter_type", "IS_Parameter_Value"])
+    )
+
     # ── Empty placeholder sheets ─────────────────────────────────────────────
     # Must include required column names so validate_input_data passes even
     # though there are zero rows (feature disabled in YAML-only mode).
-    result["2_4_Initial_Stock"] = pd.DataFrame(
-        columns=["Process_ID", "IS_Parameter_type", "IS_Parameter_Value"]
-    )
     result["3_2_Definition_FOMP"] = pd.DataFrame(columns=["Process_ID"])
     result["3_1_DSM_Parameters"]  = pd.DataFrame()
 
@@ -2570,7 +2603,7 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
     print(
         f"   ✓ YAML→DataFrames: {len(processes)} processes, {len(flows)} flows, "
         f"{n_static} static-TC rows, {n_dyn} dynamic-TC rows, {len(mc_rows)} MC params, "
-        f"{len(bom_rows)} BOM rows"
+        f"{len(bom_rows)} BOM rows, {len(is_rows)} initial-stock rows"
     )
     return result
 

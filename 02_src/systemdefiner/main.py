@@ -25,6 +25,7 @@ from systemdefiner.models.config_schema import (
     FlowComposition,
     FlowDataEntry,
     FompParams,
+    InitialStockEntry,
     LfgFraction,
     LfgParams,
     ModelSettings,
@@ -710,6 +711,7 @@ def _delete_process_cascade(cfg, pid: int) -> None:
     cfg.flows = [f for f in cfg.flows if f.from_process != pid and f.to_process != pid]
     cfg.transfer_coefficients = [tc for tc in cfg.transfer_coefficients if tc.process_id != pid]
     cfg.bom_assembly = [e for e in cfg.bom_assembly if e.process_id != pid]
+    cfg.initial_stocks = [s for s in cfg.initial_stocks if s.process_id != pid]
     _purge_flow_references(cfg, orphan_flow_ids)
 
 
@@ -1795,6 +1797,82 @@ async def bom_save(request: Request, name: str, pid: int):
     cfg.bom_assembly.append(BomAssemblyEntry(process_id=pid, flows=bom_flows))
     storage.save_case_study(cfg)
     return RedirectResponse(f"/{name}/bom/{pid}", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# INITIAL STOCK
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _stock_needs_initial(process) -> bool:
+    """True when the process's stock config carries a t=0 initial stock."""
+    return process.stock in (StockConfig.initial_stock_cohort, StockConfig.initial_stock_decay)
+
+
+@app.get("/{name}/initial_stock/{pid}")
+async def initial_stock_form(request: Request, name: str, pid: int):
+    import json as _json
+    cfg = storage.load_case_study(name)
+    process = next((p for p in cfg.processes if p.id == pid), None)
+    if not process:
+        raise HTTPException(404)
+    entry = next((s for s in cfg.initial_stocks if s.process_id == pid), None)
+    comp = entry.composition if entry else {}
+    hier_json = [{"parent": r.parent, "children": r.children} for r in cfg.element_hierarchy]
+    paths_json = _json.dumps(_rules_to_paths(cfg.element_hierarchy))
+    # Composition is stored absolute; matrix displays parent-relative (× 100 here).
+    comp_json = _json.dumps({e: round(comp.get(e, 0.0) * 100, 4) for e in cfg.model.elements})
+    return templates.TemplateResponse(
+        request, "initial_stock_edit.html",
+        _ctx(cfg=cfg, process=process, entry=entry,
+             is_cohort=(process.stock == StockConfig.initial_stock_cohort),
+             hier_json=hier_json, paths_json=paths_json, comp_json=comp_json),
+    )
+
+
+@app.post("/{name}/initial_stock/{pid}")
+async def initial_stock_save(request: Request, name: str, pid: int):
+    form = await request.form()
+    cfg = storage.load_case_study(name)
+    process = next((p for p in cfg.processes if p.id == pid), None)
+    if not process:
+        raise HTTPException(404)
+
+    def _flt(key, default=None):
+        v = (form.get(key) or "").strip()
+        try:
+            return float(v) if v else default
+        except ValueError:
+            return default
+
+    def _iv(key):
+        v = (form.get(key) or "").strip()
+        try:
+            return int(float(v)) if v else None
+        except ValueError:
+            return None
+
+    # The matrix submit handler writes absolute fractions (0–1) into is_{elem}.
+    composition: dict[str, float] = {}
+    for elem in cfg.model.elements:
+        v = _flt(f"is_{elem}", 0.0) or 0.0
+        if v:
+            composition[elem] = v
+
+    entry = InitialStockEntry(
+        process_id=pid,
+        material_quantity=_flt("is_material_quantity", 0.0) or 0.0,
+        composition=composition,
+        cohort_age_distribution_type=(form.get("is_cohort_age_distribution_type") or "Normal"),
+        cohort_mean_age=_flt("is_cohort_mean_age"),
+        cohort_std_age=_flt("is_cohort_std_age"),
+        cohort_max_age=_iv("is_cohort_max_age"),
+        cohort_decay_constant=_flt("is_cohort_decay_constant"),
+        ref=(form.get("is_ref") or "").strip(),
+    )
+    cfg.initial_stocks = [s for s in cfg.initial_stocks if s.process_id != pid]
+    cfg.initial_stocks.append(entry)
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/processes", status_code=303)
 
 
 # ── Flow Data (input time series) ──────────────────────────────────────────

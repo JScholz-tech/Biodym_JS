@@ -101,6 +101,22 @@ class BomAssemblyEntry(BaseModel):
     flows: list[BomAssemblyFlow] = []
 
 
+class InitialStockEntry(BaseModel):
+    """Pre-existing stock present at t=0 for a process whose StockConfig is one
+    of the InitialStock variants. Element fractions are absolute (of material),
+    matching the engine: stock[element] = material_quantity × fraction."""
+    process_id: int
+    material_quantity: float = 0.0          # Basic_Material_Quantity[UoM]
+    composition: dict[str, float] = {}      # element -> absolute fraction (0–1)
+    # Cohort / decay parameters (Stock_with_InitialStock_Cohort / _Decay)
+    cohort_age_distribution_type: str = "Normal"
+    cohort_mean_age: Optional[float] = None
+    cohort_std_age: Optional[float] = None
+    cohort_max_age: Optional[int] = None
+    cohort_decay_constant: Optional[float] = None
+    ref: str = ""
+
+
 class Process(BaseModel):
     id: int
     name: str
@@ -238,4 +254,5 @@ class CaseStudyConfig(BaseModel):
     bom_assembly: list[BomAssemblyEntry] = []
     scenarios: list[ScenarioDefinition] = []
     mc_parameters: list[McParameter] = []
+    initial_stocks: list[InitialStockEntry] = []
     references: list[ReferenceEntry] = []

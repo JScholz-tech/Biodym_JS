@@ -38,6 +38,9 @@
             {% if p.logic.value == "BOM_Assembler" %}
             <a href="/{{ cfg.name }}/bom/{{ p.id }}" class="btn btn-secondary btn-sm">BOM</a>
             {% endif %}
+            {% if p.stock.value in ["Stock_with_InitialStock_Cohort", "Stock_with_InitialStock_Decay"] %}
+            <a href="/{{ cfg.name }}/initial_stock/{{ p.id }}" class="btn btn-secondary btn-sm">Initial Stock</a>
+            {% endif %}
             <form method="post" action="/{{ cfg.name }}/processes/{{ p.id }}/delete" style="display:inline"
                   onsubmit="return confirm('Delete process {{ p.name }}?')">
               <button type="submit" class="btn btn-danger">Delete</button>

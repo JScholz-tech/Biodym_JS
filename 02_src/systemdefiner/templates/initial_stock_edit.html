@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block title %}Initial Stock P{{ process.id }} — {{ cfg.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span>
+  <a href="/{{ cfg.name }}">{{ cfg.name }}</a> <span>/</span>
+  <a href="/{{ cfg.name }}/processes">Processes</a> <span>/</span>
+  <strong>Initial Stock P{{ process.id }} {{ process.name }}</strong>
+{% endblock %}
+
+{% block content %}
+<h1>Initial Stock — P{{ process.id }} {{ process.name }}</h1>
+
+<div class="card" style="margin-bottom:1.25rem">
+  <p class="muted" style="margin:0">
+    Stock present at <strong>t = 0</strong> for this process
+    (<code>{{ process.stock.value }}</code>). Set the total material quantity and the
+    element composition — each level is <strong>% of its parent</strong>, mirroring the
+    <a href="/{{ cfg.name }}/elements">element hierarchy</a> (same as
+    <a href="/{{ cfg.name }}/compositions">Flow Compositions</a>).
+  </p>
+</div>
+
+<form method="post" action="/{{ cfg.name }}/initial_stock/{{ process.id }}" id="is-form">
+  <div class="card" style="margin-bottom:1.25rem">
+    <div class="form-grid">
+      <div class="field">
+        <label>Total material quantity ({{ cfg.model.unit_of_measurement or "Mg" }})</label>
+        <input type="number" name="is_material_quantity" step="any" min="0"
+               value="{{ entry.material_quantity if entry else 0.0 }}">
+      </div>
+      {% if cfg.references %}
+      <div class="field">
+        <label>Source reference</label>
+        <select name="is_ref" style="font-size:0.88rem">
+          <option value="">—</option>
+          {% for ref in cfg.references %}
+          <option value="{{ ref.cite_key }}"
+                  {% if entry and entry.ref == ref.cite_key %}selected{% endif %}>[{{ loop.index }}] {{ ref.authors }}{% if ref.year %} ({{ ref.year }}){% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:1.25rem">
+    <h2 style="margin-top:0;font-size:1rem">Composition (% of parent)</h2>
+    <div id="is_matrix" style="overflow-x:auto"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:1.25rem">
+    <h2 style="margin-top:0;font-size:1rem">
+      {% if is_cohort %}Cohort age distribution{% else %}Stock decay{% endif %}
+    </h2>
+    {% if is_cohort %}
+    <p class="muted" style="margin-top:0;font-size:0.85rem">
+      How the initial stock is distributed across age cohorts at t = 0.
+    </p>
+    <div class="form-grid">
+      <div class="field">
+        <label>Age distribution</label>
+        <select name="is_cohort_age_distribution_type">
+          {% for d in ["Normal", "LogNormal", "Weibull", "Uniform"] %}
+          <option value="{{ d }}" {% if entry and entry.cohort_age_distribution_type == d %}selected{% endif %}>{{ d }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Mean age (years)</label>
+        <input type="number" name="is_cohort_mean_age" step="0.1" min="0" placeholder="—"
+               value="{{ entry.cohort_mean_age if entry and entry.cohort_mean_age is not none else '' }}">
+      </div>
+      <div class="field">
+        <label>Std dev age (years)</label>
+        <input type="number" name="is_cohort_std_age" step="0.1" min="0" placeholder="—"
+               value="{{ entry.cohort_std_age if entry and entry.cohort_std_age is not none else '' }}">
+      </div>
+      <div class="field">
+        <label>Max age (years)</label>
+        <input type="number" name="is_cohort_max_age" step="1" min="0" placeholder="—"
+               value="{{ entry.cohort_max_age if entry and entry.cohort_max_age is not none else '' }}">
+      </div>
+    </div>
+    {% else %}
+    <p class="muted" style="margin-top:0;font-size:0.85rem">
+      First-order decay of the initial stock from t = 0.
+    </p>
+    <div class="form-grid">
+      <div class="field">
+        <label>Decay constant (yr⁻¹)</label>
+        <input type="number" name="is_cohort_decay_constant" step="0.0001" min="0" placeholder="—"
+               value="{{ entry.cohort_decay_constant if entry and entry.cohort_decay_constant is not none else '' }}">
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="btn-row">
+    <button type="submit" class="btn btn-primary">Save Initial Stock</button>
+    <a href="/{{ cfg.name }}/processes" class="btn btn-secondary">Cancel</a>
+  </div>
+</form>
+
+<script>
+const ELEMENTS    = {{ cfg.model.elements | tojson }};
+const HIERARCHY   = {{ hier_json | tojson }};
+const LEVEL_NAMES = {{ cfg.model.hierarchy_level_names | tojson }};
+const INIT_PATHS  = {{ paths_json | safe }};
+const COMP_ABS    = {{ comp_json | safe }};   // absolute % (fraction × 100) from server
+
+const PARENT_CHILDREN = {};
+HIERARCHY.forEach(r => { PARENT_CHILDREN[r.parent] = r.children; });
+const ROOT_ELEM = HIERARCHY.length > 0 ? ELEMENTS[0] : null;
+
+const TOP_DOWN_PARENTS = (function () {
+  if (!ROOT_ELEM) return [];
+  const order = [], queue = [ROOT_ELEM], visited = new Set();
+  while (queue.length) {
+    const curr = queue.shift();
+    if (visited.has(curr)) continue;
+    visited.add(curr);
+    if (PARENT_CHILDREN[curr]) { order.push(curr); PARENT_CHILDREN[curr].forEach(c => queue.push(c)); }
+  }
+  return order;
+})();
+
+const SORTED_PATHS = [...INIT_PATHS].sort((a, b) => {
+  for (let i = 0; i < 4; i++) { if (a[i] < b[i]) return -1; if (a[i] > b[i]) return 1; }
+  return 0;
+});
+
+function getPct(elem) {
+  const inp = document.getElementById(`is_ci_${elem}`);
+  return inp ? (parseFloat(inp.value) || 0) : 0;
+}
+
+function computeSpans(paths) {
+  const N = paths.length, L = 4;
+  const spans = Array.from({length: N}, () => Array(L).fill(1));
+  for (let row = 1; row < N; row++) {
+    for (let col = 0; col < L; col++) {
+      const val = paths[row][col];
+      if (!val) continue;
+      const sameVal = val === paths[row-1][col];
+      const leftMerged = (col === 0) || (spans[row][col-1] === 0);
+      if (sameVal && leftMerged) {
+        spans[row][col] = 0;
+        for (let r = row - 1; r >= 0; r--) { if (spans[r][col] > 0) { spans[r][col]++; break; } }
+      }
+    }
+  }
+  return spans;
+}
+
+// Stored absolute % → parent-relative % for display
+function toParentRel() {
+  const rel = {};
+  if (!ROOT_ELEM) { ELEMENTS.forEach(e => rel[e] = COMP_ABS[e] || 0); return rel; }
+  rel[ROOT_ELEM] = 100;
+  TOP_DOWN_PARENTS.forEach(parent => {
+    const parentAbs = (parent === ROOT_ELEM) ? 100 : (COMP_ABS[parent] || 0);
+    (PARENT_CHILDREN[parent] || []).forEach(child => {
+      rel[child] = parentAbs > 1e-6 ? (COMP_ABS[child] || 0) / parentAbs * 100 : 0;
+    });
+  });
+  ELEMENTS.forEach(e => { if (!(e in rel)) rel[e] = COMP_ABS[e] || 0; });
+  return rel;
+}
+
+// Current parent-relative inputs → absolute fractions (0–1) for save
+function toAbsFractions() {
+  const abs = {};
+  if (!ROOT_ELEM) { ELEMENTS.forEach(e => abs[e] = getPct(e) / 100); return abs; }
+  const rel = {}; ELEMENTS.forEach(e => rel[e] = getPct(e));
+  abs[ROOT_ELEM] = 1.0;
+  TOP_DOWN_PARENTS.forEach(parent => {
+    const parentAbs = abs[parent] || 0;
+    (PARENT_CHILDREN[parent] || []).forEach(child => { abs[child] = (rel[child] / 100) * parentAbs; });
+  });
+  ELEMENTS.forEach(e => { if (!(e in abs)) abs[e] = (rel[e] || 0) / 100; });
+  return abs;
+}
+
+function updateGaps() {
+  ELEMENTS.forEach(e => {
+    if (!PARENT_CHILDREN[e]) return;
+    const gapEl = document.getElementById(`is_gap_${e}`);
+    if (!gapEl) return;
+    const childSum = (PARENT_CHILDREN[e] || []).reduce((s, c) => s + getPct(c), 0);
+    const gap = 100 - childSum, ok = Math.abs(gap) < 0.01;
+    const col = gap < -0.01 ? 'var(--danger)' : ok ? 'var(--primary)' : '#e07b20';
+    const sign = gap > 0.005 ? '+' : '';
+    gapEl.innerHTML = `<div style="font-size:0.78rem;color:${col};margin-top:4px;white-space:nowrap">` +
+      `${ok ? '✓' : '✗'}&thinsp;gap: ${sign}${gap.toFixed(2)}&thinsp;%</div>`;
+  });
+}
+
+function buildMatrix() {
+  const relV = toParentRel();
+  const thSt = 'padding:6px 12px;border:1px solid var(--border);background:var(--bg);text-align:left;font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em';
+  const tdSt = 'padding:10px 12px;border:1px solid var(--border);vertical-align:top;min-width:140px';
+  const tdDash = 'padding:10px 12px;border:1px solid var(--border);vertical-align:middle;text-align:center;color:var(--muted);min-width:100px';
+
+  function cell(elem, isRoot, isParent) {
+    const val = (relV[elem] !== undefined ? relV[elem] : 0).toFixed(2);
+    const lblCol = isParent ? 'var(--muted)' : 'var(--text)';
+    const roAttr = isRoot ? 'readonly tabindex="-1"' : '';
+    const roStyle = isRoot ? 'background:var(--bg);color:var(--muted);border-style:dashed;cursor:default;' : '';
+    let h = `<div style="font-size:0.8rem;font-weight:600;color:${lblCol};margin-bottom:5px">${elem}</div>`;
+    h += `<input type="number" id="is_ci_${elem}" name="is_${elem}" value="${val}" step="0.01" min="0" max="100"` +
+         ` style="width:88px;${roStyle}" ${roAttr} oninput="updateGaps()"> <span style="font-size:0.85rem;color:var(--muted)">%</span>`;
+    if (isParent) h += `<div id="is_gap_${elem}"></div>`;
+    return h;
+  }
+
+  if (!SORTED_PATHS.length) {
+    let html = `<table style="border-collapse:collapse"><thead><tr><th style="${thSt}">Element</th><th style="${thSt}">% of material</th></tr></thead><tbody>`;
+    ELEMENTS.forEach(e => { html += `<tr><td style="${tdSt}">${e}</td><td style="${tdSt}">${cell(e, e === ROOT_ELEM, false)}</td></tr>`; });
+    return html + '</tbody></table>';
+  }
+
+  const spans = computeSpans(SORTED_PATHS), N = SORTED_PATHS.length;
+  let html = `<table style="border-collapse:collapse"><thead><tr>`;
+  LEVEL_NAMES.forEach(n => html += `<th style="${thSt}">${n}</th>`);
+  html += '</tr></thead><tbody>';
+  for (let row = 0; row < N; row++) {
+    html += '<tr>';
+    for (let col = 0; col < 4; col++) {
+      if (spans[row][col] === 0) continue;
+      const elem = SORTED_PATHS[row][col], rs = spans[row][col];
+      if (!elem) { html += `<td rowspan="${rs}" style="${tdDash}">—</td>`; continue; }
+      const isParent = Object.prototype.hasOwnProperty.call(PARENT_CHILDREN, elem);
+      html += `<td rowspan="${rs}" style="${tdSt}">${cell(elem, elem === ROOT_ELEM, isParent)}</td>`;
+    }
+    html += '</tr>';
+  }
+  const covered = new Set(SORTED_PATHS.flat().filter(Boolean));
+  const uncovered = ELEMENTS.filter(e => !covered.has(e));
+  if (uncovered.length) {
+    html += `<tr><td colspan="4" style="${tdSt};color:var(--muted);font-size:0.8rem;font-style:italic">Other elements (not in hierarchy)</td></tr>`;
+    uncovered.forEach(e => {
+      html += `<tr><td colspan="3" style="${tdSt};color:var(--muted)">${e}</td><td style="${tdSt}">${cell(e, e === ROOT_ELEM, false)}</td></tr>`;
+    });
+  }
+  return html + '</tbody></table>';
+}
+
+document.getElementById('is-form').addEventListener('submit', function () {
+  const abs = toAbsFractions();
+  ELEMENTS.forEach(e => {
+    const inp = document.getElementById(`is_ci_${e}`);
+    if (inp) inp.value = (abs[e] || 0).toFixed(6);
+  });
+});
+
+document.getElementById('is_matrix').innerHTML = buildMatrix();
+updateGaps();
+</script>
+{% endblock %}
