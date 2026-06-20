@@ -12,6 +12,14 @@ _locks: dict[str, threading.Lock] = {}
 _locks_lock = threading.Lock()
 
 
+class CaseStudyNotFound(Exception):
+    """Raised when a case study does not exist or its name is unsafe."""
+
+    def __init__(self, name: str):
+        self.name = name
+        super().__init__(f"Case study '{name}' not found")
+
+
 def _lock_for(name: str) -> threading.Lock:
     with _locks_lock:
         if name not in _locks:
@@ -69,7 +77,11 @@ def list_case_studies() -> list[dict]:
 
 
 def load_case_study(name: str) -> CaseStudyConfig:
+    if not _is_safe_name(name):
+        raise CaseStudyNotFound(name)
     path = _config_path(name)
+    if not path.exists():
+        raise CaseStudyNotFound(name)
     with _lock_for(name):
         raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     raw.setdefault("name", name)

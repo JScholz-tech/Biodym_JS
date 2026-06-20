@@ -8,8 +8,10 @@ from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from systemdefiner import storage
+from systemdefiner.storage import CaseStudyNotFound
 from systemdefiner.models.config_schema import (
     BomAssemblyEntry,
     DsmCategory,
@@ -42,6 +44,30 @@ app = FastAPI(title="bioDYM SystemDefiner")
 _HERE = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=_HERE / "static"), name="static")
 templates = Jinja2Templates(directory=_HERE / "templates")
+
+
+# ── Error handling ──────────────────────────────────────────────────────────
+def _error_page(request: Request, code: int, message: str):
+    return templates.TemplateResponse(
+        request, "error.html", {"code": code, "message": message}, status_code=code,
+    )
+
+
+@app.exception_handler(CaseStudyNotFound)
+async def _handle_case_study_not_found(request: Request, exc: CaseStudyNotFound):
+    return _error_page(request, 404, str(exc))
+
+
+@app.exception_handler(StarletteHTTPException)
+async def _handle_http_exception(request: Request, exc: StarletteHTTPException):
+    # Render a friendly page for browser navigation; keep the status code.
+    return _error_page(request, exc.status_code, exc.detail or "Request error")
+
+
+@app.exception_handler(Exception)
+async def _handle_unhandled(request: Request, exc: Exception):
+    # Last resort: show the cause instead of a bare "Internal Server Error".
+    return _error_page(request, 500, f"{type(exc).__name__}: {exc}")
 
 
 def _ctx(**kwargs) -> dict:
@@ -374,14 +400,18 @@ async def process_new(request: Request, name: str):
     cfg = storage.load_case_study(name)
 
     new_id = max((p.id for p in cfg.processes), default=0) + 1
-    logic = ProcessLogic(form.get("logic", ProcessLogic.splitter))
+    _valid_logic = {e.value for e in ProcessLogic}
+    _valid_stock = {e.value for e in StockConfig}
     _valid_tc = {e.value for e in TCConfig}
+    logic_raw = form.get("logic", ProcessLogic.splitter.value)
+    logic = ProcessLogic(logic_raw) if logic_raw in _valid_logic else ProcessLogic.splitter
+    stock_raw = form.get("stock", StockConfig.no_stock.value)
     tc_raw = form.get("tc_config", "No TC")
     process = Process(
         id=new_id,
         name=form.get("name", f"Process {new_id}"),
         logic=logic,
-        stock=StockConfig(form.get("stock", StockConfig.no_stock)),
+        stock=StockConfig(stock_raw) if stock_raw in _valid_stock else StockConfig.no_stock,
         tc_config=TCConfig(tc_raw) if tc_raw in _valid_tc else TCConfig.no_tc,
         fomp=_parse_fomp(form) if logic == ProcessLogic.fomp else None,
         dsm=_parse_dsm(form) if logic == ProcessLogic.dsm else None,
@@ -415,12 +445,16 @@ async def process_edit_save(request: Request, name: str, pid: int):
     if not process:
         raise HTTPException(404)
 
-    logic = ProcessLogic(form.get("logic", process.logic))
+    _valid_logic = {e.value for e in ProcessLogic}
+    _valid_stock = {e.value for e in StockConfig}
     _valid_tc = {e.value for e in TCConfig}
+    logic_raw = form.get("logic", process.logic.value)
+    logic = ProcessLogic(logic_raw) if logic_raw in _valid_logic else process.logic
+    stock_raw = form.get("stock", process.stock.value)
     tc_raw = form.get("tc_config", process.tc_config.value)
     process.name = form.get("name", process.name)
     process.logic = logic
-    process.stock = StockConfig(form.get("stock", process.stock))
+    process.stock = StockConfig(stock_raw) if stock_raw in _valid_stock else process.stock
     process.tc_config = TCConfig(tc_raw) if tc_raw in _valid_tc else TCConfig.no_tc
     process.fomp = _parse_fomp(form) if logic == ProcessLogic.fomp else None
     process.dsm = _parse_dsm(form) if logic == ProcessLogic.dsm else None
@@ -440,10 +474,16 @@ async def process_delete(name: str, pid: int):
 
 
 def _parse_fomp(form) -> FompParams:
+    def _flt(key, default):
+        v = (form.get(key) or "").strip()
+        try:
+            return float(v) if v else default
+        except ValueError:
+            return default
     return FompParams(
-        f_labile=float(form.get("fomp_f_labile", 0.5)),
-        k_labile=float(form.get("fomp_k_labile", 1.0)),
-        k_recalcitrant=float(form.get("fomp_k_recalcitrant", 0.01)),
+        f_labile=_flt("fomp_f_labile", 0.5),
+        k_labile=_flt("fomp_k_labile", 1.0),
+        k_recalcitrant=_flt("fomp_k_recalcitrant", 0.01),
         outflow_id=form.get("fomp_outflow_id", "") or "",
         outflow_id_2=form.get("fomp_outflow_id_2", "") or "",
         ref=(form.get("fomp_ref") or "").strip(),
@@ -497,13 +537,19 @@ def _parse_lfg(form) -> LfgParams:
         idx += 1
         if idx > 50:
             break
+    def _flt(key, default):
+        v = (form.get(key) or "").strip()
+        try:
+            return float(v) if v else default
+        except ValueError:
+            return default
     return LfgParams(
-        mcf=float(form.get("lfg_mcf", 1.0)),
-        doc_f=float(form.get("lfg_doc_f", 0.5)),
-        f_ch4=float(form.get("lfg_f_ch4", 0.5)),
-        ox=float(form.get("lfg_ox", 0.1)),
-        phi=float(form.get("lfg_phi", 1.0)),
-        f_capture=float(form.get("lfg_f_capture", 0.0)),
+        mcf=_flt("lfg_mcf", 1.0),
+        doc_f=_flt("lfg_doc_f", 0.5),
+        f_ch4=_flt("lfg_f_ch4", 0.5),
+        ox=_flt("lfg_ox", 0.1),
+        phi=_flt("lfg_phi", 1.0),
+        f_capture=_flt("lfg_f_capture", 0.0),
         outflow_ch4_id=form.get("lfg_outflow_ch4_id", "") or "",
         outflow_co2_id=form.get("lfg_outflow_co2_id", "") or "",
         outflow_leachate_id=form.get("lfg_outflow_leachate_id", "") or "",
@@ -1760,8 +1806,6 @@ def _input_flows(cfg: CaseStudyConfig):
 @app.get("/{name}/flow_data")
 async def get_flow_data(request: Request, name: str, saved: bool = False):
     cfg = storage.load_case_study(name)
-    if cfg is None:
-        raise HTTPException(404, f"Case study '{name}' not found")
     flows = _input_flows(cfg)
     flow_data_map = {fd.flow_id: dict(sorted(fd.values.items())) for fd in cfg.flow_data}
     return templates.TemplateResponse(
@@ -1773,8 +1817,6 @@ async def get_flow_data(request: Request, name: str, saved: bool = False):
 @app.post("/{name}/flow_data")
 async def post_flow_data(request: Request, name: str):
     cfg = storage.load_case_study(name)
-    if cfg is None:
-        raise HTTPException(404, f"Case study '{name}' not found")
     form = await request.form()
 
     flows = _input_flows(cfg)
