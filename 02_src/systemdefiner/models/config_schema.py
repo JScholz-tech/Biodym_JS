@@ -187,7 +187,7 @@ class FlowComposition(BaseModel):
 class ScenarioModification(BaseModel):
     parameter_name: str = ""
     parameter_type: str = ""   # "Flow","TC","DSM","FOMP","IS", or "" for auto-detect
-    operation: str = "set"  # "set", "multiply", "add"
+    operation: str = "replace"  # scenario engine vocabulary: "replace", "multiply", "add"
     new_value: float = 0.0
     start_year: Optional[int] = None
     end_year: Optional[int] = None
