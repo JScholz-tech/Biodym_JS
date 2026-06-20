@@ -342,6 +342,23 @@ async def delete_case_study(name: str):
     return RedirectResponse("/", status_code=303)
 
 
+@app.post("/{name}/clone")
+async def clone_case_study(request: Request, name: str):
+    form = await request.form()
+    new_name = _slug((form.get("new_name") or "").strip())
+    if not new_name:
+        raise HTTPException(400, "A new name is required")
+    try:
+        storage.clone_case_study(name, new_name)
+    except ValueError as exc:
+        studies = storage.list_case_studies()
+        return templates.TemplateResponse(
+            request, "index.html",
+            _ctx(studies=studies, import_error=str(exc)), status_code=400,
+        )
+    return RedirectResponse(f"/{new_name}", status_code=303)
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # CASE STUDY OVERVIEW
 # ══════════════════════════════════════════════════════════════════════════════

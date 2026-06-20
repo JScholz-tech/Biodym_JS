@@ -26,6 +26,11 @@
         <td>
           <div class="btn-row">
             <a href="/{{ s.name }}" class="btn btn-secondary btn-sm">Open</a>
+            <form method="post" action="/{{ s.name }}/clone" style="display:inline"
+                  onsubmit="var n=prompt('Name for the copy:', '{{ s.name }}_copy'); if(!n){return false;} this.new_name.value=n; return true;">
+              <input type="hidden" name="new_name">
+              <button type="submit" class="btn btn-secondary btn-sm">Duplicate</button>
+            </form>
             <form method="post" action="/{{ s.name }}/delete" style="display:inline"
                   onsubmit="return confirm('Delete case study {{ s.name }}?')">
               <button type="submit" class="btn btn-danger">Delete</button>

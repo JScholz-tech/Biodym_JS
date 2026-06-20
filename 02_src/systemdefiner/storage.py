@@ -97,6 +97,23 @@ def save_case_study(config: CaseStudyConfig) -> None:
         path.write_text(text, encoding="utf-8")
 
 
+def clone_case_study(src: str, dst: str) -> None:
+    """Copy a case study (config + diagram) to a new name. Raises on bad input."""
+    if not _is_safe_name(src) or not _is_safe_name(dst):
+        raise ValueError("Invalid case-study name.")
+    if not case_study_exists(src):
+        raise CaseStudyNotFound(src)
+    if case_study_exists(dst):
+        raise ValueError(f"Case study '{dst}' already exists.")
+    cfg = load_case_study(src)
+    cfg.name = dst
+    save_case_study(cfg)
+    diagram = diagram_path(src)
+    if diagram:
+        (CASE_STUDIES_DIR / dst).mkdir(parents=True, exist_ok=True)
+        (CASE_STUDIES_DIR / dst / diagram.name).write_bytes(diagram.read_bytes())
+
+
 def delete_case_study(name: str) -> None:
     import shutil
     if not _is_safe_name(name):
