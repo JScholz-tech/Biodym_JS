@@ -346,12 +346,105 @@ async def delete_case_study(name: str):
 # CASE STUDY OVERVIEW
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _model_health(cfg) -> list[dict]:
+    """Return a list of {level, message} issues that would hinder a model run.
+
+    level is 'error' (likely breaks the engine) or 'warn' (probably unintended).
+    """
+    issues: list[dict] = []
+    def err(msg):  issues.append({"level": "error", "message": msg})
+    def warn(msg): issues.append({"level": "warn", "message": msg})
+
+    proc_ids = {p.id for p in cfg.processes}
+    flow_ids = {f.id for f in cfg.flows}
+    boundary = proc_ids | {0}   # process 0 is the implicit system boundary
+
+    if not cfg.processes:
+        err("No processes defined.")
+    if cfg.processes and not cfg.flows:
+        warn("No flows defined.")
+
+    # Flows pointing at processes that don't exist
+    for f in cfg.flows:
+        if f.from_process not in boundary:
+            err(f"Flow {f.id}: source process P{f.from_process} does not exist.")
+        if f.to_process not in boundary:
+            err(f"Flow {f.id}: target process P{f.to_process} does not exist.")
+
+    # Disconnected processes
+    touched = {f.from_process for f in cfg.flows} | {f.to_process for f in cfg.flows}
+    for p in cfg.processes:
+        if p.id not in touched:
+            warn(f"P{p.id} {p.name}: no flows (disconnected).")
+
+    # DSM inflow split must sum to 1
+    for p in cfg.processes:
+        if p.dsm and p.dsm.categories:
+            s = sum((c.inflow_split or 0.0) for c in p.dsm.categories)
+            if abs(s - 1.0) > 1e-6:
+                warn(f"P{p.id} {p.name}: DSM inflow split sums to {s:.3f} (should be 1.0).")
+
+    # TC-eligible processes with outgoing flows but no TCs
+    _tc_elig = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm}
+    tc_pids = {tc.process_id for tc in cfg.transfer_coefficients}
+    for p in cfg.processes:
+        if p.logic in _tc_elig and p.tc_config != TCConfig.no_tc:
+            if any(f.from_process == p.id for f in cfg.flows) and p.id not in tc_pids:
+                warn(f"P{p.id} {p.name}: outgoing flows but no transfer coefficients defined.")
+
+    # Input flows without flow data
+    input_pids = {p.id for p in cfg.processes if p.logic == ProcessLogic.input} | {0}
+    fd_ids = {fd.flow_id for fd in cfg.flow_data}
+    for f in cfg.flows:
+        if f.from_process in input_pids and f.id not in fd_ids:
+            warn(f"Input flow {f.id} has no flow data.")
+
+    # BOM processes without a target_Product
+    for p in cfg.processes:
+        if p.logic == ProcessLogic.bom_assembler:
+            entry = next((e for e in cfg.bom_assembly if e.process_id == p.id), None)
+            if not entry or not any(bf.output_flow_type == "target_Product" for bf in entry.flows):
+                warn(f"P{p.id} {p.name}: BOM process has no target_Product flow.")
+
+    # InitialStock processes without a defined stock
+    for p in cfg.processes:
+        if p.stock in (StockConfig.initial_stock_cohort, StockConfig.initial_stock_decay):
+            e = next((s for s in cfg.initial_stocks if s.process_id == p.id), None)
+            if not e or (e.material_quantity or 0) <= 0:
+                warn(f"P{p.id} {p.name}: initial-stock process has no initial stock quantity.")
+
+    # Dangling outflow pointers
+    def _chk(pid, pname, label, fid):
+        if fid and fid not in flow_ids:
+            warn(f"P{pid} {pname}: {label} '{fid}' is not a defined flow.")
+    for p in cfg.processes:
+        if p.fomp:
+            _chk(p.id, p.name, "FOMP outflow", p.fomp.outflow_id)
+            _chk(p.id, p.name, "FOMP secondary outflow", p.fomp.outflow_id_2)
+        if p.lfg:
+            _chk(p.id, p.name, "LFG CH4 outflow", p.lfg.outflow_ch4_id)
+            _chk(p.id, p.name, "LFG CO2 outflow", p.lfg.outflow_co2_id)
+            _chk(p.id, p.name, "LFG leachate outflow", p.lfg.outflow_leachate_id)
+        if p.flowcap:
+            _chk(p.id, p.name, "FlowCap capped flow", p.flowcap.capped_flow_id)
+            _chk(p.id, p.name, "FlowCap overflow flow", p.flowcap.overflow_flow_id)
+
+    # Selected scenarios that aren't defined
+    defined = {s.name for s in cfg.scenarios}
+    for nm in cfg.model.selected_scenarios:
+        if nm and nm not in defined:
+            warn(f"Selected scenario '{nm}' is not defined in the Scenario Manager.")
+
+    return issues
+
+
 @app.get("/{name}")
 async def case_study_overview(request: Request, name: str):
     if not storage.case_study_exists(name):
         raise HTTPException(404, f"Case study '{name}' not found")
     cfg = storage.load_case_study(name)
-    return templates.TemplateResponse(request, "case_study.html", _ctx(cfg=cfg))
+    return templates.TemplateResponse(request, "case_study.html",
+                                      _ctx(cfg=cfg, health=_model_health(cfg)))
 
 
 @app.post("/{name}/settings")

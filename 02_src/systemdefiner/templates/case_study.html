@@ -41,6 +41,29 @@
   </div>
 </div>
 
+{# ── Model health check ─────────────────────────────────────────────────── #}
+{% set health_errors = health | selectattr('level', 'equalto', 'error') | list %}
+{% set health_warns  = health | selectattr('level', 'equalto', 'warn')  | list %}
+{% if health %}
+<details class="card" open
+         style="margin-bottom:1.25rem;border-left:4px solid {{ 'var(--danger)' if health_errors else '#e07b20' }}">
+  <summary style="cursor:pointer;font-weight:700">
+    Model health — {{ health_errors | length }} error{{ '' if health_errors | length == 1 else 's' }},
+    {{ health_warns | length }} warning{{ '' if health_warns | length == 1 else 's' }}
+  </summary>
+  <div style="padding-top:0.75rem">
+    {% for issue in health %}
+    <div class="alert {{ 'alert-err' if issue.level == 'error' else 'alert-warn' }}"
+         style="font-size:0.85rem;margin-bottom:0.5rem">
+      {{ '⛔' if issue.level == 'error' else '⚠' }} {{ issue.message }}
+    </div>
+    {% endfor %}
+  </div>
+</details>
+{% else %}
+<div class="alert alert-ok" style="margin-bottom:1.25rem">✓ Model health: all checks passed.</div>
+{% endif %}
+
 {# ── §1 Model Configuration ────────────────────────────────────────────── #}
 <details class="card" data-section="1" style="padding:0;margin-bottom:1.25rem" open>
   <summary style="display:flex;align-items:baseline;gap:0.75rem;padding:0.75rem 1.25rem;cursor:pointer;background:var(--bg);border-radius:var(--radius);user-select:none">
