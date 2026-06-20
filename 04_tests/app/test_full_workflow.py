@@ -101,9 +101,11 @@ def _create_processes(client) -> None:
     # P4: long-lived construction use (DSM)
     _post(client, f"/{STUDY}/processes/new",
           name="Construction", logic="DSM", stock="Stock",
-          dsm_lifetime_mean=50.0,
-          dsm_lifetime_std=15.0,
-          dsm_lifetime_distribution="Normal")
+          dsm_cat_0_name="Default",
+          dsm_cat_0_inflow_split=1.0,
+          dsm_cat_0_lifetime_type="Normal",
+          dsm_cat_0_lifetime_mean=50.0,
+          dsm_cat_0_lifetime_std=15.0)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -270,8 +272,8 @@ class TestFullWorkflow:
         # DSM params persisted through process creation
         construction = by_name["Construction"]
         assert construction.dsm is not None
-        assert construction.dsm.lifetime_mean == pytest.approx(50.0)
-        assert construction.dsm.lifetime_std == pytest.approx(15.0)
+        assert construction.dsm.categories[0].lifetime_mean == pytest.approx(50.0)
+        assert construction.dsm.categories[0].lifetime_std == pytest.approx(15.0)
 
         # ── §3 Flows ──────────────────────────────────────────────────────────
         assert len(cfg.flows) == 5

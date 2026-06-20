@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from systemdefiner.models.config_schema import (
     CaseStudyConfig,
+    DsmCategory,
     DsmParams,
     Flow,
     FompParams,
@@ -100,8 +101,11 @@ class TestProcess:
 
     def test_dsm_process(self):
         p = Process(id=3, name="Building", logic=ProcessLogic.dsm,
-                    dsm=DsmParams(lifetime_mean=50.0, lifetime_std=10.0))
-        assert p.dsm.lifetime_mean == 50.0
+                    dsm=DsmParams(categories=[
+                        DsmCategory(name="Default", inflow_split=1.0,
+                                    lifetime_type="Normal", lifetime_mean=50.0, lifetime_std=10.0)]))
+        assert p.dsm.categories[0].lifetime_mean == 50.0
+        assert p.dsm.categories[0].lifetime_std == 10.0
 
     def test_flowcap_logic(self):
         p = Process(id=4, name="Cap", logic=ProcessLogic.flowcap)
