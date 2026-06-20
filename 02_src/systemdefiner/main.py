@@ -46,6 +46,9 @@ _HERE = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=_HERE / "static"), name="static")
 templates = Jinja2Templates(directory=_HERE / "templates")
 
+# Available in every template (base.html shows the diagram band when present).
+templates.env.globals["study_has_diagram"] = lambda name: storage.diagram_path(name) is not None
+
 
 # ── Error handling ──────────────────────────────────────────────────────────
 def _error_page(request: Request, code: int, message: str):
@@ -1346,6 +1349,36 @@ async def export_yaml(name: str):
     from systemdefiner.storage import _config_path
     path = _config_path(name)
     return FileResponse(path, media_type="application/x-yaml", filename=f"{name}_config.yaml")
+
+
+# ── Model diagram (user-uploaded image shown in the page header) ────────────
+@app.get("/{name}/diagram")
+async def get_diagram(name: str):
+    path = storage.diagram_path(name)
+    if not path:
+        raise HTTPException(404, "No diagram uploaded")
+    return FileResponse(path)
+
+
+@app.post("/{name}/diagram")
+async def upload_diagram(request: Request, name: str, file: UploadFile):
+    if not storage.case_study_exists(name):
+        raise HTTPException(404)
+    contents = await file.read()
+    try:
+        storage.save_diagram(name, file.filename or "", contents)
+    except ValueError as exc:
+        cfg = storage.load_case_study(name)
+        return templates.TemplateResponse(
+            request, "error.html", {"code": 422, "message": str(exc)}, status_code=422,
+        )
+    return RedirectResponse(f"/{name}", status_code=303)
+
+
+@app.post("/{name}/diagram/delete")
+async def remove_diagram(name: str):
+    storage.delete_diagram(name)
+    return RedirectResponse(f"/{name}", status_code=303)
 
 
 @app.get("/{name}/import")

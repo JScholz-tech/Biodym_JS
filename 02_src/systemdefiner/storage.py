@@ -112,3 +112,44 @@ def case_study_exists(name: str) -> bool:
     if not _is_safe_name(name):
         return False
     return _config_path(name).exists()
+
+
+# ── Model diagram (user-uploaded image, e.g. a draw.io PNG) ──────────────────
+_DIAGRAM_EXTS = {".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp"}
+
+
+def diagram_path(name: str) -> Path | None:
+    """Return the stored diagram image for a study, or None if there isn't one."""
+    if not _is_safe_name(name):
+        return None
+    folder = CASE_STUDIES_DIR / name
+    if not folder.is_dir():
+        return None
+    for p in sorted(folder.glob("diagram.*")):
+        if p.suffix.lower() in _DIAGRAM_EXTS:
+            return p
+    return None
+
+
+def save_diagram(name: str, filename: str, content: bytes) -> None:
+    """Store (replace) the study's diagram image. Raises ValueError on bad input."""
+    if not _is_safe_name(name):
+        raise ValueError(f"Invalid case-study name: {name!r}")
+    ext = Path(filename or "").suffix.lower()
+    if ext not in _DIAGRAM_EXTS:
+        raise ValueError(f"Unsupported image type '{ext or '(none)'}'. "
+                         f"Allowed: {', '.join(sorted(_DIAGRAM_EXTS))}")
+    folder = CASE_STUDIES_DIR / name
+    folder.mkdir(parents=True, exist_ok=True)
+    for p in folder.glob("diagram.*"):   # drop any previous diagram
+        p.unlink()
+    (folder / f"diagram{ext}").write_bytes(content)
+
+
+def delete_diagram(name: str) -> None:
+    if not _is_safe_name(name):
+        return
+    folder = CASE_STUDIES_DIR / name
+    if folder.is_dir():
+        for p in folder.glob("diagram.*"):
+            p.unlink()
