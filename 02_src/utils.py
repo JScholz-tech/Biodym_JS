@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import json
 import os
+import re
 import shutil
 import tempfile
 from datetime import datetime
@@ -193,6 +194,39 @@ def sample_parameters(uncertainty_params):
     return sampled_values
 
 
+def safe_sheet_name(name, used_names=None):
+    """Return an Excel-safe worksheet name.
+
+    Excel limits worksheet names to 31 characters and forbids the characters
+    ``[]:*?/\\``. Names derived from user data (e.g. element or scenario names)
+    can violate these rules and make ``xlsxwriter`` raise ``InvalidWorksheetName``.
+    This truncates to 31 chars, replaces invalid characters, and (when a
+    ``used_names`` set is supplied) de-duplicates so collisions can't occur.
+
+    Parameters
+    ----------
+    name : str
+        Desired sheet name.
+    used_names : set, optional
+        Set of already-used sheet names; updated in place when provided.
+
+    Returns
+    -------
+    str
+        A valid, unique-within-``used_names`` worksheet name.
+    """
+    safe = re.sub(r"[\[\]:*?/\\]", "_", str(name)).strip() or "Sheet"
+    safe = safe[:31]
+    if used_names is not None:
+        base, i = safe, 1
+        while safe in used_names:
+            suffix = f"_{i}"
+            safe = base[: 31 - len(suffix)] + suffix
+            i += 1
+        used_names.add(safe)
+    return safe
+
+
 def export_results_to_excel(
     mfa_system_results, output_path, input_file_path="Not specified"
 ):
@@ -303,13 +337,14 @@ def export_results_to_excel(
             worksheet.set_column(col_num, col_num, len(value) + 2)
 
         # --- 3. Wide-Format Data (for easy analysis in Excel) ---
+        _used_sheets: set = set(writer.sheets)
         for element in elements:
             # Flows Wide
             if not flow_df_long.empty and element in flow_df_long.columns:
                 flow_df_wide = flow_df_long.pivot_table(
                     index="Flow", columns="Year", values=element
                 )
-                sheet_name = f"Flows_wide_{element}"
+                sheet_name = safe_sheet_name(f"Flows_wide_{element}", _used_sheets)
                 flow_df_wide.to_excel(writer, sheet_name=sheet_name)
                 worksheet = writer.sheets[sheet_name]
                 worksheet.write(0, 0, "Flow", header_format)
@@ -322,7 +357,7 @@ def export_results_to_excel(
                 stock_df_wide = stock_df_long.pivot_table(
                     index="Stock", columns="Year", values=element
                 )
-                sheet_name = f"Stocks_wide_{element}"
+                sheet_name = safe_sheet_name(f"Stocks_wide_{element}", _used_sheets)
                 stock_df_wide.to_excel(writer, sheet_name=sheet_name)
                 worksheet = writer.sheets[sheet_name]
                 worksheet.write(0, 0, "Stock", header_format)
@@ -771,13 +806,18 @@ class ScenarioManager:
             )
 
             # Individual scenario sheets
+            _used_scn_sheets: set = set(writer.sheets)
             for scenario_name in scenario_names:
                 scenario_config = comparison_data["scenarios"][scenario_name]["config"]
                 config_df = pd.DataFrame(
                     list(scenario_config.items()), columns=["Parameter", "Value"]
                 )
                 config_df.to_excel(
-                    writer, sheet_name=f"Scenario_{scenario_name}", index=False
+                    writer,
+                    sheet_name=safe_sheet_name(
+                        f"Scenario_{scenario_name}", _used_scn_sheets
+                    ),
+                    index=False,
                 )
 
         print(f"✅ Scenario comparison exported to: {output_path}")

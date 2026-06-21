@@ -10,6 +10,8 @@ import pandas as pd
 import numpy as np
 import os
 
+from utils import safe_sheet_name
+
 
 def calculate_system_kpis(mfa_results, process_logic_map):
     """
@@ -422,10 +424,13 @@ def generate_kpi_dashboard(mfa_results, process_logic_map, output_path):
             kpi_df.to_excel(writer, sheet_name="Timeseries_All_Elements", index=False)
 
             # Sheet 4-7: Element-specific timeseries (NEW!)
+            _used_kpi_sheets: set = set(writer.sheets)
             for element_name in mfa_results.Elements:
                 element_data = kpi_df[kpi_df["Element"] == element_name].copy()
                 if not element_data.empty:
-                    sheet_name = f"Timeseries_{element_name}"
+                    sheet_name = safe_sheet_name(
+                        f"Timeseries_{element_name}", _used_kpi_sheets
+                    )
                     element_data.to_excel(writer, sheet_name=sheet_name, index=False)
 
         print(f"\n{'=' * 70}")
