@@ -264,9 +264,9 @@
             </select>
           </div>
         </div>
-        <h4 style="margin:1rem 0 0.5rem">Capacity Series (Year → Mg/yr)</h4>
+        <h4 style="margin:1rem 0 0.5rem">Capacity Series (Year → {{ cfg.model.unit_of_measurement }}/yr)</h4>
         <table style="width:auto;margin-bottom:0.5rem">
-          <thead><tr><th>Year</th><th>Cap (Mg/yr)</th><th></th></tr></thead>
+          <thead><tr><th>Year</th><th>Cap ({{ cfg.model.unit_of_measurement }}/yr)</th><th></th></tr></thead>
           <tbody id="edit-cap-body">
             {% if process.flowcap %}
             {% for year, cap in process.flowcap.cap_series.items() %}
