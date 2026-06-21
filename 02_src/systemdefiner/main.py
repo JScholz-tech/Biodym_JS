@@ -498,6 +498,7 @@ async def update_settings(request: Request, name: str):
 
     def _bool(key): return key in form   # checkbox: present = True, absent = False
 
+    cfg.description = form.get("description", cfg.description)
     m.start_year = _int("start_year", m.start_year)
     m.end_year = _int("end_year", m.end_year)
     m.unit_of_measurement = form.get("unit_of_measurement", m.unit_of_measurement).strip()

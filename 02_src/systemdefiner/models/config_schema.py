@@ -244,6 +244,7 @@ class ReferenceEntry(BaseModel):
 class CaseStudyConfig(BaseModel):
     schema_version: str = "1.0"
     name: str
+    description: str = ""   # free-text notes about the study (e.g. tutorial context)
     model: ModelSettings = ModelSettings()
     processes: list[Process] = []
     flows: list[Flow] = []
