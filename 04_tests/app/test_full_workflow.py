@@ -113,12 +113,14 @@ def _create_processes(client) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _create_flows(client) -> None:
+    # Process IDs are 0-based: Atmosphere=0, Field=1, Soil_Inc=2, Construction=3.
+    # (Flow IDs are kept as fixed labels; only from/to use the real process ids.)
     pairs = [
-        ("F_01_02", "Straw Supply",         1, 2),
-        ("F_02_03", "To Soil",              2, 3),
-        ("F_02_04", "To Construction",      2, 4),
-        ("F_03_01", "CO2 to Atmosphere",    3, 1),
-        ("F_04_01", "EoL to Atmosphere",    4, 1),
+        ("F_01_02", "Straw Supply",         0, 1),
+        ("F_02_03", "To Soil",              1, 2),
+        ("F_02_04", "To Construction",      1, 3),
+        ("F_03_01", "CO2 to Atmosphere",    2, 0),
+        ("F_04_01", "EoL to Atmosphere",    3, 0),
     ]
     for fid, fname, frm, to in pairs:
         _post(client, f"/{STUDY}/flows/new",
@@ -133,7 +135,7 @@ def _save_static_tcs(client) -> None:
     for elem in ("material", "WC", "DM", "TC"):
         data[f"tc_F_02_03_{elem}"] = "0.4"
         data[f"tc_F_02_04_{elem}"] = "0.6"
-    _post(client, f"/{STUDY}/tcs/2", **data)
+    _post(client, f"/{STUDY}/tcs/1", **data)  # Field is process id 1 (0-based)
 
 
 def _save_flow_compositions(client) -> None:
