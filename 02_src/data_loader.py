@@ -2463,7 +2463,14 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
             row[f"E{n}_TC_ID"]       = tc_id if val is not None else None
             row[f"E{n}_TC_Value[%]"] = val
         static_rows.append(row)
-    result["2_2_static_TCs"] = pd.DataFrame(static_rows) if static_rows else pd.DataFrame()
+    # Empty sheet must still carry the required columns so validate_input_data
+    # passes (e.g. a model with only dynamic TCs).
+    _tc_cols = ["Process_ID", "Flow_ID"]
+    for _i in range(len(elements)):
+        _tc_cols += [f"E{_i + 1}_TC_ID", f"E{_i + 1}_TC_Value[%]"]
+    result["2_2_static_TCs"] = (
+        pd.DataFrame(static_rows) if static_rows else pd.DataFrame(columns=_tc_cols)
+    )
 
     # ── 2_3_dynamic_TCs ──────────────────────────────────────────────────────
     dyn_rows = []
@@ -2487,7 +2494,12 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
                 row[f"E{n}_TC_ID"]       = tc_id if val is not None else None
                 row[f"E{n}_TC_Value[%]"] = val
             dyn_rows.append(row)
-    result["2_3_dynamic_TCs"] = pd.DataFrame(dyn_rows) if dyn_rows else pd.DataFrame()
+    _dyn_cols = ["Process_ID", "Flow_ID", "Year"]
+    for _i in range(len(elements)):
+        _dyn_cols += [f"E{_i + 1}_TC_ID", f"E{_i + 1}_TC_Value[%]"]
+    result["2_3_dynamic_TCs"] = (
+        pd.DataFrame(dyn_rows) if dyn_rows else pd.DataFrame(columns=_dyn_cols)
+    )
 
     # ── 1_2_Data_Flows ───────────────────────────────────────────────────────
     result["1_2_Data_Flows"] = load_flow_data_df_from_yaml(yaml_path)
