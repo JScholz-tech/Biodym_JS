@@ -2440,9 +2440,8 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
 
     # ── 2_2_static_TCs ───────────────────────────────────────────────────────
     # New E# format: E{n}_TC_ID, E{n}_TC_Value[%]
-    # TC ID convention (CLAUDE.md):
-    #   material → TC_{from:02d}_{to:02d}
-    #   element n → TC_E{n}_{from:02d}_{to:02d}
+    # TC ID convention (matches the BioDYM Excel template): every element,
+    # including material (E1), uses TC_E{n}_{from:02d}_{to:02d}.
     static_rows = []
     for tc in tcs:
         if tc.get("tc_type", "static") != "static":
@@ -2458,8 +2457,8 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
         row = {"Process_ID": pid, "Flow_ID": fid}
         for idx, elem in enumerate(elements):
             n = idx + 1
-            tc_id = (f"TC_{from_p:02d}_{to_p:02d}" if elem == "material"
-                     else f"TC_E{n}_{from_p:02d}_{to_p:02d}")
+            # BioDYM convention: every element (incl. material, E1) → TC_E{n}_{from}_{to}
+            tc_id = f"TC_E{n}_{from_p:02d}_{to_p:02d}"
             val = values.get(elem)
             row[f"E{n}_TC_ID"]       = tc_id if val is not None else None
             row[f"E{n}_TC_Value[%]"] = val

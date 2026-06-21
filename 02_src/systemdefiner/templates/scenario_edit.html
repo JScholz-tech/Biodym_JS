@@ -14,11 +14,10 @@
   <p class="muted" style="margin:0">
     Each row defines one parameter modification applied when this scenario runs.
     Select a parameter from the dropdown — the type and value constraints are filled automatically.
-    <strong>TC names</strong> follow the standard BioDYM convention:
-    <code>TC_{from:02d}_{to:02d}</code> for material (Splitter/DSM) and
-    <code>TC_E{n}_{from:02d}_{to:02d}</code> for element <em>n</em> (Transformer, n=1 for first
-    non-material element, e.g. WC) — verify these match the IDs in your Excel
-    <code>2_2_static_TCs</code> / <code>2_3_dynamic_TCs</code> sheets.
+    <strong>TC names</strong> follow the BioDYM Excel convention
+    <code>TC_E{n}_{from:02d}_{to:02d}</code>, where <em>n</em> is the 1-based element
+    index — <code>E1</code> = material, <code>E2</code> = WC, <code>E3</code> = DM, … —
+    matching the IDs in your <code>2_2_static_TCs</code> / <code>2_3_dynamic_TCs</code> sheets.
     Use <em>Custom…</em> if they differ.
     <em>Start / End Year</em> are optional; leave blank to apply to all years.
   </p>

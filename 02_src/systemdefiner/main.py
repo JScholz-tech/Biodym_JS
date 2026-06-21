@@ -1126,8 +1126,8 @@ def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
     # ── Transfer Coefficients ──────────────────────────────────────────────────
     # Iterate processes → outgoing flows so entries are generated even when no
     # TC is stored (e.g. Transformer with tc_config=Dynamic and empty 2_3 sheet).
-    # BioDYM naming: material → TC_{from:02d}_{to:02d}
-    #                element n (n≥1, 1=WC) → TC_E{n}_{from:02d}_{to:02d}
+    # BioDYM naming (matches the Excel template): every element uses
+    # TC_E{n}_{from:02d}_{to:02d}, with E1 = material, E2 = WC, …
     _tc_eligible = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm}
     # Build TC lookup: (process_id, flow_id) → first matching TC (for current values)
     _tc_lookup: dict[tuple, "TransferCoefficient"] = {}
@@ -1151,7 +1151,7 @@ def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
             to_p = flow.to_process
             src = proc_names.get(from_p, f"P{from_p}")
             dst = proc_names.get(to_p, f"P{to_p}")
-            mat_tc_name = f"TC_{from_p:02d}_{to_p:02d}"
+            mat_tc_name = f"TC_E1_{from_p:02d}_{to_p:02d}"
             stored_tc = _tc_lookup.get((proc.id, flow.id))
 
             if proc.logic == ProcessLogic.transformer:
