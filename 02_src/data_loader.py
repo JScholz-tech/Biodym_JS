@@ -2806,3 +2806,59 @@ def load_initial_stock_parameters(excel_data, elements=None):
     from engine import initial_stock_engine
 
     return initial_stock_engine.load_initial_stock_parameters(excel_data, elements)
+
+
+def load_all_parameters(
+    all_excel_data,
+    config_obj,
+    yaml_config_file=None,
+    elements=None,
+    debug_mode=False,
+):
+    """Load DSM / FOMP / LFG / FlowCap / BOM parameters from YAML or Excel.
+
+    Dispatches to the YAML web-app loaders when ``yaml_config_file`` is given,
+    otherwise to the Excel-sheet loaders. FOMP is only loaded when
+    ``config_obj.RUN_FOMP_CALCULATION`` is truthy (matching the engine guard).
+    BOM parameters are loaded the same way regardless of source.
+
+    Parameters
+    ----------
+    all_excel_data : dict
+        Loaded (or YAML-synthesised) sheet DataFrames.
+    config_obj : object
+        Configuration object (used for ``RUN_FOMP_CALCULATION``).
+    yaml_config_file : str, optional
+        Path to a SystemDefiner YAML config; when set, YAML loaders are used.
+    elements : list, optional
+        Element names, passed to the BOM loader.
+    debug_mode : bool, optional
+        Verbose loader output.
+
+    Returns
+    -------
+    dict
+        Keys ``"dsm"``, ``"fomp"``, ``"lfg"``, ``"flow_cap"``, ``"bom"``.
+    """
+    if yaml_config_file:
+        dsm = load_dsm_from_yaml(yaml_config_file)
+        fomp = (
+            load_fomp_from_yaml(yaml_config_file)
+            if config_obj.RUN_FOMP_CALCULATION
+            else {}
+        )
+        lfg = load_lfg_from_yaml(yaml_config_file)
+        flow_cap = load_flow_cap_from_yaml(yaml_config_file)
+    else:
+        dsm = load_dsm_parameters(all_excel_data, debug_mode=debug_mode)
+        fomp = (
+            load_fomp_parameters(all_excel_data, debug_mode=debug_mode)
+            if config_obj.RUN_FOMP_CALCULATION
+            else {}
+        )
+        lfg = load_lfg_parameters(all_excel_data, debug_mode=debug_mode)
+        flow_cap = load_flow_cap_parameters(all_excel_data, debug_mode=debug_mode)
+
+    bom = load_bom_parameters(all_excel_data, elements=elements, debug_mode=debug_mode)
+
+    return {"dsm": dsm, "fomp": fomp, "lfg": lfg, "flow_cap": flow_cap, "bom": bom}

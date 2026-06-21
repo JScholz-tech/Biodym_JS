@@ -394,6 +394,32 @@ def _get_config_list(config_obj, attribute_name, default=None):
     return default
 
 
+def resolve_unit(config_obj, default="Mg"):
+    """Return the mass unit declared on a config object.
+
+    Different config sources expose the unit under different attribute names;
+    this returns the first non-empty string among the known aliases, falling back
+    to ``default``.
+
+    Parameters
+    ----------
+    config_obj : object
+        Loaded configuration object.
+    default : str, optional
+        Unit to use when none is declared. Defaults to ``"Mg"``.
+
+    Returns
+    -------
+    str
+        The resolved mass unit.
+    """
+    for attr in ("Unit", "Unit_of_Measurement", "UoM", "Mass_Unit"):
+        value = getattr(config_obj, attr, None)
+        if isinstance(value, str) and value.strip():
+            return value
+    return default
+
+
 def extract_workflow_dimensions(config_obj, input_data: dict) -> dict:
     """Extract all dimension lists and time range from a loaded config object.
 

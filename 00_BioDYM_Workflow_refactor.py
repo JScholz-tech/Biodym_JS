@@ -277,13 +277,8 @@ model_classification, index_table = system_setup.define_model_scope(
 index_table
 
 print(format_step(Icons.SYSTEM, "2.1.2", "Initializing MFA system..."))
-_cfg_unit = next(
-    (getattr(config_obj, a) for a in ("Unit", "Unit_of_Measurement", "UoM", "Mass_Unit")
-     if isinstance(getattr(config_obj, a, None), str) and getattr(config_obj, a, "").strip()),
-    "Mg",
-)
 mfa_system_base = system_setup.initialize_mfa_system(
-    model_classification, index_table, unit=_cfg_unit
+    model_classification, index_table, unit=config.resolve_unit(config_obj)
 )
 
 print(format_step(Icons.DATA_LOADING, "2.1.3", "Loading processes and data..."))
@@ -319,22 +314,19 @@ mfa_system_configured.ParameterDict.update(
     tc_params
 )  # Add the new TC params to the system
 
-# Load other special model parameters — from YAML web-app config or Excel
-if yaml_config_file:
-    dsm_params      = data_loader.load_dsm_from_yaml(yaml_config_file)
-    fomp_params     = (data_loader.load_fomp_from_yaml(yaml_config_file)
-                       if config_obj.RUN_FOMP_CALCULATION else {})
-    lfg_params      = data_loader.load_lfg_from_yaml(yaml_config_file)
-    flow_cap_params = data_loader.load_flow_cap_from_yaml(yaml_config_file)
-else:
-    dsm_params = data_loader.load_dsm_parameters(all_excel_data, debug_mode=DEBUG_MODE)
-    fomp_params = (data_loader.load_fomp_parameters(all_excel_data, debug_mode=DEBUG_MODE)
-                   if config_obj.RUN_FOMP_CALCULATION else {})
-    lfg_params      = data_loader.load_lfg_parameters(all_excel_data, debug_mode=DEBUG_MODE)
-    flow_cap_params = data_loader.load_flow_cap_parameters(all_excel_data, debug_mode=DEBUG_MODE)
-bom_params = data_loader.load_bom_parameters(
-    all_excel_data, elements=mfa_system_configured.Elements, debug_mode=DEBUG_MODE
+# Load DSM/FOMP/LFG/FlowCap/BOM parameters — from YAML web-app config or Excel.
+_params = data_loader.load_all_parameters(
+    all_excel_data,
+    config_obj,
+    yaml_config_file=yaml_config_file,
+    elements=mfa_system_configured.Elements,
+    debug_mode=DEBUG_MODE,
 )
+dsm_params = _params["dsm"]
+fomp_params = _params["fomp"]
+lfg_params = _params["lfg"]
+flow_cap_params = _params["flow_cap"]
+bom_params = _params["bom"]
 data_loader.register_flow_cap_parameters(mfa_system_configured, flow_cap_params)
 
 # Filter fomp_params and lfg_params against process_logic_map so the Excel
