@@ -28,7 +28,7 @@
 # **Lukas Hoppe** • Technical University of Berlin
 # **Albrecht Fritze** • Technical University of Berlin
 # **Vera Susanne Rotter** • Technical University of Berlin
-# *Contributing authors and collaborators listed in CONTRIBUTORS.md*
+# *See [README.md](README.md#-acknowledgments) for contributors and acknowledgments.*
 #
 # ### 📄 License
 # This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
@@ -38,26 +38,12 @@
 #
 # ### 📖 Table of Contents
 #
-# * [0. Introduction](#0.-Introduction)
-#   * [🚀 Quick Start Guide](#🚀-Quick-Start-Guide)
-# * [1. Setup and Data Loading](#1.-Setup-and-Data-Loading)
-#   * [1.1 Environment Setup](#1.1-Environment-Setup)
-#   * [1.2 Data Input Configuration](#1.2-Data-Input-Configuration)
-#   * [1.3 System Configuration Extraction](#1.3-System-Configuration-Extraction)
-# * [2. Calculation & Mass Balance](#2.-Calculation-&-Mass-Balance)
-#   * [2.1 Model Initialization & Calculation](#2.1-Model-Initialization-&-Calculation)
-#   * [2.2 Data Validation Summary](#2.2-Data-Validation-Summary)
-#   * [2.3 Mass Balance Verification](#2.3-Mass-Balance-Verification)
-#   * [2.4 System Flow Diagram (Graphviz)](#2.4-System-Flow-Diagram-(Graphviz))
-#   * [2.5 Flow Composition Validation](#2.5-Flow-Composition-Validation)
-# * [3. Visualization](#3.-Visualization)
-#   * [3.1 Sankey Diagrams](#3.1-Sankey-Diagrams)
-#   * [3.2 Additional Visualizations](#3.2-Additional-Visualizations)
-# * [4. Scenario & Uncertainty Manager](#4.-Scenario-&-Uncertainty-Manager)
-#   * [4.1 Scenario Analysis & Comparison](#4.1-Scenario-Analysis-&-Comparison)
-#   * [4.2 Monte Carlo Analysis](#4.2-Monte-Carlo-Analysis)
-# * [5. Data Export](#5.-Data-Export)
-#   * [5.1 KPI Dashboard and Export](#5.1-KPI-Dashboard-and-Export)
+# 0. **Introduction** — quick start & key commands
+# 1. **Setup and Data Loading** — environment, input file, system configuration
+# 2. **Calculation & Mass Balance** — run the MFA and verify mass conservation
+# 3. **Visualization** — Sankey, stocks, flows, and process dynamics
+# 4. **Scenario & Uncertainty Manager** — scenario comparison & Monte Carlo
+# 5. **Data Export** — KPI dashboard, results, and Sankey exports
 #
 # ---
 #
@@ -77,35 +63,30 @@
 #
 # ## 🚀 Quick Start Guide
 #
-# **Welcome to BioDYM!** This notebook performs a complete Material Flow Analysis from data loading to results export.
+# **Welcome to BioDYM!** This notebook runs a complete Material Flow Analysis — from
+# data loading to results export. See [README.md](README.md) for full setup details.
 #
-# ### bioDYM SystemDefiner
+# ### ⌨️ Most important commands
 #
-# Use the **bioDYM SystemDefiner** web app to create and configure your case study before running this notebook:
+# | Purpose | Command |
+# |---------|---------|
+# | **First use** — install dependencies | `uv sync` |
+# | Open this notebook | `uv run jupyter lab` |
+# | _(optional)_ run the test suite | `uv run pytest` |
+# | **bioDYM SystemDefiner** — define a system visually (→ http://localhost:8001) | `uv run python -m systemdefiner` |
+# | **System Dashboard** (Voilà) | `uv run voila 01_BioDYM_Dashboard.ipynb` |
 #
-# ```bash
-# uv run python -m systemdefiner
-# ```
+# ### Getting started in 3 steps
 #
-# Opens at **http://localhost:8001** — define your system, then export a `config.yaml` and set `input_file` below to that path.
-#
-# ### Getting Started
-#
-# 1. **Required Input**: Set the **Excel or YAML file path** in Section 1.2 below
-# 2. **Full Documentation**: See [README.md](README.md) for detailed setup instructions
-# 3. **Example Data**: Template files are provided in `01_data/01_input/`
-#
-# ### Prerequisites
-# - Python 3.12+ with dependencies installed (`uv sync`)
-# - Excel input file following the BioDYM template, or a YAML config exported from bioDYM SystemDefiner
-#
-# ### Support
-# - **Documentation**: `05_docs/` folder
-# - **Issues**: [GitHub Issues](https://github.com/TUB-bioDYM/bioDYM/issues)
+# 1. **Set your input** in Section 1.2 — a BioDYM Excel (`.xlsm`/`.xlsx`) **or** a
+#    `config.yaml` exported from the SystemDefiner. The bundled template is the
+#    default, so you can **Kernel → Restart & Run All** right away.
+# 2. **Run all cells** in order.
+# 3. **Explore** the interactive plots; results are written to `01_data/02_output/`.
 #
 # ### 🔧 Debug Mode
-# Set `DEBUG_MODE = True` below to see detailed technical output during data loading and calculation.
-# Default: `False` (clean, user-friendly output)
+# Set `DEBUG_MODE = True` below for detailed technical output during data loading and
+# calculation (default `False` = clean, user-friendly output).
 
 DEBUG_MODE = False  # Set to True for detailed technical output
 
@@ -123,28 +104,18 @@ import warnings
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import plotly.graph_objects as go
 from IPython.display import display
 
 # Suppress openpyxl data validation warnings (harmless, caused by Excel dropdown rules)
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
-# Add BioDYM modules to path to make them importable
-src_path = os.path.join(os.getcwd(), "02_src")
-sys.path.insert(0, src_path)
+# Put the source root + ODYM/bioDYM framework dirs on sys.path so the
+# digit-prefixed packages import. 02_src must be added first so `bootstrap`
+# itself is importable; setup_paths() then adds the framework module dirs.
+sys.path.insert(0, os.path.join(os.getcwd(), "02_src"))
+from bootstrap import setup_paths, init_widgets
 
-# Add ODYM framework to path. ODYM is a foundational library for this project.
-project_root = os.getcwd()
-odym_path = os.path.join(
-    project_root, "06_framework", "ODYM-master_20241127", "odym", "modules"
-)
-sys.path.insert(0, odym_path)
-
-# Add bioDYM add-on to path for custom extensions.
-biodym_addon_path = os.path.join(
-    project_root, "06_framework", "bioDYM_add-on", "modules"
-)
-sys.path.insert(0, biodym_addon_path)
+project_root = setup_paths()
 
 # Import BioDYM modules
 try:
@@ -153,10 +124,14 @@ try:
     import system_setup
     import utils
     from engine import solver
+    from engine import scenario_engine
     import plotting
     import ODYM_Classes as msc
     from plotting.composition import plot_flow_composition
+    from plotting.composition_export import export_flow_composition
+    from plotting.sankey import export_sankey_batch
     from reporting import kpi_dashboard
+    from reporting.validation_summary import display_system_summary
 
     # Import standard icons
     from constants import (
@@ -191,21 +166,12 @@ PLOT_THEME = "exploratory"
 plotting.set_theme(PLOT_THEME)
 print(f"{Icons.CONFIGURATION} Plot theme: '{PLOT_THEME}'")
 
-# Initialize Plotly widgets to prevent empty plot issues
-# This forces the widget communication channel to be established early
+# Pre-initialise the interactive widget system (prevents the first plot from
+# rendering empty in Jupyter / Voilà).
 print(f"{Icons.CONFIGURATION} Initializing interactive widget system...")
-import time
-from ipywidgets import IntSlider
-
-try:
-    # Create dummy widgets to initialize the comm channel
-    _dummy_fig = go.FigureWidget()
-    _dummy_slider = IntSlider()
-    time.sleep(0.5)  # Allow widget registration to complete
-    del _dummy_fig, _dummy_slider
+if init_widgets():
     print(f"{Icons.SUCCESS} Widget system initialized successfully")
-except Exception as e:
-    print(f"{Icons.WARNING} Widget initialization had issues: {e}")
+else:
     print(f"{Icons.INFO} Plots may take longer on first render")
 
 # ## 1.2 Data Input Configuration
@@ -300,7 +266,7 @@ selected_scenario = dims["selected_scenario"]
 # ## 2.1 Model Initialization & Calculation
 print(format_header("RUNNING BASELINE MFA CALCULATION"))
 
-print(format_step(Icons.SYSTEM, "2.1", "Setting up model scope..."))
+print(format_step(Icons.SYSTEM, "2.1.1", "Setting up model scope..."))
 model_classification, index_table = system_setup.define_model_scope(
     start_year, end_year, elements, regions, goods, materials, processes
 )
@@ -311,17 +277,12 @@ model_classification, index_table = system_setup.define_model_scope(
 
 index_table
 
-print(format_step(Icons.SYSTEM, "2.2", "Initializing MFA system..."))
-_cfg_unit = next(
-    (getattr(config_obj, a) for a in ("Unit", "Unit_of_Measurement", "UoM", "Mass_Unit")
-     if isinstance(getattr(config_obj, a, None), str) and getattr(config_obj, a, "").strip()),
-    "Mg",
-)
+print(format_step(Icons.SYSTEM, "2.1.2", "Initializing MFA system..."))
 mfa_system_base = system_setup.initialize_mfa_system(
-    model_classification, index_table, unit=_cfg_unit
+    model_classification, index_table, unit=config.resolve_unit(config_obj)
 )
 
-print(format_step(Icons.DATA_LOADING, "2.3", "Loading processes and data..."))
+print(format_step(Icons.DATA_LOADING, "2.1.3", "Loading processes and data..."))
 mfa_system_base, all_excel_data = system_setup.load_and_define_processes(
     mfa_system_base, input_data, data_loader, debug_mode=DEBUG_MODE
 )
@@ -331,7 +292,7 @@ if yaml_config_file and not _yaml_only_mode:
     if not _flow_df.empty:
         all_excel_data["1_2_Data_Flows"] = _flow_df
 
-print(format_step(Icons.DATA_LOADING, "2.4", "Defining flows and parameters..."))
+print(format_step(Icons.DATA_LOADING, "2.1.4", "Defining flows and parameters..."))
 mfa_system_configured, _, flow_tc_map, process_logic_map = (
     system_setup.define_flows_and_parameters(
         mfa_system_base, all_excel_data, debug_mode=DEBUG_MODE
@@ -340,7 +301,7 @@ mfa_system_configured, _, flow_tc_map, process_logic_map = (
 
 print(
     format_step(
-        Icons.CONFIGURATION, "2.5", "Loading model parameters (TCs, DSM, FOMP)..."
+        Icons.CONFIGURATION, "2.1.5", "Loading model parameters (TCs, DSM, FOMP)..."
     )
 )
 
@@ -354,22 +315,19 @@ mfa_system_configured.ParameterDict.update(
     tc_params
 )  # Add the new TC params to the system
 
-# Load other special model parameters — from YAML web-app config or Excel
-if yaml_config_file:
-    dsm_params      = data_loader.load_dsm_from_yaml(yaml_config_file)
-    fomp_params     = (data_loader.load_fomp_from_yaml(yaml_config_file)
-                       if config_obj.RUN_FOMP_CALCULATION else {})
-    lfg_params      = data_loader.load_lfg_from_yaml(yaml_config_file)
-    flow_cap_params = data_loader.load_flow_cap_from_yaml(yaml_config_file)
-else:
-    dsm_params = data_loader.load_dsm_parameters(all_excel_data, debug_mode=DEBUG_MODE)
-    fomp_params = (data_loader.load_fomp_parameters(all_excel_data, debug_mode=DEBUG_MODE)
-                   if config_obj.RUN_FOMP_CALCULATION else {})
-    lfg_params      = data_loader.load_lfg_parameters(all_excel_data, debug_mode=DEBUG_MODE)
-    flow_cap_params = data_loader.load_flow_cap_parameters(all_excel_data, debug_mode=DEBUG_MODE)
-bom_params = data_loader.load_bom_parameters(
-    all_excel_data, elements=mfa_system_configured.Elements, debug_mode=DEBUG_MODE
+# Load DSM/FOMP/LFG/FlowCap/BOM parameters — from YAML web-app config or Excel.
+_params = data_loader.load_all_parameters(
+    all_excel_data,
+    config_obj,
+    yaml_config_file=yaml_config_file,
+    elements=mfa_system_configured.Elements,
+    debug_mode=DEBUG_MODE,
 )
+dsm_params = _params["dsm"]
+fomp_params = _params["fomp"]
+lfg_params = _params["lfg"]
+flow_cap_params = _params["flow_cap"]
+bom_params = _params["bom"]
 data_loader.register_flow_cap_parameters(mfa_system_configured, flow_cap_params)
 
 # Filter fomp_params and lfg_params against process_logic_map so the Excel
@@ -390,7 +348,7 @@ else:
 
 print(format_success("All parameters loaded and configured."))
 
-print(format_step(Icons.CALCULATION, "2.6", "Running baseline calculation..."))
+print(format_step(Icons.CALCULATION, "2.1.6", "Running baseline calculation..."))
 mfa_results_baseline, dsm_details_baseline, solver_info_baseline = solver.run_mfa_calculation(
     mfa_system_configured,
     dsm_params,
@@ -411,7 +369,6 @@ print(format_success("Baseline calculation completed successfully!"))
 
 print(format_header("DATA VALIDATION SUMMARY", level=2))
 
-from reporting.validation_summary import display_system_summary
 display_system_summary(
     mfa_system_configured, config_obj, elements, regions,
     start_year, end_year, dsm_params, fomp_params, lfg_params,
@@ -437,15 +394,17 @@ plotting.plot_dynamic_process_balance(
 )
 
 # ## 2.4 System Flow Diagram (Graphviz)
-print(f"\n{Icons.ARROW} System Flow Diagram (Graphviz)")
+#
+# A static node-link overview of the system, laid out Sankey-style.
+# Skipped automatically if the optional `graphviz` library isn't installed.
+
 try:
+    # Local import: graphviz is an optional dependency.
     from plotting.graphviz_flow_charts import plot_graphviz_flow_chart_sankey_style
 
-    # Get the required dataframes from the loaded data
     processes_data = all_excel_data["2_1_Definition_Processes"]
     flows_data = all_excel_data["1_1_Definition_Flows"]
 
-    # Generate and display the chart
     dot_chart = plot_graphviz_flow_chart_sankey_style(processes_data, flows_data)
     if dot_chart:
         display(dot_chart)
@@ -456,21 +415,21 @@ except Exception as e:
     print(f"{Icons.WARNING} Graphviz chart failed: {e}")
 
 # ## 2.5 Flow Composition Validation
-print(f"\n{Icons.ARROW} Flow Composition Validation")
-print("   • Validates completeness of element composition across all flows")
-print("   • Interactive visualization of flow composition hierarchy")
+#
+# - Validates completeness of element composition across all flows
+# - Interactive visualization of the flow composition hierarchy
+
 plot_flow_composition(mfa_results_baseline)
 
 # Export flow composition data
-from plotting.composition_export import export_flow_composition
-
 export_path = "01_data/02_output/composition/flow_composition.xlsx"
 export_flow_composition(mfa_results_baseline, export_path)
 
 # # 3. Visualization
 #
-# **Note:** All plots in this section are interactive — use the dropdown menus and sliders to
-# explore different elements, years, and processes. Use the export buttons to save figures.
+# **Note:** All plots in this section are interactive — use the dropdown menus and
+# sliders to explore different elements, years, and processes. Use the export buttons
+# to save figures.
 
 print(format_header("VISUALIZATION (BASELINE)"))
 _t = plotting.get_active_theme()
@@ -479,62 +438,49 @@ print(f"  Theme '{PLOT_THEME}': {_t['width']}×{_t['height']}px | "
       f"title {'hidden' if not _t['show_title'] else 'visible'}")
 
 # ## 3.1 Sankey Diagrams
-
+#
 # ### 3.1.1 Traditional Sankey (Auto-Layout)
-# *Sankey appearance settings (font sizes, node spacing, colors) can be customized in
+#
+# - Single element selection with dropdown
+# - Automatic node positioning via topological sort
+# - Interactive filtering by year, process, and flow threshold
+#
+# *Appearance settings (fonts, node spacing, colors) live in
 # [`02_src/plotting/sankey_config.py`](02_src/plotting/sankey_config.py).*
-print(f"\n{Icons.ARROW} Traditional Sankey Diagram (Auto-Layout)")
-print("   • Single element selection with dropdown")
-print("   • Automatic node positioning via topological sort")
-print("   • Interactive filtering by year, process, and flow threshold")
+
 plotting.plot_interactive_sankey(mfa_results_baseline, dsm_params, fomp_params, bom_params=bom_params)
 
 # ## 3.2 Additional Visualizations
-print(f"\n{Icons.ARROW} Additional Visualizations")
-
+#
 # ### 3.2.1 Core System Dynamics
-print(f"\n{Icons.VISUALIZATION} Core System Dynamics:")
-print("   • Process Dynamics: Interactive 3-panel view (Inflow/Stock/Outflow)")
-print("   • Flow Dynamics: Multi-flow time series analysis")
-print("   • Stock Analysis: Interactive bar charts with time slider")
+#
+# - **Process Dynamics** — interactive 3-panel view (inflow / stock / outflow)
+# - **Flow Dynamics** — multi-flow time series with element selection
+# - **Stock Levels** — interactive bar charts with a time slider
+# - **Process Stocks** — each process stock separately, bar/line + element selection
 
-# Process Dynamics - 3-panel view showing inflow, stock, and outflow for selected processes
-print(f"\n{Icons.MFA} Process Dynamics Analysis:")
 plotting.plot_process_dynamics(
     mfa_results_baseline, all_excel_data["2_1_Definition_Processes"]
 )
-
-# Flow Dynamics - Multi-flow time series with element selection
-print(f"\n{Icons.SANKEY} Flow Dynamics Analysis:")
 plotting.plot_flow_dynamics(mfa_results_baseline)
-
-# Stock Bar Chart - Interactive stock levels with time slider
-print(f"\n{Icons.BAR_CHART} Stock Levels Analysis:")
 plotting.plot_stock_bar_chart(
     mfa_results_baseline, title="Stock Levels Over Time (Baseline)"
 )
-
-# System Stock Composition - Individual process stocks over time
-print(f"\n{Icons.BAR_CHART} Individual Process Stocks Analysis:")
-print("   • Individual process stocks over time")
-print("   • Shows each process stock separately")
-print("   • Element selection and bar/line chart options")
 plotting.plot_system_stock_composition(mfa_results_baseline)
 
 # ### 3.2.2 Specialized Process Analysis (if applicable)
-print(f"\n{Icons.VISUALIZATION} Specialized Process Analysis:")
+#
+# DSM and FOMP plots below render only when the model contains such processes;
+# otherwise the section prints a short "skipped" note.
 
-# DSM Stock Details - Detailed DSM stock evolution (if DSM processes exist)
+# DSM Stock Details — detailed DSM stock evolution (if DSM processes exist)
 if dsm_params and dsm_details_baseline:
-    print(f"\n{Icons.DSM} DSM Stock Evolution Analysis:")
-    print("   • Individual and cumulative stock views")
-    print("   • Lifetime analysis and category breakdown")
+    # Individual and cumulative stock views; lifetime + category breakdown.
     plotting.plot_dsm_stock_details(
         mfa_results_baseline, dsm_params, dsm_details_baseline
     )
 
-    print(f"\n{Icons.DSM} DSM Stock — Publication Figure:")
-    print("   • JIE-format stacked cohort areas, 10⁶ Mg y-scale, policy line 2075")
+    # Publication figure: JIE-format stacked cohort areas, policy line 2075.
     _dsm_pid = next(iter(dsm_params))
     plotting.plot_dsm_stock_publication(
         mfa_results_baseline,
@@ -544,63 +490,45 @@ if dsm_params and dsm_details_baseline:
         policy_year=2075,
     )
 
-    print(f"\n{Icons.MFA} DSM Process Dynamics Analysis:")
-    print("   • Three-panel view: Input, Stock, Output")
-    print("   • Stacked flows by element (Material, WC, DM, CC)")
-    print("   • Dynamic material composition for DSM processes")
+    # Three-panel input/stock/output, stacked by element.
     plotting.plot_dsm_process_dynamics(
         mfa_results_baseline, dsm_params, dsm_details_baseline
     )
 else:
     print(f"   {Icons.INFO} No DSM processes found - skipping DSM analysis")
 
-# FOMP Analysis - FOMP mineralization analysis (if FOMP processes exist)
+# FOMP mineralization analysis (if FOMP processes exist)
 if fomp_params:
-    print(f"\n{Icons.FOMP} FOMP Mineralization Analysis:")
-    print("   • Organic matter accumulation and mineralization")
-    print("   • Annual vs cumulative flow analysis")
+    # Organic-matter accumulation/mineralization; annual vs cumulative.
     plotting.plot_fomp_stock_details(mfa_results_baseline, fomp_params)
 
-    # FOMP Stock Comparison — all FOMP processes overlaid on one axes
+    # All FOMP processes' TC stock trajectories on one figure.
     if len(fomp_params) > 1:
-        print(f"\n{Icons.FOMP} FOMP Stock Comparison (all processes):")
-        print("   • TC stock trajectories of all FOMP processes on one figure")
         plotting.plot_fomp_stock_comparison(
             mfa_results_baseline,
             fomp_params,
             fomp_details=solver_info_baseline.get("fomp_details"),
         )
 
-    # FOMP Pool Breakdown — labile vs recalcitrant stacked area per process
+    # Labile vs recalcitrant pool stocks, stacked over time.
     if fomp_details_baseline:
-        print(f"\n{Icons.FOMP} FOMP Pool Breakdown:")
-        print("   • Labile and recalcitrant pool stocks stacked over time")
-        print("   • Reveals relative size of fast vs slow-decaying carbon fractions")
         plotting.plot_fomp_pool_breakdown(
             mfa_results_baseline, fomp_params, fomp_details_baseline
         )
 
-    # FOMP Process Dynamics - Three-panel view of FOMP processes
-    print(f"\n{Icons.MFA} FOMP Process Dynamics:")
-    print(
-        "   • Three panels: Input Flows (DM), Stock Evolution (DM), Carbon Emissions (DM)"
-    )
-    print("   • Decay rates displayed as percentages")
-    print("   • Water Content (WC) excluded from carbon emissions")
+    # Three-panel input/stock/carbon-emissions (DM); WC excluded from emissions.
     plotting.plot_fomp_dynamics(mfa_results_baseline, fomp_params)
 else:
     print(f"   {Icons.INFO} No FOMP processes found - skipping FOMP analysis")
 
 # ### 3.2.3 Landfill Gas Analysis
 #
-# Gas production curves and stable carbon stock evolution for all LFG processes.
-# Skipped automatically when no LFG processes are configured.
+# For all LFG processes (skipped automatically when none are configured):
+# - CH₄ and biogenic CO₂ production over time (total)
+# - Stacked area: CH₄ production by waste fraction
+# - IPCC DOC-based vs MFA TOC-based carbon accounting comparison
+# - Stable carbon stock evolution (residual organic C + ash)
 if lfg_params:
-    print(f"\n{Icons.LFG} Landfill Gas Analysis:")
-    print("   • CH4 and biogenic CO2 production over time (total)")
-    print("   • Stacked area chart: CH4 production by waste fraction")
-    print("   • IPCC DOC-based vs MFA TOC-based carbon accounting comparison")
-    print("   • Stable carbon stock evolution (residual organic C + ash)")
     plotting.plot_lfg_gas_production(mfa_results_baseline, lfg_params)
     plotting.plot_lfg_fraction_breakdown(mfa_results_baseline, lfg_params)
     plotting.plot_lfg_ipcc_vs_mfa_comparison(mfa_results_baseline, lfg_params)
@@ -610,13 +538,10 @@ else:
 
 # ### 3.2.4 BOM Assembler Analysis
 #
-# Assembly efficiency and flow breakdown for all BOM_Assembler processes.
-# Shows assembled product vs. residue per element and assembly efficiency (%).
-# Skipped automatically when no BOM Assembler processes are configured.
+# For all BOM_Assembler processes (skipped automatically when none are configured):
+# - Assembled product vs. residue (stacked) per element
+# - Assembly efficiency (%) — fraction of inflow becoming product
 if bom_params:
-    print(f"\n{Icons.ARROW} BOM Assembler Analysis:")
-    print("   • Assembled product vs. residue (stacked) per element")
-    print("   • Assembly efficiency (%) — fraction of inflow becoming product")
     plotting.plot_bom_assembly_flows(mfa_results_baseline, bom_params)
 else:
     print(f"   {Icons.INFO} No BOM Assembler processes found - skipping BOM analysis")
@@ -626,9 +551,6 @@ else:
 
 # ## 4.1 Scenario Analysis & Comparison
 print(format_header("SCENARIO ANALYSIS"))
-
-# Import the new scenario engine
-from engine import scenario_engine
 
 # Load scenario definitions — from YAML (web app) or Excel sheet
 _scenario_defs_preloaded = (
@@ -684,35 +606,32 @@ else:
     print(f"{Icons.INFO} No scenarios were processed.")
 
 # ## 4.2 Monte Carlo Analysis
+#
+# Propagate input uncertainty through the model. This whole section runs only when
+# `RUN_MONTE_CARLO` is enabled **and** a `4_1_Uncertainty_Parameters` sheet exists —
+# captured once below as `mc_enabled` and reused by every sub-section.
+
+from reporting import mc_dashboard
+
+mc_enabled = bool(getattr(config_obj, "RUN_MONTE_CARLO", False)) and (
+    "4_1_Uncertainty_Parameters" in input_data
+)
+mc_results = None  # populated by the simulation run (§4.2.3) when MC is enabled
 
 # ### 4.2.1 MC Control Board: Parameter Overview
 
 print(format_header("MONTE CARLO CONTROL BOARD", level=2))
 
-if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
-    from reporting.mc_dashboard import build_parameter_overview_df
-
-    mc_params_df = input_data["4_1_Uncertainty_Parameters"]
-    param_overview = build_parameter_overview_df(mc_params_df)
+if mc_enabled:
+    param_overview = mc_dashboard.build_parameter_overview_df(
+        input_data["4_1_Uncertainty_Parameters"]
+    )
 
     n_iterations = getattr(config_obj, "MC_ITERATIONS", 100)
     print(f"{Icons.MONTE_CARLO} Uncertainty Parameters: {len(param_overview)} defined")
     print(f"   Iterations configured: {n_iterations}\n")
 
-    display(
-        param_overview.style.set_caption(
-            "Monte Carlo Uncertainty Parameter Definitions"
-        )
-        .set_table_styles(
-            [
-                {
-                    "selector": "caption",
-                    "props": [("font-weight", "bold"), ("font-size", "14px")],
-                },
-            ]
-        )
-        .hide(axis="index")
-    )
+    display(mc_dashboard.style_parameter_overview(param_overview))
 else:
     print(
         f"{Icons.INFO} Monte Carlo analysis is disabled or no uncertainty parameters defined."
@@ -720,25 +639,17 @@ else:
 
 # ### 4.2.2 MC Control Board: Validation Report
 
-if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
-    from reporting.mc_dashboard import generate_validation_report
-
-    mc_params_df = input_data["4_1_Uncertainty_Parameters"]
-
-    validation = generate_validation_report(
+if mc_enabled:
+    validation = mc_dashboard.generate_validation_report(
         uncertainty_params,
         mfa_system_configured,
         dsm_params,
         fomp_params,
-        mc_params_df,
+        input_data["4_1_Uncertainty_Parameters"],
     )
 
     print(f"\n{Icons.ANALYZING} Parameter-to-Model Mapping:")
-    display(
-        validation["mapping_df"]
-        .style.set_caption("Parameter Target Mapping")
-        .hide(axis="index")
-    )
+    display(mc_dashboard.style_parameter_mapping(validation["mapping_df"]))
 
     if validation["warnings"]:
         print(
@@ -756,11 +667,19 @@ if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
     )
 
 # ### 4.2.3 Monte Carlo Simulation Run
+#
+# Runs the simulation, exports results to `01_data/02_output/mc/mc_results.xlsx`,
+# and shows four interactive views:
+# - **Multiple histograms** — distributions for several stocks
+# - **Tornado** — parameter sensitivity ranking
+# - **Simulation paths** — all MC trajectories
+# - **Stock comparison** — several stock distributions in one plot
 
 print(format_header("MONTE CARLO SIMULATION (BASELINE)", level=2))
 
-if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
+if mc_enabled:
     try:
+        # Local imports: MC engine + plots are only needed when MC is enabled.
         from engine.mc_simulation import run_mc_simulation
         from plotting.monte_carlo import (
             plot_interactive_mc_multiple_histograms,
@@ -782,40 +701,14 @@ if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
         if mc_results is not None and not mc_results.empty:
             print(format_success("Monte Carlo simulation completed for baseline."))
 
-            # --- Export MC Results ---
-            print(f"\n{Icons.EXPORT} Exporting Monte Carlo results...")
-
-            # Fixed filename - overwrites previous results
             mc_output_path = "01_data/02_output/mc/mc_results.xlsx"
             try:
                 mc_results.to_excel(mc_output_path, index=False)
-                print(
-                    format_success(
-                        f"Monte Carlo results successfully exported to: {mc_output_path}"
-                    )
-                )
+                print(format_success(f"Monte Carlo results exported to: {mc_output_path}"))
             except Exception as export_error:
-                print(
-                    f"{Icons.WARNING} Could not export Monte Carlo results: {export_error}"
-                )
-            # -------------------------
-
-            print(f"\n{Icons.VISUALIZATION} Monte Carlo Analysis Visualizations:")
-            print(
-                "   - Multiple Distribution Histograms: Interactively select and view histograms for multiple stocks."
-            )
-            print(
-                "   - Sensitivity Tornado Plot: Identify which parameters most influence outcomes."
-            )
-            print(
-                "   - Simulation Paths: Visualize the trajectories of all Monte Carlo runs."
-            )
-            print(
-                "   - Stock Comparison: Compare distributions of several stocks in one plot."
-            )
+                print(f"{Icons.WARNING} Could not export Monte Carlo results: {export_error}")
 
             plot_interactive_mc_multiple_histograms(mc_results, mfa_results_baseline)
-
             plot_interactive_tornado(mc_results)
             plot_interactive_mc_paths(mc_results, mfa_results_baseline)
             plot_interactive_mc_stock_comparison(mc_results, mfa_results_baseline)
@@ -832,75 +725,33 @@ else:
 
 # ### 4.2.4 MC Summary Statistics
 
-if (
-    config_obj.RUN_MONTE_CARLO
-    and "mc_results" in dir()
-    and mc_results is not None
-    and not mc_results.empty
-):
-    from reporting.mc_dashboard import compute_mc_summary_stats
-
+if mc_enabled and mc_results is not None and not mc_results.empty:
     print(format_header("MONTE CARLO SUMMARY STATISTICS", level=2))
 
-    mc_summary = compute_mc_summary_stats(mc_results, mfa_system_configured)
-
-    display(
-        mc_summary.style.format(
-            {
-                "Mean": "{:,.2f}",
-                "Std": "{:,.2f}",
-                "Median": "{:,.2f}",
-                "CI95_Lower": "{:,.2f}",
-                "CI95_Upper": "{:,.2f}",
-                "Min": "{:,.2f}",
-                "Max": "{:,.2f}",
-            }
-        )
-        .set_caption(
-            f"Stock Summary Statistics ({getattr(config_obj, 'MC_ITERATIONS', 100)} iterations)"
-        )
-        .hide(axis="index")
+    mc_summary = mc_dashboard.compute_mc_summary_stats(
+        mc_results, mfa_system_configured
     )
-
+    display(
+        mc_dashboard.style_summary_stats(
+            mc_summary, getattr(config_obj, "MC_ITERATIONS", 100)
+        )
+    )
     print(
         format_success(
             f"Summary statistics computed for {len(mc_summary)} stock-element combinations."
         )
     )
 
-    # Mass balance check
-    from reporting.mc_dashboard import compute_mc_mass_balance_report
-
-    mb_report = compute_mc_mass_balance_report(mc_results)
+    # Mass balance check across all MC iterations
+    mb_report = mc_dashboard.compute_mc_mass_balance_report(mc_results)
     if mb_report is not None:
         print(format_header("MASS BALANCE CHECK", level=2))
         print("System-level summary (across all elements):")
-        display(
-            mb_report["summary"]
-            .style.format(
-                {
-                    "Mean Abs. Error": "{:.2e}",
-                    "Max Abs. Error": "{:.2e}",
-                    "Mean Rel. Error (%)": "{:.2e}",
-                    "Max Rel. Error (%)": "{:.2e}",
-                    "Iterations with Error > 1%": "{:d}",
-                }
-            )
-            .hide(axis="index")
-        )
+        display(mc_dashboard.style_mass_balance_summary(mb_report["summary"]))
         if not mb_report["per_element"].empty:
             print("\nPer-element breakdown:")
             display(
-                mb_report["per_element"]
-                .style.format(
-                    {
-                        "Mean Input": "{:,.2f}",
-                        "Mean Abs. Error": "{:.2e}",
-                        "Max Abs. Error": "{:.2e}",
-                        "Rel. Error (%)": "{:.2e}",
-                    }
-                )
-                .hide(axis="index")
+                mc_dashboard.style_mass_balance_per_element(mb_report["per_element"])
             )
 
 # # 5. Data Export
@@ -938,8 +789,6 @@ print(format_success(f"Baseline results exported to: {output_file}"))
 # | `.xlsx` | `sankey/structuralcollective/` | **Structural Collective MFA Tool** — import at mfa.structuralcollective.nl |
 #
 # Files are named `sankey_{element}_{year}.ext` (e.g., `sankey_TC_2125.html`).
-
-from plotting.sankey import export_sankey_batch
 
 # ─── Sankey Export Configuration ─────────────────────────────────────────────
 export_years    = [int(mfa_results_baseline.Time_V[-1])]   # add more years: [2025, 2030]
