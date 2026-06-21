@@ -347,7 +347,14 @@ async def clone_case_study(request: Request, name: str):
     form = await request.form()
     new_name = _slug((form.get("new_name") or "").strip())
     if not new_name:
-        raise HTTPException(400, "A new name is required")
+        # Auto-name the copy ({name}_copy, _copy_2, …) so the button works
+        # without any client-side input.
+        base = _slug(f"{name}_copy")
+        new_name = base
+        i = 2
+        while storage.case_study_exists(new_name):
+            new_name = f"{base}_{i}"
+            i += 1
     try:
         storage.clone_case_study(name, new_name)
     except ValueError as exc:
