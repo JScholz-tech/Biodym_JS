@@ -2532,8 +2532,59 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
     # ── Empty placeholder sheets ─────────────────────────────────────────────
     # Must include required column names so validate_input_data passes even
     # though there are zero rows (feature disabled in YAML-only mode).
-    result["3_2_Definition_FOMP"] = pd.DataFrame(columns=["Process_ID"])
-    result["3_1_DSM_Parameters"]  = pd.DataFrame()
+    # ── 3_2_Definition_FOMP ────────────────────────────────────────────────────
+    # Process_ID / Parameter_Name / Value rows (load_fomp_parameters legacy format).
+    # The engine model reads keys f_labile / k_labile / k_recalcitrant; outflow IDs
+    # map via output_carbon_id → outflow_id, output_environmental_id → outflow_id_2.
+    fomp_rows = []
+    for p in processes:
+        if p.get("logic") != "FOMP":
+            continue
+        fomp = p.get("fomp") or {}
+        pid = p.get("id")
+
+        def _fr(pname, val):
+            fomp_rows.append({"Process_ID": pid, "Parameter_Name": pname, "Value": val})
+
+        _fr("f_labile", fomp.get("f_labile", 0.5))
+        _fr("k_labile", fomp.get("k_labile", 1.0))
+        _fr("k_recalcitrant", fomp.get("k_recalcitrant", 0.01))
+        if fomp.get("outflow_id"):
+            _fr("output_carbon_id", fomp["outflow_id"])
+        if fomp.get("outflow_id_2"):
+            _fr("output_environmental_id", fomp["outflow_id_2"])
+    result["3_2_Definition_FOMP"] = (
+        pd.DataFrame(fomp_rows) if fomp_rows
+        else pd.DataFrame(columns=["Process_ID", "Parameter_Name", "Value"])
+    )
+
+    # ── 3_1_Definition_DSM ─────────────────────────────────────────────────────
+    # One row per category (load_dsm_parameters category-based format). Note the
+    # correct sheet name is 3_1_Definition_DSM (the loader reads this exact name).
+    dsm_rows = []
+    for p in processes:
+        if p.get("logic") != "DSM":
+            continue
+        pid = p.get("id")
+        cats = (p.get("dsm") or {}).get("categories") or [{}]
+        for ci, cat in enumerate(cats, 1):
+            dsm_rows.append({
+                "Process_ID":      pid,
+                "Category_ID":     ci,
+                "Category_Name":   cat.get("name", f"Cat_{ci}"),
+                "Inflow_Split_[%]": cat.get("inflow_split", 1.0),
+                "Lifetime_Type":   cat.get("lifetime_type", "Normal"),
+                "Lifetime_Mean":   cat.get("lifetime_mean"),
+                "Lifetime_StdDev": cat.get("lifetime_std"),
+                "Lifetime_Shape":  cat.get("lifetime_shape"),
+                "Lifetime_Scale":  cat.get("lifetime_scale"),
+            })
+    result["3_1_Definition_DSM"] = (
+        pd.DataFrame(dsm_rows) if dsm_rows
+        else pd.DataFrame(columns=["Process_ID", "Category_ID", "Category_Name",
+                                   "Inflow_Split_[%]", "Lifetime_Type", "Lifetime_Mean",
+                                   "Lifetime_StdDev", "Lifetime_Shape", "Lifetime_Scale"])
+    )
 
     # ── 4_1_Uncertainty_Parameters ────────────────────────────────────────────
     mc_params_yaml = data.get("mc_parameters", [])
@@ -2603,7 +2654,8 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
     print(
         f"   ✓ YAML→DataFrames: {len(processes)} processes, {len(flows)} flows, "
         f"{n_static} static-TC rows, {n_dyn} dynamic-TC rows, {len(mc_rows)} MC params, "
-        f"{len(bom_rows)} BOM rows, {len(is_rows)} initial-stock rows"
+        f"{len(bom_rows)} BOM rows, {len(is_rows)} initial-stock rows, "
+        f"{len(fomp_rows)} FOMP rows, {len(dsm_rows)} DSM rows"
     )
     return result
 
