@@ -2704,6 +2704,35 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
         )
     )
 
+    # ── 5_1_Scenario_Manager ───────────────────────────────────────────────────
+    # One row per scenario modification. Columns match what load_scenario_
+    # definitions expects (Scenario_Name, Parameter_Name, Operation, New_Value,
+    # start/end year). Without this, scenarios defined in a YAML config never
+    # reach the scenario engine.
+    scen_rows = []
+    for sc in data.get("scenarios", []):
+        sname = (sc.get("name") or "").strip()
+        if not sname:
+            continue
+        for m in sc.get("modifications", []):
+            pname = (m.get("parameter_name") or "").strip()
+            if not pname:
+                continue
+            scen_rows.append({
+                "Scenario_Name":  sname,
+                "Parameter_Name": pname,
+                "Parameter_Type": m.get("parameter_type", "") or "",
+                "Operation":      (m.get("operation") or "replace"),
+                "New_Value":      float(m.get("new_value") or 0.0),
+                "start_year":     m.get("start_year"),
+                "end_year":       m.get("end_year"),
+            })
+    result["5_1_Scenario_Manager"] = (
+        pd.DataFrame(scen_rows) if scen_rows
+        else pd.DataFrame(columns=["Scenario_Name", "Parameter_Name", "Parameter_Type",
+                                   "Operation", "New_Value", "start_year", "end_year"])
+    )
+
     # ── 3_3_Definition_BOM_Assembly ────────────────────────────────────────────
     # One row per output flow per BOM_Assembler process. target_Product flows
     # carry the parent-relative element fractions as inline E{n}_TC_Value[%]
@@ -2747,7 +2776,8 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
         f"{n_static} static-TC rows, {n_dyn} dynamic-TC rows, {len(mc_rows)} MC params, "
         f"{len(bom_rows)} BOM rows, {len(is_rows)} initial-stock rows, "
         f"{len(fomp_rows)} FOMP rows, {len(dsm_rows)} DSM rows, "
-        f"{len(lfg_rows)} LFG rows, {len(fc_rows)} FlowCap rows"
+        f"{len(lfg_rows)} LFG rows, {len(fc_rows)} FlowCap rows, "
+        f"{len(scen_rows)} scenario rows"
     )
     return result
 
