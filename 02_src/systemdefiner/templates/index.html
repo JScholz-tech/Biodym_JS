@@ -26,9 +26,12 @@
         <td>
           <div class="btn-row">
             <a href="/{{ s.name }}" class="btn btn-secondary btn-sm">Open</a>
-            <form method="post" action="/{{ s.name }}/clone" style="display:inline"
-                  onsubmit="var n=prompt('Name for the copy:', '{{ s.name }}_copy'); if(!n){return false;} this.new_name.value=n; return true;">
-              <input type="hidden" name="new_name">
+            <form method="post" action="/{{ s.name }}/clone"
+                  style="display:inline-flex;gap:4px;align-items:center;margin:0">
+              <input type="text" name="new_name" placeholder="{{ s.name }}_copy"
+                     title="New name for the copy (blank = {{ s.name }}_copy)"
+                     pattern="[A-Za-z0-9_\-]*"
+                     style="width:130px;font-size:0.82rem;padding:3px 6px">
               <button type="submit" class="btn btn-secondary btn-sm">Duplicate</button>
             </form>
             <form method="post" action="/{{ s.name }}/delete" style="display:inline"
