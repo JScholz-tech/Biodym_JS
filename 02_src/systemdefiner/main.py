@@ -535,7 +535,9 @@ async def process_new(request: Request, name: str):
     form = await request.form()
     cfg = storage.load_case_study(name)
 
-    new_id = max((p.id for p in cfg.processes), default=0) + 1
+    # Process IDs are 0-based to match the BioDYM Excel convention (P0 is the
+    # system boundary / Atmosphere). First process added gets id 0.
+    new_id = max((p.id for p in cfg.processes), default=-1) + 1
     _valid_logic = {e.value for e in ProcessLogic}
     _valid_stock = {e.value for e in StockConfig}
     _valid_tc = {e.value for e in TCConfig}
