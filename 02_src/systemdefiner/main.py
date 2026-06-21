@@ -969,9 +969,11 @@ async def tc_edit_form(request: Request, name: str, pid: int):
                     "year": pt.year,
                     "tc_values": pt.values,
                 })
+        is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
         return templates.TemplateResponse(
             request, "tc_edit_dynamic.html",
-            _ctx(cfg=cfg, process=process, rows=dyn_rows, outgoing_flows=outgoing_flows),
+            _ctx(cfg=cfg, process=process, rows=dyn_rows, outgoing_flows=outgoing_flows,
+                 is_splitter=is_splitter),
         )
     else:
         rows = []
@@ -1047,6 +1049,39 @@ async def tc_save(request: Request, name: str, pid: int):
                     tc_type="dynamic", time_series=points,
                 )
             )
+
+        # Validation (mirrors static): at years defined for ALL flows, each
+        # validated element must sum to 1.0 across flows. Splitter/DSM validate
+        # material only. Years not shared by every flow are left to interpolation.
+        is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
+        validate_elements = elements[:1] if is_splitter else elements
+        proc_tcs = [tc for tc in cfg.transfer_coefficients if tc.process_id == pid]
+        year_sets = [set(pt.year for pt in tc.time_series) for tc in proc_tcs]
+        common_years = sorted(set.intersection(*year_sets)) if year_sets and all(year_sets) else []
+        errors = []
+        for year in common_years:
+            for elem in validate_elements:
+                total = sum(
+                    next((p.values.get(elem, 0.0) for p in tc.time_series if p.year == year), 0.0)
+                    for tc in proc_tcs
+                )
+                if abs(total - 1.0) > 1e-6:
+                    errors.append(f"Year {year}, {elem}: sum = {total * 100:.2f}% (must be 100%)")
+
+        if errors:
+            dyn_rows = [
+                {"flow_id": flow.id, "year": pt.year, "tc_values": pt.values}
+                for flow in outgoing_flows
+                for tc in proc_tcs if tc.flow_id == flow.id
+                for pt in tc.time_series
+            ]
+            return templates.TemplateResponse(
+                request, "tc_edit_dynamic.html",
+                _ctx(cfg=cfg, process=process, rows=dyn_rows, outgoing_flows=outgoing_flows,
+                     is_splitter=is_splitter, errors=errors),
+                status_code=422,
+            )
+
         storage.save_case_study(cfg)
         return RedirectResponse(f"/{name}/tcs", status_code=303)
 
