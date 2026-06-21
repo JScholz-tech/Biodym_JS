@@ -24,20 +24,14 @@ for _stream in (sys.stdout, sys.stderr):
     if _reconfig is not None:
         _reconfig(encoding="utf-8")
 
-# Add project structure to system path
+# Add project structure to system path. 02_src must be added first so `bootstrap`
+# is importable; setup_paths() then adds the ODYM/bioDYM framework module dirs.
 src_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, src_path)
 
-# Add ODYM framework to path
-project_root = os.path.dirname(src_path)
-odym_path = os.path.join(
-    project_root, "06_framework", "ODYM-master_20241127", "odym", "modules"
-)
-sys.path.insert(0, odym_path)
+from bootstrap import setup_paths
 
-# Add bioDYM add-on to path
-biodym_addon_path = os.path.join(project_root, "06_framework", "bioDYM_add-on", "modules")
-sys.path.insert(0, biodym_addon_path)
+setup_paths(os.path.dirname(src_path))
 
 # Import BioDYM modules
 try:

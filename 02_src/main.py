@@ -16,26 +16,14 @@ import sys
 import pandas as pd
 
 # --- Add project structure to system path ---
-# This allows us to import our custom modules and the ODYM framework.
-# It assumes the ODYM and bioDYM frameworks live in the '06_framework' folder
-# at the project root level.
-
-# Path to the 'src' directory of our project
+# 02_src must be on sys.path first so `bootstrap` is importable; setup_paths()
+# then adds the source root + ODYM/bioDYM framework module dirs (under 06_framework).
 src_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, src_path)
 
-# Path to the project root to find the '06_framework' folder
-project_root = os.path.dirname(src_path)
+from bootstrap import setup_paths
 
-# Add ODYM framework to path
-odym_path = os.path.join(
-    project_root, "06_framework", "ODYM-master_20241127", "odym", "modules"
-)
-sys.path.insert(0, odym_path)
-
-# Add bioDYM add-on to path
-biodym_addon_path = os.path.join(project_root, "06_framework", "bioDYM_add-on", "modules")
-sys.path.insert(0, biodym_addon_path)
+setup_paths(os.path.dirname(src_path))
 
 # --- Import Custom and External Modules ---
 try:

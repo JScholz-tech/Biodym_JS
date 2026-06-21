@@ -104,28 +104,18 @@ import warnings
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import plotly.graph_objects as go
 from IPython.display import display
 
 # Suppress openpyxl data validation warnings (harmless, caused by Excel dropdown rules)
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
-# Add BioDYM modules to path to make them importable
-src_path = os.path.join(os.getcwd(), "02_src")
-sys.path.insert(0, src_path)
+# Put the source root + ODYM/bioDYM framework dirs on sys.path so the
+# digit-prefixed packages import. 02_src must be added first so `bootstrap`
+# itself is importable; setup_paths() then adds the framework module dirs.
+sys.path.insert(0, os.path.join(os.getcwd(), "02_src"))
+from bootstrap import setup_paths, init_widgets
 
-# Add ODYM framework to path. ODYM is a foundational library for this project.
-project_root = os.getcwd()
-odym_path = os.path.join(
-    project_root, "06_framework", "ODYM-master_20241127", "odym", "modules"
-)
-sys.path.insert(0, odym_path)
-
-# Add bioDYM add-on to path for custom extensions.
-biodym_addon_path = os.path.join(
-    project_root, "06_framework", "bioDYM_add-on", "modules"
-)
-sys.path.insert(0, biodym_addon_path)
+project_root = setup_paths()
 
 # Import BioDYM modules
 try:
@@ -175,21 +165,12 @@ PLOT_THEME = "exploratory"
 plotting.set_theme(PLOT_THEME)
 print(f"{Icons.CONFIGURATION} Plot theme: '{PLOT_THEME}'")
 
-# Initialize Plotly widgets to prevent empty plot issues
-# This forces the widget communication channel to be established early
+# Pre-initialise the interactive widget system (prevents the first plot from
+# rendering empty in Jupyter / Voilà).
 print(f"{Icons.CONFIGURATION} Initializing interactive widget system...")
-import time
-from ipywidgets import IntSlider
-
-try:
-    # Create dummy widgets to initialize the comm channel
-    _dummy_fig = go.FigureWidget()
-    _dummy_slider = IntSlider()
-    time.sleep(0.5)  # Allow widget registration to complete
-    del _dummy_fig, _dummy_slider
+if init_widgets():
     print(f"{Icons.SUCCESS} Widget system initialized successfully")
-except Exception as e:
-    print(f"{Icons.WARNING} Widget initialization had issues: {e}")
+else:
     print(f"{Icons.INFO} Plots may take longer on first render")
 
 # ## 1.2 Data Input Configuration
