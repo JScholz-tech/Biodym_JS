@@ -2586,6 +2586,86 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
                                    "Lifetime_StdDev", "Lifetime_Shape", "Lifetime_Scale"])
     )
 
+    # ── 3_3_Definition_LFG ─────────────────────────────────────────────────────
+    # Row-per-parameter layout (load_lfg_parameters): site scalars (MCF, DOCf,
+    # F_CH4, OX, phi, f_capture, outflow_*_id) + per-fraction rows whose
+    # LFG_Parameter_ID carries a _j{n} suffix (k_j, DOC_j, f_input_j, f_ash_j,
+    # Waste_Fraction_j).
+    lfg_rows = []
+    for p in processes:
+        if p.get("logic") != "LFG":
+            continue
+        lfg = p.get("lfg") or {}
+        pid = p.get("id")
+
+        def _lr(ptype, val, suffix=""):
+            lfg_rows.append({
+                "Process_ID": pid,
+                "LFG_Parameter_ID": f"P{pid:02d}_{ptype}{suffix}",
+                "LFG_Parameter_type": ptype,
+                "LFG_Parameter_Value": val,
+            })
+
+        for ptype, key in (("MCF", "mcf"), ("DOCf", "doc_f"), ("F_CH4", "f_ch4"),
+                           ("OX", "ox"), ("phi", "phi"), ("f_capture", "f_capture")):
+            _lr(ptype, lfg.get(key))
+        for ptype, key in (("outflow_ch4_id", "outflow_ch4_id"),
+                           ("outflow_co2_id", "outflow_co2_id"),
+                           ("outflow_leachate_id", "outflow_leachate_id")):
+            if lfg.get(key):
+                _lr(ptype, lfg[key])
+        for n, frac in enumerate(lfg.get("fractions", []), 1):
+            j = f"_j{n}"
+            _lr("Waste_Fraction_j", frac.get("name", f"Fraction_{n}"), j)
+            _lr("k_j",       frac.get("k_j"),       j)
+            _lr("DOC_j",     frac.get("doc_j"),     j)
+            _lr("f_input_j", frac.get("f_input_j"), j)
+            _lr("f_ash_j",   frac.get("f_ash_j"),   j)
+    result["3_3_Definition_LFG"] = (
+        pd.DataFrame(lfg_rows) if lfg_rows
+        else pd.DataFrame(columns=["Process_ID", "LFG_Parameter_ID",
+                                   "LFG_Parameter_type", "LFG_Parameter_Value"])
+    )
+
+    # ── 3_4_Definition_FlowCap ─────────────────────────────────────────────────
+    # Capped_Output rows (one per cap-series year) + an Overflow row, per process
+    # (load_flow_cap_parameters).
+    fc_rows = []
+    for p in processes:
+        if p.get("logic") != "FlowCap":
+            continue
+        fc = p.get("flowcap") or {}
+        pid = p.get("id")
+        capped = fc.get("capped_flow_id")
+        if not capped:
+            continue
+        cap_series = fc.get("cap_series") or {}
+        cap_tc = fc.get("cap_tc_id") or ""
+        if cap_series:
+            for year, cap in cap_series.items():
+                fc_rows.append({
+                    "Process_ID": pid, "Flow_ID": capped,
+                    "Output_flow_type": "Capped_Output",
+                    "Year": (None if str(year) == "0" else int(year)), "Flow": cap,
+                    "Cap_TC_ID": cap_tc,
+                })
+        else:
+            fc_rows.append({
+                "Process_ID": pid, "Flow_ID": capped,
+                "Output_flow_type": "Capped_Output", "Year": None, "Flow": None,
+                "Cap_TC_ID": cap_tc,
+            })
+        if fc.get("overflow_flow_id"):
+            fc_rows.append({
+                "Process_ID": pid, "Flow_ID": fc["overflow_flow_id"],
+                "Output_flow_type": "Overflow", "Year": None, "Flow": None, "Cap_TC_ID": "",
+            })
+    result["3_4_Definition_FlowCap"] = (
+        pd.DataFrame(fc_rows) if fc_rows
+        else pd.DataFrame(columns=["Process_ID", "Flow_ID", "Output_flow_type",
+                                   "Year", "Flow", "Cap_TC_ID"])
+    )
+
     # ── 4_1_Uncertainty_Parameters ────────────────────────────────────────────
     mc_params_yaml = data.get("mc_parameters", [])
     mc_rows = []
@@ -2655,7 +2735,8 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
         f"   ✓ YAML→DataFrames: {len(processes)} processes, {len(flows)} flows, "
         f"{n_static} static-TC rows, {n_dyn} dynamic-TC rows, {len(mc_rows)} MC params, "
         f"{len(bom_rows)} BOM rows, {len(is_rows)} initial-stock rows, "
-        f"{len(fomp_rows)} FOMP rows, {len(dsm_rows)} DSM rows"
+        f"{len(fomp_rows)} FOMP rows, {len(dsm_rows)} DSM rows, "
+        f"{len(lfg_rows)} LFG rows, {len(fc_rows)} FlowCap rows"
     )
     return result
 

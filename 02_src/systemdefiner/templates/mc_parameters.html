@@ -36,6 +36,7 @@
             <th style="min-width:100px">Operation</th>
             <th style="min-width:80px">Start Yr</th>
             <th style="min-width:80px">End Yr</th>
+            <th style="min-width:110px">Flow group</th>
             {% if cfg.references %}<th style="min-width:70px;color:var(--muted)">Ref</th>{% endif %}
             <th style="width:36px"></th>
           </tr>
@@ -111,6 +112,12 @@
               <input type="number" name="mc_{{ i }}_end_year"
                      value="{{ p.end_year if p.end_year is not none else '' }}"
                      step="1" min="1900" max="2300" placeholder="—" style="width:74px">
+            </td>
+            <td>
+              <input type="text" name="mc_{{ i }}_flow_group"
+                     value="{{ p.flow_group if p.flow_group is not none else '' }}"
+                     placeholder="—" title="Flows sharing a group label are sampled together (one draw applied to all)"
+                     style="width:100px">
             </td>
             {% if cfg.references %}
             <td>
@@ -308,6 +315,9 @@ function addRow() {
                placeholder="—" style="width:74px"></td>
     <td><input type="number" name="mc_${i}_end_year"   step="1" min="1900" max="2300"
                placeholder="—" style="width:74px"></td>
+    <td><input type="text" name="mc_${i}_flow_group" placeholder="—"
+               title="Flows sharing a group label are sampled together (one draw applied to all)"
+               style="width:100px"></td>
     ${REFS.length ? `<td><select name="mc_${i}_ref" style="width:64px;font-size:0.83rem;padding:2px 4px">${refOptions('')}</select></td>` : ''}
     <td><button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)">✕</button></td>`;
   tbody.appendChild(tr);
