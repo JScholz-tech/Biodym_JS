@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-194%2F197%20passing-brightgreen)](04_tests/)
+[![CI](https://github.com/JScholz-tech/Biodym_JS/actions/workflows/ci.yml/badge.svg)](https://github.com/JScholz-tech/Biodym_JS/actions/workflows/ci.yml)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
 BioDYM is a comprehensive Material Flow Analysis (MFA) tool designed for analyzing bio-based material systems. Built on the [ODYM framework](https://github.com/IndEcol/ODYM), it tracks material flows, stocks, and transformations through time with special features for organic waste management and biomass cascading.
@@ -91,14 +91,17 @@ conda activate biodym_env
 
 ### 2. Prepare Your Data
 
-Copy the BioDYM Systemmanager template to use as your input data. The Excel file contains all system configuration, processes, flows, and parameters:
+The bundled BioDYM Systemmanager template is a **complete, runnable example** — the
+workflow notebook points at it by default, so you can run a full analysis with no
+setup. To build your own system, copy it to a working location and edit it. The
+Excel file contains all system configuration, processes, flows, and parameters:
 
 ```bash
 # Copy the template to your working location
-cp 01_data/01_input/template/260217_bioDYM_Systemmanager_template_final.xlsm my_analysis.xlsm
+cp 01_data/01_input/template/260503_bioDYM_Systemmanager_template_final.xlsm my_analysis.xlsm
 ```
 
-> **Note**: `my_analysis.xlsm` is just a placeholder name — use any filename you prefer. A protected version of the template (`_protected.xlsm`) is also available if you want to prevent accidental formula edits.
+> **Note**: `my_analysis.xlsm` is just a placeholder name — use any filename you prefer.
 
 ### 3. Run Your Analysis
 
@@ -115,14 +118,15 @@ jupyter lab
 # Update the input_file path in the notebook to point to your Excel file
 ```
 
-**Alternative: Command Line Interface**
+**Experimental: Command Line Interface**
+
+> ⚠️ The CLI (`02_src/main_cli.py`) is **experimental and not fully maintained** in
+> step with the engine — it does not yet support all process-logic types (LFG, BOM,
+> FlowCap) and may produce incomplete results. The **Jupyter notebook is the
+> supported entry point**. Use the CLI only for quick smoke checks:
 
 ```bash
-# UV users:
-uv run python 02_src/main_cli.py --input my_analysis.xlsx
-
-# Anaconda users:
-python 02_src/main_cli.py --input my_analysis.xlsx
+uv run python 02_src/main_cli.py --help
 ```
 
 ## 📖 Getting Started
@@ -135,9 +139,9 @@ Your Excel file contains several sheets that define your material flow system:
 - **`1_1_Definition_Flows`** - Define all material flows in your system
 - **`1_2_Data_Flows`** - Flow data over time
 - **`2_1_Definition_Processes`** - Define processes and their logic types
-- **`2_3_Process_TCs`** - Process transfer coefficients
-- **`2_4_dynamic_tcs`** - Dynamic transfer coefficients over time
-- **`2_5_Initial_Stock`** - Initial stock levels and stock-outflow TCs
+- **`2_2_static_TCs`** - Static process transfer coefficients
+- **`2_3_dynamic_TCs`** - Dynamic transfer coefficients over time
+- **`2_4_Initial_Stock`** - Initial stock levels and stock-outflow TCs
 - **`3_1_Definition_DSM`** - Dynamic Stock Model parameters
 - **`3_2_Definition_FOMP`** - First-Order Mineralization Process parameters
 - **`4_1_Uncertainty_Parameters`** - Monte Carlo uncertainty definitions
@@ -155,7 +159,12 @@ Your Excel file contains several sheets that define your material flow system:
 
 ## 🔧 Project Structure
 
-The BioDYM project follows a clean, organized structure:
+The BioDYM project follows a clean, organized structure. Top-level folders are
+**number-prefixed to suggest a reading/workflow order** (`01_data` → `02_src` →
+… → `06_framework`); the prefixes are organisational only. Because a digit-prefixed
+folder can't be a Python import package, the source root `02_src/` is added to
+`sys.path` at runtime (by the workflow notebook, the CLI, and the test harness)
+rather than installed as a package — so run BioDYM from the repository root.
 
 ### Core Application
 - **`02_src/`** - Core application source code
@@ -184,8 +193,7 @@ The BioDYM project follows a clean, organized structure:
 
 The repository includes the BioDYM Systemmanager template:
 
-- **`01_data/01_input/template/260217_bioDYM_Systemmanager_template_final.xlsm`** — Blank template for setting up a new analysis
-- **`01_data/01_input/template/260217_bioDYM_Systemmanager_template_final_protected.xlsm`** — Protected version (prevents accidental formula edits)
+- **`01_data/01_input/template/260503_bioDYM_Systemmanager_template_final.xlsm`** — Complete, runnable example system; also the starting point for a new analysis (the workflow notebook uses it by default)
 
 ### Published Case Study
 
@@ -304,10 +312,13 @@ pytest 04_tests/test_solver.py
 
 If you use BioDYM in your research, please cite:
 
-> Scholz, J. (2026). *BioDYM: Material Flow Analysis for Bio-based Systems* (v1.0.0).
-> Zenodo. https://doi.org/10.5281/zenodo.18759081
+> Scholz, J. (2026). *BioDYM: Material Flow Analysis for Bio-based Systems* (v1.2.0).
+> Zenodo. https://doi.org/10.5281/zenodo.18759080
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18759081.svg)](https://doi.org/10.5281/zenodo.18759081)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18759080.svg)](https://doi.org/10.5281/zenodo.18759080)
+
+> The DOI above is the *concept* DOI — it always resolves to the latest release.
+> For the version-specific archive, see [CITATION.cff](CITATION.cff).
 
 A machine-readable citation is available in [CITATION.cff](CITATION.cff).
 
@@ -333,7 +344,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-*Last updated: February 2026 | Version: 1.0.0*
+*Last updated: June 2026 | Version: 1.2.0*
 
 ## BioDYM Extension: Stock-Outflow Transfer Coefficients (TCs)
 

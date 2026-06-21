@@ -210,17 +210,25 @@ except Exception as e:
 
 # ## 1.2 Data Input Configuration
 #
+# ### ⚙️ EDIT THIS — your input file
+#
 # Set `input_file` to your BioDYM Excel (.xlsx / .xlsm) **or** to a YAML
-# config produced by the BioDYM config web app (.yaml / .yml).
+# config produced by the bioDYM SystemDefiner (.yaml / .yml).
 #
 # Excel mode:  input_file = "01_data/01_input/myfile.xlsm"
 # YAML mode:   input_file = "case_studies/my_study/config.yaml"
 #              (Excel path is read from model.input_file inside the YAML)
+#
+# The default below is the bundled template — a complete, runnable example, so a
+# fresh checkout runs end-to-end with no setup. Point it at your own file to
+# analyse your own system.
 
-input_file = "01_data/01_input/251104_BioDYM_ODYM_´CE-RISE.xlsm"
+input_file = "01_data/01_input/template/260503_bioDYM_Systemmanager_template_final.xlsm"
 
-# Optional: when input_file is a YAML and model.input_file inside it is empty
-# or incorrect, set this to your Excel path to override it.
+# ### Advanced (optional) — leave as None for a normal run
+#
+# When input_file is a YAML and model.input_file inside it is empty or
+# incorrect, set this to your Excel path to override it.
 excel_file_override = None  # e.g. "01_data/01_input/myfile.xlsm"
 
 # Optional: combine an Excel-based run with a separate YAML from the web app.
@@ -274,6 +282,7 @@ else:
     config_obj = config.load_configuration(input_file)
     print(format_success("Configuration object loaded."))
 plotting.set_mass_unit_from_config(config_obj)
+plotting.set_theme(PLOT_THEME)  # re-assert theme so it wins over config unit
 
 dims              = config.extract_workflow_dimensions(config_obj, input_data)
 start_year        = dims["start_year"]

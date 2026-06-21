@@ -22,7 +22,7 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 
 ### Pull Requests
 
-1. **Fork the repository** and create your branch from `master`
+1. **Fork the repository** and create your branch from `main`
 2. **Make your changes**:
    - Follow the existing code style (PEP 8, enforced by Ruff)
    - Add NumPy-style docstrings to all new functions
@@ -64,8 +64,10 @@ Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
 
 - Update README.md if adding user-facing features
 - Add docstrings to all new functions
-- Update USER_GUIDE.md for new features
+- Update the docs under `05_docs/` for new features (see [05_docs/README.md](05_docs/README.md))
 - Keep CHANGELOG.md updated
+- If you add a runtime dependency in `pyproject.toml`, mirror it in
+  `environment.yml` so conda users stay at parity
 
 ## Development Setup
 
@@ -85,10 +87,18 @@ uv run ruff format .
 uv run ruff check .
 ```
 
+## Project layout & how it runs
+
+Top-level folders are number-prefixed (`01_data`, `02_src`, … `06_framework`) to
+suggest a workflow order. Because a digit-prefixed folder cannot be a Python import
+package, `02_src/` and `06_framework/` are added to `sys.path` at runtime (by the
+workflow notebook, `02_src/main_cli.py`, and `04_tests/conftest.py`) — so always
+run BioDYM and the tests **from the repository root**, not as an installed package.
+
 ## Getting Help
 
-- Check the [USER_GUIDE.md](05_docs/USER_GUIDE.md)
-- Read the [TECHNICAL_DEEP_DIVE.md](05_docs/development/TECHNICAL_DEEP_DIVE.md)
+- Browse the docs index: [05_docs/README.md](05_docs/README.md)
+- See the user manual: [05_docs/biodym_manual.pdf](05_docs/biodym_manual.pdf)
 - Ask questions in [GitHub Discussions](https://github.com/JScholz-tech/Biodym_JS/discussions)
 
 ## License

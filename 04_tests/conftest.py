@@ -27,14 +27,14 @@ if src_path not in sys.path:
 
 # Add ODYM framework to path
 odym_path = os.path.join(
-    project_root, "framework", "ODYM-master_20241127", "odym", "modules"
+    project_root, "06_framework", "ODYM-master_20241127", "odym", "modules"
 )
 if odym_path not in sys.path:
     sys.path.insert(0, odym_path)
 
 # Add bioDYM add-on to path
 biodym_addon_path = os.path.join(
-    project_root, "framework", "bioDYM_add-on", "modules"
+    project_root, "06_framework", "bioDYM_add-on", "modules"
 )
 if biodym_addon_path not in sys.path:
     sys.path.insert(0, biodym_addon_path)

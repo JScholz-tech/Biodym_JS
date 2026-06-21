@@ -6,8 +6,8 @@ This script provides a user-friendly command-line interface for running
 the BioDYM MFA model with various options and configurations.
 
 Usage examples:
-    python 02_src/main_cli.py --input 01_data/01_input/250625_Template_CS0.xlsx
-    python 02_src/main_cli.py --input 01_data/01_input/250625_Template_CS0.xlsx --output results.xlsx --monte-carlo --iterations 1000
+    python 02_src/main_cli.py --input 01_data/01_input/template/260503_bioDYM_Systemmanager_template_final.xlsm
+    python 02_src/main_cli.py --input 01_data/01_input/template/260503_bioDYM_Systemmanager_template_final.xlsm --output results.xlsx --monte-carlo --iterations 1000
     python 02_src/main_cli.py --help
 """
 
@@ -16,6 +16,14 @@ import sys
 import argparse
 import pandas as pd
 
+# Ensure Unicode status icons print on consoles with a non-UTF-8 default
+# encoding (e.g. Windows cp1252), where they would otherwise raise
+# UnicodeEncodeError ('charmap' codec).
+for _stream in (sys.stdout, sys.stderr):
+    _reconfig = getattr(_stream, "reconfigure", None)
+    if _reconfig is not None:
+        _reconfig(encoding="utf-8")
+
 # Add project structure to system path
 src_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, src_path)
@@ -23,12 +31,12 @@ sys.path.insert(0, src_path)
 # Add ODYM framework to path
 project_root = os.path.dirname(src_path)
 odym_path = os.path.join(
-    project_root, "framework", "ODYM-master_20241127", "odym", "modules"
+    project_root, "06_framework", "ODYM-master_20241127", "odym", "modules"
 )
 sys.path.insert(0, odym_path)
 
 # Add bioDYM add-on to path
-biodym_addon_path = os.path.join(project_root, "framework", "bioDYM_add-on", "modules")
+biodym_addon_path = os.path.join(project_root, "06_framework", "bioDYM_add-on", "modules")
 sys.path.insert(0, biodym_addon_path)
 
 # Import BioDYM modules
@@ -70,16 +78,16 @@ def create_parser():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-        python 02_src/main_cli.py --input 01_data/01_input/250625_Template_CS0.xlsx
+        python 02_src/main_cli.py --input 01_data/01_input/template/260503_bioDYM_Systemmanager_template_final.xlsm
 
         # Run with Monte Carlo simulation and custom output
-        python 02_src/main_cli.py --input 01_data/01_input/250625_Template_CS0.xlsx --output results.xlsx --monte-carlo --iterations 1000
+        python 02_src/main_cli.py --input 01_data/01_input/template/260503_bioDYM_Systemmanager_template_final.xlsm --output results.xlsx --monte-carlo --iterations 1000
 
         # Run with a specific time range
-        python 02_src/main_cli.py --input 01_data/01_input/250625_Template_CS0.xlsx --start-year 2020 --end-year 2030
+        python 02_src/main_cli.py --input 01_data/01_input/template/260503_bioDYM_Systemmanager_template_final.xlsm --start-year 2020 --end-year 2030
 
         # Run in verbose mode
-        python 02_src/main_cli.py --input 01_data/01_input/250625_Template_CS0.xlsx --verbose
+        python 02_src/main_cli.py --input 01_data/01_input/template/260503_bioDYM_Systemmanager_template_final.xlsm --verbose
         """,
     )
 
@@ -89,7 +97,7 @@ Examples:
         "-i",
         type=str,
         required=True,
-        help="Path to the input Excel file (e.g., 01_data/01_input/250625_Template_CS0.xlsx)",
+        help="Path to the input Excel file (e.g., 01_data/01_input/template/260503_bioDYM_Systemmanager_template_final.xlsm)",
     )
 
     # Optional arguments
@@ -143,8 +151,8 @@ def validate_input_file(file_path):
     Validates the existence and format of the input Excel file.
 
     Checks if the specified file path exists and if the file has a valid
-    Excel extension (.xlsx or .xls). Prints error messages to the console
-    if validation fails.
+    Excel extension (.xlsx, .xlsm, or .xls). Prints error messages to the
+    console if validation fails.
 
     Parameters
     ----------
@@ -174,8 +182,10 @@ def validate_input_file(file_path):
         print("Please check the file path and try again.")
         return False
 
-    if not file_path.endswith((".xlsx", ".xls")):
-        print(f"ERROR: Input file must be an Excel file (.xlsx or .xls): {file_path}")
+    if not file_path.endswith((".xlsx", ".xlsm", ".xls")):
+        print(
+            f"ERROR: Input file must be an Excel file (.xlsx, .xlsm, or .xls): {file_path}"
+        )
         return False
 
     return True
