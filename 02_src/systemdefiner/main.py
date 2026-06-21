@@ -363,6 +363,20 @@ async def clone_case_study(request: Request, name: str):
 # CASE STUDY OVERVIEW
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Supported units of measurement (mass). Used as a label only — the engine does
+# not convert between units, so this just keeps the model's unit consistent.
+_UOM_OPTIONS = [
+    ("g",  "g — grams"),
+    ("kg", "kg — kilograms"),
+    ("t",  "t — tonnes"),
+    ("Mg", "Mg — megagrams (= tonnes)"),
+    ("kt", "kt — kilotonnes"),
+    ("Gg", "Gg — gigagrams (= kilotonnes)"),
+    ("Mt", "Mt — megatonnes"),
+    ("Tg", "Tg — teragrams (= megatonnes)"),
+]
+
+
 def _model_health(cfg) -> list[dict]:
     """Return a list of {level, message} issues that would hinder a model run.
 
@@ -461,7 +475,8 @@ async def case_study_overview(request: Request, name: str):
         raise HTTPException(404, f"Case study '{name}' not found")
     cfg = storage.load_case_study(name)
     return templates.TemplateResponse(request, "case_study.html",
-                                      _ctx(cfg=cfg, health=_model_health(cfg)))
+                                      _ctx(cfg=cfg, health=_model_health(cfg),
+                                           uom_options=_UOM_OPTIONS))
 
 
 @app.post("/{name}/settings")

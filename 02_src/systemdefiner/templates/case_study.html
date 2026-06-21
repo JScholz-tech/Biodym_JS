@@ -85,7 +85,15 @@
         </div>
         <div class="field">
           <label>Unit of Measurement</label>
-          <input type="text" name="unit_of_measurement" value="{{ cfg.model.unit_of_measurement }}" placeholder="Mg">
+          <select name="unit_of_measurement">
+            {% set cur_uom = cfg.model.unit_of_measurement %}
+            {% for value, label in uom_options %}
+            <option value="{{ value }}" {% if value == cur_uom %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+            {% if cur_uom and cur_uom not in (uom_options | map(attribute=0) | list) %}
+            <option value="{{ cur_uom }}" selected>{{ cur_uom }} (custom)</option>
+            {% endif %}
+          </select>
         </div>
         <div class="field">
           <label>MC Iterations</label>
