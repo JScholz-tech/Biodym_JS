@@ -74,6 +74,12 @@
   <div style="padding:1.25rem">
 
     <form method="post" action="/{{ cfg.name }}/settings">
+      <div class="field" style="margin-bottom:1rem">
+        <label>Description</label>
+        <textarea name="description" rows="3"
+                  placeholder="Describe this study — e.g. tutorial notes shown below the diagram on every page."
+                  style="width:100%;resize:vertical;font-family:inherit;font-size:0.9rem">{{ cfg.description }}</textarea>
+      </div>
       <div class="form-grid">
         <div class="field">
           <label>Start Year</label>

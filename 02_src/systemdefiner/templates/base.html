@@ -86,6 +86,7 @@
     .tag { display: inline-block; background: var(--bg); border: 1px solid var(--border); border-radius: 3px; padding: 0.1rem 0.45rem; font-size: 0.8rem; font-family: monospace; }
     .diagram-band { background: var(--bg); border-bottom: 1px solid var(--border); text-align: center; padding: 0.45rem; }
     .diagram-band img { max-height: 150px; max-width: 100%; object-fit: contain; cursor: zoom-in; border-radius: var(--radius); }
+    .study-desc { background: var(--bg); border-bottom: 1px solid var(--border); padding: 0.6rem 1.5rem; color: var(--muted); font-size: 0.9rem; white-space: pre-wrap; line-height: 1.5; }
   </style>
 </head>
 <body>
@@ -100,6 +101,9 @@
   <img src="/{{ cfg.name }}/diagram" alt="System diagram — {{ cfg.name }}"
        title="Open full size" onclick="window.open('/{{ cfg.name }}/diagram', '_blank')">
 </div>
+{% endif %}
+{% if cfg is defined and cfg and cfg.description %}
+<div class="study-desc">{{ cfg.description }}</div>
 {% endif %}
 <main>
   {% block content %}{% endblock %}
