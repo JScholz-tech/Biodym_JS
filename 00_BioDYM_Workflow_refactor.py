@@ -632,35 +632,32 @@ else:
     print(f"{Icons.INFO} No scenarios were processed.")
 
 # ## 4.2 Monte Carlo Analysis
+#
+# Propagate input uncertainty through the model. This whole section runs only when
+# `RUN_MONTE_CARLO` is enabled **and** a `4_1_Uncertainty_Parameters` sheet exists —
+# captured once below as `mc_enabled` and reused by every sub-section.
+
+from reporting import mc_dashboard
+
+mc_enabled = bool(getattr(config_obj, "RUN_MONTE_CARLO", False)) and (
+    "4_1_Uncertainty_Parameters" in input_data
+)
+mc_results = None  # populated by the simulation run (§4.2.3) when MC is enabled
 
 # ### 4.2.1 MC Control Board: Parameter Overview
 
 print(format_header("MONTE CARLO CONTROL BOARD", level=2))
 
-if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
-    from reporting.mc_dashboard import build_parameter_overview_df
-
-    mc_params_df = input_data["4_1_Uncertainty_Parameters"]
-    param_overview = build_parameter_overview_df(mc_params_df)
+if mc_enabled:
+    param_overview = mc_dashboard.build_parameter_overview_df(
+        input_data["4_1_Uncertainty_Parameters"]
+    )
 
     n_iterations = getattr(config_obj, "MC_ITERATIONS", 100)
     print(f"{Icons.MONTE_CARLO} Uncertainty Parameters: {len(param_overview)} defined")
     print(f"   Iterations configured: {n_iterations}\n")
 
-    display(
-        param_overview.style.set_caption(
-            "Monte Carlo Uncertainty Parameter Definitions"
-        )
-        .set_table_styles(
-            [
-                {
-                    "selector": "caption",
-                    "props": [("font-weight", "bold"), ("font-size", "14px")],
-                },
-            ]
-        )
-        .hide(axis="index")
-    )
+    display(mc_dashboard.style_parameter_overview(param_overview))
 else:
     print(
         f"{Icons.INFO} Monte Carlo analysis is disabled or no uncertainty parameters defined."
@@ -668,25 +665,17 @@ else:
 
 # ### 4.2.2 MC Control Board: Validation Report
 
-if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
-    from reporting.mc_dashboard import generate_validation_report
-
-    mc_params_df = input_data["4_1_Uncertainty_Parameters"]
-
-    validation = generate_validation_report(
+if mc_enabled:
+    validation = mc_dashboard.generate_validation_report(
         uncertainty_params,
         mfa_system_configured,
         dsm_params,
         fomp_params,
-        mc_params_df,
+        input_data["4_1_Uncertainty_Parameters"],
     )
 
     print(f"\n{Icons.ANALYZING} Parameter-to-Model Mapping:")
-    display(
-        validation["mapping_df"]
-        .style.set_caption("Parameter Target Mapping")
-        .hide(axis="index")
-    )
+    display(mc_dashboard.style_parameter_mapping(validation["mapping_df"]))
 
     if validation["warnings"]:
         print(
@@ -704,11 +693,19 @@ if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
     )
 
 # ### 4.2.3 Monte Carlo Simulation Run
+#
+# Runs the simulation, exports results to `01_data/02_output/mc/mc_results.xlsx`,
+# and shows four interactive views:
+# - **Multiple histograms** — distributions for several stocks
+# - **Tornado** — parameter sensitivity ranking
+# - **Simulation paths** — all MC trajectories
+# - **Stock comparison** — several stock distributions in one plot
 
 print(format_header("MONTE CARLO SIMULATION (BASELINE)", level=2))
 
-if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
+if mc_enabled:
     try:
+        # Local imports: MC engine + plots are only needed when MC is enabled.
         from engine.mc_simulation import run_mc_simulation
         from plotting.monte_carlo import (
             plot_interactive_mc_multiple_histograms,
@@ -730,40 +727,14 @@ if config_obj.RUN_MONTE_CARLO and "4_1_Uncertainty_Parameters" in input_data:
         if mc_results is not None and not mc_results.empty:
             print(format_success("Monte Carlo simulation completed for baseline."))
 
-            # --- Export MC Results ---
-            print(f"\n{Icons.EXPORT} Exporting Monte Carlo results...")
-
-            # Fixed filename - overwrites previous results
             mc_output_path = "01_data/02_output/mc/mc_results.xlsx"
             try:
                 mc_results.to_excel(mc_output_path, index=False)
-                print(
-                    format_success(
-                        f"Monte Carlo results successfully exported to: {mc_output_path}"
-                    )
-                )
+                print(format_success(f"Monte Carlo results exported to: {mc_output_path}"))
             except Exception as export_error:
-                print(
-                    f"{Icons.WARNING} Could not export Monte Carlo results: {export_error}"
-                )
-            # -------------------------
-
-            print(f"\n{Icons.VISUALIZATION} Monte Carlo Analysis Visualizations:")
-            print(
-                "   - Multiple Distribution Histograms: Interactively select and view histograms for multiple stocks."
-            )
-            print(
-                "   - Sensitivity Tornado Plot: Identify which parameters most influence outcomes."
-            )
-            print(
-                "   - Simulation Paths: Visualize the trajectories of all Monte Carlo runs."
-            )
-            print(
-                "   - Stock Comparison: Compare distributions of several stocks in one plot."
-            )
+                print(f"{Icons.WARNING} Could not export Monte Carlo results: {export_error}")
 
             plot_interactive_mc_multiple_histograms(mc_results, mfa_results_baseline)
-
             plot_interactive_tornado(mc_results)
             plot_interactive_mc_paths(mc_results, mfa_results_baseline)
             plot_interactive_mc_stock_comparison(mc_results, mfa_results_baseline)
@@ -780,75 +751,33 @@ else:
 
 # ### 4.2.4 MC Summary Statistics
 
-if (
-    config_obj.RUN_MONTE_CARLO
-    and "mc_results" in dir()
-    and mc_results is not None
-    and not mc_results.empty
-):
-    from reporting.mc_dashboard import compute_mc_summary_stats
-
+if mc_enabled and mc_results is not None and not mc_results.empty:
     print(format_header("MONTE CARLO SUMMARY STATISTICS", level=2))
 
-    mc_summary = compute_mc_summary_stats(mc_results, mfa_system_configured)
-
-    display(
-        mc_summary.style.format(
-            {
-                "Mean": "{:,.2f}",
-                "Std": "{:,.2f}",
-                "Median": "{:,.2f}",
-                "CI95_Lower": "{:,.2f}",
-                "CI95_Upper": "{:,.2f}",
-                "Min": "{:,.2f}",
-                "Max": "{:,.2f}",
-            }
-        )
-        .set_caption(
-            f"Stock Summary Statistics ({getattr(config_obj, 'MC_ITERATIONS', 100)} iterations)"
-        )
-        .hide(axis="index")
+    mc_summary = mc_dashboard.compute_mc_summary_stats(
+        mc_results, mfa_system_configured
     )
-
+    display(
+        mc_dashboard.style_summary_stats(
+            mc_summary, getattr(config_obj, "MC_ITERATIONS", 100)
+        )
+    )
     print(
         format_success(
             f"Summary statistics computed for {len(mc_summary)} stock-element combinations."
         )
     )
 
-    # Mass balance check
-    from reporting.mc_dashboard import compute_mc_mass_balance_report
-
-    mb_report = compute_mc_mass_balance_report(mc_results)
+    # Mass balance check across all MC iterations
+    mb_report = mc_dashboard.compute_mc_mass_balance_report(mc_results)
     if mb_report is not None:
         print(format_header("MASS BALANCE CHECK", level=2))
         print("System-level summary (across all elements):")
-        display(
-            mb_report["summary"]
-            .style.format(
-                {
-                    "Mean Abs. Error": "{:.2e}",
-                    "Max Abs. Error": "{:.2e}",
-                    "Mean Rel. Error (%)": "{:.2e}",
-                    "Max Rel. Error (%)": "{:.2e}",
-                    "Iterations with Error > 1%": "{:d}",
-                }
-            )
-            .hide(axis="index")
-        )
+        display(mc_dashboard.style_mass_balance_summary(mb_report["summary"]))
         if not mb_report["per_element"].empty:
             print("\nPer-element breakdown:")
             display(
-                mb_report["per_element"]
-                .style.format(
-                    {
-                        "Mean Input": "{:,.2f}",
-                        "Mean Abs. Error": "{:.2e}",
-                        "Max Abs. Error": "{:.2e}",
-                        "Rel. Error (%)": "{:.2e}",
-                    }
-                )
-                .hide(axis="index")
+                mc_dashboard.style_mass_balance_per_element(mb_report["per_element"])
             )
 
 # # 5. Data Export

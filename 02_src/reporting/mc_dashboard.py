@@ -264,3 +264,68 @@ def compute_mc_mass_balance_report(mc_results_df):
     element_df = pd.DataFrame(element_rows)
 
     return {"summary": summary_df, "per_element": element_df}
+
+
+# ---------------------------------------------------------------------------
+# Display helpers — return ready-to-``display`` pandas Stylers so the notebook
+# stays free of inline formatting dicts.
+# ---------------------------------------------------------------------------
+def style_parameter_overview(param_overview_df):
+    """Style the MC uncertainty-parameter overview table for display."""
+    return (
+        param_overview_df.style.set_caption(
+            "Monte Carlo Uncertainty Parameter Definitions"
+        )
+        .set_table_styles(
+            [
+                {
+                    "selector": "caption",
+                    "props": [("font-weight", "bold"), ("font-size", "14px")],
+                }
+            ]
+        )
+        .hide(axis="index")
+    )
+
+
+def style_parameter_mapping(mapping_df):
+    """Style the parameter-to-model mapping table for display."""
+    return mapping_df.style.set_caption("Parameter Target Mapping").hide(axis="index")
+
+
+def style_summary_stats(mc_summary_df, n_iterations=100):
+    """Style the MC stock summary-statistics table for display."""
+    fmt = {
+        col: "{:,.2f}"
+        for col in ("Mean", "Std", "Median", "CI95_Lower", "CI95_Upper", "Min", "Max")
+    }
+    return (
+        mc_summary_df.style.format(fmt)
+        .set_caption(f"Stock Summary Statistics ({n_iterations} iterations)")
+        .hide(axis="index")
+    )
+
+
+def style_mass_balance_summary(summary_df):
+    """Style the system-level MC mass-balance summary for display."""
+    return summary_df.style.format(
+        {
+            "Mean Abs. Error": "{:.2e}",
+            "Max Abs. Error": "{:.2e}",
+            "Mean Rel. Error (%)": "{:.2e}",
+            "Max Rel. Error (%)": "{:.2e}",
+            "Iterations with Error > 1%": "{:d}",
+        }
+    ).hide(axis="index")
+
+
+def style_mass_balance_per_element(per_element_df):
+    """Style the per-element MC mass-balance breakdown for display."""
+    return per_element_df.style.format(
+        {
+            "Mean Input": "{:,.2f}",
+            "Mean Abs. Error": "{:.2e}",
+            "Max Abs. Error": "{:.2e}",
+            "Rel. Error (%)": "{:.2e}",
+        }
+    ).hide(axis="index")
