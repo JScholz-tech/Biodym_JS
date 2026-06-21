@@ -129,6 +129,7 @@ try:
     import ODYM_Classes as msc
     from plotting.composition import plot_flow_composition
     from plotting.composition_export import export_flow_composition
+    from plotting.sankey import export_sankey_batch
     from reporting import kpi_dashboard
     from reporting.validation_summary import display_system_summary
 
@@ -788,8 +789,6 @@ print(format_success(f"Baseline results exported to: {output_file}"))
 # | `.xlsx` | `sankey/structuralcollective/` | **Structural Collective MFA Tool** — import at mfa.structuralcollective.nl |
 #
 # Files are named `sankey_{element}_{year}.ext` (e.g., `sankey_TC_2125.html`).
-
-from plotting.sankey import export_sankey_batch
 
 # ─── Sankey Export Configuration ─────────────────────────────────────────────
 export_years    = [int(mfa_results_baseline.Time_V[-1])]   # add more years: [2025, 2030]
