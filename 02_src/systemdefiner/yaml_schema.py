@@ -491,6 +491,62 @@ def model_to_yaml(excel_data: dict, source_file: str = "") -> dict:
                     "flows": bom_flows,
                 })
 
+    # ---- FlowCap params (3_4_Definition_FlowCap) ----
+    # Attach a per-process flowcap block to the matching process dict.
+    # Excel layout: Capped_Output rows carry Process_ID, Flow_ID, Year and the
+    # cap value (column "Flow"); a single Overflow row names the overflow flow.
+    # Output_flow_type can carry stray whitespace/tabs from the template, so we
+    # strip before matching. Without this block, importing an Excel silently
+    # dropped the cap (the inverse of the YAML->engine bridge).
+    fc_df = excel_data.get("3_4_Definition_FlowCap")
+    if fc_df is not None and not fc_df.empty and "Flow_ID" in fc_df.columns:
+        fc_df = fc_df.copy()
+        fc_df.columns = [str(c).strip() for c in fc_df.columns]
+        cap_col = next((c for c in ("Flow", "Cap_Value[UoM]", "Cap") if c in fc_df.columns), None)
+        has_pid = "Process_ID" in fc_df.columns
+        for _, row in fc_df.iterrows():
+            fid = str(row.get("Flow_ID", "")).strip()
+            if not fid or fid.lower() == "nan" or set(fid) <= {"F", "_"}:
+                continue  # blank / filler row (e.g. "F__")
+            pid = None
+            if has_pid and pd.notna(row.get("Process_ID")):
+                try:
+                    pid = int(float(row["Process_ID"]))
+                except (ValueError, TypeError):
+                    pid = None
+            if pid is None:  # infer from flow id F_<from>_<to>
+                parts = fid.split("_")
+                if len(parts) >= 2 and parts[1].isdigit():
+                    pid = int(parts[1])
+            idx = _pid_to_idx.get(pid)
+            if idx is None:
+                continue
+            block = out["processes"][idx].setdefault(
+                "flowcap",
+                {"capped_flow_id": "", "overflow_flow_id": "", "cap_series": {}, "cap_tc_id": ""},
+            )
+            ftype = str(row.get("Output_flow_type", "")).strip().lower()
+            if ftype.startswith("overflow"):
+                block["overflow_flow_id"] = fid
+            else:  # Capped_Output (default)
+                block["capped_flow_id"] = fid
+                if cap_col is not None and pd.notna(row.get(cap_col)):
+                    try:
+                        cap = float(str(row[cap_col]).replace(",", "."))
+                    except (ValueError, TypeError):
+                        cap = None
+                    if cap is not None:
+                        yr = row.get("Year")
+                        try:
+                            yr = int(float(yr)) if pd.notna(yr) else 0
+                        except (ValueError, TypeError):
+                            yr = 0
+                        block["cap_series"][yr] = cap
+        # discard incomplete blocks (no capped flow -> nothing to cap)
+        for _p in out["processes"]:
+            if "flowcap" in _p and not _p["flowcap"].get("capped_flow_id"):
+                del _p["flowcap"]
+
     # ---- Flow Compositions ----
     # Reads elemental fractions from 1_1_Definition_Flows for every flow that
     # has non-zero fraction data.  New format: Flow_E{n}_Fraction[%] (n=1 for
