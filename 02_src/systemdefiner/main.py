@@ -451,6 +451,17 @@ def _model_health(cfg) -> list[dict]:
             if not e or (e.material_quantity or 0) <= 0:
                 warn(f"P{p.id} {p.name}: initial-stock process has no initial stock quantity.")
 
+    # FlowCap processes without a defined cap (otherwise the cap is silently ignored)
+    for p in cfg.processes:
+        if p.logic == ProcessLogic.flowcap:
+            fc = p.flowcap
+            if not fc or not fc.capped_flow_id:
+                warn(f"P{p.id} {p.name}: FlowCap process has no capped flow defined "
+                     f"(set the capped/overflow flows in the process editor).")
+            elif not fc.cap_series:
+                warn(f"P{p.id} {p.name}: FlowCap has a capped flow but no cap values "
+                     f"(add a Year + cap to the capacity series).")
+
     # Dangling outflow pointers
     def _chk(pid, pname, label, fid):
         if fid and fid not in flow_ids:
