@@ -118,12 +118,18 @@ skills-lock.json
 tools/
 
 # -----------------------------------------------------------------------------
-# 01_data - Input Files (only template is tracked)
+# 01_data - Input Files (only template, tutorials, and the README are tracked)
 # -----------------------------------------------------------------------------
-# Exclude everything in input folder except the template subfolder
+# Exclude everything in the input folder except the curated, shippable assets:
+#   template/   — blank Excel Systemmanager (the Excel-format reference)
+#   tutorials/  — example studies (config.yaml + optional .xlsm)
+#   README.md   — describes the Excel and YAML input formats + this layout
 01_data/01_input/*
 !01_data/01_input/template/
 !01_data/01_input/template/**
+!01_data/01_input/tutorials/
+!01_data/01_input/tutorials/**
+!01_data/01_input/README.md
 
 # Temporary hex-named lock files
 01_data/01_input/[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]

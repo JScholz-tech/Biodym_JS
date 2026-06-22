@@ -1,0 +1,163 @@
+schema_version: '1.0'
+name: Tutorial_Study_2_DSM
+model:
+  start_year: 2025
+  end_year: 2125
+  elements:
+  - material
+  - WC
+  - DM
+  - TC
+  unit_of_measurement: Mg
+  hierarchy_level_names:
+  - Product
+  - Component
+  - Material
+  - Element
+  input_file: ''
+  output_file: ''
+  run_dsm_calculation: true
+  run_fomp_calculation: true
+  run_monte_carlo: false
+  mc_iterations: 1000
+  run_scenario_analysis: false
+  selected_scenarios:
+  - ''
+  - ''
+  - ''
+  - ''
+processes:
+- id: 0
+  name: Process 0
+  logic: Input
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 1
+  name: Process 1
+  logic: Splitter
+  stock: No_Stock
+  tc_config: Static
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 2
+  name: Process 2
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 3
+  name: Process 3
+  logic: DSM
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm:
+    categories:
+    - name: Category 1
+      inflow_split: 0.3
+      lifetime_type: Normal
+      lifetime_mean: 20.0
+      lifetime_std: 5.0
+      lifetime_shape: null
+      lifetime_scale: null
+    - name: Category 2
+      inflow_split: 0.5
+      lifetime_type: Normal
+      lifetime_mean: 10.0
+      lifetime_std: 2.0
+      lifetime_shape: null
+      lifetime_scale: null
+    - name: Category 3
+      inflow_split: 0.2
+      lifetime_type: Normal
+      lifetime_mean: 5.0
+      lifetime_std: 1.0
+      lifetime_shape: null
+      lifetime_scale: null
+    ref: ''
+  lfg: null
+  flowcap: null
+- id: 4
+  name: Process 4
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+flows:
+- id: F_00_01
+  name: Flow 1
+  from_process: 0
+  to_process: 1
+- id: F_01_02
+  name: Flow 2
+  from_process: 1
+  to_process: 2
+- id: F_01_03
+  name: Flow 3
+  from_process: 1
+  to_process: 3
+- id: F_03_04
+  name: Flow 4
+  from_process: 3
+  to_process: 4
+transfer_coefficients:
+- process_id: 1
+  flow_id: F_01_02
+  tc_type: static
+  values:
+    material: 0.5
+    WC: 0.0
+    DM: 0.0
+    TC: 0.0
+  time_series: []
+  ref: ''
+- process_id: 1
+  flow_id: F_01_03
+  tc_type: static
+  values:
+    material: 0.5
+    WC: 0.0
+    DM: 0.0
+    TC: 0.0
+  time_series: []
+  ref: ''
+element_hierarchy:
+- parent: material
+  children:
+  - DM
+  - WC
+- parent: DM
+  children:
+  - TC
+flow_compositions:
+- flow_id: F_00_01
+  values:
+    material: 1.0
+    WC: 0.5
+    DM: 0.5
+    TC: 0.0
+  ref: ''
+flow_data:
+- flow_id: F_00_01
+  element: material
+  values:
+    '2025': 100.0
+    '2050': 500.0
+    '2100': 0.0
+bom_assembly: []
+scenarios: []
+mc_parameters: []
+initial_stocks: []
+references: []
