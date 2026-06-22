@@ -980,10 +980,11 @@ async def tc_edit_form(request: Request, name: str, pid: int):
                     "tc_values": pt.values,
                 })
         is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
+        is_transformer = process.logic == ProcessLogic.transformer
         return templates.TemplateResponse(
             request, "tc_edit_dynamic.html",
             _ctx(cfg=cfg, process=process, rows=dyn_rows, outgoing_flows=outgoing_flows,
-                 is_splitter=is_splitter),
+                 is_splitter=is_splitter, is_transformer=is_transformer),
         )
     else:
         rows = []
@@ -992,9 +993,11 @@ async def tc_edit_form(request: Request, name: str, pid: int):
             rows.append({"flow": flow, "tc_values": tc.values if tc else {},
                          "tc_ref": tc.ref if tc else ""})
         is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
+        is_transformer = process.logic == ProcessLogic.transformer
         return templates.TemplateResponse(
             request, "tc_edit.html",
-            _ctx(cfg=cfg, process=process, rows=rows, is_splitter=is_splitter),
+            _ctx(cfg=cfg, process=process, rows=rows,
+                 is_splitter=is_splitter, is_transformer=is_transformer),
         )
 
 
@@ -1062,9 +1065,11 @@ async def tc_save(request: Request, name: str, pid: int):
 
         # Validation (mirrors static): at years defined for ALL flows, each
         # validated element must sum to 1.0 across flows. Splitter/DSM validate
-        # material only. Years not shared by every flow are left to interpolation.
+        # material only; Transformer validates the non-material elements (material
+        # is derived by the engine). Years not shared by every flow are
+        # interpolated, so they're not validated.
         is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
-        validate_elements = elements[:1] if is_splitter else elements
+        validate_elements = elements[:1] if is_splitter else elements[1:]
         proc_tcs = [tc for tc in cfg.transfer_coefficients if tc.process_id == pid]
         year_sets = [set(pt.year for pt in tc.time_series) for tc in proc_tcs]
         common_years = sorted(set.intersection(*year_sets)) if year_sets and all(year_sets) else []
@@ -1112,8 +1117,10 @@ async def tc_save(request: Request, name: str, pid: int):
                                 tc_type="static", values=values, ref=ref)
         )
 
+    # Splitter/DSM validate the material column; Transformer validates the
+    # non-material elements (the engine derives material = sum of WC+DM).
     is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
-    validate_elements = elements[:1] if is_splitter else elements
+    validate_elements = elements[:1] if is_splitter else elements[1:]
     for elem in validate_elements:
         total = sum(
             tc.values.get(elem, 0.0)

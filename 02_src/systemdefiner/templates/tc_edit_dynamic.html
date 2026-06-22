@@ -20,7 +20,8 @@
 {% else %}
 <div class="alert alert-info" style="margin-bottom:1rem;background:var(--bg);border-left:3px solid var(--primary)">
   <strong>Transformer mode — per-element TCs.</strong>
-  Each element is applied independently; for every year, fractions across all flows must sum to 100 %.
+  Each <em>element</em> is applied independently; for every year, fractions across all flows must sum to 100 %.
+  The <em>material</em> column is derived by the engine (sum of WC + DM) and disabled here.
 </div>
 {% endif %}
 
@@ -52,10 +53,10 @@
           <tr>
             <th>Year</th>
             {% for elem in cfg.model.elements %}
-            {% set disabled = is_splitter and not loop.first %}
+            {% set disabled = (is_splitter and not loop.first) or (is_transformer and loop.first) %}
             <th style="{{ 'color:var(--muted);' if disabled else '' }}">
               {{ elem }} <span style="font-weight:400;font-size:0.85rem">%</span>
-              {% if disabled %}<br><span style="font-size:0.72rem;font-weight:400">(inherited)</span>{% endif %}
+              {% if disabled %}<br><span style="font-size:0.72rem;font-weight:400">{{ '(derived)' if is_transformer else '(inherited)' }}</span>{% endif %}
             </th>
             {% endfor %}
             <th></th>
@@ -70,7 +71,7 @@
                      style="width:80px" oninput="recomputeBalance()">
             </td>
             {% for elem in cfg.model.elements %}
-            {% set disabled = is_splitter and not loop.first %}
+            {% set disabled = (is_splitter and not loop.first) or (is_transformer and loop.first) %}
             <td style="{{ 'background:var(--bg);' if disabled else '' }}">
               <input type="number"
                      name="tc_{{ flow.id }}_idx_{{ loop.index0 }}_{{ elem }}"
@@ -106,7 +107,8 @@
 
 <script>
 const ELEMENTS    = {{ cfg.model.elements | tojson }};
-const IS_SPLITTER = {{ 'true' if is_splitter else 'false' }};
+const IS_SPLITTER    = {{ 'true' if is_splitter else 'false' }};
+const IS_TRANSFORMER = {{ 'true' if is_transformer else 'false' }};
 
 function addDynRow(flowId, numElems) {
   const safe = flowId.replace(/[.\-]/g, '_');
@@ -118,7 +120,7 @@ function addDynRow(flowId, numElems) {
     class="year-input" value="" step="1" min="1900" max="2300" style="width:80px"
     oninput="recomputeBalance()"></td>`;
   for (let i = 0; i < numElems; i++) {
-    const disabled = IS_SPLITTER && i > 0;
+    const disabled = (IS_SPLITTER && i > 0) || (IS_TRANSFORMER && i === 0);
     html += `<td style="${disabled ? 'background:var(--bg);' : ''}">` +
       `<input type="number" name="tc_${flowId}_idx_${rowIdx}_${ELEMENTS[i]}" ` +
       `class="dyn-input" data-elem="${i}" value="${disabled ? 0 : 0}" step="0.01" min="0" max="100" ` +
@@ -147,7 +149,8 @@ function recomputeBalance() {
     byYear[yr][e] = (byYear[yr][e] || 0) + (parseFloat(inp.value) || 0);
   });
 
-  const validated = IS_SPLITTER ? [0] : ELEMENTS.map((_, i) => i);
+  const validated = IS_SPLITTER ? [0]
+                  : ELEMENTS.map((_, i) => i).filter(i => !(IS_TRANSFORMER && i === 0));
   const issues = [];
   Object.keys(byYear).sort().forEach(yr => {
     validated.forEach(e => {
