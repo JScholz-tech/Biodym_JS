@@ -18,13 +18,18 @@ extension (`.xlsm`/`.xlsx` → Excel, `.yaml`/`.yml` → YAML).
 01_data/01_input/
   README.md      ← this file
   template/      ← blank Excel Systemmanager template (the Excel-format reference)
-  tutorials/     ← shipped example studies (config.yaml, optionally also .xlsm)
-  case_studies/  ← SystemDefiner working directory (your studies)   [not tracked]
+  case_studies/  ← SystemDefiner working directory
+    T01_…/       ← tutorial studies (names starting "T0")            [tracked]
+    <your study>/← your own studies                                  [not tracked]
   <other files>  ← your own working inputs                           [not tracked]
 ```
 
-Only `template/`, `tutorials/`, and this `README.md` are committed to git;
-everything else under `01_data/01_input/` is local working data (gitignored).
+Only `template/`, this `README.md`, and **tutorial studies** are committed to git.
+Tutorials are ordinary SystemDefiner studies named `T0…` (e.g. `T01_First_MFA`)
+that live in `case_studies/` so they appear in the app directly — a fresh clone
+opens the SystemDefiner with the tutorials already in the list. Everything else
+under `01_data/01_input/` (your other studies, working `.xlsm` files) is local and
+gitignored.
 
 ---
 
@@ -93,8 +98,12 @@ the equivalent workbook produce identical results.
 
 ## Tutorials
 
-`tutorials/` holds small, self-contained example studies that each demonstrate one
-feature, with an in-app **Description** explaining the lesson. Load a tutorial's
-`config.yaml` (or `.xlsm`) the same way as any input, or import it into the
-SystemDefiner. Build new ones in the app under `case_studies/`, then copy the
-finished `config.yaml` (and an exported `.xlsm`) into `tutorials/<name>/` to ship it.
+Tutorial studies are small, self-contained examples that each demonstrate one
+feature, with an in-app **Description** explaining the lesson. They are ordinary
+SystemDefiner studies named with a `T0…` prefix (`T01_First_MFA`,
+`T02_Splitting_a_flow`, …) kept directly in `case_studies/`, so they show up in the
+SystemDefiner list and open like any other study.
+
+To add a tutorial: create a study in the app and name it `T0x_…` — the `T0…` prefix
+is what git tracks (see `.gitignore`); every other study in `case_studies/` stays
+local. No copying or export step is needed.
