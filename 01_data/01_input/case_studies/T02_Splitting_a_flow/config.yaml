@@ -1,0 +1,135 @@
+schema_version: '1.0'
+name: T02_Splitting_a_flow
+description: "\U0001F4D8 Tutorial T02 — Splitting a flow\r\nIntroduces the Splitter:\
+  \ one inflow divided into several outflows by transfer coefficients (TCs).\r\nWhat\
+  \ it shows\r\n• A Splitter process receives 100 Mg/yr and sends it to two sinks.\r\
+  \n• Static TCs set the split — here 70% to Sink A, 30% to Sink B.\r\n• For a Splitter,\
+  \ the \"material\" column must sum to 100% across all outgoing flows.\r\n• TC IDs\
+  \ follow the BioDYM convention TC_E{n}_{from}_{to}, with E1 = material (e.g. TC_E1_01_02).\r\
+  \n\r\nTry it\r\n• Open the Transfer Coefficients page for the Splitter and check\
+  \ the 70/30 split.\r\n• Change the fractions (keeping the sum at 100%) and re-run.\r\
+  \n\r\nLook for\r\n• Sankey: the inflow divides 70/30 into the two sinks"
+model:
+  start_year: 2025
+  end_year: 2125
+  elements:
+  - material
+  - WC
+  - DM
+  - TC
+  unit_of_measurement: Mg
+  hierarchy_level_names:
+  - Product
+  - Component
+  - Material
+  - Element
+  input_file: ''
+  output_file: ''
+  run_dsm_calculation: true
+  run_fomp_calculation: true
+  run_monte_carlo: false
+  mc_iterations: 1000
+  run_scenario_analysis: false
+  selected_scenarios:
+  - ''
+  - ''
+  - ''
+  - ''
+processes:
+- id: 0
+  name: Process 0
+  logic: Input
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 1
+  name: Process 1
+  logic: Splitter
+  stock: No_Stock
+  tc_config: Static
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 2
+  name: Process 2
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 3
+  name: Process 3
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+flows:
+- id: F_00_01
+  name: Flow 1
+  from_process: 0
+  to_process: 1
+- id: F_01_02
+  name: Flow 2
+  from_process: 1
+  to_process: 2
+- id: F_01_03
+  name: Flow 3
+  from_process: 1
+  to_process: 3
+transfer_coefficients:
+- process_id: 1
+  flow_id: F_01_02
+  tc_type: static
+  values:
+    material: 0.3
+    WC: 0.0
+    DM: 0.0
+    TC: 0.0
+  time_series: []
+  ref: ''
+- process_id: 1
+  flow_id: F_01_03
+  tc_type: static
+  values:
+    material: 0.7
+    WC: 0.0
+    DM: 0.0
+    TC: 0.0
+  time_series: []
+  ref: ''
+element_hierarchy:
+- parent: material
+  children:
+  - DM
+  - WC
+- parent: DM
+  children:
+  - TC
+flow_compositions:
+- flow_id: F_00_01
+  values:
+    material: 1.0
+    WC: 0.5
+    DM: 0.5
+    TC: 0.0
+  ref: ''
+flow_data:
+- flow_id: F_00_01
+  element: material
+  values:
+    '2025': 100.0
+    '2125': 100.0
+bom_assembly: []
+scenarios: []
+mc_parameters: []
+initial_stocks: []
+references: []

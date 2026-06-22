@@ -124,6 +124,12 @@ tools/
 01_data/01_input/*
 !01_data/01_input/template/
 !01_data/01_input/template/**
+# Tutorial studies (SystemDefiner studies named T0…) ship with the repo so a
+# fresh clone opens the app with them; all other case_studies/ are local.
+!01_data/01_input/case_studies/
+01_data/01_input/case_studies/*
+!01_data/01_input/case_studies/T0[0-9]_*/
+!01_data/01_input/case_studies/T0[0-9]_*/**
 
 # Temporary hex-named lock files
 01_data/01_input/[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]

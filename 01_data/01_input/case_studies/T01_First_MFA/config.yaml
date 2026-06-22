@@ -1,0 +1,88 @@
+schema_version: '1.0'
+name: T01_First_MFA
+description: "\U0001F4D8 Tutorial T01 — Hello MFA\r\n\r\nThe simplest possible model:\
+  \ one material flow from the system boundary to a sink.\r\n\r\nWhat it shows\r\n\
+  • P0 is the system boundary (the environment) — every model starts here.\r\n• A\
+  \ single flow carries 100 Mg/yr from the boundary (Input) to a sink (Output).\r\n\
+  • \"Flow data\" sets the amount per year; the engine interpolates between the years\
+  \ you enter.\r\n\r\nTry it\r\n• Run the analysis (no transfer coefficients are needed\
+  \ for a single flow).\r\n\r\nLook for\r\n• Sankey: one arrow, 100 Mg/yr.\r\n• Validation:\
+  \ mass-balance error = 0 (inflow equals outflow)."
+model:
+  start_year: 2025
+  end_year: 2125
+  elements:
+  - material
+  - WC
+  - DM
+  - TC
+  unit_of_measurement: Mg
+  hierarchy_level_names:
+  - Product
+  - Component
+  - Material
+  - Element
+  input_file: ''
+  output_file: ''
+  run_dsm_calculation: false
+  run_fomp_calculation: false
+  run_monte_carlo: false
+  mc_iterations: 1000
+  run_scenario_analysis: false
+  selected_scenarios:
+  - ''
+  - ''
+  - ''
+  - ''
+processes:
+- id: 0
+  name: Process 0
+  logic: Input
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 1
+  name: Process 1
+  logic: Output
+  stock: No_Stock
+  tc_config: Static
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+flows:
+- id: F_00_01
+  name: Flow 1
+  from_process: 0
+  to_process: 1
+transfer_coefficients: []
+element_hierarchy:
+- parent: material
+  children:
+  - DM
+  - WC
+- parent: DM
+  children:
+  - TC
+flow_compositions:
+- flow_id: F_00_01
+  values:
+    material: 1.0
+    WC: 0.5
+    DM: 0.5
+    TC: 0.0
+  ref: ''
+flow_data:
+- flow_id: F_00_01
+  element: material
+  values:
+    '2025': 100.0
+    '2125': 100.0
+bom_assembly: []
+scenarios: []
+mc_parameters: []
+initial_stocks: []
+references: []
