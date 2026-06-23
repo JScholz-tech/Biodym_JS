@@ -83,7 +83,7 @@ tools/                   — WIP/experimental, gitignored (local-only): marimo_d
 ## Git conventions
 - Branch names: `feat/<topic>`, `fix/<topic>`, `chore/<topic>`
 - Commit format: `type(scope): short description` (e.g. `feat(lfg): add N-pool FOD model`)
-- Never commit `.xlsm` input data files — they belong in `01_data/01_input/` but are gitignored
+- Never commit `.xlsm` user data files from `01_data/01_input/` — they are gitignored (exception: `01_data/01_input/template/` and `03_studies/` published case study inputs ARE tracked)
 - Always commit `.py` and `.ipynb` together for `00_BioDYM_Workflow.py` changes
 - Voilà dashboard: `01_BioDYM_Dashboard.ipynb` is the primary dashboard — commit standalone (no paired `.py`)
 - Marimo dashboard: `tools/marimo_dashboard.py` is WIP — commit standalone (no `.ipynb` counterpart)
