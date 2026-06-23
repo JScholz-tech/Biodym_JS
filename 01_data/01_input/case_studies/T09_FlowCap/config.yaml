@@ -1,0 +1,143 @@
+schema_version: '1.0'
+name: T09_FlowCap
+description: '📘 Tutorial T09 — Capacity-limited routing (FlowCap)
+
+
+  A FlowCap process routes a flow up to a fixed capacity and sends any excess down
+  an overflow path.
+
+
+  What it shows
+
+  • Waste arrives at a sorting step whose recycling capacity is capped at 100 Mg/yr.
+
+  • The inflow ramps from 50 up to 150 Mg/yr over the period.
+
+  • Up to the cap is sent to recycling (the capped flow); the excess overflows to
+  landfill.
+
+
+  Try it
+
+  • Open the FlowCap process to see the capped flow, the overflow flow and the capacity
+  series.
+
+  • Change the cap and re-run.
+
+
+  Look for
+
+  • Recycling inflow rises, then plateaus at the 100 Mg/yr cap.
+
+  • Landfill receives nothing until the inflow exceeds the cap, then takes only the
+  overflow.'
+model:
+  start_year: 2025
+  end_year: 2125
+  elements:
+  - material
+  - WC
+  - DM
+  - TC
+  unit_of_measurement: Mg
+  hierarchy_level_names:
+  - Product
+  - Component
+  - Material
+  - Element
+  input_file: ''
+  output_file: ''
+  run_dsm_calculation: false
+  run_fomp_calculation: false
+  run_monte_carlo: false
+  mc_iterations: 1000
+  run_scenario_analysis: false
+  selected_scenarios:
+  - ''
+  - ''
+  - ''
+  - ''
+processes:
+- id: 0
+  name: Boundary (environment)
+  logic: Input
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 1
+  name: Sorting (capped)
+  logic: FlowCap
+  stock: No_Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap:
+    capped_flow_id: F_01_02
+    overflow_flow_id: F_01_03
+    cap_series:
+      '2025': 100.0
+      '2125': 100.0
+    cap_tc_id: ''
+- id: 2
+  name: Recycling (capacity 100)
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 3
+  name: Landfill (overflow)
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+flows:
+- id: F_00_01
+  name: Waste in
+  from_process: 0
+  to_process: 1
+- id: F_01_02
+  name: To recycling (capped)
+  from_process: 1
+  to_process: 2
+- id: F_01_03
+  name: Overflow to landfill
+  from_process: 1
+  to_process: 3
+transfer_coefficients: []
+element_hierarchy:
+- parent: material
+  children:
+  - DM
+  - WC
+- parent: DM
+  children:
+  - TC
+flow_compositions:
+- flow_id: F_00_01
+  values:
+    material: 1.0
+    WC: 0.5
+    DM: 0.5
+    TC: 0.25
+  ref: ''
+flow_data:
+- flow_id: F_00_01
+  element: material
+  values:
+    '2025': 50.0
+    '2125': 150.0
+bom_assembly: []
+scenarios: []
+mc_parameters: []
+initial_stocks: []
+references: []

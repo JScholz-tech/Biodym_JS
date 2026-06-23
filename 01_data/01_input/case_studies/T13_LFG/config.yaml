@@ -1,0 +1,169 @@
+schema_version: '1.0'
+name: T13_LFG
+description: '📘 Tutorial T13 — Landfill gas (LFG)
+
+
+  Models first-order decay of organic waste in a landfill, generating methane and
+  CO2 over decades (UNFCCC AM-Tool-04 / IPCC first-order-decay).
+
+
+  What it shows
+
+  • A waste deposit decays via several organic fractions, each with its own decay
+  rate k.
+
+  • Degradable organic carbon (DOC) converts to landfill gas; methane is set by F_CH4,
+  with oxidation (OX), a site correction (φ) and an optional capture fraction.
+
+  • Water leaves as leachate; ash / inert material stays behind.
+
+
+  Try it
+
+  • Open the LFG process to see the site parameters (MCF, DOCf, F_CH4, OX, φ, capture)
+  and the waste fractions (k, DOC, input share, ash).
+
+  • Change a fraction''s decay rate k and re-run.
+
+
+  Look for
+
+  • Gas outflows (CH4, CO2) peak soon after the deposit, then decline as the fast
+  fractions are exhausted.'
+model:
+  start_year: 2025
+  end_year: 2125
+  elements:
+  - material
+  - WC
+  - DM
+  - TC
+  unit_of_measurement: Mg
+  hierarchy_level_names:
+  - Product
+  - Component
+  - Material
+  - Element
+  input_file: ''
+  output_file: ''
+  run_dsm_calculation: false
+  run_fomp_calculation: false
+  run_monte_carlo: false
+  mc_iterations: 1000
+  run_scenario_analysis: false
+  selected_scenarios:
+  - ''
+  - ''
+  - ''
+  - ''
+processes:
+- id: 0
+  name: Boundary (environment)
+  logic: Input
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 1
+  name: Landfill (LFG)
+  logic: LFG
+  stock: No_Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg:
+    mcf: 1.0
+    doc_f: 0.5
+    f_ch4: 0.5
+    ox: 0.1
+    phi: 1.0
+    f_capture: 0.0
+    outflow_ch4_id: F_01_02
+    outflow_co2_id: F_01_03
+    outflow_leachate_id: F_01_04
+    fractions:
+    - name: Food waste
+      k_j: 0.185
+      doc_j: 0.15
+      f_input_j: 0.5
+      f_ash_j: 0.05
+    - name: Paper/wood
+      k_j: 0.06
+      doc_j: 0.4
+      f_input_j: 0.5
+      f_ash_j: 0.05
+  flowcap: null
+- id: 2
+  name: Atmosphere (CH4)
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 3
+  name: Atmosphere (CO2)
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 4
+  name: Leachate (water)
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+flows:
+- id: F_00_01
+  name: Waste deposited
+  from_process: 0
+  to_process: 1
+- id: F_01_02
+  name: CH4
+  from_process: 1
+  to_process: 2
+- id: F_01_03
+  name: CO2
+  from_process: 1
+  to_process: 3
+- id: F_01_04
+  name: Leachate
+  from_process: 1
+  to_process: 4
+transfer_coefficients: []
+element_hierarchy:
+- parent: material
+  children:
+  - DM
+  - WC
+- parent: DM
+  children:
+  - TC
+flow_compositions:
+- flow_id: F_00_01
+  values:
+    material: 1.0
+    WC: 0.5
+    DM: 0.5
+    TC: 0.3
+  ref: ''
+flow_data:
+- flow_id: F_00_01
+  element: material
+  values:
+    '2025': 1000.0
+    '2026': 0.0
+bom_assembly: []
+scenarios: []
+mc_parameters: []
+initial_stocks: []
+references: []

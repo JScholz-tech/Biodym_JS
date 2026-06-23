@@ -1,16 +1,36 @@
 schema_version: '1.0'
-name: T03_Transforming_a_Flow
-description: "\U0001F4D8 Tutorial T03 — Composition & element hierarchy\r\n\r\nTracks\
-  \ multiple elements through a process. A \"dryer\" separates water from dry matter.\r\
-  \n\r\nWhat it shows\r\n• Elements material, WC (water), DM (dry matter), TC (carbon),\
-  \ with the hierarchy\r\n  material = WC + DM and DM = TC + (rest).\r\n• The input\
-  \ flow's composition is set as % of its parent (30% WC, 70% DM; TC = 50% of DM).\r\
-  \n• A Transformer applies a separate TC per element: water (WC) leaves as vapour,\r\
-  \n  dry matter (DM, TC) leaves as product. Each element column sums to 100%.\r\n\
-  \r\nTry it\r\n• Open Flow Compositions to see the parent-relative percentages.\r\
-  \n• Open the Transformer's Transfer Coefficients to see the per-element split.\r\
-  \n\r\nLook for\r\n• Composition tab: the product stream is dry (no WC); the vapour\
-  \ stream is pure water."
+name: T10_BOM_Manufacturing
+description: '📘 Tutorial T10 — BOM assembly (manufacturing)
+
+
+  The BOM_Assembler builds a defined product from its inputs — a "bill of materials"
+  process that fixes the element composition of its output.
+
+
+  What it shows
+
+  • A BOM_Assembler process takes an inflow and routes it to a target product (and
+  optional waste flows).
+
+  • The target product''s element composition is set by the bill of materials, not
+  by the inflow.
+
+  • Transfer coefficients must be enabled — the assembler derives its element split
+  from them. (With TCs off it produces wrong results.)
+
+
+  Try it
+
+  • Open the BOM editor on the assembler to see the target-product composition.
+
+  • Check that the process''s TC Configuration is set to Static (required).
+
+
+  Look for
+
+  • The product flow carries the bill-of-materials composition.
+
+  • Mass balance holds across the assembler.'
 model:
   start_year: 2025
   end_year: 2125
@@ -27,7 +47,7 @@ model:
   - Element
   input_file: ''
   output_file: ''
-  run_dsm_calculation: true
+  run_dsm_calculation: false
   run_fomp_calculation: true
   run_monte_carlo: false
   mc_iterations: 1000
@@ -48,8 +68,8 @@ processes:
   lfg: null
   flowcap: null
 - id: 1
-  name: Process 1 (Drying)
-  logic: Transformer
+  name: Process 1 (BOM)
+  logic: BOM_Assembler
   stock: No_Stock
   tc_config: Static
   fomp: null
@@ -92,8 +112,8 @@ transfer_coefficients:
   flow_id: F_01_02
   tc_type: static
   values:
-    material: 1.0
-    WC: 1.0
+    material: 0.5
+    WC: 0.0
     DM: 0.0
     TC: 0.0
   time_series: []
@@ -102,10 +122,10 @@ transfer_coefficients:
   flow_id: F_01_03
   tc_type: static
   values:
-    material: 0.0
+    material: 0.5
     WC: 0.0
-    DM: 1.0
-    TC: 1.0
+    DM: 0.0
+    TC: 0.0
   time_series: []
   ref: ''
 element_hierarchy:
@@ -129,8 +149,19 @@ flow_data:
   element: material
   values:
     '2025': 100.0
-    '2125': 100.0
-bom_assembly: []
+    '2026': 0.0
+bom_assembly:
+- process_id: 1
+  flows:
+  - flow_id: F_01_02
+    output_flow_type: target_Product
+    fractions:
+      WC: 0.8
+      DM: 0.2
+      TC: 0.05
+  - flow_id: F_01_03
+    output_flow_type: Unused_Material
+    fractions: {}
 scenarios: []
 mc_parameters: []
 initial_stocks: []

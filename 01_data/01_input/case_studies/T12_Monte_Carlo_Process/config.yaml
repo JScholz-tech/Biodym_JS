@@ -1,0 +1,183 @@
+schema_version: '1.0'
+name: T12_Monte_Carlo_Process
+description: '📘 Tutorial T12 — Monte Carlo on a process
+
+
+  Runs a Monte Carlo simulation that varies a single process''s transfer coefficients,
+  propagating that uncertainty to downstream stocks. Compare with T11, which varies
+  input flows as a group.
+
+
+  What it shows
+
+  • A Splitter sends its inflow to two sinks via transfer coefficients (TCs).
+
+  • The MC simulation samples those TCs from a Normal distribution each iteration.
+
+  • Because all of the splitter''s outgoing TCs are varied, they are renormalised
+  to sum to 1.0 — so the split shifts but total throughput is conserved.
+
+
+  Try it
+
+  • Open MC Parameters to see the two TC distributions (mean 0.3 / 0.7, std 0.05).
+
+  • Remember TCs are fractions (0–1), not percentages — enter 0.3, not 30.
+
+  • Increase the iteration count for a smoother distribution.
+
+
+  Look for
+
+  • The MC stock distribution for each sink: a spread around the baseline split, with
+  total inflow unchanged.'
+model:
+  start_year: 2025
+  end_year: 2125
+  elements:
+  - material
+  - WC
+  - DM
+  - TC
+  unit_of_measurement: Mg
+  hierarchy_level_names:
+  - Product
+  - Component
+  - Material
+  - Element
+  input_file: ''
+  output_file: ''
+  run_dsm_calculation: false
+  run_fomp_calculation: false
+  run_monte_carlo: true
+  mc_iterations: 500
+  run_scenario_analysis: false
+  selected_scenarios:
+  - ''
+  - ''
+  - ''
+  - ''
+processes:
+- id: 0
+  name: Process 0
+  logic: Input
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 1
+  name: Process 1
+  logic: Splitter
+  stock: No_Stock
+  tc_config: Static
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 2
+  name: Process 2
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 3
+  name: Process 3
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+flows:
+- id: F_00_01
+  name: Flow 1
+  from_process: 0
+  to_process: 1
+- id: F_01_02
+  name: Flow 2
+  from_process: 1
+  to_process: 2
+- id: F_01_03
+  name: Flow 3
+  from_process: 1
+  to_process: 3
+transfer_coefficients:
+- process_id: 1
+  flow_id: F_01_02
+  tc_type: static
+  values:
+    material: 0.3
+    WC: 0.0
+    DM: 0.0
+    TC: 0.0
+  time_series: []
+  ref: ''
+- process_id: 1
+  flow_id: F_01_03
+  tc_type: static
+  values:
+    material: 0.7
+    WC: 0.0
+    DM: 0.0
+    TC: 0.0
+  time_series: []
+  ref: ''
+element_hierarchy:
+- parent: material
+  children:
+  - DM
+  - WC
+- parent: DM
+  children:
+  - TC
+flow_compositions:
+- flow_id: F_00_01
+  values:
+    material: 1.0
+    WC: 0.5
+    DM: 0.5
+    TC: 0.0
+  ref: ''
+flow_data:
+- flow_id: F_00_01
+  element: material
+  values:
+    '2025': 100.0
+    '2125': 100.0
+bom_assembly: []
+scenarios: []
+mc_parameters:
+- parameter_id: TC_E1_01_02
+  enabled: true
+  distribution: normal
+  mean: 0.3
+  std: 0.05
+  min: null
+  max: null
+  mode: null
+  operation: set
+  start_year: null
+  end_year: null
+  flow_group: null
+  ref: ''
+- parameter_id: TC_E1_01_03
+  enabled: true
+  distribution: normal
+  mean: 0.7
+  std: 0.05
+  min: null
+  max: null
+  mode: null
+  operation: set
+  start_year: null
+  end_year: null
+  flow_group: null
+  ref: ''
+initial_stocks: []
+references: []

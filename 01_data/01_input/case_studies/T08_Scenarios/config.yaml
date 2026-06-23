@@ -1,0 +1,172 @@
+schema_version: '1.0'
+name: T08_Scenarios
+description: '📘 Tutorial T08 — Scenario analysis
+
+
+  Define named scenarios that change a parameter, then compare them against the baseline
+  without editing the base model.
+
+
+  What it shows
+
+  • A Splitter sends its inflow to a recycling sink and a landfill sink via transfer
+  coefficients.
+
+  • Baseline: 30% recycled, 70% landfilled.
+
+  • A scenario "High recycling" replaces the split with 70% recycled / 30% landfilled.
+
+  • Scenarios modify parameters at run time; the base model is untouched.
+
+
+  Try it
+
+  • Open the Scenario editor to see the "High recycling" modifications.
+
+  • Switch the selected scenario and re-run to compare against baseline.
+
+
+  Look for
+
+  • The recycling sink stock is much larger under "High recycling" than baseline;
+  landfill is smaller.'
+model:
+  start_year: 2025
+  end_year: 2125
+  elements:
+  - material
+  - WC
+  - DM
+  - TC
+  unit_of_measurement: Mg
+  hierarchy_level_names:
+  - Product
+  - Component
+  - Material
+  - Element
+  input_file: ''
+  output_file: ''
+  run_dsm_calculation: false
+  run_fomp_calculation: false
+  run_monte_carlo: false
+  mc_iterations: 1000
+  run_scenario_analysis: true
+  selected_scenarios:
+  - High recycling
+  - ''
+  - ''
+  - ''
+processes:
+- id: 0
+  name: Boundary (environment)
+  logic: Input
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 1
+  name: Sorting
+  logic: Splitter
+  stock: No_Stock
+  tc_config: Static
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 2
+  name: Recycling
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 3
+  name: Landfill
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+flows:
+- id: F_00_01
+  name: Waste in
+  from_process: 0
+  to_process: 1
+- id: F_01_02
+  name: Recycled
+  from_process: 1
+  to_process: 2
+- id: F_01_03
+  name: Landfilled
+  from_process: 1
+  to_process: 3
+transfer_coefficients:
+- process_id: 1
+  flow_id: F_01_02
+  tc_type: static
+  values:
+    material: 0.3
+    WC: 0.3
+    DM: 0.3
+    TC: 0.3
+  time_series: []
+  ref: ''
+- process_id: 1
+  flow_id: F_01_03
+  tc_type: static
+  values:
+    material: 0.7
+    WC: 0.7
+    DM: 0.7
+    TC: 0.7
+  time_series: []
+  ref: ''
+element_hierarchy:
+- parent: material
+  children:
+  - DM
+  - WC
+- parent: DM
+  children:
+  - TC
+flow_compositions:
+- flow_id: F_00_01
+  values:
+    material: 1.0
+    WC: 0.5
+    DM: 0.5
+    TC: 0.25
+  ref: ''
+flow_data:
+- flow_id: F_00_01
+  element: material
+  values:
+    '2025': 100.0
+    '2125': 100.0
+bom_assembly: []
+scenarios:
+- name: High recycling
+  modifications:
+  - parameter_name: TC_E1_01_02
+    parameter_type: TC
+    operation: replace
+    new_value: 0.7
+    start_year: null
+    end_year: null
+    ref: ''
+  - parameter_name: TC_E1_01_03
+    parameter_type: TC
+    operation: replace
+    new_value: 0.3
+    start_year: null
+    end_year: null
+    ref: ''
+mc_parameters: []
+initial_stocks: []
+references: []
