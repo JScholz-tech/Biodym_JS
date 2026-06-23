@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.1] - 2026-06-23
+
+### Added
+- Tutorial studies T01–T07 shipped with the repository — a fresh clone opens
+  the bioDYM SystemDefiner with seven ready-to-run worked examples
+- `GETTING_STARTED_FROM_ZERO.md` — step-by-step onboarding guide for new users
+- SystemDefiner: DSM editor with category UX and model validation
+- SystemDefiner: health-check panel flags incomplete processes before export
+- SystemDefiner: per-study description displayed under the system diagram
+- SystemDefiner: DSM, LFG, Initial Stock, and FlowCap parameters importable
+  from an existing Excel Systemmanager
+- `01_data/01_input/README.md` — documents both Excel and YAML input formats
+
+### Fixed
+- DSM engine: Fixed and LogNormal lifetime types now handled correctly
+- SystemDefiner: 0-based process IDs, displayed as P{id}
+- SystemDefiner: Transformer TCs correctly use element-level entries
+- SystemDefiner: Duplicate (clone) button made reliable
+- SystemDefiner: dynamic TC editor aligned with static editor
+- SystemDefiner: material TC uses `TC_E1_` convention (matches Excel)
+- data_loader: YAML→engine bridge now emits all required sheets
+  (LFG, FlowCap, FOMP, DSM, Scenario Manager, empty TC sheets)
+- export: Excel sheet names sanitised to ≤31 characters
+- DGAW published case study input file restored (mistakenly removed in v1.2.0)
+- Tutorial descriptions T05–T07 corrected (were copies of T04 description)
+
+### Changed
+- Notebook refactored: `sys.path` / widget bootstrap extracted to
+  `02_src/bootstrap.py`; MC table styling moved into `mc_dashboard.py`
+- Publication plots now honour the configured theme unit
+- CI and first-run environment parity improvements
+
+---
+
 ## [1.2.0] - 2026-06-18
 
 ### Added
@@ -51,6 +85,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so the notebook MC condition passes in YAML-only mode
 - `recalculate_hierarchical_elements` removed from Splitter/Transformer branches
   (caused double-counting in element mass balance)
+
+---
+
+## [1.1.0] - 2026-05-04
+
+Intermediate development release. Introduced the LFG landfill-gas module,
+multi-format Sankey export, DSM vintage cohort tracking, Voilà dashboard,
+and a plotting theme system. Not formally announced — superseded by v1.2.0.
 
 ---
 
@@ -126,4 +168,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[1.2.1]: https://github.com/JScholz-tech/Biodym_JS/releases/tag/v1.2.1
+[1.2.0]: https://github.com/JScholz-tech/Biodym_JS/releases/tag/v1.2.0
+[1.1.0]: https://github.com/JScholz-tech/Biodym_JS/releases/tag/v1.1.0
 [1.0.0]: https://github.com/JScholz-tech/Biodym_JS/releases/tag/v1.0.0

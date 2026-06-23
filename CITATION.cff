@@ -2,17 +2,17 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
 title: "BioDYM: Material Flow Analysis for Bio-based Systems"
-version: 1.2.0
-date-released: 2026-06-18
+version: 1.2.1
+date-released: 2026-06-23
 url: "https://github.com/JScholz-tech/Biodym_JS"
 repository-code: "https://github.com/JScholz-tech/Biodym_JS"
 identifiers:
   - type: doi
-    value: "10.5281/zenodo.18759081"
-    description: "Zenodo archive DOI (version 1.0.0)"
-  - type: doi
     value: "10.5281/zenodo.18759080"
     description: "Zenodo concept DOI (always resolves to latest version)"
+  - type: doi
+    value: "10.5281/zenodo.18759081"
+    description: "Zenodo archive DOI (version 1.0.0)"
 license: MIT
 authors:
   - family-names: "Scholz"
