@@ -50,6 +50,35 @@ templates = Jinja2Templates(directory=_HERE / "templates")
 templates.env.globals["study_has_diagram"] = lambda name: storage.diagram_path(name) is not None
 
 
+def _render_markdown(text: str) -> str:
+    """Render a study description as sanitized HTML from Markdown.
+
+    Falls back to escaped plain text (with line breaks preserved) if the
+    optional markdown/bleach libraries are unavailable.
+    """
+    text = (text or "").strip()
+    if not text:
+        return ""
+    try:
+        import markdown as _md
+        import bleach as _bleach
+        html = _md.markdown(text, extensions=["extra", "sane_lists", "nl2br"])
+        allowed_tags = {
+            "p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6",
+            "ul", "ol", "li", "strong", "em", "b", "i", "code", "pre",
+            "blockquote", "a", "table", "thead", "tbody", "tr", "th", "td",
+        }
+        allowed_attrs = {"a": ["href", "title"]}
+        clean = _bleach.clean(html, tags=allowed_tags, attributes=allowed_attrs, strip=True)
+        return _bleach.linkify(clean)
+    except Exception:
+        from markupsafe import escape
+        return str(escape(text)).replace("\n", "<br>")
+
+
+templates.env.filters["markdown"] = _render_markdown
+
+
 # ── Error handling ──────────────────────────────────────────────────────────
 def _error_page(request: Request, code: int, message: str):
     return templates.TemplateResponse(
@@ -435,7 +464,7 @@ def _model_health(cfg) -> list[dict]:
         if p.dsm and p.dsm.categories:
             s = sum((c.inflow_split or 0.0) for c in p.dsm.categories)
             if abs(s - 1.0) > 1e-6:
-                warn(f"P{p.id} {p.name}: DSM inflow split sums to {s:.3f} (should be 1.0).")
+                warn(f"P{p.id} {p.name}: DSM inflow split sums to {s * 100:.1f}% (should be 100%).")
 
     # TC-eligible processes with outgoing flows but no TCs
     _tc_elig = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm}
@@ -455,9 +484,30 @@ def _model_health(cfg) -> list[dict]:
     # BOM processes without a target_Product
     for p in cfg.processes:
         if p.logic == ProcessLogic.bom_assembler:
+            # The BOM Assembler derives its element split from transfer
+            # coefficients — with TCs disabled the engine produces wrong
+            # results silently, so TCs are mandatory here.
+            if p.tc_config == TCConfig.no_tc:
+                err(f"P{p.id} {p.name}: BOM_Assembler requires transfer coefficients "
+                    f"(set TC Configuration to Static or Dynamic in the process editor).")
             entry = next((e for e in cfg.bom_assembly if e.process_id == p.id), None)
             if not entry or not any(bf.output_flow_type == "target_Product" for bf in entry.flows):
                 warn(f"P{p.id} {p.name}: BOM process has no target_Product flow.")
+
+    # FOMP processes: must have parameters and a (sensible) primary outflow
+    for p in cfg.processes:
+        if p.logic == ProcessLogic.fomp:
+            fm = p.fomp
+            if not fm:
+                warn(f"P{p.id} {p.name}: FOMP process has no FOMP parameters defined.")
+                continue
+            if not fm.outflow_id:
+                warn(f"P{p.id} {p.name}: FOMP process has no outflow flow defined "
+                     f"(set the decay outflow in the process editor).")
+            if not (0.0 <= (fm.f_labile or 0.0) <= 1.0):
+                warn(f"P{p.id} {p.name}: FOMP labile fraction {fm.f_labile} is outside 0–1.")
+            if (fm.k_labile or 0.0) < 0 or (fm.k_recalcitrant or 0.0) < 0:
+                warn(f"P{p.id} {p.name}: FOMP decay rate is negative.")
 
     # InitialStock processes without a defined stock
     for p in cfg.processes:
@@ -628,6 +678,11 @@ async def process_edit_save(request: Request, name: str, pid: int):
     process.lfg = _parse_lfg(form) if logic == ProcessLogic.lfg else None
     process.flowcap = _parse_flowcap(form) if logic == ProcessLogic.flowcap else None
 
+    # If the process no longer carries an initial stock, drop any orphaned entry
+    # so it can't linger in the config (and silently feed the engine).
+    if process.stock not in (StockConfig.initial_stock_cohort, StockConfig.initial_stock_decay):
+        cfg.initial_stocks = [s for s in cfg.initial_stocks if s.process_id != pid]
+
     storage.save_case_study(cfg)
     return RedirectResponse(f"/{name}/processes", status_code=303)
 
@@ -669,7 +724,8 @@ def _parse_dsm(form) -> DsmParams:
                 return default
         categories.append(DsmCategory(
             name=(form.get(f"dsm_cat_{i}_name") or f"Cat_{i+1}").strip(),
-            inflow_split=_flt(f"dsm_cat_{i}_inflow_split", 1.0),
+            # UI shows split as a percent (0–100); stored as a 0–1 fraction.
+            inflow_split=(_flt(f"dsm_cat_{i}_inflow_split", 100.0) or 0.0) / 100.0,
             lifetime_type=form.get(f"dsm_cat_{i}_lifetime_type", "Normal"),
             lifetime_mean=_flt(f"dsm_cat_{i}_lifetime_mean"),
             lifetime_std=_flt(f"dsm_cat_{i}_lifetime_std"),
@@ -2094,19 +2150,24 @@ async def initial_stock_save(request: Request, name: str, pid: int):
         if v:
             composition[elem] = v
 
-    entry = InitialStockEntry(
-        process_id=pid,
-        material_quantity=_flt("is_material_quantity", 0.0) or 0.0,
-        composition=composition,
-        cohort_age_distribution_type=(form.get("is_cohort_age_distribution_type") or "Normal"),
-        cohort_mean_age=_flt("is_cohort_mean_age"),
-        cohort_std_age=_flt("is_cohort_std_age"),
-        cohort_max_age=_iv("is_cohort_max_age"),
-        cohort_decay_constant=_flt("is_cohort_decay_constant"),
-        ref=(form.get("is_ref") or "").strip(),
-    )
+    material_quantity = _flt("is_material_quantity", 0.0) or 0.0
+
+    # Always drop any existing entry for this process first. An empty submission
+    # (no quantity and no composition) therefore *removes* the initial stock
+    # instead of leaving a zombie entry behind.
     cfg.initial_stocks = [s for s in cfg.initial_stocks if s.process_id != pid]
-    cfg.initial_stocks.append(entry)
+    if material_quantity > 0 or composition:
+        cfg.initial_stocks.append(InitialStockEntry(
+            process_id=pid,
+            material_quantity=material_quantity,
+            composition=composition,
+            cohort_age_distribution_type=(form.get("is_cohort_age_distribution_type") or "Normal"),
+            cohort_mean_age=_flt("is_cohort_mean_age"),
+            cohort_std_age=_flt("is_cohort_std_age"),
+            cohort_max_age=_iv("is_cohort_max_age"),
+            cohort_decay_constant=_flt("is_cohort_decay_constant"),
+            ref=(form.get("is_ref") or "").strip(),
+        ))
     storage.save_case_study(cfg)
     return RedirectResponse(f"/{name}/processes", status_code=303)
 

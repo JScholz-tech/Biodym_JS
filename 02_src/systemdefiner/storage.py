@@ -114,13 +114,43 @@ def clone_case_study(src: str, dst: str) -> None:
         (CASE_STUDIES_DIR / dst / diagram.name).write_bytes(diagram.read_bytes())
 
 
-def delete_case_study(name: str) -> None:
+def _force_rmtree(path: Path) -> None:
+    """Remove a directory tree, tolerating Windows read-only/locked files.
+
+    shutil.rmtree fails on Windows when a file is read-only (PermissionError)
+    or briefly held by another handle. Clear the read-only bit on error and
+    retry a few times before giving up.
+    """
     import shutil
+    import os
+    import stat
+    import time
+
+    def _on_error(func, p, exc_info):
+        try:
+            os.chmod(p, stat.S_IWRITE)
+            func(p)
+        except OSError:
+            raise
+
+    last_exc: Exception | None = None
+    for _ in range(3):
+        try:
+            shutil.rmtree(path, onerror=_on_error)
+            return
+        except OSError as exc:  # e.g. file still locked by another process
+            last_exc = exc
+            time.sleep(0.2)
+    if path.exists() and last_exc is not None:
+        raise last_exc
+
+
+def delete_case_study(name: str) -> None:
     if not _is_safe_name(name):
         raise ValueError(f"Invalid case-study name: {name!r}")
     path = CASE_STUDIES_DIR / name
     if path.exists():
-        shutil.rmtree(path)
+        _force_rmtree(path)
     with _locks_lock:
         _locks.pop(name, None)
 
@@ -164,9 +194,15 @@ def save_diagram(name: str, filename: str, content: bytes) -> None:
 
 
 def delete_diagram(name: str) -> None:
+    import os
+    import stat
     if not _is_safe_name(name):
         return
     folder = CASE_STUDIES_DIR / name
     if folder.is_dir():
         for p in folder.glob("diagram.*"):
-            p.unlink()
+            try:
+                p.unlink()
+            except PermissionError:
+                os.chmod(p, stat.S_IWRITE)
+                p.unlink()
