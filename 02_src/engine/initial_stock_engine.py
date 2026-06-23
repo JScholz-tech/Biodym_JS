@@ -78,24 +78,32 @@ def load_initial_stock_parameters(excel_data, elements=None):
     """
     if elements is None:
         elements = ["material", "WC", "DM", "CC"]
-        print("  -> INFO: No elements list provided to initial stock loader, using default: ['material', 'WC', 'DM', 'CC']")
+        print(
+            "  -> INFO: No elements list provided to initial stock loader, using default: ['material', 'WC', 'DM', 'CC']"
+        )
 
     sheet_name = "2_4_Initial_Stock"
     print(f"--> Loading initial stock parameters from sheet '{sheet_name}'...")
 
     if sheet_name not in excel_data:
-        print(f"--> INFO: Sheet '{sheet_name}' not found. No initial stocks will be loaded.")
+        print(
+            f"--> INFO: Sheet '{sheet_name}' not found. No initial stocks will be loaded."
+        )
         return {}
 
     df = excel_data[sheet_name]
     if df.empty:
-        print(f"--> INFO: Sheet '{sheet_name}' is empty. No initial stocks will be loaded.")
+        print(
+            f"--> INFO: Sheet '{sheet_name}' is empty. No initial stocks will be loaded."
+        )
         return {}
 
     required_columns = ["Process_ID", "IS_Parameter_type", "IS_Parameter_Value"]
     missing_columns = [col for col in required_columns if col not in df.columns]
     if missing_columns:
-        print(f"--> ERROR: Missing required columns in '{sheet_name}': {missing_columns}")
+        print(
+            f"--> ERROR: Missing required columns in '{sheet_name}': {missing_columns}"
+        )
         return {}
 
     df = df.dropna(subset=["Process_ID", "IS_Parameter_type", "IS_Parameter_Value"])
@@ -138,11 +146,18 @@ def load_initial_stock_parameters(excel_data, elements=None):
             notes = row.get("Notes", "")
 
             # Material quantity — accept both old and new names
-            if param_name in ("IS_material_quantity[UoM]", "Basic_Material_Quantity[UoM]"):
+            if param_name in (
+                "IS_material_quantity[UoM]",
+                "Basic_Material_Quantity[UoM]",
+            ):
                 if param_value is not None:
-                    config["initial_stock_values"]["Initial_Stock_material"] = float(param_value)
+                    config["initial_stock_values"]["Initial_Stock_material"] = float(
+                        param_value
+                    )
                 else:
-                    print(f"    WARNING: Process {process_id} has non-numeric material quantity: {param_value_raw}")
+                    print(
+                        f"    WARNING: Process {process_id} has non-numeric material quantity: {param_value_raw}"
+                    )
                 continue
 
             # Element composition fractions
@@ -150,9 +165,13 @@ def load_initial_stock_parameters(excel_data, elements=None):
             for element, mapped_param in element_param_map.items():
                 if mapped_param and param_name == mapped_param:
                     if param_value is not None:
-                        config["initial_stock_values"][f"Initial_Stock_{element}[%]"] = float(param_value)
+                        config["initial_stock_values"][
+                            f"Initial_Stock_{element}[%]"
+                        ] = float(param_value)
                     else:
-                        print(f"    WARNING: Process {process_id} has non-numeric {element} value: {param_value_raw}")
+                        print(
+                            f"    WARNING: Process {process_id} has non-numeric {element} value: {param_value_raw}"
+                        )
                     handled = True
                     break
             if handled:
@@ -165,34 +184,49 @@ def load_initial_stock_parameters(excel_data, elements=None):
                 if param_value is not None:
                     config["cohort_max_age"] = int(param_value)
                 else:
-                    print(f"    WARNING: Process {process_id} has non-numeric max age: {param_value_raw}")
+                    print(
+                        f"    WARNING: Process {process_id} has non-numeric max age: {param_value_raw}"
+                    )
             elif param_name == "Cohort_Decay_Constant[years]":
                 if param_value is not None:
                     config["cohort_decay_constant"] = float(param_value)
                 else:
-                    print(f"    WARNING: Process {process_id} has non-numeric decay constant: {param_value_raw}")
+                    print(
+                        f"    WARNING: Process {process_id} has non-numeric decay constant: {param_value_raw}"
+                    )
             elif param_name == "Cohort_Mean_Age[years]":
                 if param_value is not None:
                     config["cohort_mean_age"] = float(param_value)
                 else:
-                    print(f"    WARNING: Process {process_id} has non-numeric mean age: {param_value_raw}")
+                    print(
+                        f"    WARNING: Process {process_id} has non-numeric mean age: {param_value_raw}"
+                    )
             elif param_name == "Cohort_StdDev_Age[years]":
                 if param_value is not None:
                     config["cohort_std_age"] = float(param_value)
                 else:
-                    print(f"    WARNING: Process {process_id} has non-numeric std age: {param_value_raw}")
+                    print(
+                        f"    WARNING: Process {process_id} has non-numeric std age: {param_value_raw}"
+                    )
             else:
                 config[
-                    param_name.lower().replace(" ", "_").replace("[", "").replace("]", "")
+                    param_name.lower()
+                    .replace(" ", "_")
+                    .replace("[", "")
+                    .replace("]", "")
                 ] = {"value": param_value, "unit": unit, "notes": notes}
 
         if _validate_initial_stock_config(config):
             initial_stock_configs[process_id] = config
             print(f"  -> Loaded initial stock config for Process {process_id}")
         else:
-            print(f"  -> WARNING: Invalid initial stock config for Process {process_id}")
+            print(
+                f"  -> WARNING: Invalid initial stock config for Process {process_id}"
+            )
 
-    print(f"--> Successfully loaded initial stock configurations for {len(initial_stock_configs)} process(es).")
+    print(
+        f"--> Successfully loaded initial stock configurations for {len(initial_stock_configs)} process(es)."
+    )
     return initial_stock_configs
 
 
@@ -220,14 +254,20 @@ def apply_initial_stock_values(mfa_system, initial_stock_configs):
     for process_id, config in initial_stock_configs.items():
         stock_s = mfa_system.StockDict.get(f"S_{process_id}")
         if stock_s is None:
-            print(f"  -> WARNING: Stock S_{process_id} not found for Process {process_id}")
+            print(
+                f"  -> WARNING: Stock S_{process_id} not found for Process {process_id}"
+            )
             continue
 
         elements = config.get("elements", ["material", "WC", "DM", "CC"])
-        initial_values = _calculate_initial_stock_values(config["initial_stock_values"], elements)
+        initial_values = _calculate_initial_stock_values(
+            config["initial_stock_values"], elements
+        )
         stock_s.Values[0, :] = initial_values
 
-        print(f"  -> Set initial stock for Process {process_id}: {initial_values[0]:.1f} Mg material")
+        print(
+            f"  -> Set initial stock for Process {process_id}: {initial_values[0]:.1f} Mg material"
+        )
 
     print("--> Initial stock values applied.")
     return mfa_system
@@ -250,6 +290,7 @@ def _calculate_initial_stock_values(stock_values, elements):
 def calculate_initial_stock_balances(mfa_system, initial_stock_configs):
     """Deprecated — stock balances are computed by solver.calculate_final_balances()."""
     import warnings
+
     warnings.warn(
         "calculate_initial_stock_balances() is deprecated and has no effect. "
         "Stock balances are computed inside solver.calculate_final_balances().",

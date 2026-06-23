@@ -62,6 +62,7 @@ class _CapParam:
 # Public loader — called by data_loader.load_flow_cap_parameters()
 # ---------------------------------------------------------------------------
 
+
 def load_flow_cap_parameters(excel_data, debug_mode=False):
     """Load FlowCap configurations from sheet '3_4_Definition_FlowCap'.
 
@@ -93,7 +94,9 @@ def load_flow_cap_parameters(excel_data, debug_mode=False):
         print(f"    INFO: Sheet '{sheet_name}' is empty.")
         return {}
 
-    df.columns = df.columns.str.strip()   # remove leading/trailing whitespace from header cells
+    df.columns = (
+        df.columns.str.strip()
+    )  # remove leading/trailing whitespace from header cells
     print(f"    Columns found: {list(df.columns)}")
 
     # Flow_ID is the only truly required column
@@ -101,13 +104,17 @@ def load_flow_cap_parameters(excel_data, debug_mode=False):
         print(f"    ERROR: Missing required column 'Flow_ID' in '{sheet_name}'.")
         return {}
 
-    has_process_id    = "Process_ID"      in df.columns
-    has_flow_type     = "Output_flow_type" in df.columns
+    has_process_id = "Process_ID" in df.columns
+    has_flow_type = "Output_flow_type" in df.columns
 
     if not has_flow_type:
-        print(f"    INFO: 'Output_flow_type' column missing — all rows with cap values treated as 'Capped_Output'.")
+        print(
+            "    INFO: 'Output_flow_type' column missing — all rows with cap values treated as 'Capped_Output'."
+        )
     if not has_process_id:
-        print(f"    INFO: 'Process_ID' column missing — will infer from Flow_ID (first process index).")
+        print(
+            "    INFO: 'Process_ID' column missing — will infer from Flow_ID (first process index)."
+        )
 
     # Infer Process_ID from Flow_ID when the column is absent.
     # F_02_04 → process 2 (the originating process of the capped output flow).
@@ -116,11 +123,13 @@ def load_flow_cap_parameters(excel_data, debug_mode=False):
         df["Process_ID"] = df["Process_ID"].astype(int)
     else:
         df = df.dropna(subset=["Flow_ID"])
+
         def _pid_from_flow(fid):
             try:
                 return int(str(fid).split("_")[1])
             except (IndexError, ValueError):
                 return None
+
         df["Process_ID"] = df["Flow_ID"].apply(_pid_from_flow)
         df = df.dropna(subset=["Process_ID"])
         df["Process_ID"] = df["Process_ID"].astype(int)
@@ -130,21 +139,21 @@ def load_flow_cap_parameters(excel_data, debug_mode=False):
         df["Output_flow_type"] = "Capped_Output"
 
     # Accept "Flow" or legacy "Cap_Value[UoM]" as the cap value column
-    cap_col    = next((c for c in ["Flow", "Cap_Value[UoM]"] if c in df.columns), None)
-    year_col   = "Year"     if "Year"     in df.columns else None
+    cap_col = next((c for c in ["Flow", "Cap_Value[UoM]"] if c in df.columns), None)
+    year_col = "Year" if "Year" in df.columns else None
     cap_tc_col = "Cap_TC_ID" if "Cap_TC_ID" in df.columns else None
 
     flow_cap_params = {}
 
     for process_id, group in df.groupby("Process_ID"):
         config = {
-            "capped_flow_id":   None,
+            "capped_flow_id": None,
             "overflow_flow_id": None,
-            "cap_series":       {},
-            "cap_tc_id":        None,   # optional: ParameterDict key for scenario switching
+            "cap_series": {},
+            "cap_tc_id": None,  # optional: ParameterDict key for scenario switching
         }
 
-        capped_rows   = group[group["Output_flow_type"].str.strip() == "Capped_Output"]
+        capped_rows = group[group["Output_flow_type"].str.strip() == "Capped_Output"]
         overflow_rows = group[group["Output_flow_type"].str.strip() == "Overflow"]
 
         # --- Capped_Output rows ---
@@ -154,11 +163,15 @@ def load_flow_cap_parameters(excel_data, debug_mode=False):
             # Read Cap_TC_ID from first Capped_Output row if column exists
             if cap_tc_col:
                 raw_tc = capped_rows.iloc[0].get(cap_tc_col)
-                if raw_tc and isinstance(raw_tc, str) and raw_tc.strip() not in ("", "N.A.", "N/A"):
+                if (
+                    raw_tc
+                    and isinstance(raw_tc, str)
+                    and raw_tc.strip() not in ("", "N.A.", "N/A")
+                ):
                     config["cap_tc_id"] = raw_tc.strip()
 
             for _, row in capped_rows.iterrows():
-                cap_val  = row.get(cap_col)  if cap_col  else None
+                cap_val = row.get(cap_col) if cap_col else None
                 year_val = row.get(year_col) if year_col else None
 
                 if cap_val is None or (isinstance(cap_val, float) and pd.isna(cap_val)):
@@ -168,7 +181,9 @@ def load_flow_cap_parameters(excel_data, debug_mode=False):
                 except (ValueError, TypeError):
                     continue
 
-                if year_val is not None and not (isinstance(year_val, float) and pd.isna(year_val)):
+                if year_val is not None and not (
+                    isinstance(year_val, float) and pd.isna(year_val)
+                ):
                     try:
                         config["cap_series"][int(year_val)] = cap_f
                     except (ValueError, TypeError):
@@ -182,28 +197,40 @@ def load_flow_cap_parameters(excel_data, debug_mode=False):
 
         # --- Unknown row types ---
         known = {"Capped_Output", "Overflow"}
-        for _, row in group[~group["Output_flow_type"].str.strip().isin(known)].iterrows():
-            print(f"    WARNING: Process {process_id}: unknown Output_flow_type "
-                  f"'{row['Output_flow_type']}' — expected 'Capped_Output' or 'Overflow'.")
+        for _, row in group[
+            ~group["Output_flow_type"].str.strip().isin(known)
+        ].iterrows():
+            print(
+                f"    WARNING: Process {process_id}: unknown Output_flow_type "
+                f"'{row['Output_flow_type']}' — expected 'Capped_Output' or 'Overflow'."
+            )
 
         # --- Validation ---
         if config["capped_flow_id"] is None:
-            print(f"    WARNING: Process {process_id}: no 'Capped_Output' row — skipping.")
+            print(
+                f"    WARNING: Process {process_id}: no 'Capped_Output' row — skipping."
+            )
             continue
         if config["overflow_flow_id"] is None:
-            print(f"    WARNING: Process {process_id}: no 'Overflow' row — "
-                  f"excess mass has nowhere to go and mass balance will be violated.")
+            print(
+                f"    WARNING: Process {process_id}: no 'Overflow' row — "
+                f"excess mass has nowhere to go and mass balance will be violated."
+            )
         if not config["cap_series"]:
-            print(f"    WARNING: Process {process_id}: no cap values found "
-                  f"(add Year and Flow columns to the Capped_Output rows).")
+            print(
+                f"    WARNING: Process {process_id}: no cap values found "
+                f"(add Year and Flow columns to the Capped_Output rows)."
+            )
 
         flow_cap_params[process_id] = config
         n_pts = len(config["cap_series"])
         tc_info = f", cap_tc_id={config['cap_tc_id']}" if config["cap_tc_id"] else ""
-        print(f"    Loaded FlowCap for Process {process_id}: "
-              f"{n_pts} cap data point(s), "
-              f"capped={config['capped_flow_id']}, "
-              f"overflow={config['overflow_flow_id']}{tc_info}")
+        print(
+            f"    Loaded FlowCap for Process {process_id}: "
+            f"{n_pts} cap data point(s), "
+            f"capped={config['capped_flow_id']}, "
+            f"overflow={config['overflow_flow_id']}{tc_info}"
+        )
 
     print(f"--> FlowCap: loaded {len(flow_cap_params)} process(es).")
     return flow_cap_params
@@ -212,6 +239,7 @@ def load_flow_cap_parameters(excel_data, debug_mode=False):
 # ---------------------------------------------------------------------------
 # ParameterDict registration — call once after system setup, before solver
 # ---------------------------------------------------------------------------
+
 
 def register_cap_parameters(mfa_system, flow_cap_params) -> None:
     """Register FlowCap cap time series in mfa_system.ParameterDict.
@@ -232,9 +260,9 @@ def register_cap_parameters(mfa_system, flow_cap_params) -> None:
     flow_cap_params : dict
         As returned by ``load_flow_cap_parameters()``.
     """
-    time_items  = mfa_system.IndexTable.Classification["Time"].Items
+    time_items = mfa_system.IndexTable.Classification["Time"].Items
     time_vector = np.array(time_items, dtype=float)
-    num_years   = len(time_vector)
+    num_years = len(time_vector)
 
     for process_id, params in flow_cap_params.items():
         cap_tc_id = params.get("cap_tc_id")
@@ -244,13 +272,16 @@ def register_cap_parameters(mfa_system, flow_cap_params) -> None:
             continue  # already registered (e.g. re-run without kernel restart)
         cap_array = _resolve_cap(params["cap_series"], time_vector, num_years)
         mfa_system.ParameterDict[cap_tc_id] = _CapParam(cap_tc_id, cap_array)
-        print(f"  Registered FlowCap cap '{cap_tc_id}' in ParameterDict "
-              f"(Process {process_id}, {num_years} years).")
+        print(
+            f"  Registered FlowCap cap '{cap_tc_id}' in ParameterDict "
+            f"(Process {process_id}, {num_years} years)."
+        )
 
 
 # ---------------------------------------------------------------------------
 # Calculation engine
 # ---------------------------------------------------------------------------
+
 
 def calculate_flow_cap(mfa_system, flow_cap_processes, flow_cap_params):
     """Apply capacity-limited routing to all FlowCap processes.
@@ -277,13 +308,14 @@ def calculate_flow_cap(mfa_system, flow_cap_processes, flow_cap_params):
     for process_id in flow_cap_processes:
         params = flow_cap_params[process_id]
 
-        inflows = [f.Values for f in mfa_system.FlowDict.values()
-                   if f.P_End == process_id]
+        inflows = [
+            f.Values for f in mfa_system.FlowDict.values() if f.P_End == process_id
+        ]
         if not inflows:
             continue
 
         num_years, num_elements = inflows[0].shape
-        total_inflow = sum(inflows)   # (num_years, num_elements)
+        total_inflow = sum(inflows)  # (num_years, num_elements)
 
         # Prefer ParameterDict (allows scenario engine to override cap values)
         cap_tc_id = params.get("cap_tc_id")
@@ -297,9 +329,9 @@ def calculate_flow_cap(mfa_system, flow_cap_processes, flow_cap_params):
         # When inflow == 0 the ratio stays 1.0 (nothing to route).
         material = total_inflow[:, 0]
         safe_mat = np.where(material > 0, material, 1.0)
-        ratio    = np.where(material > 0, np.minimum(1.0, cap_values / safe_mat), 1.0)
+        ratio = np.where(material > 0, np.minimum(1.0, cap_values / safe_mat), 1.0)
 
-        primary  = total_inflow * ratio[:, None]
+        primary = total_inflow * ratio[:, None]
         overflow = total_inflow - primary
 
         # --- Capped_Output ---
@@ -310,8 +342,10 @@ def calculate_flow_cap(mfa_system, flow_cap_processes, flow_cap_params):
             if not np.allclose(old, primary):
                 something_changed = True
         else:
-            print(f"  WARNING: FlowCap Process {process_id}: "
-                  f"capped flow '{capped_id}' not found in FlowDict.")
+            print(
+                f"  WARNING: FlowCap Process {process_id}: "
+                f"capped flow '{capped_id}' not found in FlowDict."
+            )
 
         # --- Overflow ---
         overflow_id = params.get("overflow_flow_id")
@@ -321,8 +355,10 @@ def calculate_flow_cap(mfa_system, flow_cap_processes, flow_cap_params):
             if not np.allclose(old, overflow):
                 something_changed = True
         elif overflow_id:
-            print(f"  WARNING: FlowCap Process {process_id}: "
-                  f"overflow flow '{overflow_id}' not found in FlowDict.")
+            print(
+                f"  WARNING: FlowCap Process {process_id}: "
+                f"overflow flow '{overflow_id}' not found in FlowDict."
+            )
 
     return something_changed
 
@@ -343,9 +379,10 @@ def _resolve_cap(cap_series, time_vector, num_years):
     if keys == [0]:
         return np.full(num_years, cap_series[0])
 
-    years  = np.array(keys, dtype=float)
+    years = np.array(keys, dtype=float)
     values = np.array([cap_series[k] for k in keys], dtype=float)
 
     # Linear interpolation, clamp to endpoints outside range
-    return np.interp(time_vector[:num_years], years, values,
-                     left=values[0], right=values[-1])
+    return np.interp(
+        time_vector[:num_years], years, values, left=values[0], right=values[-1]
+    )

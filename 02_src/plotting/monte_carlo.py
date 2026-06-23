@@ -9,10 +9,26 @@ Combines functionality from monte_carlo.py and mc_visuals.py with publication st
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-from ipywidgets import Dropdown, VBox, HBox, Output, SelectMultiple, Label, Button, Layout
+from ipywidgets import (
+    Dropdown,
+    VBox,
+    HBox,
+    Output,
+    SelectMultiple,
+    Label,
+    Button,
+    Layout,
+)
 from IPython.display import display, clear_output
 
-from .themes import get_publication_layout, get_element_color, BIOYM_COLORS, apply_theme, get_mass_display, y_label
+from .themes import (
+    get_publication_layout,
+    get_element_color,
+    BIOYM_COLORS,
+    apply_theme,
+    get_mass_display,
+    y_label,
+)
 from .export_publication import export_figure
 
 
@@ -182,12 +198,27 @@ def plot_interactive_mc_histogram(mc_results_df, mfa_system_results=None):
     stock_dropdown.observe(update_plot, names="value")
     element_dropdown.observe(update_plot, names="value")
 
-    export_btn = Button(description="Export PNG/SVG", button_style="success", icon="download", layout=Layout(width="160px"))
+    export_btn = Button(
+        description="Export PNG/SVG",
+        button_style="success",
+        icon="download",
+        layout=Layout(width="160px"),
+    )
 
     def _do_export(b):
         try:
-            name = f"mc_histogram_{stock_dropdown.value}_{element_dropdown.value}".replace(" ", "_")
-            paths = export_figure(fig_widget, name, formats=["png", "svg"], quality="publication", size="large")
+            name = (
+                f"mc_histogram_{stock_dropdown.value}_{element_dropdown.value}".replace(
+                    " ", "_"
+                )
+            )
+            paths = export_figure(
+                fig_widget,
+                name,
+                formats=["png", "svg"],
+                quality="publication",
+                size="large",
+            )
             print(f"✅ Exported: {', '.join(paths)}")
         except Exception as e:
             print(f"❌ Export failed: {e}")
@@ -227,10 +258,13 @@ def plot_interactive_tornado(mc_results_df):
         print("No Monte Carlo results to plot.")
         return
 
-    output_vars = sorted([
-        col for col in mc_results_df.columns
-        if col.startswith("S_") and not col.endswith("_timeseries")
-    ])
+    output_vars = sorted(
+        [
+            col
+            for col in mc_results_df.columns
+            if col.startswith("S_") and not col.endswith("_timeseries")
+        ]
+    )
     param_vars = sorted(
         [col for col in mc_results_df.columns if col.endswith("_sample")]
     )
@@ -246,7 +280,7 @@ def plot_interactive_tornado(mc_results_df):
     def update_plot(change):
         """Callback to update the plot when the dropdown value changes."""
         output_var = output_dropdown.value
-        with np.errstate(invalid='ignore'):
+        with np.errstate(invalid="ignore"):
             correlations = mc_results_df[param_vars].corrwith(mc_results_df[output_var])
         correlations = correlations.dropna()
         sorted_correlations = correlations.abs().sort_values(ascending=True)
@@ -281,12 +315,23 @@ def plot_interactive_tornado(mc_results_df):
     # --- Link Widgets and Display ---
     output_dropdown.observe(update_plot, names="value")
 
-    export_btn = Button(description="Export PNG/SVG", button_style="success", icon="download", layout=Layout(width="160px"))
+    export_btn = Button(
+        description="Export PNG/SVG",
+        button_style="success",
+        icon="download",
+        layout=Layout(width="160px"),
+    )
 
     def _do_export(b):
         try:
             name = f"mc_tornado_{output_dropdown.value}".replace(" ", "_")
-            paths = export_figure(fig_widget, name, formats=["png", "svg"], quality="publication", size="large")
+            paths = export_figure(
+                fig_widget,
+                name,
+                formats=["png", "svg"],
+                quality="publication",
+                size="large",
+            )
             print(f"✅ Exported: {', '.join(paths)}")
         except Exception as e:
             print(f"❌ Export failed: {e}")
@@ -544,7 +589,9 @@ def plot_interactive_mc_paths(mc_results_df, mfa_system_results=None):
             )
             apply_theme(layout_config)
             layout_config["xaxis"].pop("range", None)
-            layout_config["xaxis"]["tickformat"] = ","  # comma-formatted years e.g. 2,025
+            layout_config["xaxis"]["tickformat"] = (
+                ","  # comma-formatted years e.g. 2,025
+            )
             layout_config["showlegend"] = True
             fig_widget.update_layout(**layout_config)
 
@@ -552,12 +599,25 @@ def plot_interactive_mc_paths(mc_results_df, mfa_system_results=None):
     stock_dropdown.observe(update_plot, names="value")
     element_dropdown.observe(update_plot, names="value")
 
-    export_btn = Button(description="Export PNG/SVG", button_style="success", icon="download", layout=Layout(width="160px"))
+    export_btn = Button(
+        description="Export PNG/SVG",
+        button_style="success",
+        icon="download",
+        layout=Layout(width="160px"),
+    )
 
     def _do_export(b):
         try:
-            name = f"mc_paths_{stock_dropdown.value}_{element_dropdown.value}".replace(" ", "_")
-            paths = export_figure(fig_widget, name, formats=["png", "svg"], quality="publication", size="large")
+            name = f"mc_paths_{stock_dropdown.value}_{element_dropdown.value}".replace(
+                " ", "_"
+            )
+            paths = export_figure(
+                fig_widget,
+                name,
+                formats=["png", "svg"],
+                quality="publication",
+                size="large",
+            )
             print(f"✅ Exported: {', '.join(paths)}")
         except Exception as e:
             print(f"❌ Export failed: {e}")
@@ -669,22 +729,29 @@ def plot_interactive_mc_multiple_histograms(mc_results_df, mfa_system_results=No
             element_color = get_element_color(element)
 
             fig = go.Figure()
-            fig.add_trace(go.Histogram(
-                x=scaled_series,
-                nbinsx=30,
-                name="Distribution",
-                marker_color=element_color,
-                opacity=0.8,
-                histnorm="",
-            ))
+            fig.add_trace(
+                go.Histogram(
+                    x=scaled_series,
+                    nbinsx=30,
+                    name="Distribution",
+                    marker_color=element_color,
+                    opacity=0.8,
+                    histnorm="",
+                )
+            )
             fig.add_shape(
                 type="line",
-                x0=mean_val, x1=mean_val,
-                y0=0, y1=1, yref="paper",
+                x0=mean_val,
+                x1=mean_val,
+                y0=0,
+                y1=1,
+                yref="paper",
                 line=dict(color=BIOYM_COLORS["dark"], width=2, dash="dash"),
             )
             fig.add_annotation(
-                x=mean_val, y=1.05, yref="paper",
+                x=mean_val,
+                y=1.05,
+                yref="paper",
                 text=f"Mean: {mean_val:.2f} {_unit}<br>Std: {std_val:.2f} {_unit}",
                 showarrow=False,
                 font=dict(color=BIOYM_COLORS["dark"], size=15),
@@ -705,12 +772,23 @@ def plot_interactive_mc_multiple_histograms(mc_results_df, mfa_system_results=No
             layout_config["showlegend"] = False
             fig.update_layout(**layout_config)
 
-            export_btn = Button(description="Export PNG/SVG", button_style="success", icon="download", layout=Layout(width="160px"))
+            export_btn = Button(
+                description="Export PNG/SVG",
+                button_style="success",
+                icon="download",
+                layout=Layout(width="160px"),
+            )
 
             def _do_export(b, _fig=fig, _stock_id=stock_id, _element=element):
                 try:
                     name = f"mc_histogram_{_stock_id}_{_element}".replace(" ", "_")
-                    paths = export_figure(_fig, name, formats=["png", "svg"], quality="publication", size="medium")
+                    paths = export_figure(
+                        _fig,
+                        name,
+                        formats=["png", "svg"],
+                        quality="publication",
+                        size="medium",
+                    )
                     print(f"✅ Exported: {', '.join(paths)}")
                 except Exception as e:
                     print(f"❌ Export failed: {e}")
@@ -733,7 +811,9 @@ def plot_interactive_mc_multiple_histograms(mc_results_df, mfa_system_results=No
                 render_histogram(out, stock_id, element, display_name)
                 outputs.append(out)
 
-        plot_container.children = tuple(outputs) if outputs else (Label("No data for selection."),)
+        plot_container.children = (
+            tuple(outputs) if outputs else (Label("No data for selection."),)
+        )
 
     # --- Link Widgets and Display ---
     element_dropdown.observe(update_plots, names="value")
@@ -884,12 +964,23 @@ def plot_interactive_mc_stock_comparison(mc_results_df, mfa_system_results=None)
     element_dropdown.observe(update_plot, names="value")
     stock_multiselect.observe(update_plot, names="value")
 
-    export_btn = Button(description="Export PNG/SVG", button_style="success", icon="download", layout=Layout(width="160px"))
+    export_btn = Button(
+        description="Export PNG/SVG",
+        button_style="success",
+        icon="download",
+        layout=Layout(width="160px"),
+    )
 
     def _do_export(b):
         try:
             name = f"mc_stock_comparison_{element_dropdown.value}".replace(" ", "_")
-            paths = export_figure(fig_widget, name, formats=["png", "svg"], quality="publication", size="large")
+            paths = export_figure(
+                fig_widget,
+                name,
+                formats=["png", "svg"],
+                quality="publication",
+                size="large",
+            )
             print(f"✅ Exported: {', '.join(paths)}")
         except Exception as e:
             print(f"❌ Export failed: {e}")

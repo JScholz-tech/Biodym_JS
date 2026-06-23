@@ -25,7 +25,11 @@ def build_parameter_overview_df(mc_params_df):
         Formatted overview with columns: Parameter, Category, Distribution,
         Min, Max, Mean, StdDev, Mode.
     """
-    id_col = "MC_Parameter_ID" if "MC_Parameter_ID" in mc_params_df.columns else "Parameter_Name"
+    id_col = (
+        "MC_Parameter_ID"
+        if "MC_Parameter_ID" in mc_params_df.columns
+        else "Parameter_Name"
+    )
     df = mc_params_df.dropna(subset=[id_col]).copy()
 
     def classify(name):
@@ -40,9 +44,7 @@ def build_parameter_overview_df(mc_params_df):
         return "Other"
 
     df["Category"] = df[id_col].apply(classify)
-    df = df.rename(
-        columns={id_col: "Parameter", "Distribution_Type": "Distribution"}
-    )
+    df = df.rename(columns={id_col: "Parameter", "Distribution_Type": "Distribution"})
     df["Distribution"] = df["Distribution"].str.capitalize()
 
     display_cols = ["Min", "Max", "Mean", "StdDev", "Mode"]
@@ -230,13 +232,17 @@ def compute_mc_mass_balance_report(mc_results_df):
     abs_err = mc_results_df["mass_balance_error_abs"]
     rel_err = mc_results_df["mass_balance_error_rel"]
 
-    summary_df = pd.DataFrame([{
-        "Mean Abs. Error": abs_err.mean(),
-        "Max Abs. Error": abs_err.max(),
-        "Mean Rel. Error (%)": rel_err.mean() * 100,
-        "Max Rel. Error (%)": rel_err.max() * 100,
-        "Iterations with Error > 1%": int((rel_err > 0.01).sum()),
-    }])
+    summary_df = pd.DataFrame(
+        [
+            {
+                "Mean Abs. Error": abs_err.mean(),
+                "Max Abs. Error": abs_err.max(),
+                "Mean Rel. Error (%)": rel_err.mean() * 100,
+                "Max Rel. Error (%)": rel_err.max() * 100,
+                "Iterations with Error > 1%": int((rel_err > 0.01).sum()),
+            }
+        ]
+    )
 
     # Per-element breakdown
     element_cols = [
@@ -253,13 +259,15 @@ def compute_mc_mass_balance_report(mc_results_df):
         mean_abs_err = err.abs().mean()
         rel_pct = (mean_abs_err / mean_input * 100) if mean_input > 0 else 0.0
 
-        element_rows.append({
-            "Element": elem,
-            "Mean Input": mean_input,
-            "Mean Abs. Error": mean_abs_err,
-            "Max Abs. Error": err.abs().max(),
-            "Rel. Error (%)": rel_pct,
-        })
+        element_rows.append(
+            {
+                "Element": elem,
+                "Mean Input": mean_input,
+                "Mean Abs. Error": mean_abs_err,
+                "Max Abs. Error": err.abs().max(),
+                "Rel. Error (%)": rel_pct,
+            }
+        )
 
     element_df = pd.DataFrame(element_rows)
 

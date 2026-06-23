@@ -10,8 +10,12 @@ import numpy as np
 
 
 def generate_age_cohorts(
-    total_stock, distribution_type, max_age, decay_constant=None,
-    mean_age=None, std_age=None,
+    total_stock,
+    distribution_type,
+    max_age,
+    decay_constant=None,
+    mean_age=None,
+    std_age=None,
 ):
     """Generate age-cohort distribution for initial stock.
 
@@ -83,14 +87,12 @@ def generate_age_cohorts(
         mean_a, std_a = float(mean_age), float(std_age)
         # Convert normal-space mean/std to log-space parameters
         sigma_ln = np.sqrt(np.log(1.0 + (std_a / mean_a) ** 2))
-        mu_ln = np.log(mean_a) - 0.5 * sigma_ln ** 2
+        mu_ln = np.log(mean_a) - 0.5 * sigma_ln**2
         ages_pos = np.maximum(ages, 0.5)  # avoid log(0) for age-0 cohort
-        weights = (
-            np.exp(-0.5 * ((np.log(ages_pos) - mu_ln) / sigma_ln) ** 2) / ages_pos
-        )
+        weights = np.exp(-0.5 * ((np.log(ages_pos) - mu_ln) / sigma_ln) ** 2) / ages_pos
         if weights.sum() == 0:
             raise ValueError(
-                f"LogNormal distribution produced zero weights — check mean_age/std_age/max_age"
+                "LogNormal distribution produced zero weights — check mean_age/std_age/max_age"
             )
         cohorts = total_stock * weights / weights.sum()
 

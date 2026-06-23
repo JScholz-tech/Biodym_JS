@@ -21,11 +21,11 @@ import numpy as np
 # for reference and documentation purposes
 # ---------------------------------------------------------------------------
 IPCC_2019_DEFAULTS = {
-    "Food_waste":       {"k_j": 0.185, "DOC_j": 0.15, "f_ash_j": 0.05},
-    "Garden_waste":     {"k_j": 0.100, "DOC_j": 0.20, "f_ash_j": 0.08},
-    "Paper_cardboard":  {"k_j": 0.040, "DOC_j": 0.40, "f_ash_j": 0.08},
-    "Wood_straw":       {"k_j": 0.020, "DOC_j": 0.43, "f_ash_j": 0.01},
-    "Textile":          {"k_j": 0.040, "DOC_j": 0.24, "f_ash_j": 0.05},
+    "Food_waste": {"k_j": 0.185, "DOC_j": 0.15, "f_ash_j": 0.05},
+    "Garden_waste": {"k_j": 0.100, "DOC_j": 0.20, "f_ash_j": 0.08},
+    "Paper_cardboard": {"k_j": 0.040, "DOC_j": 0.40, "f_ash_j": 0.08},
+    "Wood_straw": {"k_j": 0.020, "DOC_j": 0.43, "f_ash_j": 0.01},
+    "Textile": {"k_j": 0.040, "DOC_j": 0.24, "f_ash_j": 0.05},
 }
 
 
@@ -100,8 +100,7 @@ def _calculate_lfg_series(
 
     # Initialize running state
     current_stocks = {
-        f["name"]: float(initial_stocks.get(f["name"], 0.0))
-        for f in fractions
+        f["name"]: float(initial_stocks.get(f["name"], 0.0)) for f in fractions
     }
     cumulative_ash = 0.0
 
@@ -148,7 +147,8 @@ def _calculate_lfg_series(
     # Stable stock = sum of all fraction organic C stocks + cumulative ash
     stable_stock = (
         sum(stocks[f["name"]] for f in fractions) + ash_stock_total
-        if fractions else ash_stock_total
+        if fractions
+        else ash_stock_total
     )
 
     return {
@@ -198,15 +198,18 @@ def calculate_lfg(mfa_system, lfg_params_config):
     except ValueError as e:
         raise ValueError(f"❌ LFG Error: MFA system missing required element: {e}")
 
-    dm_idx  = mfa_system.Elements.index("DM") if "DM" in mfa_system.Elements else None
-    wc_idx  = mfa_system.Elements.index("WC") if "WC" in mfa_system.Elements else None
+    dm_idx = mfa_system.Elements.index("DM") if "DM" in mfa_system.Elements else None
+    wc_idx = mfa_system.Elements.index("WC") if "WC" in mfa_system.Elements else None
     # Accept "TC" (new hierarchy) or "CC" (legacy) as the total-carbon element
-    tc_idx  = next((mfa_system.Elements.index(e)
-                    for e in ("TC", "CC") if e in mfa_system.Elements), None)
+    tc_idx = next(
+        (
+            mfa_system.Elements.index(e)
+            for e in ("TC", "CC")
+            if e in mfa_system.Elements
+        ),
+        None,
+    )
     toc_idx = mfa_system.Elements.index("TOC") if "TOC" in mfa_system.Elements else None
-    tic_idx = mfa_system.Elements.index("TIC") if "TIC" in mfa_system.Elements else None
-    ash_idx = (mfa_system.Elements.index("Ash_content")
-               if "Ash_content" in mfa_system.Elements else None)
 
     # --- Read total inflows to this process ---
     inflows = [f.Values for f in mfa_system.FlowDict.values() if f.P_End == process_id]
@@ -216,9 +219,7 @@ def calculate_lfg(mfa_system, lfg_params_config):
 
     waste_inflow_series = total_inflow_values[:, material_idx]
     wc_inflow_series = (
-        total_inflow_values[:, wc_idx]
-        if wc_idx is not None
-        else np.zeros(num_years)
+        total_inflow_values[:, wc_idx] if wc_idx is not None else np.zeros(num_years)
     )
 
     # --- Run pure calculation ---
@@ -272,12 +273,11 @@ def calculate_lfg(mfa_system, lfg_params_config):
     print(
         f"   Total CO2 carbon output:   {np.sum(results['co2_carbon_total']):.2f} Mg C"
     )
-    print(
-        f"   Total leachate output:     {np.sum(results['leachate_total']):.2f} Mg"
-    )
+    print(f"   Total leachate output:     {np.sum(results['leachate_total']):.2f} Mg")
     print(
         f"   Final stable stock:        {results['stable_stock'][-1]:.2f} Mg"
-        if len(results["stable_stock"]) > 0 else ""
+        if len(results["stable_stock"]) > 0
+        else ""
     )
 
     try:

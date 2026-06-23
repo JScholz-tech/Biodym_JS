@@ -49,6 +49,7 @@ import numpy as np
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_cc_idx(mfa_system):
     """Return TC/CC element index using the standard TC→CC fallback."""
     tc_name = next((e for e in ("TC", "CC") if e in mfa_system.Elements), None)
@@ -65,18 +66,13 @@ def _pid_set(process_logic_map, *logic_labels):
 
 def _flow_tc_sum(flows, pid_filter, cc_idx):
     """Sum cumulative TC (Mg C) for flows whose target process is in pid_filter."""
-    return float(
-        sum(
-            np.sum(f.Values[:, cc_idx])
-            for f in flows
-            if pid_filter(f)
-        )
-    )
+    return float(sum(np.sum(f.Values[:, cc_idx]) for f in flows if pid_filter(f)))
 
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def classify_carbon_fate(mfa_system, process_logic_map, fomp_details):
     """Classify cumulative TC flows and annual TC stocks by carbon fate category.
@@ -180,7 +176,9 @@ def calculate_cuf_cascade(carbon_fate):
     ci0 = carbon_fate["ci0"]
     if ci0 <= 0:
         return 0.0
-    productive = carbon_fate["c_material"] + carbon_fate["c_soil"] + carbon_fate["c_energy"]
+    productive = (
+        carbon_fate["c_material"] + carbon_fate["c_soil"] + carbon_fate["c_energy"]
+    )
     return productive / ci0
 
 
@@ -337,10 +335,18 @@ def print_cuf_summary(results, label="Scenario"):
     print(f"  CUF Summary — {label}")
     print(f"{'─' * 48}")
     print(f"  CI₀ (total TC input)  : {ci0:>10.1f}  Mg C")
-    print(f"  C_material (DSM)      : {fate['c_material']:>10.1f}  Mg C  ({100 * fate['c_material'] / max(ci0, 1):.1f}%)")
-    print(f"  C_soil     (FOMP)     : {fate['c_soil']:>10.1f}  Mg C  ({100 * fate['c_soil'] / max(ci0, 1):.1f}%)")
-    print(f"  C_energy   (LFG)      : {fate['c_energy']:>10.1f}  Mg C  ({100 * fate['c_energy'] / max(ci0, 1):.1f}%)")
-    print(f"  C_released            : {fate['c_released']:>10.1f}  Mg C  ({100 * fate['c_released'] / max(ci0, 1):.1f}%)")
+    print(
+        f"  C_material (DSM)      : {fate['c_material']:>10.1f}  Mg C  ({100 * fate['c_material'] / max(ci0, 1):.1f}%)"
+    )
+    print(
+        f"  C_soil     (FOMP)     : {fate['c_soil']:>10.1f}  Mg C  ({100 * fate['c_soil'] / max(ci0, 1):.1f}%)"
+    )
+    print(
+        f"  C_energy   (LFG)      : {fate['c_energy']:>10.1f}  Mg C  ({100 * fate['c_energy'] / max(ci0, 1):.1f}%)"
+    )
+    print(
+        f"  C_released            : {fate['c_released']:>10.1f}  Mg C  ({100 * fate['c_released'] / max(ci0, 1):.1f}%)"
+    )
     print(f"{'─' * 48}")
     print(f"  CUF_cascade           : {results['cuf_cascade']:>10.4f}")
     print(f"  CUF_temporal          : {results['cuf_temporal']:>10.4f}")

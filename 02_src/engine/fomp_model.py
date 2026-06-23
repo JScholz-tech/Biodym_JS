@@ -99,7 +99,9 @@ def _calculate_fomp_series(
         decay_labile = pre_decay_labile * (1 - np.exp(-k_labile))
         decay_recalcitrant = pre_decay_recalcitrant * (1 - np.exp(-k_recalcitrant))
         tc_decay_labile = pre_decay_tc_labile * (1 - np.exp(-k_labile))
-        tc_decay_recalcitrant = pre_decay_tc_recalcitrant * (1 - np.exp(-k_recalcitrant))
+        tc_decay_recalcitrant = pre_decay_tc_recalcitrant * (
+            1 - np.exp(-k_recalcitrant)
+        )
 
         # c. Calculate Stocks at End of Year
         end_of_year_labile = pre_decay_labile - decay_labile
@@ -186,7 +188,9 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
     # Accept "TC" (new hierarchy) or "CC" (legacy) as the carbon element
     _tc_name = next((e for e in ("TC", "CC") if e in mfa_system.Elements), None)
     if _tc_name is None:
-        raise ValueError("❌ FOMP Error: MFA system is missing carbon element (TC or CC)")
+        raise ValueError(
+            "❌ FOMP Error: MFA system is missing carbon element (TC or CC)"
+        )
     cc_idx = mfa_system.Elements.index(_tc_name)
 
     # Get the total Dry Matter (DM) inflow time-series
@@ -321,7 +325,9 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
                 f"use single-flow mode."
             )
         mfa_system.FlowDict[carbon_outflow_id].Values = carbon_outflow_values
-        mfa_system.FlowDict[environmental_outflow_id].Values = environmental_outflow_values
+        mfa_system.FlowDict[
+            environmental_outflow_id
+        ].Values = environmental_outflow_values
         print(
             f"   FOMP (process {process_id}): dual-flow mode. "
             f"Carbon → '{carbon_outflow_id}', "
@@ -336,7 +342,9 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
     # which correctly reflects the vintage-weighted carbon content of the pool.
     stock_key = f"S_{process_id}"
     if stock_key in mfa_system.StockDict:
-        pool_dm_stock = fomp_results["stock_labile"] + fomp_results["stock_recalcitrant"]
+        pool_dm_stock = (
+            fomp_results["stock_labile"] + fomp_results["stock_recalcitrant"]
+        )
         pool_tc_stock = (
             fomp_results["stock_tc_labile"] + fomp_results["stock_tc_recalcitrant"]
         )

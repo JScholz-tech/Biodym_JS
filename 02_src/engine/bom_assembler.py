@@ -98,7 +98,11 @@ def load_bom_parameters(excel_data, elements, debug_mode=False):
 
     for process_id, group in df.groupby(df["Process_ID"].astype(int)):
         process_id = int(process_id)
-        tc_cfg = str(group["TC_Configuration"].iloc[0]).strip() if "TC_Configuration" in group.columns else "No TC"
+        tc_cfg = (
+            str(group["TC_Configuration"].iloc[0]).strip()
+            if "TC_Configuration" in group.columns
+            else "No TC"
+        )
 
         target_flows = []
         residue_flows = []
@@ -122,20 +126,30 @@ def load_bom_parameters(excel_data, elements, debug_mode=False):
                             tc_values[elem] = float(row[val_col])
                         except (TypeError, ValueError):
                             pass
-                target_flows.append({"flow_id": flow_id, "tc_ids": tc_ids, "tc_values": tc_values})
+                target_flows.append(
+                    {"flow_id": flow_id, "tc_ids": tc_ids, "tc_values": tc_values}
+                )
                 if debug_mode:
-                    print(f"  -> Process {process_id}: target_Product flow '{flow_id}', tc_ids={tc_ids}, tc_values={tc_values}")
+                    print(
+                        f"  -> Process {process_id}: target_Product flow '{flow_id}', tc_ids={tc_ids}, tc_values={tc_values}"
+                    )
 
             elif flow_type == "Unused_Material":
                 residue_flows.append(flow_id)
                 if debug_mode:
-                    print(f"  -> Process {process_id}: Unused_Material flow '{flow_id}'")
+                    print(
+                        f"  -> Process {process_id}: Unused_Material flow '{flow_id}'"
+                    )
             else:
                 if debug_mode:
-                    print(f"  -> Process {process_id}: unknown Output_flow_type '{flow_type}' for '{flow_id}' — skipped")
+                    print(
+                        f"  -> Process {process_id}: unknown Output_flow_type '{flow_type}' for '{flow_id}' — skipped"
+                    )
 
         if not target_flows:
-            print(f"  -> WARNING: BOM process {process_id} has no 'target_Product' flow — skipped.")
+            print(
+                f"  -> WARNING: BOM process {process_id} has no 'target_Product' flow — skipped."
+            )
             continue
 
         bom_params[process_id] = {
@@ -185,7 +199,9 @@ def _build_tc_value_column_map(df, elements):
         n = elem_idx + 1
         named = f"{element}_Value[%]"
         legacy = f"E{n}_TC_Value[%]"
-        col_map[element] = named if named in cols else (legacy if legacy in cols else None)
+        col_map[element] = (
+            named if named in cols else (legacy if legacy in cols else None)
+        )
     return col_map
 
 
@@ -194,6 +210,7 @@ def _is_nan(val):
         return True
     try:
         import math
+
         return math.isnan(float(val))
     except (TypeError, ValueError):
         return str(val).strip() in ("", "nan", "NaN", "None")
@@ -203,7 +220,10 @@ def _is_nan(val):
 # Assembly calculation (called from solver every iteration)
 # ---------------------------------------------------------------------------
 
-def calculate_bom_assembly(mfa_system, bom_processes, bom_params, element_hierarchy=None):
+
+def calculate_bom_assembly(
+    mfa_system, bom_processes, bom_params, element_hierarchy=None
+):
     """Calculates target-product and residue flows for all BOM_Assembler processes.
 
     For each BOM_Assembler process:
@@ -257,24 +277,36 @@ def calculate_bom_assembly(mfa_system, bom_processes, bom_params, element_hierar
         for target_cfg in target_flow_cfgs:
             fid = target_cfg["flow_id"]
             if fid not in mfa_system.FlowDict:
-                print(f"  -> WARNING: BOM target flow '{fid}' not in FlowDict for process {process_id}")
+                print(
+                    f"  -> WARNING: BOM target flow '{fid}' not in FlowDict for process {process_id}"
+                )
                 continue
 
             old_values = mfa_system.FlowDict[fid].Values.copy()
 
-            if tc_cfg == "No TC" or (not target_cfg["tc_ids"] and not target_cfg.get("tc_values")):
+            if tc_cfg == "No TC" or (
+                not target_cfg["tc_ids"] and not target_cfg.get("tc_values")
+            ):
                 # No composition constraint: target gets everything available
                 primary = available.copy()
             else:
                 bom_ts = _read_bom_fractions_ts(
-                    target_cfg["tc_ids"], elements, mfa_system, n_time, n_elem,
+                    target_cfg["tc_ids"],
+                    elements,
+                    mfa_system,
+                    n_time,
+                    n_elem,
                     tc_values=target_cfg.get("tc_values"),
                 )
                 abs_bom_ts = _compute_absolute_bom_fractions_ts(
                     bom_ts, elements, element_hierarchy
                 )
-                max_assemblable = _find_limiting_factor(available, abs_bom_ts, n_time, n_elem)
-                primary = _build_primary_vector(max_assemblable, abs_bom_ts, n_time, n_elem)
+                max_assemblable = _find_limiting_factor(
+                    available, abs_bom_ts, n_time, n_elem
+                )
+                primary = _build_primary_vector(
+                    max_assemblable, abs_bom_ts, n_time, n_elem
+                )
 
             mfa_system.FlowDict[fid].Values = primary
             total_primary += primary
@@ -289,7 +321,9 @@ def calculate_bom_assembly(mfa_system, bom_processes, bom_params, element_hierar
             split = 1.0 / len(residue_flow_ids)
             for rfid in residue_flow_ids:
                 if rfid not in mfa_system.FlowDict:
-                    print(f"  -> WARNING: BOM residue flow '{rfid}' not in FlowDict for process {process_id}")
+                    print(
+                        f"  -> WARNING: BOM residue flow '{rfid}' not in FlowDict for process {process_id}"
+                    )
                     continue
                 old_r = mfa_system.FlowDict[rfid].Values.copy()
                 mfa_system.FlowDict[rfid].Values = residue * split
@@ -303,7 +337,10 @@ def calculate_bom_assembly(mfa_system, bom_processes, bom_params, element_hierar
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _read_bom_fractions_ts(tc_ids, elements, mfa_system, n_time, n_elem, tc_values=None):
+
+def _read_bom_fractions_ts(
+    tc_ids, elements, mfa_system, n_time, n_elem, tc_values=None
+):
     """Read per-element BOM fractions from ParameterDict, with inline-value fallback.
 
     Priority:
@@ -330,7 +367,11 @@ def _read_bom_fractions_ts(tc_ids, elements, mfa_system, n_time, n_elem, tc_valu
                 bom_ts[:, idx] = float(vals)
             else:
                 arr = np.asarray(vals).reshape(-1)
-                bom_ts[:, idx] = arr[:n_time] if len(arr) >= n_time else np.pad(arr, (0, n_time - len(arr)), constant_values=arr[-1])
+                bom_ts[:, idx] = (
+                    arr[:n_time]
+                    if len(arr) >= n_time
+                    else np.pad(arr, (0, n_time - len(arr)), constant_values=arr[-1])
+                )
         elif elem in tc_values:
             # Priority 2: inline constant value from BOM sheet E{n}_TC_Value[%]
             bom_ts[:, idx] = float(tc_values[elem])

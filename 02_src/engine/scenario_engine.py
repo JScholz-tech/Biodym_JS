@@ -218,6 +218,7 @@ def _run_single_scenario(
     # modifies with the scenario values.
     if flow_cap_params:
         from engine import flow_cap as _fc
+
         _fc.register_cap_parameters(mfa_system_scenario, flow_cap_params)
 
     # Apply scenario modifications (now returns modified parameters too)
@@ -427,9 +428,8 @@ def check_mass_balance(mfa_system_results, label: str = "System") -> pd.DataFram
         avg_in = np.mean(total_inflows[:, p_idx, :])
         avg_out = np.mean(total_outflows[:, p_idx, :])
         avg_ds = np.mean(total_ds[:, p_idx, :])
-        is_boundary = (
-            ((avg_in == 0) and (avg_out > 0) and (abs(avg_ds) < 1e-10))
-            or ((avg_in > 0) and (avg_out == 0) and (abs(avg_ds) < 1e-10))
+        is_boundary = ((avg_in == 0) and (avg_out > 0) and (abs(avg_ds) < 1e-10)) or (
+            (avg_in > 0) and (avg_out == 0) and (abs(avg_ds) < 1e-10)
         )
         boundary_mask[p_idx] = is_boundary
 
@@ -446,23 +446,29 @@ def check_mass_balance(mfa_system_results, label: str = "System") -> pd.DataFram
         status = "PASS" if max_abs < 1e-6 else "WARN"
         if status == "WARN":
             all_pass = False
-        summary_rows.append({
-            "Element": element.upper(),
-            "Max_Abs_Error_Mg": max_abs,
-            "Sum_Abs_Error_Mg": sum_abs,
-            "Status": status,
-        })
+        summary_rows.append(
+            {
+                "Element": element.upper(),
+                "Max_Abs_Error_Mg": max_abs,
+                "Sum_Abs_Error_Mg": sum_abs,
+                "Status": status,
+            }
+        )
 
     df = pd.DataFrame(summary_rows)
 
     # Print summary
     if all_pass:
-        print(f"   ✅ Mass balance check [{label}]: PASSED (all elements < 1e-6 {unit})")
+        print(
+            f"   ✅ Mass balance check [{label}]: PASSED (all elements < 1e-6 {unit})"
+        )
     else:
         print(f"   ⚠️ Mass balance check [{label}]:")
         for _, row in df.iterrows():
             marker = "✅" if row["Status"] == "PASS" else "⚠️"
-            print(f"      {marker} {row['Element']}: max error = {row['Max_Abs_Error_Mg']:.2e} {unit}")
+            print(
+                f"      {marker} {row['Element']}: max error = {row['Max_Abs_Error_Mg']:.2e} {unit}"
+            )
 
     return df
 

@@ -14,7 +14,7 @@ Date: 2025-11-04
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from ipywidgets import IntSlider, Dropdown, Button, HBox, VBox, Layout
+from ipywidgets import IntSlider, Dropdown, Button, HBox, Layout
 from IPython.display import display
 from typing import Optional
 
@@ -187,7 +187,9 @@ def plot_optimized_mass_balance_error(
                 y_title=y_label(element.upper()),
             )
             apply_theme(layout_config)
-            layout_config["xaxis"].pop("range", None)  # categorical axis, not time-series
+            layout_config["xaxis"].pop(
+                "range", None
+            )  # categorical axis, not time-series
             layout_config["xaxis"]["tickangle"] = -45
             layout_config["shapes"] = [
                 dict(
@@ -271,9 +273,7 @@ def plot_optimized_mass_balance_error(
     # Set up interaction manually to avoid double widget display
     from ipywidgets import interactive_output
 
-    interactive_output(
-        update_plot, {"year": year_slider, "element": element_dropdown}
-    )
+    interactive_output(update_plot, {"year": year_slider, "element": element_dropdown})
 
     # Display
     display(control_box)
@@ -573,24 +573,30 @@ def plot_dynamic_process_balance(
                 process_options[p.Name] = p.ID
 
     if not process_options:
-        print("No dynamic processes found. Pass dsm_params, fomp_params, or lfg_params.")
+        print(
+            "No dynamic processes found. Pass dsm_params, fomp_params, or lfg_params."
+        )
         return
 
     if color_manager is None:
         color_manager = ElementColorManager([e.lower() for e in element_items])
 
     # Colours for the four traces
-    _c_inflow  = BIOYM_COLORS["primary"]   # blue
-    _c_ds      = BIOYM_COLORS["accent"]    # orange
-    _c_outflow = BIOYM_COLORS["secondary"] # pink
-    _c_resid   = BIOYM_COLORS["neutral"]   # grey
+    _c_inflow = BIOYM_COLORS["primary"]  # blue
+    _c_ds = BIOYM_COLORS["accent"]  # orange
+    _c_outflow = BIOYM_COLORS["secondary"]  # pink
+    _c_resid = BIOYM_COLORS["neutral"]  # grey
 
     fig = go.FigureWidget(
         make_subplots(
-            rows=2, cols=1,
+            rows=2,
+            cols=1,
             row_heights=[0.7, 0.3],
             shared_xaxes=True,
-            subplot_titles=("Inflow / ΔStock / Outflow", "Mass Balance Error (Inflow − ΔStock − Outflow)"),
+            subplot_titles=(
+                "Inflow / ΔStock / Outflow",
+                "Mass Balance Error (Inflow − ΔStock − Outflow)",
+            ),
             vertical_spacing=0.08,
         )
     )
@@ -609,40 +615,68 @@ def plot_dynamic_process_balance(
                 outflow_ts += f.Values[:, elem_idx]
 
         ds_obj = mfa_system_results.StockDict.get(f"dS_{pid}")
-        ds_ts = ds_obj.Values[:, elem_idx] if ds_obj is not None else np.zeros(len(time_items))
+        ds_ts = (
+            ds_obj.Values[:, elem_idx]
+            if ds_obj is not None
+            else np.zeros(len(time_items))
+        )
 
         residual = inflow_ts - ds_ts - outflow_ts
 
         with fig.batch_update():
             fig.data = []
             # Top panel
-            fig.add_trace(go.Scatter(
-                x=time_items, y=inflow_ts * _sc,
-                name="Inflow", mode="lines",
-                line=dict(color=_c_inflow, width=2),
-                hovertemplate=f"Inflow: %{{y:.4f}} {_unit}<extra></extra>",
-            ), row=1, col=1)
-            fig.add_trace(go.Scatter(
-                x=time_items, y=ds_ts * _sc,
-                name="ΔStock", mode="lines",
-                line=dict(color=_c_ds, width=2, dash="dash"),
-                hovertemplate=f"ΔStock: %{{y:.4f}} {_unit}<extra></extra>",
-            ), row=1, col=1)
-            fig.add_trace(go.Scatter(
-                x=time_items, y=outflow_ts * _sc,
-                name="Outflow", mode="lines",
-                line=dict(color=_c_outflow, width=2, dash="dot"),
-                hovertemplate=f"Outflow: %{{y:.4f}} {_unit}<extra></extra>",
-            ), row=1, col=1)
+            fig.add_trace(
+                go.Scatter(
+                    x=time_items,
+                    y=inflow_ts * _sc,
+                    name="Inflow",
+                    mode="lines",
+                    line=dict(color=_c_inflow, width=2),
+                    hovertemplate=f"Inflow: %{{y:.4f}} {_unit}<extra></extra>",
+                ),
+                row=1,
+                col=1,
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=time_items,
+                    y=ds_ts * _sc,
+                    name="ΔStock",
+                    mode="lines",
+                    line=dict(color=_c_ds, width=2, dash="dash"),
+                    hovertemplate=f"ΔStock: %{{y:.4f}} {_unit}<extra></extra>",
+                ),
+                row=1,
+                col=1,
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=time_items,
+                    y=outflow_ts * _sc,
+                    name="Outflow",
+                    mode="lines",
+                    line=dict(color=_c_outflow, width=2, dash="dot"),
+                    hovertemplate=f"Outflow: %{{y:.4f}} {_unit}<extra></extra>",
+                ),
+                row=1,
+                col=1,
+            )
             # Bottom panel — residual
-            fig.add_trace(go.Scatter(
-                x=time_items, y=residual * _sc,
-                name="Mass Balance Error", mode="lines",
-                line=dict(color=_c_resid, width=1.5),
-                fill="tozeroy",
-                fillcolor="rgba(108,117,125,0.15)",
-                hovertemplate=f"Mass Balance Error: %{{y:.2e}} {_unit}<extra></extra>",
-            ), row=2, col=1)
+            fig.add_trace(
+                go.Scatter(
+                    x=time_items,
+                    y=residual * _sc,
+                    name="Mass Balance Error",
+                    mode="lines",
+                    line=dict(color=_c_resid, width=1.5),
+                    fill="tozeroy",
+                    fillcolor="rgba(108,117,125,0.15)",
+                    hovertemplate=f"Mass Balance Error: %{{y:.2e}} {_unit}<extra></extra>",
+                ),
+                row=2,
+                col=1,
+            )
 
             layout_config = get_publication_layout(
                 size="large",
@@ -698,9 +732,19 @@ def plot_dynamic_process_balance(
 
         def _do_export(b):
             try:
-                proc_safe = process_dropdown.value.replace(" ", "_").replace("[", "").replace("]", "")
+                proc_safe = (
+                    process_dropdown.value.replace(" ", "_")
+                    .replace("[", "")
+                    .replace("]", "")
+                )
                 name = f"dynamic_process_balance_{proc_safe}_{element_dropdown.value}"
-                paths = export_figure(fig, name, formats=["png", "svg"], quality="publication", size="large")
+                paths = export_figure(
+                    fig,
+                    name,
+                    formats=["png", "svg"],
+                    quality="publication",
+                    size="large",
+                )
                 print(f"✅ Exported: {', '.join(paths)}")
             except Exception as e:
                 print(f"❌ Export failed: {e}")

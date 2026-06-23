@@ -47,8 +47,8 @@ def _sanitize_col_name(name):
     Replaces any character that is not a letter, digit, or underscore with
     an underscore, then collapses runs of underscores to a single one.
     """
-    result = re.sub(r'[^A-Za-z0-9_]', '_', str(name))
-    return re.sub(r'_+', '_', result)
+    result = re.sub(r"[^A-Za-z0-9_]", "_", str(name))
+    return re.sub(r"_+", "_", result)
 
 
 # Column name mapping for backward compatibility and naming convention updates
@@ -161,7 +161,8 @@ def normalize_column_names(df, sheet_name=None, elements=None):
     # Warns rather than raises so existing files with accidental duplicates
     # still load; the warning surfaces the issue without crashing the model.
     import warnings as _warnings
-    dupe_cols = [c for c in df.columns if re.search(r'\.\d+$', str(c))]
+
+    dupe_cols = [c for c in df.columns if re.search(r"\.\d+$", str(c))]
     if dupe_cols:
         _warnings.warn(
             f"duplicate columns detected (pandas .N suffix): {dupe_cols}. "
@@ -546,7 +547,9 @@ def validate_unified_configuration(excel_data):
     print("--> Unified configuration validation completed.")
 
 
-def normalize_dynamic_tcs_by_process(tc_params, all_excel_data, elements, debug_mode=False):
+def normalize_dynamic_tcs_by_process(
+    tc_params, all_excel_data, elements, debug_mode=False
+):
     """Normalize dynamic TCs so they sum to 100% for each process at each time step.
 
     When multiple dynamic TCs are interpolated independently for a splitter process,
@@ -671,9 +674,11 @@ def normalize_dynamic_tcs_by_process(tc_params, all_excel_data, elements, debug_
             if max_deviation > 0.05:
                 print(
                     f"   ⚠️  WARNING: Process {process_id}, element {element}: "
-                    f"TCs sum to {tc_sum.min()*100:.1f}%-{tc_sum.max()*100:.1f}% (not 100%)"
+                    f"TCs sum to {tc_sum.min() * 100:.1f}%-{tc_sum.max() * 100:.1f}% (not 100%)"
                 )
-                print(f"      → Normalizing {len(tc_names)} TCs to ensure mass balance...")
+                print(
+                    f"      → Normalizing {len(tc_names)} TCs to ensure mass balance..."
+                )
 
             # Normalize (avoid division by zero)
             for tc_name in tc_values:
@@ -692,7 +697,7 @@ def normalize_dynamic_tcs_by_process(tc_params, all_excel_data, elements, debug_
             if debug_mode:
                 print(
                     f"   → Normalized {len(tc_names)} TCs for process {process_id}, "
-                    f"element {element} (max deviation: {max_deviation*100:.2f}%)"
+                    f"element {element} (max deviation: {max_deviation * 100:.2f}%)"
                 )
 
     if normalization_count > 0 and not debug_mode:
@@ -1024,7 +1029,9 @@ def load_dsm_parameters(excel_data, debug_mode=False):
         if main_sheet_name in excel_data:
             process_row = main_df[main_df["Process_ID"] == process_id]
             if not process_row.empty:
-                stock_config = str(process_row.iloc[0].get("Stock_Configuration", "Stock")).strip()
+                stock_config = str(
+                    process_row.iloc[0].get("Stock_Configuration", "Stock")
+                ).strip()
                 dsm_params[process_id]["stock_configuration"] = stock_config
 
     if debug_mode:
@@ -1215,10 +1222,18 @@ def _parse_parameter_based_dsm(process_data):
         )
 
         raw_shape = cat_params.get("DSM_Lifetime_Shape")
-        lifetime_shapes.append(float(raw_shape) if raw_shape is not None and str(raw_shape).strip() not in ("", "nan") else None)
+        lifetime_shapes.append(
+            float(raw_shape)
+            if raw_shape is not None and str(raw_shape).strip() not in ("", "nan")
+            else None
+        )
 
         raw_scale = cat_params.get("DSM_Lifetime_Scale")
-        lifetime_scales.append(float(raw_scale) if raw_scale is not None and str(raw_scale).strip() not in ("", "nan") else None)
+        lifetime_scales.append(
+            float(raw_scale)
+            if raw_scale is not None and str(raw_scale).strip() not in ("", "nan")
+            else None
+        )
 
         # Use category name if available, otherwise use the key
         if isinstance(cat_key, str) and cat_key != "DSM_Category_Name":
@@ -1298,20 +1313,28 @@ def _parse_category_based_dsm(process_data):
         process_data = process_data.sort_values(by="Category_ID")
 
     # Extract lifetime data for validation (sanitize None/NaN → 0.0)
-    lifetime_means = [float(v) if v is not None and pd.notna(v) else 0.0
-                      for v in process_data["Lifetime_Mean"]]
-    lifetime_stddevs = [float(v) if v is not None and pd.notna(v) else 0.0
-                        for v in process_data["Lifetime_StdDev"]]
+    lifetime_means = [
+        float(v) if v is not None and pd.notna(v) else 0.0
+        for v in process_data["Lifetime_Mean"]
+    ]
+    lifetime_stddevs = [
+        float(v) if v is not None and pd.notna(v) else 0.0
+        for v in process_data["Lifetime_StdDev"]
+    ]
     category_names = list(process_data["Category_Name"])
 
     # Optional Weibull-specific columns
     lifetime_shapes = [
         float(v) if pd.notna(v) else None
-        for v in process_data.get("Lifetime_Shape", pd.Series([None] * len(process_data)))
+        for v in process_data.get(
+            "Lifetime_Shape", pd.Series([None] * len(process_data))
+        )
     ]
     lifetime_scales = [
         float(v) if pd.notna(v) else None
-        for v in process_data.get("Lifetime_Scale", pd.Series([None] * len(process_data)))
+        for v in process_data.get(
+            "Lifetime_Scale", pd.Series([None] * len(process_data))
+        )
     ]
 
     # Validate DSM lifetime parameters and warn about potential issues
@@ -1522,7 +1545,10 @@ def load_lfg_parameters(excel_data, debug_mode=False):
 
     df_lfg = excel_data[sheet_name]
 
-    if "LFG_Parameter_type" not in df_lfg.columns or "LFG_Parameter_Value" not in df_lfg.columns:
+    if (
+        "LFG_Parameter_type" not in df_lfg.columns
+        or "LFG_Parameter_Value" not in df_lfg.columns
+    ):
         if debug_mode:
             print(
                 "   WARNING: Required columns 'LFG_Parameter_type' / "
@@ -1532,23 +1558,32 @@ def load_lfg_parameters(excel_data, debug_mode=False):
 
     # Map Excel parameter type strings → internal canonical names
     PARAM_MAP = {
-        "F":                   "F_CH4",
-        "F_CH4":               "F_CH4",
-        "Φ":                   "phi",
-        "φ":                   "phi",
-        "phi":                 "phi",
-        "f":                   "f_capture",
-        "output_CH4_id":       "outflow_ch4_id",
-        "output_CO2_id":       "outflow_co2_id",
-        "output_leaching":     "outflow_leachate_id",
-        "outflow_ch4_id":      "outflow_ch4_id",
-        "outflow_co2_id":      "outflow_co2_id",
+        "F": "F_CH4",
+        "F_CH4": "F_CH4",
+        "Φ": "phi",
+        "φ": "phi",
+        "phi": "phi",
+        "f": "f_capture",
+        "output_CH4_id": "outflow_ch4_id",
+        "output_CO2_id": "outflow_co2_id",
+        "output_leaching": "outflow_leachate_id",
+        "outflow_ch4_id": "outflow_ch4_id",
+        "outflow_co2_id": "outflow_co2_id",
         "outflow_leachate_id": "outflow_leachate_id",
     }
 
     # Site-level scalar parameters (after PARAM_MAP normalisation)
-    SITE_PARAMS = {"MCF", "DOCf", "F_CH4", "OX", "phi", "f_capture",
-                   "outflow_ch4_id", "outflow_co2_id", "outflow_leachate_id"}
+    SITE_PARAMS = {
+        "MCF",
+        "DOCf",
+        "F_CH4",
+        "OX",
+        "phi",
+        "f_capture",
+        "outflow_ch4_id",
+        "outflow_co2_id",
+        "outflow_leachate_id",
+    }
 
     # Fraction-level parameter types as they appear in the Excel
     FRAC_PARAM_TYPES = {"Waste_Fraction_j", "f_input_j", "DOC_j", "k_j", "f_ash_j"}
@@ -1556,8 +1591,8 @@ def load_lfg_parameters(excel_data, debug_mode=False):
     # Regex to extract fraction index from LFG_Parameter_ID, e.g. "P01_k_j2" → 2
     _j_pattern = re.compile(r"_j(\d+)\b", re.IGNORECASE)
 
-    lfg_params = {}       # {process_id: {"fractions": [...], "MCF": ..., ...}}
-    frac_staging = {}     # {process_id: {frac_index: {param_type: value}}}
+    lfg_params = {}  # {process_id: {"fractions": [...], "MCF": ..., ...}}
+    frac_staging = {}  # {process_id: {frac_index: {param_type: value}}}
 
     has_pid_col = "Process_ID" in df_lfg.columns
     has_id_col = "LFG_Parameter_ID" in df_lfg.columns
@@ -1644,10 +1679,10 @@ def load_lfg_parameters(excel_data, debug_mode=False):
 
             frac = {
                 "name": str(fd.get("Waste_Fraction_j", f"Fraction_{frac_idx}")).strip(),
-                "k_j":       _sf("k_j"),
-                "DOC_j":     _sf("DOC_j"),
+                "k_j": _sf("k_j"),
+                "DOC_j": _sf("DOC_j"),
                 "f_input_j": _sf("f_input_j"),
-                "f_ash_j":   _sf("f_ash_j", default=0.0),
+                "f_ash_j": _sf("f_ash_j", default=0.0),
             }
             lfg_params[process_id]["fractions"].append(frac)
 
@@ -1657,9 +1692,11 @@ def load_lfg_parameters(excel_data, debug_mode=False):
         )
         for process_id, params in lfg_params.items():
             n_frac = len(params.get("fractions", []))
-            print(f"   Process {process_id}: {n_frac} fraction(s), "
-                  f"site params: MCF={params.get('MCF')}, DOCf={params.get('DOCf')}, "
-                  f"F_CH4={params.get('F_CH4')}, OX={params.get('OX')}")
+            print(
+                f"   Process {process_id}: {n_frac} fraction(s), "
+                f"site params: MCF={params.get('MCF')}, DOCf={params.get('DOCf')}, "
+                f"F_CH4={params.get('F_CH4')}, OX={params.get('OX')}"
+            )
 
     return lfg_params
 
@@ -1761,13 +1798,20 @@ def load_uncertainty_definitions(excel_data, debug_mode=False):
         print(f"  DEBUG: df_uncertainty before dropna:\n{df_uncertainty}")
 
     # Support both new column names (MC_Parameter_ID) and legacy (Parameter_Name)
-    id_col = "MC_Parameter_ID" if "MC_Parameter_ID" in df_uncertainty.columns else "Parameter_Name"
+    id_col = (
+        "MC_Parameter_ID"
+        if "MC_Parameter_ID" in df_uncertainty.columns
+        else "Parameter_Name"
+    )
     df_uncertainty = df_uncertainty.dropna(subset=[id_col])
 
     # Filter by MC_Parameter_Selection toggle — skip rows where it is empty/NaN
     sel_col = "MC_Parameter_Selection"
     if sel_col in df_uncertainty.columns:
-        df_uncertainty = df_uncertainty[df_uncertainty[sel_col].notna() & (df_uncertainty[sel_col].astype(str).str.strip() != "")]
+        df_uncertainty = df_uncertainty[
+            df_uncertainty[sel_col].notna()
+            & (df_uncertainty[sel_col].astype(str).str.strip() != "")
+        ]
 
     if debug_mode:
         print(
@@ -1807,29 +1851,43 @@ def load_uncertainty_definitions(excel_data, debug_mode=False):
                 if pd.notna(row.get("Max")):
                     definition["max"] = row["Max"]
         else:
-            print(f"⚠️ WARNING: Unknown distribution type '{dist_type}' for parameter '{param_name}' — skipping.")
+            print(
+                f"⚠️ WARNING: Unknown distribution type '{dist_type}' for parameter '{param_name}' — skipping."
+            )
 
         # --- Optional modifier columns (new names preferred, legacy fallback) ---
-        op_col = "MC_Operation" if "MC_Operation" in df_uncertainty.columns else "Operation"
+        op_col = (
+            "MC_Operation" if "MC_Operation" in df_uncertainty.columns else "Operation"
+        )
         raw_op = row.get(op_col)
         if raw_op is not None and pd.notna(raw_op) and str(raw_op).strip():
             definition["operation"] = str(raw_op).strip().lower()
 
-        start_col = "MC_Start_Year" if "MC_Start_Year" in df_uncertainty.columns else "start_year"
+        start_col = (
+            "MC_Start_Year"
+            if "MC_Start_Year" in df_uncertainty.columns
+            else "start_year"
+        )
         raw_start = row.get(start_col)
         if raw_start is not None and pd.notna(raw_start):
             try:
                 definition["start_year"] = int(raw_start)
             except (ValueError, TypeError):
-                print(f"⚠️ WARNING: Invalid {start_col} '{raw_start}' for '{param_name}' — ignoring.")
+                print(
+                    f"⚠️ WARNING: Invalid {start_col} '{raw_start}' for '{param_name}' — ignoring."
+                )
 
-        end_col = "MC_End_Year" if "MC_End_Year" in df_uncertainty.columns else "end_year"
+        end_col = (
+            "MC_End_Year" if "MC_End_Year" in df_uncertainty.columns else "end_year"
+        )
         raw_end = row.get(end_col)
         if raw_end is not None and pd.notna(raw_end):
             try:
                 definition["end_year"] = int(raw_end)
             except (ValueError, TypeError):
-                print(f"⚠️ WARNING: Invalid {end_col} '{raw_end}' for '{param_name}' — ignoring.")
+                print(
+                    f"⚠️ WARNING: Invalid {end_col} '{raw_end}' for '{param_name}' — ignoring."
+                )
 
         raw_group = row.get("MC_Flow_Group")
         if raw_group is not None and pd.notna(raw_group) and str(raw_group).strip():
@@ -1837,7 +1895,9 @@ def load_uncertainty_definitions(excel_data, debug_mode=False):
 
         if len(definition) > 1:
             if param_name.startswith("F_"):
-                definition["flow_id"] = param_name  # real flow name, preserved before any renaming
+                definition["flow_id"] = (
+                    param_name  # real flow name, preserved before any renaming
+                )
                 count = _seen_names.get(param_name, 0)
                 _seen_names[param_name] = count + 1
                 if count > 0:
@@ -1951,10 +2011,12 @@ def load_scenario_definitions(excel_data):
 
     # Normalise column name aliases so apply_scenario always sees consistent keys
     col_aliases = {
-        "Parameter_ID":       "Parameter_Name",   # user column → internal name
+        "Parameter_ID": "Parameter_Name",  # user column → internal name
         "Scenario_Operation": "Operation",
     }
-    df = df.rename(columns={src: dst for src, dst in col_aliases.items() if src in df.columns})
+    df = df.rename(
+        columns={src: dst for src, dst in col_aliases.items() if src in df.columns}
+    )
 
     try:
         df_scenarios = df.dropna(subset=["Scenario_Name", "Parameter_Name"])
@@ -2065,7 +2127,9 @@ def load_uncertainty_definitions_from_yaml(yaml_path: str) -> dict:
         if len(defn) > 1:
             uncertainty_params[pid] = defn
 
-    print(f"   ✓ Loaded {len(uncertainty_params)} MC uncertainty parameter(s) from YAML.")
+    print(
+        f"   ✓ Loaded {len(uncertainty_params)} MC uncertainty parameter(s) from YAML."
+    )
     return uncertainty_params
 
 
@@ -2101,14 +2165,16 @@ def load_scenario_definitions_from_yaml(yaml_path: str) -> dict:
             pname = str(m.get("parameter_name", "")).strip()
             if not pname:
                 continue
-            records.append({
-                "Parameter_Name": pname,
-                "Operation": str(m.get("operation", "replace") or "replace"),
-                "New_Value": float(m.get("new_value") or 0.0),
-                "start_year": m.get("start_year"),
-                "end_year": m.get("end_year"),
-                "parameter_type": str(m.get("parameter_type", "") or ""),
-            })
+            records.append(
+                {
+                    "Parameter_Name": pname,
+                    "Operation": str(m.get("operation", "replace") or "replace"),
+                    "New_Value": float(m.get("new_value") or 0.0),
+                    "start_year": m.get("start_year"),
+                    "end_year": m.get("end_year"),
+                    "parameter_type": str(m.get("parameter_type", "") or ""),
+                }
+            )
         scenario_definitions[sname] = records
 
     print(f"   ✓ Loaded {len(scenario_definitions)} scenario definition(s) from YAML.")
@@ -2142,9 +2208,9 @@ def load_fomp_from_yaml(yaml_path: str) -> dict:
         outflow_2 = str(fomp.get("outflow_id_2", "") or "").strip() or None
         fomp_params[pid] = {
             "Inflow_fraction_f (Labile pool)": float(fomp.get("f_labile", 0.5)),
-            "decay_k1 (Labile pool)":          float(fomp.get("k_labile", 1.0)),
-            "decay_k2 (Recalcitrant pool)":    float(fomp.get("k_recalcitrant", 0.01)),
-            "outflow_id":   str(fomp.get("outflow_id", "")),
+            "decay_k1 (Labile pool)": float(fomp.get("k_labile", 1.0)),
+            "decay_k2 (Recalcitrant pool)": float(fomp.get("k_recalcitrant", 0.01)),
+            "outflow_id": str(fomp.get("outflow_id", "")),
             "outflow_id_2": outflow_2,
         }
     print(f"   ✓ Loaded {len(fomp_params)} FOMP process config(s) from YAML.")
@@ -2178,36 +2244,62 @@ def load_dsm_from_yaml(yaml_path: str) -> dict:
         cats = dsm.get("categories", [])
         if not cats:
             # Legacy single-category flat format
-            cats = [{
-                "name": "Default",
-                "inflow_split": 1.0,
-                "lifetime_type": dsm.get("lifetime_distribution", "Normal"),
-                "lifetime_mean": dsm.get("lifetime_mean"),
-                "lifetime_std":  dsm.get("lifetime_std"),
-                "lifetime_shape": None,
-                "lifetime_scale": None,
-            }]
-        inflow_splits, types, means, stds, shapes, scales, names = [], [], [], [], [], [], []
+            cats = [
+                {
+                    "name": "Default",
+                    "inflow_split": 1.0,
+                    "lifetime_type": dsm.get("lifetime_distribution", "Normal"),
+                    "lifetime_mean": dsm.get("lifetime_mean"),
+                    "lifetime_std": dsm.get("lifetime_std"),
+                    "lifetime_shape": None,
+                    "lifetime_scale": None,
+                }
+            ]
+        inflow_splits, types, means, stds, shapes, scales, names = (
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
         for cat in cats:
             inflow_splits.append(float(cat.get("inflow_split", 1.0)))
             lt = str(cat.get("lifetime_type", "Normal"))
             types.append(lt)
             names.append(str(cat.get("name", "Default")))
-            means.append(float(cat["lifetime_mean"]) if cat.get("lifetime_mean") is not None else 0.0)
-            stds.append(float(cat["lifetime_std"])   if cat.get("lifetime_std")  is not None else 0.0)
-            shapes.append(float(cat["lifetime_shape"]) if cat.get("lifetime_shape") is not None else None)
-            scales.append(float(cat["lifetime_scale"]) if cat.get("lifetime_scale") is not None else None)
+            means.append(
+                float(cat["lifetime_mean"])
+                if cat.get("lifetime_mean") is not None
+                else 0.0
+            )
+            stds.append(
+                float(cat["lifetime_std"])
+                if cat.get("lifetime_std") is not None
+                else 0.0
+            )
+            shapes.append(
+                float(cat["lifetime_shape"])
+                if cat.get("lifetime_shape") is not None
+                else None
+            )
+            scales.append(
+                float(cat["lifetime_scale"])
+                if cat.get("lifetime_scale") is not None
+                else None
+            )
         dsm_params[pid] = {
             "inflow_split": inflow_splits,
             "lifetimes": {
-                "Type":   types,
-                "Mean":   means,
+                "Type": types,
+                "Mean": means,
                 "StdDev": stds,
-                "Shape":  shapes,
-                "Scale":  scales,
+                "Shape": shapes,
+                "Scale": scales,
             },
-            "category_names":  names,
-            "output_splits":   [[] for _ in cats],
+            "category_names": names,
+            "output_splits": [[] for _ in cats],
             "output_flow_ids": [],
             "parameter_based": False,
             "stock_configuration": stock_config,
@@ -2240,23 +2332,25 @@ def load_lfg_from_yaml(yaml_path: str) -> dict:
         pid = int(proc["id"])
         fractions = []
         for frac in lfg.get("fractions", []):
-            fractions.append({
-                "name":      str(frac.get("name", "")),
-                "k_j":       float(frac.get("k_j", 0.1)),
-                "DOC_j":     float(frac.get("doc_j", 0.5)),
-                "f_input_j": float(frac.get("f_input_j", 1.0)),
-                "f_ash_j":   float(frac.get("f_ash_j", 0.05)),
-            })
+            fractions.append(
+                {
+                    "name": str(frac.get("name", "")),
+                    "k_j": float(frac.get("k_j", 0.1)),
+                    "DOC_j": float(frac.get("doc_j", 0.5)),
+                    "f_input_j": float(frac.get("f_input_j", 1.0)),
+                    "f_ash_j": float(frac.get("f_ash_j", 0.05)),
+                }
+            )
         lfg_params[pid] = {
-            "fractions":           fractions,
-            "MCF":                 float(lfg.get("mcf", 1.0)),
-            "DOCf":                float(lfg.get("doc_f", 0.5)),
-            "F_CH4":               float(lfg.get("f_ch4", 0.5)),
-            "OX":                  float(lfg.get("ox", 0.1)),
-            "phi":                 float(lfg.get("phi", 1.0)),
-            "f_capture":           float(lfg.get("f_capture", 0.0)),
-            "outflow_ch4_id":      str(lfg.get("outflow_ch4_id", "")),
-            "outflow_co2_id":      str(lfg.get("outflow_co2_id", "")),
+            "fractions": fractions,
+            "MCF": float(lfg.get("mcf", 1.0)),
+            "DOCf": float(lfg.get("doc_f", 0.5)),
+            "F_CH4": float(lfg.get("f_ch4", 0.5)),
+            "OX": float(lfg.get("ox", 0.1)),
+            "phi": float(lfg.get("phi", 1.0)),
+            "f_capture": float(lfg.get("f_capture", 0.0)),
+            "outflow_ch4_id": str(lfg.get("outflow_ch4_id", "")),
+            "outflow_co2_id": str(lfg.get("outflow_co2_id", "")),
             "outflow_leachate_id": str(lfg.get("outflow_leachate_id", "")),
         }
     print(f"   ✓ Loaded {len(lfg_params)} LFG process config(s) from YAML.")
@@ -2287,12 +2381,12 @@ def load_flow_cap_from_yaml(yaml_path: str) -> dict:
         pid = int(proc["id"])
         cap_series = {int(y): float(v) for y, v in fc.get("cap_series", {}).items()}
         overflow_id = str(fc.get("overflow_flow_id", "") or "").strip() or None
-        cap_tc_id   = str(fc.get("cap_tc_id", "") or "").strip() or None
+        cap_tc_id = str(fc.get("cap_tc_id", "") or "").strip() or None
         flow_cap_params[pid] = {
-            "capped_flow_id":   str(fc.get("capped_flow_id", "")),
+            "capped_flow_id": str(fc.get("capped_flow_id", "")),
             "overflow_flow_id": overflow_id,
-            "cap_series":       cap_series,
-            "cap_tc_id":        cap_tc_id,
+            "cap_series": cap_series,
+            "cap_tc_id": cap_tc_id,
         }
     print(f"   ✓ Loaded {len(flow_cap_params)} FlowCap config(s) from YAML.")
     return flow_cap_params
@@ -2320,20 +2414,28 @@ def load_flow_data_df_from_yaml(yaml_path: str):
     data = load_yaml_config(yaml_path)
     rows = []
     for entry in data.get("flow_data", []):
-        fid  = str(entry.get("flow_id", "")).strip()
+        fid = str(entry.get("flow_id", "")).strip()
         elem = str(entry.get("element", "material"))
         if elem != "material" or not fid:
             continue
         for year_raw, val in entry.get("values", {}).items():
-            rows.append({
-                "Flow_ID":        fid,
-                "Flow_Data_Year": int(year_raw),
-                "E1_value":       float(val),
-            })
+            rows.append(
+                {
+                    "Flow_ID": fid,
+                    "Flow_Data_Year": int(year_raw),
+                    "E1_value": float(val),
+                }
+            )
     if not rows:
         return pd.DataFrame(columns=["Flow_ID", "Flow_Data_Year", "E1_value"])
-    df = pd.DataFrame(rows).sort_values(["Flow_ID", "Flow_Data_Year"]).reset_index(drop=True)
-    print(f"   ✓ Loaded {len(df)} flow data point(s) for {df['Flow_ID'].nunique()} flow(s) from YAML.")
+    df = (
+        pd.DataFrame(rows)
+        .sort_values(["Flow_ID", "Flow_Data_Year"])
+        .reset_index(drop=True)
+    )
+    print(
+        f"   ✓ Loaded {len(df)} flow data point(s) for {df['Flow_ID'].nunique()} flow(s) from YAML."
+    )
     return df
 
 
@@ -2357,13 +2459,13 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
     """
     data = load_yaml_config(yaml_path)
 
-    model       = data.get("model") or {}
-    elements    = model.get("elements", ["material", "WC", "DM", "TC"])
-    processes   = data.get("processes", [])
-    flows       = data.get("flows", [])
-    tcs         = data.get("transfer_coefficients", [])
+    model = data.get("model") or {}
+    elements = model.get("elements", ["material", "WC", "DM", "TC"])
+    processes = data.get("processes", [])
+    flows = data.get("flows", [])
+    tcs = data.get("transfer_coefficients", [])
     compositions = data.get("flow_compositions", [])
-    hierarchy   = data.get("element_hierarchy", [])
+    hierarchy = data.get("element_hierarchy", [])
 
     # Build lookup: flow_id → flow dict
     flow_map = {f["id"]: f for f in flows}
@@ -2387,56 +2489,66 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
     # so we need 3 columns (col0 is a label column, col1=key, col2=value).
     elem_idx_map = {e: i + 1 for i, e in enumerate(elements)}
     cfg_rows = []
-    cfg_rows.append({"_lbl": "", "_key": "Start_Year", "_val": model.get("start_year", 2025)})
-    cfg_rows.append({"_lbl": "", "_key": "End_Year",   "_val": model.get("end_year",   2125)})
+    cfg_rows.append(
+        {"_lbl": "", "_key": "Start_Year", "_val": model.get("start_year", 2025)}
+    )
+    cfg_rows.append(
+        {"_lbl": "", "_key": "End_Year", "_val": model.get("end_year", 2125)}
+    )
     for i, elem in enumerate(elements, 1):
         cfg_rows.append({"_lbl": "", "_key": f"Element_ID_{i}", "_val": elem})
     for child, parent in child_to_parent.items():
         if child in elem_idx_map:
-            cfg_rows.append({
-                "_lbl": "",
-                "_key": f"Parent_Element_ID_{elem_idx_map[child]}",
-                "_val": parent,
-            })
+            cfg_rows.append(
+                {
+                    "_lbl": "",
+                    "_key": f"Parent_Element_ID_{elem_idx_map[child]}",
+                    "_val": parent,
+                }
+            )
     result["0_Configuration"] = pd.DataFrame(cfg_rows)
 
     # ── 2_1_Definition_Processes ─────────────────────────────────────────────
     # system_setup uses "ID"; data_loader/load_tc_parameters uses "Process_ID"
     proc_rows = []
     for p in processes:
-        pid    = p.get("id")
-        logic  = p.get("logic", "Splitter")
-        stock  = p.get("stock", "No_Stock")
+        pid = p.get("id")
+        logic = p.get("logic", "Splitter")
+        stock = p.get("stock", "No_Stock")
         tc_cfg = p.get("tc_config", "No TC")
         # "No TC" → NaN (engine skips TC loading for such processes)
         tc_cfg_val = tc_cfg if tc_cfg in ("Static", "Dynamic") else None
-        proc_rows.append({
-            "ID":                 pid,
-            "Process_ID":         pid,   # alias for load_tc_parameters
-            "Process_Name":       p.get("name", f"P{pid}"),
-            "Process_Logic":      logic,
-            "Stock_Configuration": stock,
-            "TC_Configuration":   tc_cfg_val,
-        })
+        proc_rows.append(
+            {
+                "ID": pid,
+                "Process_ID": pid,  # alias for load_tc_parameters
+                "Process_Name": p.get("name", f"P{pid}"),
+                "Process_Logic": logic,
+                "Stock_Configuration": stock,
+                "TC_Configuration": tc_cfg_val,
+            }
+        )
     result["2_1_Definition_Processes"] = pd.DataFrame(proc_rows)
 
     # ── 1_1_Definition_Flows ─────────────────────────────────────────────────
     # Composition columns: Flow_E{n}_Fraction[%]  (n = 1-based element index)
     flow_rows = []
     for fl in flows:
-        fid  = fl.get("id", "")
+        fid = fl.get("id", "")
         comp = comp_map.get(fid, {})
-        row  = {
-            "Flow_ID":               fid,
-            "Flow_Name":             fl.get("name", fid),
+        row = {
+            "Flow_ID": fid,
+            "Flow_Name": fl.get("name", fid),
             "Flow_Output_Process_ID": fl.get("from_process"),
-            "Input_Process_ID":      fl.get("to_process"),
+            "Input_Process_ID": fl.get("to_process"),
         }
         for idx, elem in enumerate(elements):
             n = idx + 1  # 1-based
             row[f"Flow_E{n}_Fraction[%]"] = comp.get(elem)
         flow_rows.append(row)
-    result["1_1_Definition_Flows"] = pd.DataFrame(flow_rows) if flow_rows else pd.DataFrame()
+    result["1_1_Definition_Flows"] = (
+        pd.DataFrame(flow_rows) if flow_rows else pd.DataFrame()
+    )
 
     # ── 2_2_static_TCs ───────────────────────────────────────────────────────
     # New E# format: E{n}_TC_ID, E{n}_TC_Value[%]
@@ -2446,21 +2558,21 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
     for tc in tcs:
         if tc.get("tc_type", "static") != "static":
             continue
-        pid    = tc.get("process_id")
-        fid    = tc.get("flow_id", "")
+        pid = tc.get("process_id")
+        fid = tc.get("flow_id", "")
         values = tc.get("values", {})
         if not values:
             continue
-        fl      = flow_map.get(fid, {})
-        from_p  = fl.get("from_process", 0)
-        to_p    = fl.get("to_process",   0)
+        fl = flow_map.get(fid, {})
+        from_p = fl.get("from_process", 0)
+        to_p = fl.get("to_process", 0)
         row = {"Process_ID": pid, "Flow_ID": fid}
         for idx, elem in enumerate(elements):
             n = idx + 1
             # BioDYM convention: every element (incl. material, E1) → TC_E{n}_{from}_{to}
             tc_id = f"TC_E{n}_{from_p:02d}_{to_p:02d}"
             val = values.get(elem)
-            row[f"E{n}_TC_ID"]       = tc_id if val is not None else None
+            row[f"E{n}_TC_ID"] = tc_id if val is not None else None
             row[f"E{n}_TC_Value[%]"] = val
         static_rows.append(row)
     # Empty sheet must still carry the required columns so validate_input_data
@@ -2477,21 +2589,24 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
     for tc in tcs:
         if tc.get("tc_type") != "dynamic":
             continue
-        pid   = tc.get("process_id")
-        fid   = tc.get("flow_id", "")
-        fl    = flow_map.get(fid, {})
+        pid = tc.get("process_id")
+        fid = tc.get("flow_id", "")
+        fl = flow_map.get(fid, {})
         from_p = fl.get("from_process", 0)
-        to_p   = fl.get("to_process",   0)
+        to_p = fl.get("to_process", 0)
         for point in tc.get("time_series", []):
-            year   = point.get("year")
+            year = point.get("year")
             values = point.get("values", {})
             row = {"Process_ID": pid, "Flow_ID": fid, "Year": year}
             for idx, elem in enumerate(elements):
                 n = idx + 1
-                tc_id = (f"TC_{from_p:02d}_{to_p:02d}" if elem == "material"
-                         else f"TC_E{n}_{from_p:02d}_{to_p:02d}")
+                tc_id = (
+                    f"TC_{from_p:02d}_{to_p:02d}"
+                    if elem == "material"
+                    else f"TC_E{n}_{from_p:02d}_{to_p:02d}"
+                )
                 val = values.get(elem)
-                row[f"E{n}_TC_ID"]       = tc_id if val is not None else None
+                row[f"E{n}_TC_ID"] = tc_id if val is not None else None
                 row[f"E{n}_TC_Value[%]"] = val
             dyn_rows.append(row)
     _dyn_cols = ["Process_ID", "Flow_ID", "Year"]
@@ -2516,7 +2631,13 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
             continue
 
         def _is_row(ptype, value):
-            is_rows.append({"Process_ID": pid, "IS_Parameter_type": ptype, "IS_Parameter_Value": value})
+            is_rows.append(
+                {
+                    "Process_ID": pid,
+                    "IS_Parameter_type": ptype,
+                    "IS_Parameter_Value": value,
+                }
+            )
 
         _is_row("Basic_Material_Quantity[UoM]", entry.get("material_quantity", 0.0))
         comp = entry.get("composition", {})
@@ -2526,7 +2647,9 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
             if elem in comp:
                 _is_row(f"Basic_E{idx + 1}_Fraction[%]", comp[elem])
         if entry.get("cohort_age_distribution_type"):
-            _is_row("Cohort_Age_Distribution_Type", entry["cohort_age_distribution_type"])
+            _is_row(
+                "Cohort_Age_Distribution_Type", entry["cohort_age_distribution_type"]
+            )
         if entry.get("cohort_mean_age") is not None:
             _is_row("Cohort_Mean_Age[years]", entry["cohort_mean_age"])
         if entry.get("cohort_std_age") is not None:
@@ -2536,8 +2659,11 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
         if entry.get("cohort_decay_constant") is not None:
             _is_row("Cohort_Decay_Constant[years]", entry["cohort_decay_constant"])
     result["2_4_Initial_Stock"] = (
-        pd.DataFrame(is_rows) if is_rows else
-        pd.DataFrame(columns=["Process_ID", "IS_Parameter_type", "IS_Parameter_Value"])
+        pd.DataFrame(is_rows)
+        if is_rows
+        else pd.DataFrame(
+            columns=["Process_ID", "IS_Parameter_type", "IS_Parameter_Value"]
+        )
     )
 
     # ── Empty placeholder sheets ─────────────────────────────────────────────
@@ -2565,7 +2691,8 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
         if fomp.get("outflow_id_2"):
             _fr("output_environmental_id", fomp["outflow_id_2"])
     result["3_2_Definition_FOMP"] = (
-        pd.DataFrame(fomp_rows) if fomp_rows
+        pd.DataFrame(fomp_rows)
+        if fomp_rows
         else pd.DataFrame(columns=["Process_ID", "Parameter_Name", "Value"])
     )
 
@@ -2579,22 +2706,35 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
         pid = p.get("id")
         cats = (p.get("dsm") or {}).get("categories") or [{}]
         for ci, cat in enumerate(cats, 1):
-            dsm_rows.append({
-                "Process_ID":      pid,
-                "Category_ID":     ci,
-                "Category_Name":   cat.get("name", f"Cat_{ci}"),
-                "Inflow_Split_[%]": cat.get("inflow_split", 1.0),
-                "Lifetime_Type":   cat.get("lifetime_type", "Normal"),
-                "Lifetime_Mean":   cat.get("lifetime_mean"),
-                "Lifetime_StdDev": cat.get("lifetime_std"),
-                "Lifetime_Shape":  cat.get("lifetime_shape"),
-                "Lifetime_Scale":  cat.get("lifetime_scale"),
-            })
+            dsm_rows.append(
+                {
+                    "Process_ID": pid,
+                    "Category_ID": ci,
+                    "Category_Name": cat.get("name", f"Cat_{ci}"),
+                    "Inflow_Split_[%]": cat.get("inflow_split", 1.0),
+                    "Lifetime_Type": cat.get("lifetime_type", "Normal"),
+                    "Lifetime_Mean": cat.get("lifetime_mean"),
+                    "Lifetime_StdDev": cat.get("lifetime_std"),
+                    "Lifetime_Shape": cat.get("lifetime_shape"),
+                    "Lifetime_Scale": cat.get("lifetime_scale"),
+                }
+            )
     result["3_1_Definition_DSM"] = (
-        pd.DataFrame(dsm_rows) if dsm_rows
-        else pd.DataFrame(columns=["Process_ID", "Category_ID", "Category_Name",
-                                   "Inflow_Split_[%]", "Lifetime_Type", "Lifetime_Mean",
-                                   "Lifetime_StdDev", "Lifetime_Shape", "Lifetime_Scale"])
+        pd.DataFrame(dsm_rows)
+        if dsm_rows
+        else pd.DataFrame(
+            columns=[
+                "Process_ID",
+                "Category_ID",
+                "Category_Name",
+                "Inflow_Split_[%]",
+                "Lifetime_Type",
+                "Lifetime_Mean",
+                "Lifetime_StdDev",
+                "Lifetime_Shape",
+                "Lifetime_Scale",
+            ]
+        )
     )
 
     # ── 3_3_Definition_LFG ─────────────────────────────────────────────────────
@@ -2610,32 +2750,49 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
         pid = p.get("id")
 
         def _lr(ptype, val, suffix=""):
-            lfg_rows.append({
-                "Process_ID": pid,
-                "LFG_Parameter_ID": f"P{pid:02d}_{ptype}{suffix}",
-                "LFG_Parameter_type": ptype,
-                "LFG_Parameter_Value": val,
-            })
+            lfg_rows.append(
+                {
+                    "Process_ID": pid,
+                    "LFG_Parameter_ID": f"P{pid:02d}_{ptype}{suffix}",
+                    "LFG_Parameter_type": ptype,
+                    "LFG_Parameter_Value": val,
+                }
+            )
 
-        for ptype, key in (("MCF", "mcf"), ("DOCf", "doc_f"), ("F_CH4", "f_ch4"),
-                           ("OX", "ox"), ("phi", "phi"), ("f_capture", "f_capture")):
+        for ptype, key in (
+            ("MCF", "mcf"),
+            ("DOCf", "doc_f"),
+            ("F_CH4", "f_ch4"),
+            ("OX", "ox"),
+            ("phi", "phi"),
+            ("f_capture", "f_capture"),
+        ):
             _lr(ptype, lfg.get(key))
-        for ptype, key in (("outflow_ch4_id", "outflow_ch4_id"),
-                           ("outflow_co2_id", "outflow_co2_id"),
-                           ("outflow_leachate_id", "outflow_leachate_id")):
+        for ptype, key in (
+            ("outflow_ch4_id", "outflow_ch4_id"),
+            ("outflow_co2_id", "outflow_co2_id"),
+            ("outflow_leachate_id", "outflow_leachate_id"),
+        ):
             if lfg.get(key):
                 _lr(ptype, lfg[key])
         for n, frac in enumerate(lfg.get("fractions", []), 1):
             j = f"_j{n}"
             _lr("Waste_Fraction_j", frac.get("name", f"Fraction_{n}"), j)
-            _lr("k_j",       frac.get("k_j"),       j)
-            _lr("DOC_j",     frac.get("doc_j"),     j)
+            _lr("k_j", frac.get("k_j"), j)
+            _lr("DOC_j", frac.get("doc_j"), j)
             _lr("f_input_j", frac.get("f_input_j"), j)
-            _lr("f_ash_j",   frac.get("f_ash_j"),   j)
+            _lr("f_ash_j", frac.get("f_ash_j"), j)
     result["3_3_Definition_LFG"] = (
-        pd.DataFrame(lfg_rows) if lfg_rows
-        else pd.DataFrame(columns=["Process_ID", "LFG_Parameter_ID",
-                                   "LFG_Parameter_type", "LFG_Parameter_Value"])
+        pd.DataFrame(lfg_rows)
+        if lfg_rows
+        else pd.DataFrame(
+            columns=[
+                "Process_ID",
+                "LFG_Parameter_ID",
+                "LFG_Parameter_type",
+                "LFG_Parameter_Value",
+            ]
+        )
     )
 
     # ── 3_4_Definition_FlowCap ─────────────────────────────────────────────────
@@ -2654,27 +2811,51 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
         cap_tc = fc.get("cap_tc_id") or ""
         if cap_series:
             for year, cap in cap_series.items():
-                fc_rows.append({
-                    "Process_ID": pid, "Flow_ID": capped,
-                    "Output_flow_type": "Capped_Output",
-                    "Year": (None if str(year) == "0" else int(year)), "Flow": cap,
-                    "Cap_TC_ID": cap_tc,
-                })
+                fc_rows.append(
+                    {
+                        "Process_ID": pid,
+                        "Flow_ID": capped,
+                        "Output_flow_type": "Capped_Output",
+                        "Year": (None if str(year) == "0" else int(year)),
+                        "Flow": cap,
+                        "Cap_TC_ID": cap_tc,
+                    }
+                )
         else:
-            fc_rows.append({
-                "Process_ID": pid, "Flow_ID": capped,
-                "Output_flow_type": "Capped_Output", "Year": None, "Flow": None,
-                "Cap_TC_ID": cap_tc,
-            })
+            fc_rows.append(
+                {
+                    "Process_ID": pid,
+                    "Flow_ID": capped,
+                    "Output_flow_type": "Capped_Output",
+                    "Year": None,
+                    "Flow": None,
+                    "Cap_TC_ID": cap_tc,
+                }
+            )
         if fc.get("overflow_flow_id"):
-            fc_rows.append({
-                "Process_ID": pid, "Flow_ID": fc["overflow_flow_id"],
-                "Output_flow_type": "Overflow", "Year": None, "Flow": None, "Cap_TC_ID": "",
-            })
+            fc_rows.append(
+                {
+                    "Process_ID": pid,
+                    "Flow_ID": fc["overflow_flow_id"],
+                    "Output_flow_type": "Overflow",
+                    "Year": None,
+                    "Flow": None,
+                    "Cap_TC_ID": "",
+                }
+            )
     result["3_4_Definition_FlowCap"] = (
-        pd.DataFrame(fc_rows) if fc_rows
-        else pd.DataFrame(columns=["Process_ID", "Flow_ID", "Output_flow_type",
-                                   "Year", "Flow", "Cap_TC_ID"])
+        pd.DataFrame(fc_rows)
+        if fc_rows
+        else pd.DataFrame(
+            columns=[
+                "Process_ID",
+                "Flow_ID",
+                "Output_flow_type",
+                "Year",
+                "Flow",
+                "Cap_TC_ID",
+            ]
+        )
     )
 
     # ── 4_1_Uncertainty_Parameters ────────────────────────────────────────────
@@ -2682,25 +2863,40 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
     mc_rows = []
     for p in mc_params_yaml:
         enabled = p.get("enabled", True)
-        mc_rows.append({
-            "MC_Parameter_ID":        p.get("parameter_id", ""),
-            "MC_Parameter_Selection": "✓" if enabled else None,
-            "Distribution_Type":      p.get("distribution", "normal"),
-            "Mean":                   p.get("mean"),
-            "StdDev":                 p.get("std"),
-            "Min":                    p.get("min"),
-            "Max":                    p.get("max"),
-            "Mode":                   p.get("mode"),
-            "MC_Operation":           p.get("operation", "set"),
-            "MC_Start_Year":          p.get("start_year"),
-            "MC_End_Year":            p.get("end_year"),
-            "MC_Flow_Group":          p.get("flow_group"),
-        })
+        mc_rows.append(
+            {
+                "MC_Parameter_ID": p.get("parameter_id", ""),
+                "MC_Parameter_Selection": "✓" if enabled else None,
+                "Distribution_Type": p.get("distribution", "normal"),
+                "Mean": p.get("mean"),
+                "StdDev": p.get("std"),
+                "Min": p.get("min"),
+                "Max": p.get("max"),
+                "Mode": p.get("mode"),
+                "MC_Operation": p.get("operation", "set"),
+                "MC_Start_Year": p.get("start_year"),
+                "MC_End_Year": p.get("end_year"),
+                "MC_Flow_Group": p.get("flow_group"),
+            }
+        )
     result["4_1_Uncertainty_Parameters"] = (
-        pd.DataFrame(mc_rows) if mc_rows else pd.DataFrame(
-            columns=["MC_Parameter_ID", "MC_Parameter_Selection", "Distribution_Type",
-                     "Mean", "StdDev", "Min", "Max", "Mode",
-                     "MC_Operation", "MC_Start_Year", "MC_End_Year", "MC_Flow_Group"]
+        pd.DataFrame(mc_rows)
+        if mc_rows
+        else pd.DataFrame(
+            columns=[
+                "MC_Parameter_ID",
+                "MC_Parameter_Selection",
+                "Distribution_Type",
+                "Mean",
+                "StdDev",
+                "Min",
+                "Max",
+                "Mode",
+                "MC_Operation",
+                "MC_Start_Year",
+                "MC_End_Year",
+                "MC_Flow_Group",
+            ]
         )
     )
 
@@ -2718,19 +2914,31 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
             pname = (m.get("parameter_name") or "").strip()
             if not pname:
                 continue
-            scen_rows.append({
-                "Scenario_Name":  sname,
-                "Parameter_Name": pname,
-                "Parameter_Type": m.get("parameter_type", "") or "",
-                "Operation":      (m.get("operation") or "replace"),
-                "New_Value":      float(m.get("new_value") or 0.0),
-                "start_year":     m.get("start_year"),
-                "end_year":       m.get("end_year"),
-            })
+            scen_rows.append(
+                {
+                    "Scenario_Name": sname,
+                    "Parameter_Name": pname,
+                    "Parameter_Type": m.get("parameter_type", "") or "",
+                    "Operation": (m.get("operation") or "replace"),
+                    "New_Value": float(m.get("new_value") or 0.0),
+                    "start_year": m.get("start_year"),
+                    "end_year": m.get("end_year"),
+                }
+            )
     result["5_1_Scenario_Manager"] = (
-        pd.DataFrame(scen_rows) if scen_rows
-        else pd.DataFrame(columns=["Scenario_Name", "Parameter_Name", "Parameter_Type",
-                                   "Operation", "New_Value", "start_year", "end_year"])
+        pd.DataFrame(scen_rows)
+        if scen_rows
+        else pd.DataFrame(
+            columns=[
+                "Scenario_Name",
+                "Parameter_Name",
+                "Parameter_Type",
+                "Operation",
+                "New_Value",
+                "start_year",
+                "end_year",
+            ]
+        )
     )
 
     # ── 3_3_Definition_BOM_Assembly ────────────────────────────────────────────
@@ -2739,7 +2947,11 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
     # values (the engine reads these and cascades them to absolute via the
     # element hierarchy). Material (n=1) is the total mass, never a BOM fraction.
     proc_tc_cfg = {
-        p.get("id"): (p.get("tc_config") if p.get("tc_config") in ("Static", "Dynamic") else "No TC")
+        p.get("id"): (
+            p.get("tc_config")
+            if p.get("tc_config") in ("Static", "Dynamic")
+            else "No TC"
+        )
         for p in processes
     }
     bom_rows = []
@@ -2752,8 +2964,8 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
                 continue
             ftype = bf.get("output_flow_type", "")
             row = {
-                "Process_ID":       pid,
-                "Flow_ID":          fid,
+                "Process_ID": pid,
+                "Flow_ID": fid,
                 "Output_flow_type": ftype,
                 "TC_Configuration": tc_cfg,
             }
@@ -2765,12 +2977,15 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
                     row[f"E{idx + 1}_TC_Value[%]"] = fracs.get(elem)
             bom_rows.append(row)
     result["3_3_Definition_BOM_Assembly"] = (
-        pd.DataFrame(bom_rows) if bom_rows else
-        pd.DataFrame(columns=["Process_ID", "Flow_ID", "Output_flow_type", "TC_Configuration"])
+        pd.DataFrame(bom_rows)
+        if bom_rows
+        else pd.DataFrame(
+            columns=["Process_ID", "Flow_ID", "Output_flow_type", "TC_Configuration"]
+        )
     )
 
     n_static = len(static_rows)
-    n_dyn    = len(dyn_rows)
+    n_dyn = len(dyn_rows)
     print(
         f"   ✓ YAML→DataFrames: {len(processes)} processes, {len(flows)} flows, "
         f"{n_static} static-TC rows, {n_dyn} dynamic-TC rows, {len(mc_rows)} MC params, "

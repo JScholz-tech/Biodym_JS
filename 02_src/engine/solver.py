@@ -112,7 +112,7 @@ def calculate_final_balances(mfa_system, dsm_processes=None, fomp_processes=None
     # Skip DSM and FOMP processes — both models write correct stock values directly
     special_processes = dsm_processes | fomp_processes
 
-    print(f"--> Calculating final stock balances for non-DSM processes...")
+    print("--> Calculating final stock balances for non-DSM processes...")
     print(f"    special_processes (skip list): {sorted(special_processes)}")
 
     for pid in {p.ID for p in mfa_system.ProcessList}:
@@ -232,10 +232,13 @@ def _calculate_tc_driven_flows(
     """
     something_changed = False
     flow_iter = (
-        (name, mfa_system.FlowDict[name]) for name in sorted_flow_names
-        if name in mfa_system.FlowDict
-    ) if sorted_flow_names is not None else (
-        (flow.Name, flow) for flow in mfa_system.FlowDict.values()
+        (
+            (name, mfa_system.FlowDict[name])
+            for name in sorted_flow_names
+            if name in mfa_system.FlowDict
+        )
+        if sorted_flow_names is not None
+        else ((flow.Name, flow) for flow in mfa_system.FlowDict.values())
     )
     for _name, flow in flow_iter:
         if flow.P_Start in special_processes or hasattr(flow, "_fomp_protected"):
@@ -355,7 +358,9 @@ def _calculate_tc_driven_flows(
     return something_changed
 
 
-def _calculate_dsm_flows(mfa_system, dsm_processes, dsm_params, iteration, flow_tc_map=None):
+def _calculate_dsm_flows(
+    mfa_system, dsm_processes, dsm_params, iteration, flow_tc_map=None
+):
     """Calculates all stocks and flows for Dynamic Stock Model (DSM) processes.
 
     For each DSM process with valid inputs, this function calls the core DSM
@@ -391,11 +396,12 @@ def _calculate_dsm_flows(mfa_system, dsm_processes, dsm_params, iteration, flow_
         ]
         total_inflow_sum = sum(np.sum(f.Values) for f in inflows_to_dsm)
 
-        inflow_names = [f.Name for f in inflows_to_dsm]
-
         # Also run when initial stock exists, even if no new inflows yet
         _stock_cfg = dsm_params.get(process_id, {}).get("stock_configuration", "Stock")
-        if _stock_cfg in ("Stock_with_InitialStock_Cohort", "Stock_with_InitialStock_Decay"):
+        if _stock_cfg in (
+            "Stock_with_InitialStock_Cohort",
+            "Stock_with_InitialStock_Decay",
+        ):
             _s_chk = mfa_system.StockDict.get(f"S_{process_id}")
             _has_initial = _s_chk is not None and float(_s_chk.Values[0, 0]) > 0
         else:
@@ -453,7 +459,7 @@ def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
     # Check if required elements exist for FOMP
     # Accept "TC" (new hierarchy with TC/TOC/TIC) or "CC" (legacy naming)
     _tc_name = next((e for e in ("TC", "CC") if e in mfa_system.Elements), None)
-    missing_elements = (["DM"] if "DM" not in mfa_system.Elements else [])
+    missing_elements = ["DM"] if "DM" not in mfa_system.Elements else []
     if _tc_name is None:
         missing_elements.append("TC or CC")
 
@@ -540,12 +546,12 @@ def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
             mfa_system, {process_id: fomp_params[process_id]}, composition
         )
         fomp_details[process_id] = {
-            "stock_labile":           proc_pool_data["stock_labile"],
-            "stock_recalcitrant":     proc_pool_data["stock_recalcitrant"],
-            "stock_tc_labile":        proc_pool_data["stock_tc_labile"],
-            "stock_tc_recalcitrant":  proc_pool_data["stock_tc_recalcitrant"],
-            "decay_tc_labile":        proc_pool_data["decay_tc_labile"],
-            "decay_tc_recalcitrant":  proc_pool_data["decay_tc_recalcitrant"],
+            "stock_labile": proc_pool_data["stock_labile"],
+            "stock_recalcitrant": proc_pool_data["stock_recalcitrant"],
+            "stock_tc_labile": proc_pool_data["stock_tc_labile"],
+            "stock_tc_recalcitrant": proc_pool_data["stock_tc_recalcitrant"],
+            "decay_tc_labile": proc_pool_data["decay_tc_labile"],
+            "decay_tc_recalcitrant": proc_pool_data["decay_tc_recalcitrant"],
         }
 
         for out_flow in fomp_outflows:
@@ -588,9 +594,7 @@ def _calculate_lfg_flows(mfa_system, lfg_processes, lfg_params):
         inflows_to_lfg = [
             f for f in mfa_system.FlowDict.values() if f.P_End == process_id
         ]
-        if not (
-            inflows_to_lfg and all(np.any(f.Values != 0) for f in inflows_to_lfg)
-        ):
+        if not (inflows_to_lfg and all(np.any(f.Values != 0) for f in inflows_to_lfg)):
             continue
 
         # Capture current outflow values for change detection
@@ -776,10 +780,10 @@ def run_mfa_calculation(
 
     dsm_details = {}
     fomp_details = {}
-    dsm_processes      = set(dsm_params.keys())
-    fomp_processes     = set(fomp_params.keys())
-    lfg_processes      = set(lfg_params.keys())
-    bom_processes      = set(bom_params.keys())
+    dsm_processes = set(dsm_params.keys())
+    fomp_processes = set(fomp_params.keys())
+    lfg_processes = set(lfg_params.keys())
+    bom_processes = set(bom_params.keys())
     flow_cap_processes = set(flow_cap_params.keys())
 
     # Cross-check against process_logic_map so that the Excel Process_Logic
@@ -789,32 +793,34 @@ def run_mfa_calculation(
     # sheets without that filter, so we apply it here.
     if process_logic_map:
         fomp_processes = {
-            pid for pid in fomp_processes
-            if process_logic_map.get(pid) == "FOMP"
+            pid for pid in fomp_processes if process_logic_map.get(pid) == "FOMP"
         }
         lfg_processes = {
-            pid for pid in lfg_processes
-            if process_logic_map.get(pid) == "LFG"
+            pid for pid in lfg_processes if process_logic_map.get(pid) == "LFG"
         }
         bom_processes = {
-            pid for pid in bom_processes
+            pid
+            for pid in bom_processes
             if process_logic_map.get(pid) == "BOM_Assembler"
         }
         flow_cap_processes = {
-            pid for pid in flow_cap_processes
-            if process_logic_map.get(pid) == "FlowCap"
+            pid for pid in flow_cap_processes if process_logic_map.get(pid) == "FlowCap"
         }
 
     special_processes = (
-        dsm_processes.union(fomp_processes).union(lfg_processes)
-        .union(bom_processes).union(flow_cap_processes)
+        dsm_processes.union(fomp_processes)
+        .union(lfg_processes)
+        .union(bom_processes)
+        .union(flow_cap_processes)
     )
 
     # Pre-sort flows in topological order so upstream flows are calculated
     # before downstream flows within each pass. This reduces the number of
     # iterations needed for convergence from O(chain_depth) to O(1).
     sorted_flow_names = _topological_sort_flows(mfa_system)
-    print(f"--> Flow dependency graph sorted ({len(sorted_flow_names)} flows in topological order).")
+    print(
+        f"--> Flow dependency graph sorted ({len(sorted_flow_names)} flows in topological order)."
+    )
 
     max_iterations = 30  # Safeguard against infinite loops
     convergence_log = []
@@ -853,9 +859,7 @@ def run_mfa_calculation(
 
         lfg_changed = False
         if getattr(config, "RUN_LFG_CALCULATION", True) and lfg_processes:
-            lfg_changed = _calculate_lfg_flows(
-                mfa_system, lfg_processes, lfg_params
-            )
+            lfg_changed = _calculate_lfg_flows(mfa_system, lfg_processes, lfg_params)
             pass_changes.append(lfg_changed)
 
         # --- 2.5. BOM Assembler processes ---
@@ -876,16 +880,18 @@ def run_mfa_calculation(
             pass_changes.append(flow_cap_changed)
 
         # Record per-iteration diagnostics
-        convergence_log.append({
-            "iteration":       i + 1,
-            "tc_changed":      bool(tc_changed),
-            "dsm_changed":     bool(dsm_changed),
-            "fomp_changed":    bool(fomp_changed),
-            "lfg_changed":     bool(lfg_changed),
-            "bom_changed":     bool(bom_changed),
-            "flow_cap_changed": bool(flow_cap_changed),
-            "any_changed":     any(pass_changes),
-        })
+        convergence_log.append(
+            {
+                "iteration": i + 1,
+                "tc_changed": bool(tc_changed),
+                "dsm_changed": bool(dsm_changed),
+                "fomp_changed": bool(fomp_changed),
+                "lfg_changed": bool(lfg_changed),
+                "bom_changed": bool(bom_changed),
+                "flow_cap_changed": bool(flow_cap_changed),
+                "any_changed": any(pass_changes),
+            }
+        )
 
         # --- Convergence Check ---
         if not any(pass_changes):
@@ -898,19 +904,21 @@ def run_mfa_calculation(
         )
 
     solver_info = {
-        "iterations":       i + 1,
-        "converged":        converged,
-        "max_iterations":   max_iterations,
-        "convergence_log":  convergence_log,
-        "method":           "Fixed-point iteration",
-        "fomp_details":     fomp_details,
+        "iterations": i + 1,
+        "converged": converged,
+        "max_iterations": max_iterations,
+        "convergence_log": convergence_log,
+        "method": "Fixed-point iteration",
+        "fomp_details": fomp_details,
     }
 
     # --- Final balance calculation ---
     mfa_system = calculate_final_balances(
         mfa_system,
         dsm_processes,
-        fomp_processes.union(lfg_processes).union(bom_processes).union(flow_cap_processes),
+        fomp_processes.union(lfg_processes)
+        .union(bom_processes)
+        .union(flow_cap_processes),
     )
 
     # ODYM validation after complete calculation

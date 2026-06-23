@@ -343,7 +343,11 @@ def plot_flow_composition(
             # Only update dynamic elements (NOT height/width to prevent shrinking)
             # Update title, shapes, and annotations only
             fig.update_layout(
-                title={"text": f"bioDYM - Flow Composition ({year})", "x": 0.5, "xanchor": "center"},
+                title={
+                    "text": f"bioDYM - Flow Composition ({year})",
+                    "x": 0.5,
+                    "xanchor": "center",
+                },
                 shapes=[
                     dict(
                         type="line",

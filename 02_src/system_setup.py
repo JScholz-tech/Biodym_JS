@@ -22,8 +22,8 @@ if odym_path not in sys.path:
     sys.path.insert(0, odym_path)
 
 # These are imported by main.py and are available in this namespace
-import ODYM_Classes as msc
-import data_loader
+import ODYM_Classes as msc  # noqa: E402
+import data_loader  # noqa: E402
 
 # Handle both direct import and package import
 try:
@@ -1064,7 +1064,11 @@ def apply_scenario(
                 param_type = "Flow"
             elif param_name.startswith("TC_"):
                 param_type = "TC"
-            elif "_IS_" in param_name or param_name.startswith("P") and "IS_" in param_name:
+            elif (
+                "_IS_" in param_name
+                or param_name.startswith("P")
+                and "IS_" in param_name
+            ):
                 param_type = "IS"
             elif "decay_k" in param_name or "Inflow_fraction" in param_name:
                 param_type = "FOMP"
@@ -1280,9 +1284,10 @@ def apply_scenario(
                 )
                 continue
 
-            if internal_param_name in initial_stock_configs[process_id][
-                "initial_stock_values"
-            ]:
+            if (
+                internal_param_name
+                in initial_stock_configs[process_id]["initial_stock_values"]
+            ):
                 old_value = initial_stock_configs[process_id]["initial_stock_values"][
                     internal_param_name
                 ]
@@ -1293,11 +1298,11 @@ def apply_scenario(
                 elif operation == "multiply":
                     initial_stock_configs[process_id]["initial_stock_values"][
                         internal_param_name
-                    ] = (old_value * value)
+                    ] = old_value * value
                 elif operation == "add":
                     initial_stock_configs[process_id]["initial_stock_values"][
                         internal_param_name
-                    ] = (old_value + value)
+                    ] = old_value + value
                 print(
                     f"       -> Modified IS parameter '{internal_param_name}': {old_value} -> {initial_stock_configs[process_id]['initial_stock_values'][internal_param_name]}"
                 )

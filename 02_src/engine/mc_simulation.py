@@ -38,8 +38,13 @@ def validate_mc_parameters(mc_params_df, mfa_system, uncertainty_params=None):
     warnings = []
     validated_params = mc_params_df.copy()
     # Normalise column name: new sheets use MC_Parameter_ID, legacy uses Parameter_Name
-    if "MC_Parameter_ID" in validated_params.columns and "Parameter_Name" not in validated_params.columns:
-        validated_params = validated_params.rename(columns={"MC_Parameter_ID": "Parameter_Name"})
+    if (
+        "MC_Parameter_ID" in validated_params.columns
+        and "Parameter_Name" not in validated_params.columns
+    ):
+        validated_params = validated_params.rename(
+            columns={"MC_Parameter_ID": "Parameter_Name"}
+        )
 
     # Check for dynamic TC conflicts
     dynamic_tc_processes = set()
@@ -78,9 +83,7 @@ def validate_mc_parameters(mc_params_df, mfa_system, uncertainty_params=None):
             if process_id not in checked_processes:
                 checked_processes.add(process_id)
                 process_flows = [
-                    f
-                    for f in mfa_system.FlowDict.values()
-                    if f.P_Start == process_id
+                    f for f in mfa_system.FlowDict.values() if f.P_Start == process_id
                 ]
                 if len(process_flows) > 1:
                     # Count TCs for this process (both standard and element-specific formats)
@@ -322,28 +325,38 @@ def apply_dsm_parameter_updates(dsm_params, sampled_params):
 
             # Map parameter to DSM structure and apply sampled value
             if param_base == "DSM_Lifetime_Mean":
-                if category_idx < len(updated_dsm_params[process_id]["lifetimes"]["Mean"]):
+                if category_idx < len(
+                    updated_dsm_params[process_id]["lifetimes"]["Mean"]
+                ):
                     updated_dsm_params[process_id]["lifetimes"]["Mean"][
                         category_idx
                     ] = sampled_value
             elif param_base == "DSM_Lifetime_StdDev":
-                if category_idx < len(updated_dsm_params[process_id]["lifetimes"]["StdDev"]):
+                if category_idx < len(
+                    updated_dsm_params[process_id]["lifetimes"]["StdDev"]
+                ):
                     updated_dsm_params[process_id]["lifetimes"]["StdDev"][
                         category_idx
                     ] = sampled_value
             elif param_base == "DSM_Lifetime_Shape":
-                shapes = updated_dsm_params[process_id]["lifetimes"].setdefault("Shape", [None] * len(updated_dsm_params[process_id]["inflow_split"]))
+                shapes = updated_dsm_params[process_id]["lifetimes"].setdefault(
+                    "Shape",
+                    [None] * len(updated_dsm_params[process_id]["inflow_split"]),
+                )
                 if category_idx < len(shapes):
                     shapes[category_idx] = sampled_value
             elif param_base == "DSM_Lifetime_Scale":
-                scales = updated_dsm_params[process_id]["lifetimes"].setdefault("Scale", [None] * len(updated_dsm_params[process_id]["inflow_split"]))
+                scales = updated_dsm_params[process_id]["lifetimes"].setdefault(
+                    "Scale",
+                    [None] * len(updated_dsm_params[process_id]["inflow_split"]),
+                )
                 if category_idx < len(scales):
                     scales[category_idx] = sampled_value
             elif param_base == "DSM_Inflow_Split":
                 if category_idx < len(updated_dsm_params[process_id]["inflow_split"]):
-                    updated_dsm_params[process_id]["inflow_split"][
-                        category_idx
-                    ] = sampled_value
+                    updated_dsm_params[process_id]["inflow_split"][category_idx] = (
+                        sampled_value
+                    )
                     modified_inflow_splits.add(process_id)
 
             elif param_base.startswith("DSM_Output_") and param_base.endswith("_Split"):
@@ -373,7 +386,9 @@ def apply_dsm_parameter_updates(dsm_params, sampled_params):
         splits = updated_dsm_params[process_id]["output_splits"][cat_idx]
         total = sum(splits)
         if total > 0:
-            updated_dsm_params[process_id]["output_splits"][cat_idx] = [s / total for s in splits]
+            updated_dsm_params[process_id]["output_splits"][cat_idx] = [
+                s / total for s in splits
+            ]
 
     return updated_dsm_params
 
@@ -397,7 +412,9 @@ def apply_fomp_parameter_updates(fomp_params, sampled_params):
 
     for param_name, sampled_value in sampled_params.items():
         # Check if this is a FOMP parameter (starts with P and contains FOMP-specific keywords)
-        if param_name.startswith("P") and ("_decay_" in param_name or "_Inflow_fraction_f" in param_name):
+        if param_name.startswith("P") and (
+            "_decay_" in param_name or "_Inflow_fraction_f" in param_name
+        ):
             try:
                 # Extract process ID from parameter name (e.g., "P08_decay_k1 (Labile pool)" -> 8)
                 process_id = int(param_name[1:].split("_")[0])
@@ -468,8 +485,9 @@ def _group_tc_params(uncertainty_params):
     return tc_groups
 
 
-def normalize_tc_updates(tc_updates, mfa_system, uncertainty_params=None,
-                         max_retries=100):
+def normalize_tc_updates(
+    tc_updates, mfa_system, uncertainty_params=None, max_retries=100
+):
     """Normalizes sampled TC values so they sum to 1.0 per process and element.
 
     When ``uncertainty_params`` is provided and **all** TCs in a group have
@@ -552,9 +570,7 @@ def normalize_tc_updates(tc_updates, mfa_system, uncertainty_params=None,
                 candidate = dict(group)
             else:
                 # Resample just the TCs in this group from their distributions
-                tc_subset = {
-                    tc_name: uncertainty_params[tc_name] for tc_name in group
-                }
+                tc_subset = {tc_name: uncertainty_params[tc_name] for tc_name in group}
                 candidate = sample_parameters(tc_subset)
 
             total = sum(candidate.values())
@@ -668,7 +684,9 @@ def _run_single_mc_iteration(
         if not param_name.startswith("F_"):
             continue
         defn = uncertainty_params.get(param_name, {})
-        flow_id = defn.get("flow_id", param_name)  # strips ::N suffix to get real flow name
+        flow_id = defn.get(
+            "flow_id", param_name
+        )  # strips ::N suffix to get real flow name
         entry = {
             "value": sampled_value,
             "operation": defn.get("operation", "multiply"),
@@ -693,8 +711,9 @@ def _run_single_mc_iteration(
 
     # --- 3d. Normalize TCs per process to maintain mass balance ---
     # Pass uncertainty_params to enable rejection sampling with bounds checking
-    normalize_tc_updates(tc_updates, mfa_system_setup,
-                         uncertainty_params=uncertainty_params)
+    normalize_tc_updates(
+        tc_updates, mfa_system_setup, uncertainty_params=uncertainty_params
+    )
 
     # --- 3d2. Upgrade year-windowed TC entries to dict format (after normalization) ---
     for param_name in list(tc_updates.keys()):
@@ -712,13 +731,17 @@ def _run_single_mc_iteration(
 
     # Log sampled values for the first 3 iterations only (to verify without flooding)
     if iteration_num <= 3:
-        print(f"\n   --- Iteration {iteration_num} sampled values (post-normalization) ---")
+        print(
+            f"\n   --- Iteration {iteration_num} sampled values (post-normalization) ---"
+        )
         for param, value in sampled_params.items():
             if param.startswith("TC_"):
                 tc_val = tc_updates.get(param, value)
                 normalized_val = tc_val["value"] if isinstance(tc_val, dict) else tc_val
                 if abs(normalized_val - value) > 1e-8:
-                    print(f"   {param} = {value:.6f} -> {normalized_val:.6f} (normalized)")
+                    print(
+                        f"   {param} = {value:.6f} -> {normalized_val:.6f} (normalized)"
+                    )
                 else:
                     print(f"   {param} = {value:.6f}")
             elif param.startswith("F_"):
@@ -766,8 +789,7 @@ def _run_single_mc_iteration(
     # Using the actual S trajectory preserves the DSM model's independent stock
     # calculation, enabling detection of real mass balance discrepancies.
     boundary_processes = {
-        pid for pid, logic in process_logic_map.items()
-        if logic in ("Input", "Output")
+        pid for pid, logic in process_logic_map.items() if logic in ("Input", "Output")
     }
 
     n_elements = len(mfa_system_run.Elements)
@@ -819,8 +841,8 @@ def _run_single_mc_iteration(
         iteration_results[f"mb_input_{element_name}"] = total_input[i_elem]
 
     iteration_results["mass_balance_error_abs"] = total_abs_error.sum()
-    iteration_results["mass_balance_error_rel"] = (
-        total_abs_error.sum() / max(total_input.sum(), 1e-10)
+    iteration_results["mass_balance_error_rel"] = total_abs_error.sum() / max(
+        total_input.sum(), 1e-10
     )
 
     return iteration_results
@@ -867,9 +889,7 @@ def generate_mc_setup_report(
             elif dist == "uniform":
                 params = f"min={definition['min']}, max={definition['max']}"
             elif dist == "triangular":
-                params = (
-                    f"min={definition['min']}, mode={definition['mode']}, max={definition['max']}"
-                )
+                params = f"min={definition['min']}, mode={definition['mode']}, max={definition['max']}"
             elif dist == "lognormal":
                 params = f"mean={definition['mean']}, std={definition['std']}"
             else:
@@ -887,7 +907,6 @@ def generate_mc_setup_report(
     # 2. Parameter-to-Model Mapping
     report_lines.append("\n2. PARAMETER-TO-MODEL MAPPING:")
     process_name_map = {p.ID: p.Name for p in mfa_system.ProcessList}
-    flow_name_map = {f.Name: f for f in mfa_system.FlowDict.values()}
 
     for name in uncertainty_params:
         target = "Unknown"
@@ -899,7 +918,9 @@ def generate_mc_setup_report(
 
         if name.startswith("F_"):
             try:
-                flow_id = defn.get("flow_id", name)  # real flow name (strips ::N suffix)
+                flow_id = defn.get(
+                    "flow_id", name
+                )  # real flow name (strips ::N suffix)
                 parts = flow_id.split("_")
                 p_start, p_end = int(parts[1]), int(parts[2])
                 start_name = process_name_map.get(p_start, f"ID {p_start}")
@@ -940,7 +961,9 @@ def generate_mc_setup_report(
                     target = f"DSM parameter for non-DSM Process {process_id} ('{proc_name}') - WILL BE IGNORED"
             except (ValueError, IndexError):
                 target = "DSM parameter (could not parse process ID)"
-        elif name.startswith("P") and ("_decay_" in name or "_Inflow_fraction_f" in name):
+        elif name.startswith("P") and (
+            "_decay_" in name or "_Inflow_fraction_f" in name
+        ):
             try:
                 process_id = int(name[1:].split("_")[0])
                 proc_name = process_name_map.get(process_id, f"ID {process_id}")
@@ -1010,7 +1033,6 @@ def run_mc_simulation(
     uncertainty_params = data_loader.load_uncertainty_definitions(input_data)
     input_data.get("4_1_Uncertainty_Parameters", pd.DataFrame())
 
-
     if not uncertainty_params:
         print("\n[MC] No uncertainty parameters defined. Skipping simulation.")
         return None
@@ -1031,9 +1053,15 @@ def run_mc_simulation(
         if _flow_id not in known_flows:
             missing_flows.append(_flow_id)
     if missing_flows:
-        print("\n[MC] ERROR: The following flow IDs in MC_Parameter_ID were not found in the")
-        print("     model's FlowDict. The MC run will produce NO uncertainty for these flows.")
-        print("     Check that MC_Parameter_ID exactly matches the Flow_ID in '1_2_Data_Flows'.")
+        print(
+            "\n[MC] ERROR: The following flow IDs in MC_Parameter_ID were not found in the"
+        )
+        print(
+            "     model's FlowDict. The MC run will produce NO uncertainty for these flows."
+        )
+        print(
+            "     Check that MC_Parameter_ID exactly matches the Flow_ID in '1_2_Data_Flows'."
+        )
         print(f"     Missing: {missing_flows}")
         print(f"     Available flows: {sorted(known_flows)}")
 

@@ -125,8 +125,16 @@ def _calculate_outflow_from_inflows(total_inflow_values, params, time_vector):
             # ODYM Weibull needs Shape (k) and Scale (λ), not Mean/StdDev.
             shape_list = lt_params.get("Shape", [])
             scale_list = lt_params.get("Scale", [])
-            shape_val = shape_list[i] if i < len(shape_list) and shape_list[i] is not None else None
-            scale_val = scale_list[i] if i < len(scale_list) and scale_list[i] is not None else None
+            shape_val = (
+                shape_list[i]
+                if i < len(shape_list) and shape_list[i] is not None
+                else None
+            )
+            scale_val = (
+                scale_list[i]
+                if i < len(scale_list) and scale_list[i] is not None
+                else None
+            )
 
             if shape_val is not None and scale_val is not None:
                 print(f"  Weibull: Shape(k)={shape_val}, Scale(λ)={scale_val}")
@@ -137,7 +145,9 @@ def _calculate_outflow_from_inflows(total_inflow_values, params, time_vector):
                 }
             else:
                 # Derive from Mean/StdDev via moment matching
-                k, lam = _weibull_shape_scale_from_mean_std(mean_lifetimes[i], std_devs[i])
+                k, lam = _weibull_shape_scale_from_mean_std(
+                    mean_lifetimes[i], std_devs[i]
+                )
                 if k > 0:
                     print(
                         f"  Weibull: derived Shape(k)={k:.4f}, Scale(λ)={lam:.4f} "
@@ -166,7 +176,7 @@ def _calculate_outflow_from_inflows(total_inflow_values, params, time_vector):
             t=time_vector, i=inflow_material, lt=lt_dict
         )
         s_c = dsm_model_instance.compute_s_c_inflow_driven()  # (T, T)
-        o_c = dsm_model_instance.compute_o_c_from_s_c()       # (T, T)
+        o_c = dsm_model_instance.compute_o_c_from_s_c()  # (T, T)
 
         # Build composition matrix comp[t0, elem] = element fraction at installation year t0
         # Row t0 describes the composition of material entering in year t0.
@@ -185,8 +195,12 @@ def _calculate_outflow_from_inflows(total_inflow_values, params, time_vector):
             comp[:, elem_idx] = frac
 
         # Vintage-weighted element arrays via matrix multiply: (T,T) @ (T,E) = (T,E)
-        stock_cat = s_c @ comp if s_c is not None else np.zeros((num_years, num_elements))
-        outflow_cat = o_c @ comp if o_c is not None else np.zeros((num_years, num_elements))
+        stock_cat = (
+            s_c @ comp if s_c is not None else np.zeros((num_years, num_elements))
+        )
+        outflow_cat = (
+            o_c @ comp if o_c is not None else np.zeros((num_years, num_elements))
+        )
 
         stock_from_inflows_by_cat.append(stock_cat)
         outflow_from_inflows_by_cat.append(outflow_cat)
@@ -221,7 +235,9 @@ def _calculate_outflow_from_initial_stock(
         - outflow_from_initial_stock_ts (np.ndarray): Time series of the outflow from the initial stock.
     """
     print("\n--- Initial Stock Processing ---")
-    valid_lifetimes = [m for m in mean_lifetimes if m is not None and not np.isnan(float(m))]
+    valid_lifetimes = [
+        m for m in mean_lifetimes if m is not None and not np.isnan(float(m))
+    ]
     avg_lifetime = np.mean(valid_lifetimes) if valid_lifetimes else 0
     decay_rate_k = 1 / avg_lifetime if avg_lifetime > 0 else 0
     outflow_from_initial_stock_ts = np.zeros((num_years, num_elements))
@@ -314,41 +330,51 @@ def _calculate_outflow_from_initial_stock_cohort(
     lt_type = (type_raw[0] if isinstance(type_raw, list) else type_raw) or "Normal"
     lt_type = _canon_lifetime_type(lt_type)
 
-    lt_means  = lt_raw.get("Mean",   [0.0])
-    lt_stds   = lt_raw.get("StdDev", [0.0])
-    lt_shapes = lt_raw.get("Shape",  [None])
-    lt_scales = lt_raw.get("Scale",  [None])
-    mean_val  = float(lt_means[0])  if lt_means  and lt_means[0]  is not None else 0.0
-    std_val   = float(lt_stds[0])   if lt_stds   and lt_stds[0]   is not None else 0.0
+    lt_means = lt_raw.get("Mean", [0.0])
+    lt_stds = lt_raw.get("StdDev", [0.0])
+    lt_shapes = lt_raw.get("Shape", [None])
+    lt_scales = lt_raw.get("Scale", [None])
+    mean_val = float(lt_means[0]) if lt_means and lt_means[0] is not None else 0.0
+    std_val = float(lt_stds[0]) if lt_stds and lt_stds[0] is not None else 0.0
 
     if lt_type == "Weibull":
         shape_val = lt_shapes[0] if lt_shapes and lt_shapes[0] is not None else None
         scale_val = lt_scales[0] if lt_scales and lt_scales[0] is not None else None
         if shape_val is not None and scale_val is not None:
-            lt_dict = {"Type": "Weibull",
-                       "Shape": np.array([float(shape_val)]),
-                       "Scale": np.array([float(scale_val)])}
+            lt_dict = {
+                "Type": "Weibull",
+                "Shape": np.array([float(shape_val)]),
+                "Scale": np.array([float(scale_val)]),
+            }
         else:
             k, lam = _weibull_shape_scale_from_mean_std(mean_val, std_val)
-            lt_dict = {"Type": "Weibull",
-                       "Shape": np.array([k]),
-                       "Scale": np.array([lam])}
+            lt_dict = {
+                "Type": "Weibull",
+                "Shape": np.array([k]),
+                "Scale": np.array([lam]),
+            }
     elif std_val == 0 or lt_type == "Fixed":
         lt_dict = {"Type": "Fixed", "Mean": np.array([mean_val])}
     else:
-        lt_dict = {"Type": lt_type,
-                   "Mean": np.array([mean_val]),
-                   "StdDev": np.array([std_val])}
+        lt_dict = {
+            "Type": lt_type,
+            "Mean": np.array([mean_val]),
+            "StdDev": np.array([std_val]),
+        }
 
     if lt_dict["Type"] == "Weibull":
-        print(f"  -> Cohort lt_dict: Type=Weibull, "
-              f"Shape(k)={lt_dict['Shape'][0]:.4f}, Scale(lambda)={lt_dict['Scale'][0]:.4f}")
+        print(
+            f"  -> Cohort lt_dict: Type=Weibull, "
+            f"Shape(k)={lt_dict['Shape'][0]:.4f}, Scale(lambda)={lt_dict['Scale'][0]:.4f}"
+        )
     else:
         _mean_v = lt_dict.get("Mean", [None])[0]
-        _std_v  = lt_dict.get("StdDev", [None])[0] if "StdDev" in lt_dict else None
+        _std_v = lt_dict.get("StdDev", [None])[0] if "StdDev" in lt_dict else None
         _mean_s = f"{_mean_v:.1f}" if _mean_v is not None else "N/A"
-        _std_s  = f"{_std_v:.1f}"  if _std_v  is not None else "N/A"
-        print(f"  -> Cohort lt_dict: Type={lt_dict['Type']}, Mean={_mean_s}, StdDev={_std_s}")
+        _std_s = f"{_std_v:.1f}" if _std_v is not None else "N/A"
+        print(
+            f"  -> Cohort lt_dict: Type={lt_dict['Type']}, Mean={_mean_s}, StdDev={_std_s}"
+        )
 
     stock_ts = np.zeros((num_years, num_elements))
     outflow_ts = np.zeros((num_years, num_elements))
@@ -374,10 +400,14 @@ def _calculate_outflow_from_initial_stock_cohort(
         outflow_ts[:, elem_idx] = o_full[max_age:]
 
     if stock_ts[:, 0].max() > 0:
-        print(f"  -> Cohort initial stock: S[0]={stock_ts[0, 0]:.1f}, "
-              f"S[-1]={stock_ts[-1, 0]:.1f}, outflow[1]={outflow_ts[1, 0]:.2f}")
+        print(
+            f"  -> Cohort initial stock: S[0]={stock_ts[0, 0]:.1f}, "
+            f"S[-1]={stock_ts[-1, 0]:.1f}, outflow[1]={outflow_ts[1, 0]:.2f}"
+        )
     else:
-        print("  -> WARNING: cohort stock is all zeros — check lt_dict or age cohort params")
+        print(
+            "  -> WARNING: cohort stock is all zeros — check lt_dict or age cohort params"
+        )
 
     return stock_ts, outflow_ts
 
@@ -457,17 +487,19 @@ def _distribute_and_assign_outflows(
         if tc_val is not None:
             tc_values.append(tc_val)
         elif any_tc_defined:
-            print(f"  -> Info: No TC for DSM outflow {outflow_flows[i].Name}; "
-                  f"assigning 0 (other TCs are defined and sum to 1).")
+            print(
+                f"  -> Info: No TC for DSM outflow {outflow_flows[i].Name}; "
+                f"assigning 0 (other TCs are defined and sum to 1)."
+            )
             tc_values.append(np.zeros(num_years))
         else:
-            print(f"  -> Info: No TCs defined for any DSM outflow; using equal split.")
+            print("  -> Info: No TCs defined for any DSM outflow; using equal split.")
             tc_values.append(np.full(num_years, 1.0 / max(len(outflow_flows), 1)))
 
-    tc_array = np.vstack(tc_values)          # (num_flows, num_years)
-    tc_sums = tc_array.sum(axis=0)           # (num_years,)
+    tc_array = np.vstack(tc_values)  # (num_flows, num_years)
+    tc_sums = tc_array.sum(axis=0)  # (num_years,)
     tc_sums = np.where(tc_sums == 0, 1.0, tc_sums)
-    normalized_tcs = tc_array / tc_sums      # (num_flows, num_years)
+    normalized_tcs = tc_array / tc_sums  # (num_flows, num_years)
 
     # --- Distribute inflow-sourced outflows ---
     for cat_outflow in outflow_from_inflows_by_cat:
@@ -487,13 +519,16 @@ def _distribute_and_assign_outflows(
     # --- Assign to MFA system FlowDict ---
     for flow_idx, outflow_flow in enumerate(outflow_flows):
         mfa_system.FlowDict[outflow_flow.Name].Values[:, :] = (
-            final_outflows_from_inflows[flow_idx] + final_outflows_from_initial[flow_idx]
+            final_outflows_from_inflows[flow_idx]
+            + final_outflows_from_initial[flow_idx]
         )
 
         # Recalculate hierarchical elements (e.g. TC as fraction of DM)
         element_hierarchy = getattr(mfa_system, "_element_hierarchy", {})
         if element_hierarchy:
-            mfa_system.FlowDict[outflow_flow.Name].Values = recalculate_hierarchical_elements(
+            mfa_system.FlowDict[
+                outflow_flow.Name
+            ].Values = recalculate_hierarchical_elements(
                 mfa_system.FlowDict[outflow_flow.Name].Values,
                 elements,
                 element_hierarchy,
@@ -509,15 +544,19 @@ def _distribute_and_assign_outflows(
         f"Total outflow from initial stock (material): {float(np.sum(outflow_from_initial_stock_ts[:, 0])):.2f}"
     )
     total_assigned = sum(
-        float(np.sum(
-            (final_outflows_from_inflows[i] + final_outflows_from_initial[i])[:, 0]
-        ))
+        float(
+            np.sum(
+                (final_outflows_from_inflows[i] + final_outflows_from_initial[i])[:, 0]
+            )
+        )
         for i in range(len(outflow_flows))
     )
     print(f"Total outflow assigned to flows (material): {total_assigned:.2f}")
 
 
-def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs=None, flow_tc_map=None):
+def calculate_dynamic_stock(
+    mfa_system, dsm_params_config, initial_stock_configs=None, flow_tc_map=None
+):
     """Calculates stock and outflow for a single Dynamic Stock Model (DSM) process.
 
     This function orchestrates the DSM calculation for one process. It separates
@@ -567,16 +606,25 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
     stock_configuration = params.get("stock_configuration", "Stock")
 
     # Only read initial stock from StockDict if configuration requires it
-    if stock_configuration in ["Stock_with_InitialStock_Decay", "Stock_with_InitialStock_Cohort"]:
+    if stock_configuration in [
+        "Stock_with_InitialStock_Decay",
+        "Stock_with_InitialStock_Cohort",
+    ]:
         initial_stock_vector = (
-            stock_s.Values[0, :].copy() if stock_s is not None else np.zeros(num_elements)
+            stock_s.Values[0, :].copy()
+            if stock_s is not None
+            else np.zeros(num_elements)
         )
-        print(f"  -> Stock_Configuration: {stock_configuration} - Reading initial stock from system")
+        print(
+            f"  -> Stock_Configuration: {stock_configuration} - Reading initial stock from system"
+        )
         print(f"  -> Initial stock material: {initial_stock_vector[0]:.1f} Mg")
     else:
         # Stock_Configuration = "Stock" means zero initial stock
         initial_stock_vector = np.zeros(num_elements)
-        print(f"  -> Stock_Configuration: {stock_configuration} - Using ZERO initial stock")
+        print(
+            f"  -> Stock_Configuration: {stock_configuration} - Using ZERO initial stock"
+        )
 
     inflows = [f.Values for f in mfa_system.FlowDict.values() if f.P_End == process_id]
     total_inflow_values = (
@@ -657,8 +705,12 @@ def calculate_dynamic_stock(mfa_system, dsm_params_config, initial_stock_configs
         )
         mfa_system.StockDict[f"S_{process_id}"].Values[:, elem_idx] = elem_stock
 
-    total_stock_from_inflows = float(sum(np.sum(s[:, 0]) for s in stock_from_inflows_by_cat))
-    print(f"Total stock accumulated from inflows (material): {total_stock_from_inflows:.2f}")
+    total_stock_from_inflows = float(
+        sum(np.sum(s[:, 0]) for s in stock_from_inflows_by_cat)
+    )
+    print(
+        f"Total stock accumulated from inflows (material): {total_stock_from_inflows:.2f}"
+    )
 
     # Check for negative stocks in calculated results (check material column only)
     has_negative_stock = False

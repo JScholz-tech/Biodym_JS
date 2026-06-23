@@ -58,21 +58,25 @@ def list_case_studies() -> list[dict]:
             continue
         try:
             cfg = load_case_study(folder.name)
-            results.append({
-                "name": folder.name,
-                "elements": ", ".join(cfg.model.elements),
-                "processes": len(cfg.processes),
-                "flows": len(cfg.flows),
-                "modified": cfg_file.stat().st_mtime,
-            })
+            results.append(
+                {
+                    "name": folder.name,
+                    "elements": ", ".join(cfg.model.elements),
+                    "processes": len(cfg.processes),
+                    "flows": len(cfg.flows),
+                    "modified": cfg_file.stat().st_mtime,
+                }
+            )
         except Exception:
-            results.append({
-                "name": folder.name,
-                "elements": "—",
-                "processes": "?",
-                "flows": "?",
-                "modified": cfg_file.stat().st_mtime,
-            })
+            results.append(
+                {
+                    "name": folder.name,
+                    "elements": "—",
+                    "processes": "?",
+                    "flows": "?",
+                    "modified": cfg_file.stat().st_mtime,
+                }
+            )
     return results
 
 
@@ -92,7 +96,9 @@ def save_case_study(config: CaseStudyConfig) -> None:
     path = _config_path(config.name)
     path.parent.mkdir(parents=True, exist_ok=True)
     data = config.model_dump(mode="json")
-    text = yaml.dump(data, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    text = yaml.dump(
+        data, default_flow_style=False, allow_unicode=True, sort_keys=False
+    )
     with _lock_for(config.name):
         path.write_text(text, encoding="utf-8")
 
@@ -184,11 +190,13 @@ def save_diagram(name: str, filename: str, content: bytes) -> None:
         raise ValueError(f"Invalid case-study name: {name!r}")
     ext = Path(filename or "").suffix.lower()
     if ext not in _DIAGRAM_EXTS:
-        raise ValueError(f"Unsupported image type '{ext or '(none)'}'. "
-                         f"Allowed: {', '.join(sorted(_DIAGRAM_EXTS))}")
+        raise ValueError(
+            f"Unsupported image type '{ext or '(none)'}'. "
+            f"Allowed: {', '.join(sorted(_DIAGRAM_EXTS))}"
+        )
     folder = CASE_STUDIES_DIR / name
     folder.mkdir(parents=True, exist_ok=True)
-    for p in folder.glob("diagram.*"):   # drop any previous diagram
+    for p in folder.glob("diagram.*"):  # drop any previous diagram
         p.unlink()
     (folder / f"diagram{ext}").write_bytes(content)
 
@@ -196,6 +204,7 @@ def save_diagram(name: str, filename: str, content: bytes) -> None:
 def delete_diagram(name: str) -> None:
     import os
     import stat
+
     if not _is_safe_name(name):
         return
     folder = CASE_STUDIES_DIR / name

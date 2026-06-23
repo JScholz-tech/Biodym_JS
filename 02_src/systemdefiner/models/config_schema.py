@@ -58,10 +58,10 @@ class DsmParams(BaseModel):
 
 class LfgFraction(BaseModel):
     name: str = ""
-    k_j: float = 0.1          # decay constant (1/yr)
-    doc_j: float = 0.5        # degradable organic carbon fraction
-    f_input_j: float = 1.0    # fraction of inflow in this waste category
-    f_ash_j: float = 0.05     # ash / inert fraction
+    k_j: float = 0.1  # decay constant (1/yr)
+    doc_j: float = 0.5  # degradable organic carbon fraction
+    f_input_j: float = 1.0  # fraction of inflow in this waste category
+    f_ash_j: float = 0.05  # ash / inert fraction
 
 
 class LfgParams(BaseModel):
@@ -78,22 +78,22 @@ class LfgParams(BaseModel):
 
 
 class FlowCapParams(BaseModel):
-    capped_flow_id: str = ""      # flow that receives routed output (up to cap)
-    overflow_flow_id: str = ""    # flow that receives excess above cap
+    capped_flow_id: str = ""  # flow that receives routed output (up to cap)
+    overflow_flow_id: str = ""  # flow that receives excess above cap
     cap_series: dict[int, float] = {}  # {year: cap_value_Mg_per_yr}
-    cap_tc_id: str = ""           # optional ParameterDict key for scenario switching
+    cap_tc_id: str = ""  # optional ParameterDict key for scenario switching
 
 
 class FlowDataEntry(BaseModel):
     flow_id: str
     element: str = "material"
-    values: dict[int, float] = {}   # {year: value_Mg_per_yr}, sparse — gets interpolated
+    values: dict[int, float] = {}  # {year: value_Mg_per_yr}, sparse — gets interpolated
 
 
 class BomAssemblyFlow(BaseModel):
     flow_id: str
-    output_flow_type: str = ""          # "target_Product", "waste_flow", …
-    fractions: dict[str, float] = {}    # element -> fraction (target_Product only)
+    output_flow_type: str = ""  # "target_Product", "waste_flow", …
+    fractions: dict[str, float] = {}  # element -> fraction (target_Product only)
 
 
 class BomAssemblyEntry(BaseModel):
@@ -105,9 +105,10 @@ class InitialStockEntry(BaseModel):
     """Pre-existing stock present at t=0 for a process whose StockConfig is one
     of the InitialStock variants. Element fractions are absolute (of material),
     matching the engine: stock[element] = material_quantity × fraction."""
+
     process_id: int
-    material_quantity: float = 0.0          # Basic_Material_Quantity[UoM]
-    composition: dict[str, float] = {}      # element -> absolute fraction (0–1)
+    material_quantity: float = 0.0  # Basic_Material_Quantity[UoM]
+    composition: dict[str, float] = {}  # element -> absolute fraction (0–1)
     # Cohort / decay parameters (Stock_with_InitialStock_Cohort / _Decay)
     cohort_age_distribution_type: str = "Normal"
     cohort_mean_age: Optional[float] = None
@@ -138,6 +139,7 @@ class Flow(BaseModel):
 
 class DynamicTCPoint(BaseModel):
     """One time point in a dynamic TC: a year with element-fraction values."""
+
     year: int
     values: dict[str, float]  # element_name -> fraction (0.0–1.0)
 
@@ -145,10 +147,10 @@ class DynamicTCPoint(BaseModel):
 class TransferCoefficient(BaseModel):
     process_id: int
     flow_id: str
-    tc_type: str = "static"          # "static" or "dynamic"
-    values: dict[str, float] = {}    # static: element -> fraction
+    tc_type: str = "static"  # "static" or "dynamic"
+    values: dict[str, float] = {}  # static: element -> fraction
     time_series: list[DynamicTCPoint] = []  # dynamic: list of (year, values)
-    ref: str = ""                    # cite key from cfg.references
+    ref: str = ""  # cite key from cfg.references
 
 
 class ModelSettings(BaseModel):
@@ -165,6 +167,7 @@ class ModelSettings(BaseModel):
             v = []
         defaults = ["Product", "Component", "Material", "Element"]
         return (list(v) + defaults)[:4]
+
     input_file: str = ""
     output_file: str = ""
     run_dsm_calculation: bool = True
@@ -197,13 +200,15 @@ class ElementHierarchyRule(BaseModel):
 class FlowComposition(BaseModel):
     flow_id: str
     values: dict[str, float] = {}  # element_name -> fraction (0.0–1.0)
-    ref: str = ""                   # cite key from cfg.references
+    ref: str = ""  # cite key from cfg.references
 
 
 class ScenarioModification(BaseModel):
     parameter_name: str = ""
-    parameter_type: str = ""   # "Flow","TC","DSM","FOMP","IS", or "" for auto-detect
-    operation: str = "replace"  # scenario engine vocabulary: "replace", "multiply", "add"
+    parameter_type: str = ""  # "Flow","TC","DSM","FOMP","IS", or "" for auto-detect
+    operation: str = (
+        "replace"  # scenario engine vocabulary: "replace", "multiply", "add"
+    )
     new_value: float = 0.0
     start_year: Optional[int] = None
     end_year: Optional[int] = None
@@ -217,34 +222,34 @@ class ScenarioDefinition(BaseModel):
 
 class McParameter(BaseModel):
     parameter_id: str = ""
-    enabled: bool = True                # MC_Parameter_Selection toggle
-    distribution: str = "normal"        # uniform | normal | triangular | lognormal
-    mean: Optional[float] = None        # normal / lognormal
-    std: Optional[float] = None         # normal / lognormal (StdDev)
-    min: Optional[float] = None         # uniform / triangular / optional bound
-    max: Optional[float] = None         # uniform / triangular / optional bound
-    mode: Optional[float] = None        # triangular
-    operation: str = "set"              # set | multiply | add
+    enabled: bool = True  # MC_Parameter_Selection toggle
+    distribution: str = "normal"  # uniform | normal | triangular | lognormal
+    mean: Optional[float] = None  # normal / lognormal
+    std: Optional[float] = None  # normal / lognormal (StdDev)
+    min: Optional[float] = None  # uniform / triangular / optional bound
+    max: Optional[float] = None  # uniform / triangular / optional bound
+    mode: Optional[float] = None  # triangular
+    operation: str = "set"  # set | multiply | add
     start_year: Optional[int] = None
     end_year: Optional[int] = None
-    flow_group: Optional[str] = None    # MC_Flow_Group (optional)
+    flow_group: Optional[str] = None  # MC_Flow_Group (optional)
     ref: str = ""
 
 
 class ReferenceEntry(BaseModel):
-    cite_key: str               # BibTeX cite key from Zotero
+    cite_key: str  # BibTeX cite key from Zotero
     title: str = ""
-    authors: str = ""           # formatted author string, e.g. "Bai et al. (2019)"
+    authors: str = ""  # formatted author string, e.g. "Bai et al. (2019)"
     year: str = ""
-    item_type: str = ""         # article-journal, book, report, …
+    item_type: str = ""  # article-journal, book, report, …
     doi: str = ""
-    note: str = ""              # free-text: which value/table this reference supports
+    note: str = ""  # free-text: which value/table this reference supports
 
 
 class CaseStudyConfig(BaseModel):
     schema_version: str = "1.0"
     name: str
-    description: str = ""   # free-text notes about the study (e.g. tutorial context)
+    description: str = ""  # free-text notes about the study (e.g. tutorial context)
     model: ModelSettings = ModelSettings()
     processes: list[Process] = []
     flows: list[Flow] = []

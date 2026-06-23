@@ -47,7 +47,9 @@ app.mount("/static", StaticFiles(directory=_HERE / "static"), name="static")
 templates = Jinja2Templates(directory=_HERE / "templates")
 
 # Available in every template (base.html shows the diagram band when present).
-templates.env.globals["study_has_diagram"] = lambda name: storage.diagram_path(name) is not None
+templates.env.globals["study_has_diagram"] = (
+    lambda name: storage.diagram_path(name) is not None
+)
 
 
 def _render_markdown(text: str) -> str:
@@ -62,17 +64,44 @@ def _render_markdown(text: str) -> str:
     try:
         import markdown as _md
         import bleach as _bleach
+
         html = _md.markdown(text, extensions=["extra", "sane_lists", "nl2br"])
         allowed_tags = {
-            "p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6",
-            "ul", "ol", "li", "strong", "em", "b", "i", "code", "pre",
-            "blockquote", "a", "table", "thead", "tbody", "tr", "th", "td",
+            "p",
+            "br",
+            "hr",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            "ul",
+            "ol",
+            "li",
+            "strong",
+            "em",
+            "b",
+            "i",
+            "code",
+            "pre",
+            "blockquote",
+            "a",
+            "table",
+            "thead",
+            "tbody",
+            "tr",
+            "th",
+            "td",
         }
         allowed_attrs = {"a": ["href", "title"]}
-        clean = _bleach.clean(html, tags=allowed_tags, attributes=allowed_attrs, strip=True)
+        clean = _bleach.clean(
+            html, tags=allowed_tags, attributes=allowed_attrs, strip=True
+        )
         return _bleach.linkify(clean)
     except Exception:
         from markupsafe import escape
+
         return str(escape(text)).replace("\n", "<br>")
 
 
@@ -82,7 +111,10 @@ templates.env.filters["markdown"] = _render_markdown
 # ── Error handling ──────────────────────────────────────────────────────────
 def _error_page(request: Request, code: int, message: str):
     return templates.TemplateResponse(
-        request, "error.html", {"code": code, "message": message}, status_code=code,
+        request,
+        "error.html",
+        {"code": code, "message": message},
+        status_code=code,
     )
 
 
@@ -108,6 +140,7 @@ def _ctx(**kwargs) -> dict:
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
 
 def _slug(name: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_\-]", "_", name.strip())
@@ -138,19 +171,23 @@ def _parse_tcs_from_yaml(raw_tcs: list) -> list[TransferCoefficient]:
                 DynamicTCPoint(year=p["year"], values=p.get("values", {}))
                 for p in tc.get("time_series", [])
             ]
-            result.append(TransferCoefficient(
-                process_id=tc["process_id"],
-                flow_id=tc["flow_id"],
-                tc_type="dynamic",
-                time_series=points,
-            ))
+            result.append(
+                TransferCoefficient(
+                    process_id=tc["process_id"],
+                    flow_id=tc["flow_id"],
+                    tc_type="dynamic",
+                    time_series=points,
+                )
+            )
         else:
-            result.append(TransferCoefficient(
-                process_id=tc["process_id"],
-                flow_id=tc["flow_id"],
-                tc_type="static",
-                values=tc.get("values", {}),
-            ))
+            result.append(
+                TransferCoefficient(
+                    process_id=tc["process_id"],
+                    flow_id=tc["flow_id"],
+                    tc_type="static",
+                    values=tc.get("values", {}),
+                )
+            )
     return result
 
 
@@ -217,7 +254,9 @@ def _apply_extra_yaml(yaml_data: dict, cfg: "CaseStudyConfig") -> None:
                 )
                 for m in s.get("modifications", [])
             ]
-            cfg.scenarios.append(ScenarioDefinition(name=str(s["name"]), modifications=mods))
+            cfg.scenarios.append(
+                ScenarioDefinition(name=str(s["name"]), modifications=mods)
+            )
 
     if yaml_data.get("mc_parameters"):
         cfg.mc_parameters = [
@@ -244,7 +283,9 @@ def _apply_extra_yaml(yaml_data: dict, cfg: "CaseStudyConfig") -> None:
                 process_id=int(s["process_id"]),
                 material_quantity=float(s.get("material_quantity", 0.0) or 0.0),
                 composition={k: float(v) for k, v in s.get("composition", {}).items()},
-                cohort_age_distribution_type=s.get("cohort_age_distribution_type", "Normal"),
+                cohort_age_distribution_type=s.get(
+                    "cohort_age_distribution_type", "Normal"
+                ),
                 cohort_mean_age=s.get("cohort_mean_age"),
                 cohort_std_age=s.get("cohort_std_age"),
                 cohort_max_age=s.get("cohort_max_age"),
@@ -258,6 +299,7 @@ def _apply_extra_yaml(yaml_data: dict, cfg: "CaseStudyConfig") -> None:
 # HOME — Case study list
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @app.get("/")
 async def index(request: Request):
     studies = storage.list_case_studies()
@@ -265,9 +307,10 @@ async def index(request: Request):
 
 
 @app.post("/create-from-excel")
-async def create_from_excel(request: Request, name: str = Form(...), file: UploadFile = None):
+async def create_from_excel(
+    request: Request, name: str = Form(...), file: UploadFile = None
+):
     """Create a new case study and populate it from an Excel file in one step."""
-    import sys
     import tempfile
 
     import pandas as pd
@@ -277,12 +320,20 @@ async def create_from_excel(request: Request, name: str = Form(...), file: Uploa
     slug = _slug(name)
     if not slug:
         studies = storage.list_case_studies()
-        return templates.TemplateResponse(request, "index.html",
-            _ctx(studies=studies, import_error="Invalid name."), status_code=400)
+        return templates.TemplateResponse(
+            request,
+            "index.html",
+            _ctx(studies=studies, import_error="Invalid name."),
+            status_code=400,
+        )
     if storage.case_study_exists(slug):
         studies = storage.list_case_studies()
-        return templates.TemplateResponse(request, "index.html",
-            _ctx(studies=studies, import_error=f"Case study '{slug}' already exists."), status_code=400)
+        return templates.TemplateResponse(
+            request,
+            "index.html",
+            _ctx(studies=studies, import_error=f"Case study '{slug}' already exists."),
+            status_code=400,
+        )
 
     tmp_path: Optional[str] = None
     try:
@@ -298,8 +349,12 @@ async def create_from_excel(request: Request, name: str = Form(...), file: Uploa
         if tmp_path:
             Path(tmp_path).unlink(missing_ok=True)
         studies = storage.list_case_studies()
-        return templates.TemplateResponse(request, "index.html",
-            _ctx(studies=studies, import_error=f"Import failed: {exc}"), status_code=422)
+        return templates.TemplateResponse(
+            request,
+            "index.html",
+            _ctx(studies=studies, import_error=f"Import failed: {exc}"),
+            status_code=422,
+        )
     finally:
         if tmp_path:
             Path(tmp_path).unlink(missing_ok=True)
@@ -319,22 +374,30 @@ async def create_from_excel(request: Request, name: str = Form(...), file: Uploa
     _valid_tcs = {e.value for e in TCConfig}
 
     if yaml_data.get("processes"):
+
         def _proc_from_yaml(p: dict) -> Process:
             fomp_d = p.get("fomp")
-            dsm_d  = p.get("dsm")
-            lfg_d  = p.get("lfg")
-            fc_d   = p.get("flowcap")
+            dsm_d = p.get("dsm")
+            lfg_d = p.get("lfg")
+            fc_d = p.get("flowcap")
             return Process(
                 id=p["id"],
                 name=p.get("name", ""),
-                logic=ProcessLogic(p["logic"]) if p.get("logic") in _valid_logics else ProcessLogic.splitter,
-                stock=StockConfig(p["stock"]) if p.get("stock") in _valid_stocks else StockConfig.no_stock,
-                tc_config=TCConfig(p["tc_config"]) if p.get("tc_config") in _valid_tcs else TCConfig.no_tc,
+                logic=ProcessLogic(p["logic"])
+                if p.get("logic") in _valid_logics
+                else ProcessLogic.splitter,
+                stock=StockConfig(p["stock"])
+                if p.get("stock") in _valid_stocks
+                else StockConfig.no_stock,
+                tc_config=TCConfig(p["tc_config"])
+                if p.get("tc_config") in _valid_tcs
+                else TCConfig.no_tc,
                 fomp=FompParams(**fomp_d) if fomp_d else None,
-                dsm=DsmParams(**dsm_d)   if dsm_d  else None,
-                lfg=LfgParams(**lfg_d)   if lfg_d  else None,
+                dsm=DsmParams(**dsm_d) if dsm_d else None,
+                lfg=LfgParams(**lfg_d) if lfg_d else None,
                 flowcap=FlowCapParams(**fc_d) if fc_d else None,
             )
+
         cfg.processes = [_proc_from_yaml(p) for p in yaml_data["processes"]]
 
     if yaml_data.get("flows"):
@@ -348,7 +411,9 @@ async def create_from_excel(request: Request, name: str = Form(...), file: Uploa
             for f in yaml_data["flows"]
         ]
 
-    cfg.transfer_coefficients = _parse_tcs_from_yaml(yaml_data.get("transfer_coefficients", []))
+    cfg.transfer_coefficients = _parse_tcs_from_yaml(
+        yaml_data.get("transfer_coefficients", [])
+    )
     cfg.bom_assembly = _parse_bom_from_yaml(yaml_data.get("bom_assembly", []))
     _apply_extra_yaml(yaml_data, cfg)
 
@@ -404,8 +469,10 @@ async def clone_case_study(request: Request, name: str):
     except ValueError as exc:
         studies = storage.list_case_studies()
         return templates.TemplateResponse(
-            request, "index.html",
-            _ctx(studies=studies, import_error=str(exc)), status_code=400,
+            request,
+            "index.html",
+            _ctx(studies=studies, import_error=str(exc)),
+            status_code=400,
         )
     return RedirectResponse(f"/{new_name}", status_code=303)
 
@@ -417,9 +484,9 @@ async def clone_case_study(request: Request, name: str):
 # Supported units of measurement (mass). Used as a label only — the engine does
 # not convert between units, so this just keeps the model's unit consistent.
 _UOM_OPTIONS = [
-    ("g",  "g — grams"),
+    ("g", "g — grams"),
     ("kg", "kg — kilograms"),
-    ("t",  "t — tonnes"),
+    ("t", "t — tonnes"),
     ("Mg", "Mg — megagrams (= tonnes)"),
     ("kt", "kt — kilotonnes"),
     ("Gg", "Gg — gigagrams (= kilotonnes)"),
@@ -434,12 +501,16 @@ def _model_health(cfg) -> list[dict]:
     level is 'error' (likely breaks the engine) or 'warn' (probably unintended).
     """
     issues: list[dict] = []
-    def err(msg):  issues.append({"level": "error", "message": msg})
-    def warn(msg): issues.append({"level": "warn", "message": msg})
+
+    def err(msg):
+        issues.append({"level": "error", "message": msg})
+
+    def warn(msg):
+        issues.append({"level": "warn", "message": msg})
 
     proc_ids = {p.id for p in cfg.processes}
     flow_ids = {f.id for f in cfg.flows}
-    boundary = proc_ids | {0}   # process 0 is the implicit system boundary
+    boundary = proc_ids | {0}  # process 0 is the implicit system boundary
 
     if not cfg.processes:
         err("No processes defined.")
@@ -464,7 +535,9 @@ def _model_health(cfg) -> list[dict]:
         if p.dsm and p.dsm.categories:
             s = sum((c.inflow_split or 0.0) for c in p.dsm.categories)
             if abs(s - 1.0) > 1e-6:
-                warn(f"P{p.id} {p.name}: DSM inflow split sums to {s * 100:.1f}% (should be 100%).")
+                warn(
+                    f"P{p.id} {p.name}: DSM inflow split sums to {s * 100:.1f}% (should be 100%)."
+                )
 
     # TC-eligible processes with outgoing flows but no TCs
     _tc_elig = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm}
@@ -472,7 +545,9 @@ def _model_health(cfg) -> list[dict]:
     for p in cfg.processes:
         if p.logic in _tc_elig and p.tc_config != TCConfig.no_tc:
             if any(f.from_process == p.id for f in cfg.flows) and p.id not in tc_pids:
-                warn(f"P{p.id} {p.name}: outgoing flows but no transfer coefficients defined.")
+                warn(
+                    f"P{p.id} {p.name}: outgoing flows but no transfer coefficients defined."
+                )
 
     # Input flows without flow data
     input_pids = {p.id for p in cfg.processes if p.logic == ProcessLogic.input} | {0}
@@ -488,10 +563,14 @@ def _model_health(cfg) -> list[dict]:
             # coefficients — with TCs disabled the engine produces wrong
             # results silently, so TCs are mandatory here.
             if p.tc_config == TCConfig.no_tc:
-                err(f"P{p.id} {p.name}: BOM_Assembler requires transfer coefficients "
-                    f"(set TC Configuration to Static or Dynamic in the process editor).")
+                err(
+                    f"P{p.id} {p.name}: BOM_Assembler requires transfer coefficients "
+                    f"(set TC Configuration to Static or Dynamic in the process editor)."
+                )
             entry = next((e for e in cfg.bom_assembly if e.process_id == p.id), None)
-            if not entry or not any(bf.output_flow_type == "target_Product" for bf in entry.flows):
+            if not entry or not any(
+                bf.output_flow_type == "target_Product" for bf in entry.flows
+            ):
                 warn(f"P{p.id} {p.name}: BOM process has no target_Product flow.")
 
     # FOMP processes: must have parameters and a (sensible) primary outflow
@@ -502,35 +581,49 @@ def _model_health(cfg) -> list[dict]:
                 warn(f"P{p.id} {p.name}: FOMP process has no FOMP parameters defined.")
                 continue
             if not fm.outflow_id:
-                warn(f"P{p.id} {p.name}: FOMP process has no outflow flow defined "
-                     f"(set the decay outflow in the process editor).")
+                warn(
+                    f"P{p.id} {p.name}: FOMP process has no outflow flow defined "
+                    f"(set the decay outflow in the process editor)."
+                )
             if not (0.0 <= (fm.f_labile or 0.0) <= 1.0):
-                warn(f"P{p.id} {p.name}: FOMP labile fraction {fm.f_labile} is outside 0–1.")
+                warn(
+                    f"P{p.id} {p.name}: FOMP labile fraction {fm.f_labile} is outside 0–1."
+                )
             if (fm.k_labile or 0.0) < 0 or (fm.k_recalcitrant or 0.0) < 0:
                 warn(f"P{p.id} {p.name}: FOMP decay rate is negative.")
 
     # InitialStock processes without a defined stock
     for p in cfg.processes:
-        if p.stock in (StockConfig.initial_stock_cohort, StockConfig.initial_stock_decay):
+        if p.stock in (
+            StockConfig.initial_stock_cohort,
+            StockConfig.initial_stock_decay,
+        ):
             e = next((s for s in cfg.initial_stocks if s.process_id == p.id), None)
             if not e or (e.material_quantity or 0) <= 0:
-                warn(f"P{p.id} {p.name}: initial-stock process has no initial stock quantity.")
+                warn(
+                    f"P{p.id} {p.name}: initial-stock process has no initial stock quantity."
+                )
 
     # FlowCap processes without a defined cap (otherwise the cap is silently ignored)
     for p in cfg.processes:
         if p.logic == ProcessLogic.flowcap:
             fc = p.flowcap
             if not fc or not fc.capped_flow_id:
-                warn(f"P{p.id} {p.name}: FlowCap process has no capped flow defined "
-                     f"(set the capped/overflow flows in the process editor).")
+                warn(
+                    f"P{p.id} {p.name}: FlowCap process has no capped flow defined "
+                    f"(set the capped/overflow flows in the process editor)."
+                )
             elif not fc.cap_series:
-                warn(f"P{p.id} {p.name}: FlowCap has a capped flow but no cap values "
-                     f"(add a Year + cap to the capacity series).")
+                warn(
+                    f"P{p.id} {p.name}: FlowCap has a capped flow but no cap values "
+                    f"(add a Year + cap to the capacity series)."
+                )
 
     # Dangling outflow pointers
     def _chk(pid, pname, label, fid):
         if fid and fid not in flow_ids:
             warn(f"P{pid} {pname}: {label} '{fid}' is not a defined flow.")
+
     for p in cfg.processes:
         if p.fomp:
             _chk(p.id, p.name, "FOMP outflow", p.fomp.outflow_id)
@@ -557,9 +650,11 @@ async def case_study_overview(request: Request, name: str):
     if not storage.case_study_exists(name):
         raise HTTPException(404, f"Case study '{name}' not found")
     cfg = storage.load_case_study(name)
-    return templates.TemplateResponse(request, "case_study.html",
-                                      _ctx(cfg=cfg, health=_model_health(cfg),
-                                           uom_options=_UOM_OPTIONS))
+    return templates.TemplateResponse(
+        request,
+        "case_study.html",
+        _ctx(cfg=cfg, health=_model_health(cfg), uom_options=_UOM_OPTIONS),
+    )
 
 
 @app.post("/{name}/settings")
@@ -569,15 +664,20 @@ async def update_settings(request: Request, name: str):
     m = cfg.model
 
     def _int(key, default):
-        try: return int(form.get(key, default))
-        except (ValueError, TypeError): return default
+        try:
+            return int(form.get(key, default))
+        except (ValueError, TypeError):
+            return default
 
-    def _bool(key): return key in form   # checkbox: present = True, absent = False
+    def _bool(key):
+        return key in form  # checkbox: present = True, absent = False
 
     cfg.description = form.get("description", cfg.description)
     m.start_year = _int("start_year", m.start_year)
     m.end_year = _int("end_year", m.end_year)
-    m.unit_of_measurement = form.get("unit_of_measurement", m.unit_of_measurement).strip()
+    m.unit_of_measurement = form.get(
+        "unit_of_measurement", m.unit_of_measurement
+    ).strip()
     m.input_file = form.get("input_file", m.input_file).strip()
     m.output_file = form.get("output_file", m.output_file).strip()
     m.run_dsm_calculation = _bool("run_dsm_calculation")
@@ -597,13 +697,19 @@ async def update_settings(request: Request, name: str):
 # PROCESSES
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @app.get("/{name}/processes")
 async def processes_list(request: Request, name: str):
     cfg = storage.load_case_study(name)
     return templates.TemplateResponse(
-        request, "processes.html",
-        _ctx(cfg=cfg, logic_options=list(ProcessLogic),
-             stock_options=list(StockConfig), tc_options=list(TCConfig)),
+        request,
+        "processes.html",
+        _ctx(
+            cfg=cfg,
+            logic_options=list(ProcessLogic),
+            stock_options=list(StockConfig),
+            tc_options=list(TCConfig),
+        ),
     )
 
 
@@ -619,14 +725,18 @@ async def process_new(request: Request, name: str):
     _valid_stock = {e.value for e in StockConfig}
     _valid_tc = {e.value for e in TCConfig}
     logic_raw = form.get("logic", ProcessLogic.splitter.value)
-    logic = ProcessLogic(logic_raw) if logic_raw in _valid_logic else ProcessLogic.splitter
+    logic = (
+        ProcessLogic(logic_raw) if logic_raw in _valid_logic else ProcessLogic.splitter
+    )
     stock_raw = form.get("stock", StockConfig.no_stock.value)
     tc_raw = form.get("tc_config", "No TC")
     process = Process(
         id=new_id,
         name=form.get("name", f"Process {new_id}"),
         logic=logic,
-        stock=StockConfig(stock_raw) if stock_raw in _valid_stock else StockConfig.no_stock,
+        stock=StockConfig(stock_raw)
+        if stock_raw in _valid_stock
+        else StockConfig.no_stock,
         tc_config=TCConfig(tc_raw) if tc_raw in _valid_tc else TCConfig.no_tc,
         fomp=_parse_fomp(form) if logic == ProcessLogic.fomp else None,
         dsm=_parse_dsm(form) if logic == ProcessLogic.dsm else None,
@@ -647,10 +757,15 @@ async def process_edit_form(request: Request, name: str, pid: int):
     if not process:
         raise HTTPException(404)
     return templates.TemplateResponse(
-        request, "process_edit.html",
-        _ctx(cfg=cfg, process=process,
-             logic_options=list(ProcessLogic), stock_options=list(StockConfig),
-             tc_options=list(TCConfig)),
+        request,
+        "process_edit.html",
+        _ctx(
+            cfg=cfg,
+            process=process,
+            logic_options=list(ProcessLogic),
+            stock_options=list(StockConfig),
+            tc_options=list(TCConfig),
+        ),
     )
 
 
@@ -671,7 +786,9 @@ async def process_edit_save(request: Request, name: str, pid: int):
     tc_raw = form.get("tc_config", process.tc_config.value)
     process.name = form.get("name", process.name)
     process.logic = logic
-    process.stock = StockConfig(stock_raw) if stock_raw in _valid_stock else process.stock
+    process.stock = (
+        StockConfig(stock_raw) if stock_raw in _valid_stock else process.stock
+    )
     process.tc_config = TCConfig(tc_raw) if tc_raw in _valid_tc else TCConfig.no_tc
     process.fomp = _parse_fomp(form) if logic == ProcessLogic.fomp else None
     process.dsm = _parse_dsm(form) if logic == ProcessLogic.dsm else None
@@ -680,7 +797,10 @@ async def process_edit_save(request: Request, name: str, pid: int):
 
     # If the process no longer carries an initial stock, drop any orphaned entry
     # so it can't linger in the config (and silently feed the engine).
-    if process.stock not in (StockConfig.initial_stock_cohort, StockConfig.initial_stock_decay):
+    if process.stock not in (
+        StockConfig.initial_stock_cohort,
+        StockConfig.initial_stock_decay,
+    ):
         cfg.initial_stocks = [s for s in cfg.initial_stocks if s.process_id != pid]
 
     storage.save_case_study(cfg)
@@ -702,6 +822,7 @@ def _parse_fomp(form) -> FompParams:
             return float(v) if v else default
         except ValueError:
             return default
+
     return FompParams(
         f_labile=_flt("fomp_f_labile", 0.5),
         k_labile=_flt("fomp_k_labile", 1.0),
@@ -716,22 +837,26 @@ def _parse_dsm(form) -> DsmParams:
     categories: list[DsmCategory] = []
     i = 0
     while f"dsm_cat_{i}_lifetime_type" in form:
+
         def _flt(key, default=None):
             v = form.get(key, "").strip()
             try:
                 return float(v) if v else default
             except ValueError:
                 return default
-        categories.append(DsmCategory(
-            name=(form.get(f"dsm_cat_{i}_name") or f"Cat_{i+1}").strip(),
-            # UI shows split as a percent (0–100); stored as a 0–1 fraction.
-            inflow_split=(_flt(f"dsm_cat_{i}_inflow_split", 100.0) or 0.0) / 100.0,
-            lifetime_type=form.get(f"dsm_cat_{i}_lifetime_type", "Normal"),
-            lifetime_mean=_flt(f"dsm_cat_{i}_lifetime_mean"),
-            lifetime_std=_flt(f"dsm_cat_{i}_lifetime_std"),
-            lifetime_shape=_flt(f"dsm_cat_{i}_lifetime_shape"),
-            lifetime_scale=_flt(f"dsm_cat_{i}_lifetime_scale"),
-        ))
+
+        categories.append(
+            DsmCategory(
+                name=(form.get(f"dsm_cat_{i}_name") or f"Cat_{i + 1}").strip(),
+                # UI shows split as a percent (0–100); stored as a 0–1 fraction.
+                inflow_split=(_flt(f"dsm_cat_{i}_inflow_split", 100.0) or 0.0) / 100.0,
+                lifetime_type=form.get(f"dsm_cat_{i}_lifetime_type", "Normal"),
+                lifetime_mean=_flt(f"dsm_cat_{i}_lifetime_mean"),
+                lifetime_std=_flt(f"dsm_cat_{i}_lifetime_std"),
+                lifetime_shape=_flt(f"dsm_cat_{i}_lifetime_shape"),
+                lifetime_scale=_flt(f"dsm_cat_{i}_lifetime_scale"),
+            )
+        )
         i += 1
     if not categories:
         categories = [DsmCategory()]
@@ -742,7 +867,6 @@ def _parse_dsm(form) -> DsmParams:
 
 
 def _parse_lfg(form) -> LfgParams:
-    import re as _re
     fractions: list[LfgFraction] = []
     idx = 0
     while True:
@@ -750,22 +874,26 @@ def _parse_lfg(form) -> LfgParams:
         if name_key not in form and idx > 0:
             break
         if name_key in form:
-            fractions.append(LfgFraction(
-                name=form.get(name_key, "") or "",
-                k_j=float(form.get(f"lfg_frac_{idx}_k_j", 0.1) or 0.1),
-                doc_j=float(form.get(f"lfg_frac_{idx}_doc_j", 0.5) or 0.5),
-                f_input_j=float(form.get(f"lfg_frac_{idx}_f_input_j", 1.0) or 1.0),
-                f_ash_j=float(form.get(f"lfg_frac_{idx}_f_ash_j", 0.05) or 0.05),
-            ))
+            fractions.append(
+                LfgFraction(
+                    name=form.get(name_key, "") or "",
+                    k_j=float(form.get(f"lfg_frac_{idx}_k_j", 0.1) or 0.1),
+                    doc_j=float(form.get(f"lfg_frac_{idx}_doc_j", 0.5) or 0.5),
+                    f_input_j=float(form.get(f"lfg_frac_{idx}_f_input_j", 1.0) or 1.0),
+                    f_ash_j=float(form.get(f"lfg_frac_{idx}_f_ash_j", 0.05) or 0.05),
+                )
+            )
         idx += 1
         if idx > 50:
             break
+
     def _flt(key, default):
         v = (form.get(key) or "").strip()
         try:
             return float(v) if v else default
         except ValueError:
             return default
+
     return LfgParams(
         mcf=_flt("lfg_mcf", 1.0),
         doc_f=_flt("lfg_doc_f", 0.5),
@@ -811,6 +939,7 @@ def _parse_flowcap(form) -> Optional[FlowCapParams]:
 # ══════════════════════════════════════════════════════════════════════════════
 # FLOWS
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def _process_name(cfg, pid: int) -> str:
     """Return a process's name (falls back to ``P{id}`` if unnamed/unknown)."""
@@ -890,8 +1019,12 @@ def _purge_flow_references(cfg, flow_ids: set) -> None:
     """
     if not flow_ids:
         return
-    cfg.transfer_coefficients = [tc for tc in cfg.transfer_coefficients if tc.flow_id not in flow_ids]
-    cfg.flow_compositions = [fc for fc in cfg.flow_compositions if fc.flow_id not in flow_ids]
+    cfg.transfer_coefficients = [
+        tc for tc in cfg.transfer_coefficients if tc.flow_id not in flow_ids
+    ]
+    cfg.flow_compositions = [
+        fc for fc in cfg.flow_compositions if fc.flow_id not in flow_ids
+    ]
     cfg.flow_data = [fd for fd in cfg.flow_data if fd.flow_id not in flow_ids]
     for entry in cfg.bom_assembly:
         entry.flows = [bf for bf in entry.flows if bf.flow_id not in flow_ids]
@@ -914,8 +1047,12 @@ def _purge_flow_references(cfg, flow_ids: set) -> None:
             if p.flowcap.overflow_flow_id in flow_ids:
                 p.flowcap.overflow_flow_id = ""
     for sc in cfg.scenarios:
-        sc.modifications = [m for m in sc.modifications if m.parameter_name not in flow_ids]
-    cfg.mc_parameters = [mc for mc in cfg.mc_parameters if mc.parameter_id not in flow_ids]
+        sc.modifications = [
+            m for m in sc.modifications if m.parameter_name not in flow_ids
+        ]
+    cfg.mc_parameters = [
+        mc for mc in cfg.mc_parameters if mc.parameter_id not in flow_ids
+    ]
 
 
 def _delete_process_cascade(cfg, pid: int) -> None:
@@ -926,10 +1063,14 @@ def _delete_process_cascade(cfg, pid: int) -> None:
     now-removed flows (TCs, flow data, compositions, BOM flows, FOMP/LFG/FlowCap
     outflow pointers, scenario/MC parameters).
     """
-    orphan_flow_ids = {f.id for f in cfg.flows if f.from_process == pid or f.to_process == pid}
+    orphan_flow_ids = {
+        f.id for f in cfg.flows if f.from_process == pid or f.to_process == pid
+    }
     cfg.processes = [p for p in cfg.processes if p.id != pid]
     cfg.flows = [f for f in cfg.flows if f.from_process != pid and f.to_process != pid]
-    cfg.transfer_coefficients = [tc for tc in cfg.transfer_coefficients if tc.process_id != pid]
+    cfg.transfer_coefficients = [
+        tc for tc in cfg.transfer_coefficients if tc.process_id != pid
+    ]
     cfg.bom_assembly = [e for e in cfg.bom_assembly if e.process_id != pid]
     cfg.initial_stocks = [s for s in cfg.initial_stocks if s.process_id != pid]
     _purge_flow_references(cfg, orphan_flow_ids)
@@ -953,14 +1094,17 @@ async def flow_new(request: Request, name: str):
     requested = _g(form, "id")
     if requested and any(str(f.id) == requested for f in cfg.flows):
         return templates.TemplateResponse(
-            request, "flows.html",
+            request,
+            "flows.html",
             _ctx(cfg=cfg, flow_error=f"Flow ID '{requested}' already exists."),
             status_code=400,
         )
     flow_id = requested or _next_flow_id(cfg, from_p, to_p)
 
     # Blank name → "{from process}_{to process}".
-    flow_name = _g(form, "name") or f"{_process_name(cfg, from_p)}_{_process_name(cfg, to_p)}"
+    flow_name = (
+        _g(form, "name") or f"{_process_name(cfg, from_p)}_{_process_name(cfg, to_p)}"
+    )
 
     flow = Flow(
         id=flow_id,
@@ -979,7 +1123,9 @@ async def flow_edit_form(request: Request, name: str, fid: str):
     flow = next((f for f in cfg.flows if f.id == fid), None)
     if not flow:
         raise HTTPException(404)
-    return templates.TemplateResponse(request, "flow_edit.html", _ctx(cfg=cfg, flow=flow))
+    return templates.TemplateResponse(
+        request, "flow_edit.html", _ctx(cfg=cfg, flow=flow)
+    )
 
 
 @app.post("/{name}/flows/{fid}/edit")
@@ -995,15 +1141,22 @@ async def flow_edit_save(request: Request, name: str, fid: str):
     if new_id != fid:
         if not re.fullmatch(r"[A-Za-z0-9_\-]+", new_id):
             return templates.TemplateResponse(
-                request, "flow_edit.html",
-                _ctx(cfg=cfg, flow=flow,
-                     flow_error="Invalid Flow ID — letters, numbers, underscores and dashes only."),
+                request,
+                "flow_edit.html",
+                _ctx(
+                    cfg=cfg,
+                    flow=flow,
+                    flow_error="Invalid Flow ID — letters, numbers, underscores and dashes only.",
+                ),
                 status_code=400,
             )
         if any(str(f.id) == new_id for f in cfg.flows if f is not flow):
             return templates.TemplateResponse(
-                request, "flow_edit.html",
-                _ctx(cfg=cfg, flow=flow, flow_error=f"Flow ID '{new_id}' already exists."),
+                request,
+                "flow_edit.html",
+                _ctx(
+                    cfg=cfg, flow=flow, flow_error=f"Flow ID '{new_id}' already exists."
+                ),
                 status_code=400,
             )
         _rename_flow_id(cfg, fid, new_id)
@@ -1029,13 +1182,16 @@ async def flow_delete(name: str, fid: str):
 # TRANSFER COEFFICIENTS
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @app.get("/{name}/tcs")
 async def tcs_overview(request: Request, name: str):
     cfg = storage.load_case_study(name)
     # Only Splitter, Transformer, and DSM processes use TCs in the engine
     _tc_eligible = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm}
     tc_processes = [p for p in cfg.processes if p.logic in _tc_eligible]
-    return templates.TemplateResponse(request, "tcs.html", _ctx(cfg=cfg, tc_processes=tc_processes))
+    return templates.TemplateResponse(
+        request, "tcs.html", _ctx(cfg=cfg, tc_processes=tc_processes)
+    )
 
 
 @app.get("/{name}/tcs/{pid}")
@@ -1046,7 +1202,9 @@ async def tc_edit_form(request: Request, name: str, pid: int):
         raise HTTPException(404)
 
     outgoing_flows = [f for f in cfg.flows if f.from_process == pid]
-    existing_tcs = {tc.flow_id: tc for tc in cfg.transfer_coefficients if tc.process_id == pid}
+    existing_tcs = {
+        tc.flow_id: tc for tc in cfg.transfer_coefficients if tc.process_id == pid
+    }
     is_dynamic = process.tc_config == TCConfig.dynamic
 
     if is_dynamic:
@@ -1056,30 +1214,50 @@ async def tc_edit_form(request: Request, name: str, pid: int):
             tc = existing_tcs.get(flow.id)
             points = tc.time_series if tc else []
             for pt in points:
-                dyn_rows.append({
-                    "flow_id": flow.id,
-                    "year": pt.year,
-                    "tc_values": pt.values,
-                })
+                dyn_rows.append(
+                    {
+                        "flow_id": flow.id,
+                        "year": pt.year,
+                        "tc_values": pt.values,
+                    }
+                )
         is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
         is_transformer = process.logic == ProcessLogic.transformer
         return templates.TemplateResponse(
-            request, "tc_edit_dynamic.html",
-            _ctx(cfg=cfg, process=process, rows=dyn_rows, outgoing_flows=outgoing_flows,
-                 is_splitter=is_splitter, is_transformer=is_transformer),
+            request,
+            "tc_edit_dynamic.html",
+            _ctx(
+                cfg=cfg,
+                process=process,
+                rows=dyn_rows,
+                outgoing_flows=outgoing_flows,
+                is_splitter=is_splitter,
+                is_transformer=is_transformer,
+            ),
         )
     else:
         rows = []
         for flow in outgoing_flows:
             tc = existing_tcs.get(flow.id)
-            rows.append({"flow": flow, "tc_values": tc.values if tc else {},
-                         "tc_ref": tc.ref if tc else ""})
+            rows.append(
+                {
+                    "flow": flow,
+                    "tc_values": tc.values if tc else {},
+                    "tc_ref": tc.ref if tc else "",
+                }
+            )
         is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
         is_transformer = process.logic == ProcessLogic.transformer
         return templates.TemplateResponse(
-            request, "tc_edit.html",
-            _ctx(cfg=cfg, process=process, rows=rows,
-                 is_splitter=is_splitter, is_transformer=is_transformer),
+            request,
+            "tc_edit.html",
+            _ctx(
+                cfg=cfg,
+                process=process,
+                rows=rows,
+                is_splitter=is_splitter,
+                is_transformer=is_transformer,
+            ),
         )
 
 
@@ -1093,13 +1271,16 @@ async def tc_save(request: Request, name: str, pid: int):
         raise HTTPException(404)
 
     outgoing_flows = [f for f in cfg.flows if f.from_process == pid]
-    cfg.transfer_coefficients = [tc for tc in cfg.transfer_coefficients if tc.process_id != pid]
+    cfg.transfer_coefficients = [
+        tc for tc in cfg.transfer_coefficients if tc.process_id != pid
+    ]
 
     if process.tc_config == TCConfig.dynamic:
         # Dynamic TC save.
         # Year fields:  tc_{flow_id}_year_{idx}
         # Value fields: tc_{flow_id}_idx_{idx}_{elem}
         import re as _re
+
         # First collect all year values keyed by (flow_id, idx)
         year_map: dict[tuple[str, str], int] = {}
         for key in form.keys():
@@ -1140,8 +1321,10 @@ async def tc_save(request: Request, name: str, pid: int):
             points.sort(key=lambda p: p.year)
             cfg.transfer_coefficients.append(
                 TransferCoefficient(
-                    process_id=pid, flow_id=flow.id,
-                    tc_type="dynamic", time_series=points,
+                    process_id=pid,
+                    flow_id=flow.id,
+                    tc_type="dynamic",
+                    time_series=points,
                 )
             )
 
@@ -1154,28 +1337,47 @@ async def tc_save(request: Request, name: str, pid: int):
         validate_elements = elements[:1] if is_splitter else elements[1:]
         proc_tcs = [tc for tc in cfg.transfer_coefficients if tc.process_id == pid]
         year_sets = [set(pt.year for pt in tc.time_series) for tc in proc_tcs]
-        common_years = sorted(set.intersection(*year_sets)) if year_sets and all(year_sets) else []
+        common_years = (
+            sorted(set.intersection(*year_sets)) if year_sets and all(year_sets) else []
+        )
         errors = []
         for year in common_years:
             for elem in validate_elements:
                 total = sum(
-                    next((p.values.get(elem, 0.0) for p in tc.time_series if p.year == year), 0.0)
+                    next(
+                        (
+                            p.values.get(elem, 0.0)
+                            for p in tc.time_series
+                            if p.year == year
+                        ),
+                        0.0,
+                    )
                     for tc in proc_tcs
                 )
                 if abs(total - 1.0) > 1e-6:
-                    errors.append(f"Year {year}, {elem}: sum = {total * 100:.2f}% (must be 100%)")
+                    errors.append(
+                        f"Year {year}, {elem}: sum = {total * 100:.2f}% (must be 100%)"
+                    )
 
         if errors:
             dyn_rows = [
                 {"flow_id": flow.id, "year": pt.year, "tc_values": pt.values}
                 for flow in outgoing_flows
-                for tc in proc_tcs if tc.flow_id == flow.id
+                for tc in proc_tcs
+                if tc.flow_id == flow.id
                 for pt in tc.time_series
             ]
             return templates.TemplateResponse(
-                request, "tc_edit_dynamic.html",
-                _ctx(cfg=cfg, process=process, rows=dyn_rows, outgoing_flows=outgoing_flows,
-                     is_splitter=is_splitter, errors=errors),
+                request,
+                "tc_edit_dynamic.html",
+                _ctx(
+                    cfg=cfg,
+                    process=process,
+                    rows=dyn_rows,
+                    outgoing_flows=outgoing_flows,
+                    is_splitter=is_splitter,
+                    errors=errors,
+                ),
                 status_code=422,
             )
 
@@ -1195,8 +1397,13 @@ async def tc_save(request: Request, name: str, pid: int):
                 values[elem] = 0.0
         ref = (form.get(f"ref_{flow.id}") or "").strip()
         cfg.transfer_coefficients.append(
-            TransferCoefficient(process_id=pid, flow_id=flow.id,
-                                tc_type="static", values=values, ref=ref)
+            TransferCoefficient(
+                process_id=pid,
+                flow_id=flow.id,
+                tc_type="static",
+                values=values,
+                ref=ref,
+            )
         )
 
     # Splitter/DSM validate the material column; Transformer validates the
@@ -1213,14 +1420,37 @@ async def tc_save(request: Request, name: str, pid: int):
             errors.append(f"{elem}: sum = {total:.4f} (must be 1.0)")
 
     if errors:
-        existing_tcs = {tc.flow_id: tc for tc in cfg.transfer_coefficients if tc.process_id == pid}
-        rows = [{"flow": f,
-                 "tc_values": existing_tcs.get(f.id, TransferCoefficient(process_id=pid, flow_id=f.id, tc_type="static", values={})).values,
-                 "tc_ref": existing_tcs.get(f.id, TransferCoefficient(process_id=pid, flow_id=f.id, tc_type="static", values={})).ref}
-                for f in outgoing_flows]
+        existing_tcs = {
+            tc.flow_id: tc for tc in cfg.transfer_coefficients if tc.process_id == pid
+        }
+        rows = [
+            {
+                "flow": f,
+                "tc_values": existing_tcs.get(
+                    f.id,
+                    TransferCoefficient(
+                        process_id=pid, flow_id=f.id, tc_type="static", values={}
+                    ),
+                ).values,
+                "tc_ref": existing_tcs.get(
+                    f.id,
+                    TransferCoefficient(
+                        process_id=pid, flow_id=f.id, tc_type="static", values={}
+                    ),
+                ).ref,
+            }
+            for f in outgoing_flows
+        ]
         return templates.TemplateResponse(
-            request, "tc_edit.html",
-            _ctx(cfg=cfg, process=process, rows=rows, errors=errors, is_splitter=is_splitter),
+            request,
+            "tc_edit.html",
+            _ctx(
+                cfg=cfg,
+                process=process,
+                rows=rows,
+                errors=errors,
+                is_splitter=is_splitter,
+            ),
             status_code=422,
         )
 
@@ -1246,16 +1476,18 @@ def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
     for flow in cfg.flows:
         src = proc_names.get(flow.from_process, f"P{flow.from_process}")
         dst = proc_names.get(flow.to_process, f"P{flow.to_process}")
-        params.append({
-            "name": flow.id,
-            "label": f"{flow.id} — {flow.name} ({src} → {dst})",
-            "group": "Flows",
-            "type": "Flow",
-            "hint": f"{unit}/yr",
-            "step": "any",
-            "min": "0",
-            "max": "",
-        })
+        params.append(
+            {
+                "name": flow.id,
+                "label": f"{flow.id} — {flow.name} ({src} → {dst})",
+                "group": "Flows",
+                "type": "Flow",
+                "hint": f"{unit}/yr",
+                "step": "any",
+                "min": "0",
+                "max": "",
+            }
+        )
 
     # ── Transfer Coefficients ──────────────────────────────────────────────────
     # Iterate processes → outgoing flows so entries are generated even when no
@@ -1298,32 +1530,44 @@ def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
                         tc_pname = mat_tc_name
                     else:
                         tc_pname = f"TC_E{n}_{from_p:02d}_{to_p:02d}"
-                    cur = stored_tc.values.get(elem) if stored_tc and stored_tc.values else None
+                    cur = (
+                        stored_tc.values.get(elem)
+                        if stored_tc and stored_tc.values
+                        else None
+                    )
                     cur_str = f"  [current: {cur:.3f}]" if cur is not None else ""
-                    params.append({
-                        "name": tc_pname,
-                        "label": f"{tc_pname} — {flow.name} | {elem} (E{n}){cur_str}",
-                        "group": "TCs — Transformer (per element)",
+                    params.append(
+                        {
+                            "name": tc_pname,
+                            "label": f"{tc_pname} — {flow.name} | {elem} (E{n}){cur_str}",
+                            "group": "TCs — Transformer (per element)",
+                            "type": "TC",
+                            "hint": f"fraction 0–1  ({elem})",
+                            "step": "0.001",
+                            "min": "0",
+                            "max": "1",
+                        }
+                    )
+            else:
+                # Splitter / DSM: material TC only
+                cur = (
+                    stored_tc.values.get("material")
+                    if stored_tc and stored_tc.values
+                    else None
+                )
+                cur_str = f"  [current: {cur:.3f}]" if cur is not None else ""
+                params.append(
+                    {
+                        "name": mat_tc_name,
+                        "label": f"{mat_tc_name} — {flow.name} | material{cur_str}",
+                        "group": "TCs — Splitter / DSM (material)",
                         "type": "TC",
-                        "hint": f"fraction 0–1  ({elem})",
+                        "hint": "fraction 0–1  (material)",
                         "step": "0.001",
                         "min": "0",
                         "max": "1",
-                    })
-            else:
-                # Splitter / DSM: material TC only
-                cur = stored_tc.values.get("material") if stored_tc and stored_tc.values else None
-                cur_str = f"  [current: {cur:.3f}]" if cur is not None else ""
-                params.append({
-                    "name": mat_tc_name,
-                    "label": f"{mat_tc_name} — {flow.name} | material{cur_str}",
-                    "group": "TCs — Splitter / DSM (material)",
-                    "type": "TC",
-                    "hint": "fraction 0–1  (material)",
-                    "step": "0.001",
-                    "min": "0",
-                    "max": "1",
-                })
+                    }
+                )
 
     # ── DSM Parameters ─────────────────────────────────────────────────────────
     for proc in cfg.processes:
@@ -1334,13 +1578,60 @@ def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
         n_cats = max(len(cats), 1)
         for ci in range(1, n_cats + 1):
             cat_label = cats[ci - 1].name if ci <= len(cats) else f"Cat {ci}"
-            params.extend([
-                {"name": f"P{pid:02d}_DSM_Inflow_Split_[%]_Cat_{ci}", "label": f"P{pid:02d} {pn} — Inflow Split Cat {ci} ({cat_label})",    "group": "DSM", "type": "DSM", "hint": "fraction 0–1", "step": "0.01",  "min": "0", "max": "1"},
-                {"name": f"P{pid:02d}_DSM_Lifetime_Mean_Cat_{ci}",     "label": f"P{pid:02d} {pn} — Lifetime Mean Cat {ci} ({cat_label})",   "group": "DSM", "type": "DSM", "hint": "years",      "step": "0.1",   "min": "0", "max": ""},
-                {"name": f"P{pid:02d}_DSM_Lifetime_StdDev_Cat_{ci}",   "label": f"P{pid:02d} {pn} — Lifetime Std Dev Cat {ci} ({cat_label})","group": "DSM", "type": "DSM", "hint": "years",      "step": "0.1",   "min": "0", "max": ""},
-                {"name": f"P{pid:02d}_DSM_Lifetime_Shape_Cat_{ci}",    "label": f"P{pid:02d} {pn} — Weibull Shape Cat {ci} ({cat_label})",   "group": "DSM", "type": "DSM", "hint": "shape k>0",  "step": "0.01",  "min": "0", "max": ""},
-                {"name": f"P{pid:02d}_DSM_Lifetime_Scale_Cat_{ci}",    "label": f"P{pid:02d} {pn} — Weibull Scale Cat {ci} ({cat_label})",   "group": "DSM", "type": "DSM", "hint": "scale λ>0",  "step": "0.1",   "min": "0", "max": ""},
-            ])
+            params.extend(
+                [
+                    {
+                        "name": f"P{pid:02d}_DSM_Inflow_Split_[%]_Cat_{ci}",
+                        "label": f"P{pid:02d} {pn} — Inflow Split Cat {ci} ({cat_label})",
+                        "group": "DSM",
+                        "type": "DSM",
+                        "hint": "fraction 0–1",
+                        "step": "0.01",
+                        "min": "0",
+                        "max": "1",
+                    },
+                    {
+                        "name": f"P{pid:02d}_DSM_Lifetime_Mean_Cat_{ci}",
+                        "label": f"P{pid:02d} {pn} — Lifetime Mean Cat {ci} ({cat_label})",
+                        "group": "DSM",
+                        "type": "DSM",
+                        "hint": "years",
+                        "step": "0.1",
+                        "min": "0",
+                        "max": "",
+                    },
+                    {
+                        "name": f"P{pid:02d}_DSM_Lifetime_StdDev_Cat_{ci}",
+                        "label": f"P{pid:02d} {pn} — Lifetime Std Dev Cat {ci} ({cat_label})",
+                        "group": "DSM",
+                        "type": "DSM",
+                        "hint": "years",
+                        "step": "0.1",
+                        "min": "0",
+                        "max": "",
+                    },
+                    {
+                        "name": f"P{pid:02d}_DSM_Lifetime_Shape_Cat_{ci}",
+                        "label": f"P{pid:02d} {pn} — Weibull Shape Cat {ci} ({cat_label})",
+                        "group": "DSM",
+                        "type": "DSM",
+                        "hint": "shape k>0",
+                        "step": "0.01",
+                        "min": "0",
+                        "max": "",
+                    },
+                    {
+                        "name": f"P{pid:02d}_DSM_Lifetime_Scale_Cat_{ci}",
+                        "label": f"P{pid:02d} {pn} — Weibull Scale Cat {ci} ({cat_label})",
+                        "group": "DSM",
+                        "type": "DSM",
+                        "hint": "scale λ>0",
+                        "step": "0.1",
+                        "min": "0",
+                        "max": "",
+                    },
+                ]
+            )
 
     # ── FOMP Parameters ────────────────────────────────────────────────────────
     # Names match the Excel MC_Parameter_ID convention so imported YAMLs resolve
@@ -1348,12 +1639,50 @@ def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
         if proc.logic != ProcessLogic.fomp:
             continue
         pid, pn = proc.id, proc.name
-        params.extend([
-            {"name": f"P{pid:02d}_Inflow_fraction_f (Labile pool)",      "label": f"P{pid:02d} {pn} — Inflow frac labile",      "group": "FOMP", "type": "FOMP", "hint": "fraction 0–1", "step": "0.001",  "min": "0", "max": "1"},
-            {"name": f"P{pid:02d}_decay_k1 (Labile pool)",               "label": f"P{pid:02d} {pn} — k labile",                "group": "FOMP", "type": "FOMP", "hint": "yr⁻¹",         "step": "0.001",  "min": "0", "max": ""},
-            {"name": f"P{pid:02d}_Inflow_fraction_f (Recalcitrant pool)", "label": f"P{pid:02d} {pn} — Inflow frac recalcitrant", "group": "FOMP", "type": "FOMP", "hint": "fraction 0–1", "step": "0.001",  "min": "0", "max": "1"},
-            {"name": f"P{pid:02d}_decay_k2 (Recalcitrant pool)",          "label": f"P{pid:02d} {pn} — k recalcitrant",          "group": "FOMP", "type": "FOMP", "hint": "yr⁻¹",         "step": "0.0001", "min": "0", "max": ""},
-        ])
+        params.extend(
+            [
+                {
+                    "name": f"P{pid:02d}_Inflow_fraction_f (Labile pool)",
+                    "label": f"P{pid:02d} {pn} — Inflow frac labile",
+                    "group": "FOMP",
+                    "type": "FOMP",
+                    "hint": "fraction 0–1",
+                    "step": "0.001",
+                    "min": "0",
+                    "max": "1",
+                },
+                {
+                    "name": f"P{pid:02d}_decay_k1 (Labile pool)",
+                    "label": f"P{pid:02d} {pn} — k labile",
+                    "group": "FOMP",
+                    "type": "FOMP",
+                    "hint": "yr⁻¹",
+                    "step": "0.001",
+                    "min": "0",
+                    "max": "",
+                },
+                {
+                    "name": f"P{pid:02d}_Inflow_fraction_f (Recalcitrant pool)",
+                    "label": f"P{pid:02d} {pn} — Inflow frac recalcitrant",
+                    "group": "FOMP",
+                    "type": "FOMP",
+                    "hint": "fraction 0–1",
+                    "step": "0.001",
+                    "min": "0",
+                    "max": "1",
+                },
+                {
+                    "name": f"P{pid:02d}_decay_k2 (Recalcitrant pool)",
+                    "label": f"P{pid:02d} {pn} — k recalcitrant",
+                    "group": "FOMP",
+                    "type": "FOMP",
+                    "hint": "yr⁻¹",
+                    "step": "0.0001",
+                    "min": "0",
+                    "max": "",
+                },
+            ]
+        )
 
     # ── LFG site parameters ────────────────────────────────────────────────────
     for proc in cfg.processes:
@@ -1361,22 +1690,24 @@ def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
             continue
         pid, pn = proc.id, proc.name
         for pkey, plabel, phint in [
-            ("MCF",   "MCF",        "0–1"),
-            ("DOCf",  "DOCf",       "0–1"),
-            ("F_CH4", "F CH4",      "0–1"),
-            ("OX",    "Oxidation",  "0–1"),
-            ("phi",   "φ (phi)",    "0–1"),
+            ("MCF", "MCF", "0–1"),
+            ("DOCf", "DOCf", "0–1"),
+            ("F_CH4", "F CH4", "0–1"),
+            ("OX", "Oxidation", "0–1"),
+            ("phi", "φ (phi)", "0–1"),
         ]:
-            params.append({
-                "name": f"P{pid}_{pkey}",
-                "label": f"P{pid} {pn} — LFG {plabel}",
-                "group": "LFG",
-                "type": "Flow",
-                "hint": phint,
-                "step": "0.01",
-                "min": "0",
-                "max": "1",
-            })
+            params.append(
+                {
+                    "name": f"P{pid}_{pkey}",
+                    "label": f"P{pid} {pn} — LFG {plabel}",
+                    "group": "LFG",
+                    "type": "Flow",
+                    "hint": phint,
+                    "step": "0.01",
+                    "min": "0",
+                    "max": "1",
+                }
+            )
 
     return params
 
@@ -1385,8 +1716,11 @@ def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
 async def scenarios_list(request: Request, name: str):
     cfg = storage.load_case_study(name)
     return templates.TemplateResponse(
-        request, "scenarios.html",
-        _ctx(cfg=cfg, operations=_SCENARIO_OPERATIONS, param_types=_SCENARIO_PARAM_TYPES),
+        request,
+        "scenarios.html",
+        _ctx(
+            cfg=cfg, operations=_SCENARIO_OPERATIONS, param_types=_SCENARIO_PARAM_TYPES
+        ),
     )
 
 
@@ -1411,12 +1745,18 @@ async def scenario_edit_form(request: Request, name: str, sname: str):
     if not scenario:
         raise HTTPException(404)
     import json as _json
+
     params_json = _json.dumps(_build_scenario_params(cfg))
     return templates.TemplateResponse(
-        request, "scenario_edit.html",
-        _ctx(cfg=cfg, scenario=scenario,
-             operations=_SCENARIO_OPERATIONS, param_types=_SCENARIO_PARAM_TYPES,
-             params_json=params_json),
+        request,
+        "scenario_edit.html",
+        _ctx(
+            cfg=cfg,
+            scenario=scenario,
+            operations=_SCENARIO_OPERATIONS,
+            param_types=_SCENARIO_PARAM_TYPES,
+            params_json=params_json,
+        ),
     )
 
 
@@ -1430,31 +1770,40 @@ async def scenario_save(request: Request, name: str, sname: str):
 
     # Collect all mod indices present in form
     import re as _re
-    indices = sorted({
-        int(m.group(1))
-        for k in form.keys()
-        for m in [_re.match(r"^mod_(\d+)_", k)]
-        if m
-    })
+
+    indices = sorted(
+        {
+            int(m.group(1))
+            for k in form.keys()
+            for m in [_re.match(r"^mod_(\d+)_", k)]
+            if m
+        }
+    )
 
     mods = []
     for i in indices:
         pname = (form.get(f"mod_{i}_parameter_name") or "").strip()
         if not pname:
             continue
+
         def _opt_int(key):
             v = form.get(key, "").strip()
-            try: return int(v) if v else None
-            except ValueError: return None
-        mods.append(ScenarioModification(
-            parameter_name=pname,
-            parameter_type=(form.get(f"mod_{i}_parameter_type") or "").strip(),
-            operation=form.get(f"mod_{i}_operation", "replace"),
-            new_value=float(form.get(f"mod_{i}_new_value", 0) or 0),
-            start_year=_opt_int(f"mod_{i}_start_year"),
-            end_year=_opt_int(f"mod_{i}_end_year"),
-            ref=(form.get(f"mod_{i}_ref") or "").strip(),
-        ))
+            try:
+                return int(v) if v else None
+            except ValueError:
+                return None
+
+        mods.append(
+            ScenarioModification(
+                parameter_name=pname,
+                parameter_type=(form.get(f"mod_{i}_parameter_type") or "").strip(),
+                operation=form.get(f"mod_{i}_operation", "replace"),
+                new_value=float(form.get(f"mod_{i}_new_value", 0) or 0),
+                start_year=_opt_int(f"mod_{i}_start_year"),
+                end_year=_opt_int(f"mod_{i}_end_year"),
+                ref=(form.get(f"mod_{i}_ref") or "").strip(),
+            )
+        )
 
     scenario.modifications = mods
     storage.save_case_study(cfg)
@@ -1480,10 +1829,15 @@ def _zotero_search(query: str) -> list[dict]:
     """Query local Better BibTeX JSON-RPC. Returns [] when Zotero is not running."""
     try:
         import httpx
+
         r = httpx.post(
             _ZOTERO_RPC,
-            json={"jsonrpc": "2.0", "method": "item.search",
-                  "params": {"terms": query}, "id": 1},
+            json={
+                "jsonrpc": "2.0",
+                "method": "item.search",
+                "params": {"terms": query},
+                "id": 1,
+            },
             timeout=3.0,
         )
         data = r.json()
@@ -1499,7 +1853,7 @@ def _fmt_authors(item: dict) -> str:
     if len(authors) == 1:
         return authors[0].get("family", "")
     if len(authors) == 2:
-        return f"{authors[0].get('family','')} & {authors[1].get('family','')}"
+        return f"{authors[0].get('family', '')} & {authors[1].get('family', '')}"
     return f"{authors[0].get('family', '')} et al."
 
 
@@ -1546,7 +1900,8 @@ async def references_get(request: Request, name: str, saved: bool = False):
         raise HTTPException(404)
     cfg = storage.load_case_study(name)
     return templates.TemplateResponse(
-        request, "references.html",
+        request,
+        "references.html",
         _ctx(cfg=cfg, saved=saved),
     )
 
@@ -1560,15 +1915,17 @@ async def references_add(request: Request, name: str):
         raise HTTPException(400, "cite_key is required")
     if any(r.cite_key == cite_key for r in cfg.references):
         return RedirectResponse(f"/{name}/references?saved=1", status_code=303)
-    cfg.references.append(ReferenceEntry(
-        cite_key=cite_key,
-        title=(form.get("title") or "").strip(),
-        authors=(form.get("authors") or "").strip(),
-        year=(form.get("year") or "").strip(),
-        item_type=(form.get("item_type") or "").strip(),
-        doi=(form.get("doi") or "").strip(),
-        note=(form.get("note") or "").strip(),
-    ))
+    cfg.references.append(
+        ReferenceEntry(
+            cite_key=cite_key,
+            title=(form.get("title") or "").strip(),
+            authors=(form.get("authors") or "").strip(),
+            year=(form.get("year") or "").strip(),
+            item_type=(form.get("item_type") or "").strip(),
+            doi=(form.get("doi") or "").strip(),
+            note=(form.get("note") or "").strip(),
+        )
+    )
     storage.save_case_study(cfg)
     return RedirectResponse(f"/{name}/references?saved=1", status_code=303)
 
@@ -1602,12 +1959,15 @@ async def references_delete(request: Request, name: str):
 # EXPORT / IMPORT
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @app.get("/{name}/export")
 async def export_yaml(name: str):
-    cfg = storage.load_case_study(name)
     from systemdefiner.storage import _config_path
+
     path = _config_path(name)
-    return FileResponse(path, media_type="application/x-yaml", filename=f"{name}_config.yaml")
+    return FileResponse(
+        path, media_type="application/x-yaml", filename=f"{name}_config.yaml"
+    )
 
 
 # ── Model diagram (user-uploaded image shown in the page header) ────────────
@@ -1627,9 +1987,11 @@ async def upload_diagram(request: Request, name: str, file: UploadFile):
     try:
         storage.save_diagram(name, file.filename or "", contents)
     except ValueError as exc:
-        cfg = storage.load_case_study(name)
         return templates.TemplateResponse(
-            request, "error.html", {"code": 422, "message": str(exc)}, status_code=422,
+            request,
+            "error.html",
+            {"code": 422, "message": str(exc)},
+            status_code=422,
         )
     return RedirectResponse(f"/{name}", status_code=303)
 
@@ -1648,7 +2010,6 @@ async def import_form(request: Request, name: str):
 
 @app.post("/{name}/import")
 async def import_excel(request: Request, name: str, file: UploadFile):
-    import sys
     import tempfile
 
     import pandas as pd
@@ -1660,6 +2021,7 @@ async def import_excel(request: Request, name: str, file: UploadFile):
     if suffix in (".yaml", ".yml"):
         try:
             import yaml as _yaml
+
             contents = await file.read()
             raw = _yaml.safe_load(contents.decode("utf-8")) or {}
             raw.setdefault("name", name)
@@ -1669,7 +2031,8 @@ async def import_excel(request: Request, name: str, file: UploadFile):
             storage.save_case_study(imported)
         except Exception as exc:
             return templates.TemplateResponse(
-                request, "import.html",
+                request,
+                "import.html",
                 _ctx(cfg=cfg, error=f"YAML import failed: {exc}"),
                 status_code=422,
             )
@@ -1691,7 +2054,8 @@ async def import_excel(request: Request, name: str, file: UploadFile):
         if tmp_path:
             Path(tmp_path).unlink(missing_ok=True)
         return templates.TemplateResponse(
-            request, "import.html",
+            request,
+            "import.html",
             _ctx(cfg=cfg, error=f"Import failed: {exc}"),
             status_code=422,
         )
@@ -1711,22 +2075,30 @@ async def import_excel(request: Request, name: str, file: UploadFile):
             cfg.model.elements = m["elements"]
 
     if yaml_data.get("processes"):
+
         def _proc_from_yaml(p: dict) -> Process:
             fomp_d = p.get("fomp")
-            dsm_d  = p.get("dsm")
-            lfg_d  = p.get("lfg")
-            fc_d   = p.get("flowcap")
+            dsm_d = p.get("dsm")
+            lfg_d = p.get("lfg")
+            fc_d = p.get("flowcap")
             return Process(
                 id=p["id"],
                 name=p.get("name", ""),
-                logic=ProcessLogic(p["logic"]) if p.get("logic") in _valid_logics else ProcessLogic.splitter,
-                stock=StockConfig(p["stock"]) if p.get("stock") in _valid_stocks else StockConfig.no_stock,
-                tc_config=TCConfig(p["tc_config"]) if p.get("tc_config") in _valid_tcs else TCConfig.no_tc,
+                logic=ProcessLogic(p["logic"])
+                if p.get("logic") in _valid_logics
+                else ProcessLogic.splitter,
+                stock=StockConfig(p["stock"])
+                if p.get("stock") in _valid_stocks
+                else StockConfig.no_stock,
+                tc_config=TCConfig(p["tc_config"])
+                if p.get("tc_config") in _valid_tcs
+                else TCConfig.no_tc,
                 fomp=FompParams(**fomp_d) if fomp_d else None,
-                dsm=DsmParams(**dsm_d)   if dsm_d  else None,
-                lfg=LfgParams(**lfg_d)   if lfg_d  else None,
+                dsm=DsmParams(**dsm_d) if dsm_d else None,
+                lfg=LfgParams(**lfg_d) if lfg_d else None,
                 flowcap=FlowCapParams(**fc_d) if fc_d else None,
             )
+
         cfg.processes = [_proc_from_yaml(p) for p in yaml_data["processes"]]
 
     if yaml_data.get("flows"):
@@ -1740,7 +2112,9 @@ async def import_excel(request: Request, name: str, file: UploadFile):
             for f in yaml_data["flows"]
         ]
 
-    cfg.transfer_coefficients = _parse_tcs_from_yaml(yaml_data.get("transfer_coefficients", []))
+    cfg.transfer_coefficients = _parse_tcs_from_yaml(
+        yaml_data.get("transfer_coefficients", [])
+    )
     cfg.bom_assembly = _parse_bom_from_yaml(yaml_data.get("bom_assembly", []))
     _apply_extra_yaml(yaml_data, cfg)
 
@@ -1751,6 +2125,7 @@ async def import_excel(request: Request, name: str, file: UploadFile):
 # ══════════════════════════════════════════════════════════════════════════════
 # ELEMENT HIERARCHY
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def _rules_to_paths(rules: list) -> list[list[str]]:
     """Convert ElementHierarchyRule list to path-rows for the matrix editor."""
@@ -1790,10 +2165,12 @@ async def elements_form(request: Request, name: str):
         raise HTTPException(404)
     cfg = storage.load_case_study(name)
     import json as _json
+
     paths_json = _json.dumps(_rules_to_paths(cfg.element_hierarchy))
     elements_json = _json.dumps(cfg.model.elements)
     return templates.TemplateResponse(
-        request, "elements.html",
+        request,
+        "elements.html",
         _ctx(cfg=cfg, paths_json=paths_json, elements_json=elements_json),
     )
 
@@ -1801,6 +2178,7 @@ async def elements_form(request: Request, name: str):
 @app.post("/{name}/elements")
 async def elements_save(request: Request, name: str):
     from collections import defaultdict as _defaultdict
+
     form = await request.form()
     cfg = storage.load_case_study(name)
 
@@ -1822,8 +2200,7 @@ async def elements_save(request: Request, name: str):
 
     # ── Level names ──────────────────────────────────────────────────────────
     cfg.model.hierarchy_level_names = [
-        (form.get(f"level_name_{i}") or f"Level {i+1}").strip()
-        for i in range(4)
+        (form.get(f"level_name_{i}") or f"Level {i + 1}").strip() for i in range(4)
     ]
 
     # ── Path rows → hierarchy rules ──────────────────────────────────────────
@@ -1832,7 +2209,7 @@ async def elements_save(request: Request, name: str):
     while True:
         if f"path_{idx}_l1" not in form:
             break
-        cells = [(form.get(f"path_{idx}_l{l}") or "").strip() for l in range(1, 5)]
+        cells = [(form.get(f"path_{idx}_l{level}") or "").strip() for level in range(1, 5)]
         # Collect consecutive non-empty pairs as parent→child
         for i in range(len(cells) - 1):
             if cells[i] and cells[i + 1]:
@@ -1861,39 +2238,45 @@ async def hierarchy_redirect(name: str):
 # ══════════════════════════════════════════════════════════════════════════════
 
 _MC_DISTRIBUTIONS = ["normal", "lognormal", "uniform", "triangular"]
-_MC_OPERATIONS    = ["set", "multiply", "add"]
+_MC_OPERATIONS = ["set", "multiply", "add"]
 
 # Fields active for each distribution type
 _DIST_FIELDS = {
-    "normal":      {"mean", "std", "min", "max"},
-    "lognormal":   {"mean", "std", "min", "max"},
-    "uniform":     {"min", "max"},
-    "triangular":  {"min", "mode", "max"},
+    "normal": {"mean", "std", "min", "max"},
+    "lognormal": {"mean", "std", "min", "max"},
+    "uniform": {"min", "max"},
+    "triangular": {"min", "mode", "max"},
 }
 
 
 @app.get("/{name}/mc_parameters")
 async def mc_params_form(request: Request, name: str):
     import json as _json
+
     if not storage.case_study_exists(name):
         raise HTTPException(404)
     cfg = storage.load_case_study(name)
     params_json = _json.dumps(_build_scenario_params(cfg))
     return templates.TemplateResponse(
-        request, "mc_parameters.html",
-        _ctx(cfg=cfg, params_json=params_json,
-             distributions=_MC_DISTRIBUTIONS,
-             operations=_MC_OPERATIONS)
+        request,
+        "mc_parameters.html",
+        _ctx(
+            cfg=cfg,
+            params_json=params_json,
+            distributions=_MC_DISTRIBUTIONS,
+            operations=_MC_OPERATIONS,
+        ),
     )
 
 
 @app.post("/{name}/mc_parameters")
 async def mc_params_save(request: Request, name: str):
     import re as _re
+
     if not storage.case_study_exists(name):
         raise HTTPException(404)
-    form   = await request.form()
-    cfg    = storage.load_case_study(name)
+    form = await request.form()
+    cfg = storage.load_case_study(name)
 
     indices: set[int] = set()
     for key in form.keys():
@@ -1903,36 +2286,42 @@ async def mc_params_save(request: Request, name: str):
 
     def _f(i: int, key: str):
         v = (form.get(f"mc_{i}_{key}") or "").strip()
-        try:    return float(v) if v else None
-        except: return None
+        try:
+            return float(v) if v else None
+        except (ValueError, TypeError):
+            return None
 
     def _iv(i: int, key: str):
         v = (form.get(f"mc_{i}_{key}") or "").strip()
-        try:    return int(v) if v else None
-        except: return None
+        try:
+            return int(v) if v else None
+        except (ValueError, TypeError):
+            return None
 
     mc_params: list[McParameter] = []
     for i in sorted(indices):
         pid = (form.get(f"mc_{i}_parameter_id") or "").strip()
         if not pid:
             continue
-        dist = (form.get(f"mc_{i}_distribution") or "normal")
+        dist = form.get(f"mc_{i}_distribution") or "normal"
         active = _DIST_FIELDS.get(dist, set())
-        mc_params.append(McParameter(
-            parameter_id=pid,
-            enabled=(f"mc_{i}_enabled" in form),
-            distribution=dist,
-            mean=    _f(i, "mean")   if "mean" in active else None,
-            std=     _f(i, "std")    if "std"  in active else None,
-            min=     _f(i, "min")    if "min"  in active else None,
-            max=     _f(i, "max")    if "max"  in active else None,
-            mode=    _f(i, "mode")   if "mode" in active else None,
-            operation=(form.get(f"mc_{i}_operation") or "set"),
-            start_year=_iv(i, "start_year"),
-            end_year=  _iv(i, "end_year"),
-            flow_group=(form.get(f"mc_{i}_flow_group") or None) or None,
-            ref=(form.get(f"mc_{i}_ref") or "").strip(),
-        ))
+        mc_params.append(
+            McParameter(
+                parameter_id=pid,
+                enabled=(f"mc_{i}_enabled" in form),
+                distribution=dist,
+                mean=_f(i, "mean") if "mean" in active else None,
+                std=_f(i, "std") if "std" in active else None,
+                min=_f(i, "min") if "min" in active else None,
+                max=_f(i, "max") if "max" in active else None,
+                mode=_f(i, "mode") if "mode" in active else None,
+                operation=(form.get(f"mc_{i}_operation") or "set"),
+                start_year=_iv(i, "start_year"),
+                end_year=_iv(i, "end_year"),
+                flow_group=(form.get(f"mc_{i}_flow_group") or None) or None,
+                ref=(form.get(f"mc_{i}_ref") or "").strip(),
+            )
+        )
 
     cfg.mc_parameters = mc_params
     storage.save_case_study(cfg)
@@ -1943,9 +2332,11 @@ async def mc_params_save(request: Request, name: str):
 # FLOW COMPOSITIONS
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @app.get("/{name}/compositions")
 async def compositions_form(request: Request, name: str):
     import json as _json
+
     if not storage.case_study_exists(name):
         raise HTTPException(404)
     cfg = storage.load_case_study(name)
@@ -1954,32 +2345,43 @@ async def compositions_form(request: Request, name: str):
     input_pids.add(0)  # process 0 is always the boundary
     input_flows = [f for f in cfg.flows if f.from_process in input_pids]
     existing = {fc.flow_id: fc for fc in cfg.flow_compositions}
-    rows = [{"flow": f, "comp_values": existing[f.id].values if f.id in existing else {}}
-            for f in input_flows]
-    flow_refs = {f.id: existing[f.id].ref if f.id in existing else "" for f in input_flows}
-    hier_json = [{"parent": r.parent, "children": r.children}
-                 for r in cfg.element_hierarchy]
+    rows = [
+        {"flow": f, "comp_values": existing[f.id].values if f.id in existing else {}}
+        for f in input_flows
+    ]
+    flow_refs = {
+        f.id: existing[f.id].ref if f.id in existing else "" for f in input_flows
+    }
+    hier_json = [
+        {"parent": r.parent, "children": r.children} for r in cfg.element_hierarchy
+    ]
     # Hierarchy matrix paths (same as elements page)
     paths_json = _json.dumps(_rules_to_paths(cfg.element_hierarchy))
     # Per-flow composition values as % (×100) keyed by flow id
-    flow_comps_json = _json.dumps({
-        row["flow"].id: {
-            e: round(row["comp_values"].get(e, 0.0) * 100, 4)
-            for e in cfg.model.elements
+    flow_comps_json = _json.dumps(
+        {
+            row["flow"].id: {
+                e: round(row["comp_values"].get(e, 0.0) * 100, 4)
+                for e in cfg.model.elements
+            }
+            for row in rows
         }
-        for row in rows
-    })
-    flow_list_json = _json.dumps([
-        {"id": row["flow"].id, "name": row["flow"].name}
-        for row in rows
-    ])
+    )
+    flow_list_json = _json.dumps(
+        [{"id": row["flow"].id, "name": row["flow"].name} for row in rows]
+    )
     return templates.TemplateResponse(
-        request, "compositions.html",
-        _ctx(cfg=cfg, rows=rows, hier_json=hier_json,
-             paths_json=paths_json,
-             flow_comps_json=flow_comps_json,
-             flow_list_json=flow_list_json,
-             flow_refs=flow_refs)
+        request,
+        "compositions.html",
+        _ctx(
+            cfg=cfg,
+            rows=rows,
+            hier_json=hier_json,
+            paths_json=paths_json,
+            flow_comps_json=flow_comps_json,
+            flow_list_json=flow_list_json,
+            flow_refs=flow_refs,
+        ),
     )
 
 
@@ -1993,8 +2395,11 @@ async def compositions_save(request: Request, name: str):
     input_pids.add(0)
     input_flows = [f for f in cfg.flows if f.from_process in input_pids]
     # Keep existing compositions for flows not shown on this page
-    kept = [fc for fc in cfg.flow_compositions
-            if fc.flow_id not in {f.id for f in input_flows}]
+    kept = [
+        fc
+        for fc in cfg.flow_compositions
+        if fc.flow_id not in {f.id for f in input_flows}
+    ]
     new_comps: list[FlowComposition] = []
     for flow in input_flows:
         values: dict[str, float] = {}
@@ -2018,9 +2423,11 @@ async def compositions_save(request: Request, name: str):
 # BOM ASSEMBLY
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @app.get("/{name}/bom/{pid}")
 async def bom_edit_form(request: Request, name: str, pid: int):
     import json as _json
+
     if not storage.case_study_exists(name):
         raise HTTPException(404)
     cfg = storage.load_case_study(name)
@@ -2033,29 +2440,50 @@ async def bom_edit_form(request: Request, name: str, pid: int):
     flow_map = {bf.flow_id: bf for bf in (entry.flows if entry else [])}
     for flow in outgoing_flows:
         bf = flow_map.get(flow.id)
-        rows.append({
-            "flow": flow,
-            "output_flow_type": bf.output_flow_type if bf else "",
-            "frac_values": bf.fractions if bf else {},
-        })
+        rows.append(
+            {
+                "flow": flow,
+                "output_flow_type": bf.output_flow_type if bf else "",
+                "frac_values": bf.fractions if bf else {},
+            }
+        )
     # Hierarchy-matrix context (same layout as Flow Compositions). BOM stores
     # parent-relative fractions, so display % = stored fraction × 100 (no cascade).
-    hier_json = [{"parent": r.parent, "children": r.children} for r in cfg.element_hierarchy]
+    hier_json = [
+        {"parent": r.parent, "children": r.children} for r in cfg.element_hierarchy
+    ]
     paths_json = _json.dumps(_rules_to_paths(cfg.element_hierarchy))
-    bom_comps_json = _json.dumps({
-        row["flow"].id: {e: round(row["frac_values"].get(e, 0.0) * 100, 4)
-                         for e in cfg.model.elements}
-        for row in rows
-    })
-    flow_list_json = _json.dumps([
-        {"id": row["flow"].id, "name": row["flow"].name, "type": row["output_flow_type"]}
-        for row in rows
-    ])
+    bom_comps_json = _json.dumps(
+        {
+            row["flow"].id: {
+                e: round(row["frac_values"].get(e, 0.0) * 100, 4)
+                for e in cfg.model.elements
+            }
+            for row in rows
+        }
+    )
+    flow_list_json = _json.dumps(
+        [
+            {
+                "id": row["flow"].id,
+                "name": row["flow"].name,
+                "type": row["output_flow_type"],
+            }
+            for row in rows
+        ]
+    )
     return templates.TemplateResponse(
-        request, "bom_edit.html",
-        _ctx(cfg=cfg, process=process, rows=rows,
-             hier_json=hier_json, paths_json=paths_json,
-             bom_comps_json=bom_comps_json, flow_list_json=flow_list_json),
+        request,
+        "bom_edit.html",
+        _ctx(
+            cfg=cfg,
+            process=process,
+            rows=rows,
+            hier_json=hier_json,
+            paths_json=paths_json,
+            bom_comps_json=bom_comps_json,
+            flow_list_json=flow_list_json,
+        ),
     )
 
 
@@ -2080,11 +2508,13 @@ async def bom_save(request: Request, name: str, pid: int):
                 v = 0.0
             if v:
                 fractions[elem] = v
-        bom_flows.append(BomAssemblyFlow(
-            flow_id=flow.id,
-            output_flow_type=flow_type,
-            fractions=fractions,
-        ))
+        bom_flows.append(
+            BomAssemblyFlow(
+                flow_id=flow.id,
+                output_flow_type=flow_type,
+                fractions=fractions,
+            )
+        )
     cfg.bom_assembly = [e for e in cfg.bom_assembly if e.process_id != pid]
     cfg.bom_assembly.append(BomAssemblyEntry(process_id=pid, flows=bom_flows))
     storage.save_case_study(cfg)
@@ -2095,29 +2525,45 @@ async def bom_save(request: Request, name: str, pid: int):
 # INITIAL STOCK
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def _stock_needs_initial(process) -> bool:
     """True when the process's stock config carries a t=0 initial stock."""
-    return process.stock in (StockConfig.initial_stock_cohort, StockConfig.initial_stock_decay)
+    return process.stock in (
+        StockConfig.initial_stock_cohort,
+        StockConfig.initial_stock_decay,
+    )
 
 
 @app.get("/{name}/initial_stock/{pid}")
 async def initial_stock_form(request: Request, name: str, pid: int):
     import json as _json
+
     cfg = storage.load_case_study(name)
     process = next((p for p in cfg.processes if p.id == pid), None)
     if not process:
         raise HTTPException(404)
     entry = next((s for s in cfg.initial_stocks if s.process_id == pid), None)
     comp = entry.composition if entry else {}
-    hier_json = [{"parent": r.parent, "children": r.children} for r in cfg.element_hierarchy]
+    hier_json = [
+        {"parent": r.parent, "children": r.children} for r in cfg.element_hierarchy
+    ]
     paths_json = _json.dumps(_rules_to_paths(cfg.element_hierarchy))
     # Composition is stored absolute; matrix displays parent-relative (× 100 here).
-    comp_json = _json.dumps({e: round(comp.get(e, 0.0) * 100, 4) for e in cfg.model.elements})
+    comp_json = _json.dumps(
+        {e: round(comp.get(e, 0.0) * 100, 4) for e in cfg.model.elements}
+    )
     return templates.TemplateResponse(
-        request, "initial_stock_edit.html",
-        _ctx(cfg=cfg, process=process, entry=entry,
-             is_cohort=(process.stock == StockConfig.initial_stock_cohort),
-             hier_json=hier_json, paths_json=paths_json, comp_json=comp_json),
+        request,
+        "initial_stock_edit.html",
+        _ctx(
+            cfg=cfg,
+            process=process,
+            entry=entry,
+            is_cohort=(process.stock == StockConfig.initial_stock_cohort),
+            hier_json=hier_json,
+            paths_json=paths_json,
+            comp_json=comp_json,
+        ),
     )
 
 
@@ -2157,22 +2603,27 @@ async def initial_stock_save(request: Request, name: str, pid: int):
     # instead of leaving a zombie entry behind.
     cfg.initial_stocks = [s for s in cfg.initial_stocks if s.process_id != pid]
     if material_quantity > 0 or composition:
-        cfg.initial_stocks.append(InitialStockEntry(
-            process_id=pid,
-            material_quantity=material_quantity,
-            composition=composition,
-            cohort_age_distribution_type=(form.get("is_cohort_age_distribution_type") or "Normal"),
-            cohort_mean_age=_flt("is_cohort_mean_age"),
-            cohort_std_age=_flt("is_cohort_std_age"),
-            cohort_max_age=_iv("is_cohort_max_age"),
-            cohort_decay_constant=_flt("is_cohort_decay_constant"),
-            ref=(form.get("is_ref") or "").strip(),
-        ))
+        cfg.initial_stocks.append(
+            InitialStockEntry(
+                process_id=pid,
+                material_quantity=material_quantity,
+                composition=composition,
+                cohort_age_distribution_type=(
+                    form.get("is_cohort_age_distribution_type") or "Normal"
+                ),
+                cohort_mean_age=_flt("is_cohort_mean_age"),
+                cohort_std_age=_flt("is_cohort_std_age"),
+                cohort_max_age=_iv("is_cohort_max_age"),
+                cohort_decay_constant=_flt("is_cohort_decay_constant"),
+                ref=(form.get("is_ref") or "").strip(),
+            )
+        )
     storage.save_case_study(cfg)
     return RedirectResponse(f"/{name}/processes", status_code=303)
 
 
 # ── Flow Data (input time series) ──────────────────────────────────────────
+
 
 def _input_flows(cfg: CaseStudyConfig):
     """Return flows whose source process has logic='Input'."""
@@ -2184,9 +2635,12 @@ def _input_flows(cfg: CaseStudyConfig):
 async def get_flow_data(request: Request, name: str, saved: bool = False):
     cfg = storage.load_case_study(name)
     flows = _input_flows(cfg)
-    flow_data_map = {fd.flow_id: dict(sorted(fd.values.items())) for fd in cfg.flow_data}
+    flow_data_map = {
+        fd.flow_id: dict(sorted(fd.values.items())) for fd in cfg.flow_data
+    }
     return templates.TemplateResponse(
-        request, "flow_data.html",
+        request,
+        "flow_data.html",
         _ctx(cfg=cfg, input_flows=flows, flow_data_map=flow_data_map, saved=saved),
     )
 
@@ -2214,13 +2668,15 @@ async def post_flow_data(request: Request, name: str):
                 break
             try:
                 year = int(float(y_raw))
-                val  = float(v_raw or 0)
+                val = float(v_raw or 0)
                 values[year] = val
             except (ValueError, TypeError):
                 pass
             i += 1
         if values:
-            new_entries.append(FlowDataEntry(flow_id=fid, element="material", values=values))
+            new_entries.append(
+                FlowDataEntry(flow_id=fid, element="material", values=values)
+            )
         j += 1
 
     # Keep non-input-flow entries; replace input-flow entries with submitted data

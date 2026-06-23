@@ -73,9 +73,7 @@ def preview_dynamic_tc(
         tc_value_col = f"TC_Value_{element_name}"
 
     # Filter for specific TC
-    tc_data = dynamic_tc_df[
-        [tc_id_col, tc_value_col, "Year"]
-    ].dropna()
+    tc_data = dynamic_tc_df[[tc_id_col, tc_value_col, "Year"]].dropna()
     tc_data = tc_data[tc_data[tc_id_col] == tc_name]
 
     if tc_data.empty:

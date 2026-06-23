@@ -17,16 +17,24 @@ def display_system_summary(
 ) -> None:
     """Print a structured summary of loaded data counts and configuration flags."""
     num_processes = len(mfa_system.ProcessList)
-    num_flows     = len(mfa_system.FlowDict)
-    num_stocks    = len(mfa_system.StockDict)
-    num_elements  = len(elements)
-    time_span     = end_year - start_year + 1
+    num_flows = len(mfa_system.FlowDict)
+    num_stocks = len(mfa_system.StockDict)
+    num_elements = len(elements)
+    time_span = end_year - start_year + 1
 
-    num_static_tcs  = sum(1 for p in mfa_system.ParameterDict.values() if "TC" in p.Name and np.isscalar(p.Values))
-    num_dynamic_tcs = sum(1 for p in mfa_system.ParameterDict.values() if "TC" in p.Name and isinstance(p.Values, np.ndarray))
-    num_dsm_processes  = len(dsm_params)  if dsm_params  else 0
+    num_static_tcs = sum(
+        1
+        for p in mfa_system.ParameterDict.values()
+        if "TC" in p.Name and np.isscalar(p.Values)
+    )
+    num_dynamic_tcs = sum(
+        1
+        for p in mfa_system.ParameterDict.values()
+        if "TC" in p.Name and isinstance(p.Values, np.ndarray)
+    )
+    num_dsm_processes = len(dsm_params) if dsm_params else 0
     num_fomp_processes = len(fomp_params) if fomp_params else 0
-    num_lfg_processes  = len(lfg_params)  if lfg_params  else 0
+    num_lfg_processes = len(lfg_params) if lfg_params else 0
 
     print("\n📊 Configuration & Scope")
     print(f"  ✅ Time range: {start_year}-{end_year} ({time_span} years)")
@@ -39,21 +47,21 @@ def display_system_summary(
     print(f"  ✅ Stocks: {num_stocks} configured")
 
     print("\n⚙️  Parameters")
-    print(f"  ✅ Transfer Coefficients:")
+    print("  ✅ Transfer Coefficients:")
     print(f"     • Static TCs: {num_static_tcs}")
     print(f"     • Dynamic TCs: {num_dynamic_tcs}")
     if num_dsm_processes > 0:
         print(f"  ✅ DSM Processes: {num_dsm_processes} configured")
     else:
-        print(f"  ⚠️  DSM Processes: None configured")
+        print("  ⚠️  DSM Processes: None configured")
     if num_fomp_processes > 0:
         print(f"  ✅ FOMP Processes: {num_fomp_processes} configured")
     else:
-        print(f"  ⚠️  FOMP Processes: None configured")
+        print("  ⚠️  FOMP Processes: None configured")
     if num_lfg_processes > 0:
         print(f"  ✅ LFG Processes: {num_lfg_processes} configured")
     else:
-        print(f"     LFG Processes: None configured (optional)")
+        print("     LFG Processes: None configured (optional)")
 
     warnings_found = []
     if num_dsm_processes == 0 and config_obj.RUN_DSM_CALCULATION:

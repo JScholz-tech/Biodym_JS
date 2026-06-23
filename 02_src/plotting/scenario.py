@@ -161,7 +161,8 @@ def plot_multi_scenario_comparison(
                 )
             else:  # Total Flow
                 values.append(
-                    np.sum(baseline_results.FlowDict[item].Values[:, element_index]) * _sc
+                    np.sum(baseline_results.FlowDict[item].Values[:, element_index])
+                    * _sc
                 )
 
             # Get scenario values
@@ -180,7 +181,8 @@ def plot_multi_scenario_comparison(
                                     )
                                 },
                             ),
-                        ).Values[-1, element_index] * _sc
+                        ).Values[-1, element_index]
+                        * _sc
                     )
                 else:  # Total Flow
                     values.append(
@@ -197,7 +199,8 @@ def plot_multi_scenario_comparison(
                                     },
                                 ),
                             ).Values[:, element_index]
-                        ) * _sc
+                        )
+                        * _sc
                     )
 
             # Get meaningful item name for title
@@ -243,7 +246,9 @@ def plot_multi_scenario_comparison(
                 y_title=y_label(element.upper()),
             )
             apply_theme(layout_config)
-            layout_config["xaxis"].pop("range", None)  # categorical axis, not time-series
+            layout_config["xaxis"].pop(
+                "range", None
+            )  # categorical axis, not time-series
             layout_config["showlegend"] = False
             fig.update_layout(**layout_config)
 
@@ -276,14 +281,20 @@ def plot_multi_scenario_comparison(
     update_plot()
 
     export_out = Output()
-    export_btn = Button(description="Export Plot", button_style="info", layout={"width": "140px"})
+    export_btn = Button(
+        description="Export Plot", button_style="info", layout={"width": "140px"}
+    )
 
     def _export(b):
         export_out.clear_output()
         try:
             paths = export_figure(
-                fig, "scenario_comparison",
-                formats=["png", "svg"], quality="publication", size="large", timestamp=False,
+                fig,
+                "scenario_comparison",
+                formats=["png", "svg"],
+                quality="publication",
+                size="large",
+                timestamp=False,
             )
             with export_out:
                 print(f"✅ Exported: {', '.join(paths)}")
@@ -341,7 +352,9 @@ def plot_scenario_flow_dynamics(
     )
     element_dropdown = Dropdown(options=elements, description="Element:")
     scenario_selector = SelectMultiple(
-        options=all_scenarios, value=all_scenarios, description="Scenarios:",
+        options=all_scenarios,
+        value=all_scenarios,
+        description="Scenarios:",
     )
 
     fig = go.FigureWidget()
@@ -370,13 +383,15 @@ def plot_scenario_flow_dynamics(
                     if scenario_label == "Baseline":
                         values = flow_obj.Values[:, element_index] * _sc
                     else:
-                        sc_flow = all_scenario_results[scenario_label].FlowDict.get(flow_id)
+                        sc_flow = all_scenario_results[scenario_label].FlowDict.get(
+                            flow_id
+                        )
                         if sc_flow is None:
                             continue
                         values = sc_flow.Values[:, element_index] * _sc
 
                     # Show legend only for first scenario per flow (avoid duplicates)
-                    show_legend = (j == 0)
+                    show_legend = j == 0
                     fig.add_trace(
                         go.Scatter(
                             x=time_axis,
@@ -398,7 +413,9 @@ def plot_scenario_flow_dynamics(
                 dash = _SCENARIO_DASHES[j % len(_SCENARIO_DASHES)]
                 fig.add_trace(
                     go.Scatter(
-                        x=[None], y=[None], mode="lines",
+                        x=[None],
+                        y=[None],
+                        mode="lines",
                         name=scenario_label,
                         legendgroup="__scenarios",
                         line=dict(color="#333", width=2, dash=dash),
@@ -429,14 +446,20 @@ def plot_scenario_flow_dynamics(
     update_plot()
 
     export_out = Output()
-    export_btn = Button(description="Export Plot", button_style="info", layout={"width": "140px"})
+    export_btn = Button(
+        description="Export Plot", button_style="info", layout={"width": "140px"}
+    )
 
     def _export(b):
         export_out.clear_output()
         try:
             paths = export_figure(
-                fig, f"scenario_flow_dynamics_{element_dropdown.value}",
-                formats=["png", "svg"], quality="publication", size="large", timestamp=False,
+                fig,
+                f"scenario_flow_dynamics_{element_dropdown.value}",
+                formats=["png", "svg"],
+                quality="publication",
+                size="large",
+                timestamp=False,
             )
             with export_out:
                 print(f"✅ Exported: {', '.join(paths)}")
@@ -485,7 +508,9 @@ def plot_scenario_stock_dynamics(
     )
     element_dropdown = Dropdown(options=elements, description="Element:")
     scenario_selector = SelectMultiple(
-        options=all_scenarios, value=all_scenarios, description="Scenarios:",
+        options=all_scenarios,
+        value=all_scenarios,
+        description="Scenarios:",
     )
 
     fig = go.FigureWidget()
@@ -498,7 +523,9 @@ def plot_scenario_stock_dynamics(
             element_index = elements.index(element)
             _sc, _unit = get_mass_display()
 
-            stock_colors = create_color_sequence(len(selected_stocks), palette="primary")
+            stock_colors = create_color_sequence(
+                len(selected_stocks), palette="primary"
+            )
             scenarios_with_baseline = ["Baseline"] + list(selected_scenarios)
 
             for i, stock_id in enumerate(selected_stocks):
@@ -513,12 +540,14 @@ def plot_scenario_stock_dynamics(
                     if scenario_label == "Baseline":
                         values = stock_obj.Values[:, element_index] * _sc
                     else:
-                        sc_stock = all_scenario_results[scenario_label].StockDict.get(stock_id)
+                        sc_stock = all_scenario_results[scenario_label].StockDict.get(
+                            stock_id
+                        )
                         if sc_stock is None:
                             continue
                         values = sc_stock.Values[:, element_index] * _sc
 
-                    show_legend = (j == 0)
+                    show_legend = j == 0
                     fig.add_trace(
                         go.Scatter(
                             x=time_axis,
@@ -540,7 +569,9 @@ def plot_scenario_stock_dynamics(
                 dash = _SCENARIO_DASHES[j % len(_SCENARIO_DASHES)]
                 fig.add_trace(
                     go.Scatter(
-                        x=[None], y=[None], mode="lines",
+                        x=[None],
+                        y=[None],
+                        mode="lines",
                         name=scenario_label,
                         legendgroup="__scenarios",
                         line=dict(color="#333", width=2, dash=dash),
@@ -571,14 +602,20 @@ def plot_scenario_stock_dynamics(
     update_plot()
 
     export_out = Output()
-    export_btn = Button(description="Export Plot", button_style="info", layout={"width": "140px"})
+    export_btn = Button(
+        description="Export Plot", button_style="info", layout={"width": "140px"}
+    )
 
     def _export(b):
         export_out.clear_output()
         try:
             paths = export_figure(
-                fig, f"scenario_stock_dynamics_{element_dropdown.value}",
-                formats=["png", "svg"], quality="publication", size="large", timestamp=False,
+                fig,
+                f"scenario_stock_dynamics_{element_dropdown.value}",
+                formats=["png", "svg"],
+                quality="publication",
+                size="large",
+                timestamp=False,
             )
             with export_out:
                 print(f"✅ Exported: {', '.join(paths)}")
@@ -685,51 +722,74 @@ def plot_scenario_stock_publication(
 
         if baseline_obj is not None:
             y_base = baseline_obj.Values[:, elem_idx] * _sc
-            fig.add_trace(go.Scatter(
-                x=time_axis, y=y_base.tolist(),
-                mode="lines", name=label,
-                legendgroup=f"color_{i}", legendgrouptitle_text=None,
-                line=dict(color=color, width=2),
-                hovertemplate=f"<b>{label} – Baseline</b><br>Year: %{{x}}<br>%{{y:,.0f}} {_unit}<extra></extra>",
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=time_axis,
+                    y=y_base.tolist(),
+                    mode="lines",
+                    name=label,
+                    legendgroup=f"color_{i}",
+                    legendgrouptitle_text=None,
+                    line=dict(color=color, width=2),
+                    hovertemplate=f"<b>{label} – Baseline</b><br>Year: %{{x}}<br>%{{y:,.0f}} {_unit}<extra></extra>",
+                )
+            )
 
             # Horizontal dotted reference at policy_year baseline value
             if policy_idx is not None:
                 y_ref = float(y_base[policy_idx])
                 x_ref_start = time_axis[policy_idx]
                 x_ref_end = time_axis[-1]
-                fig.add_trace(go.Scatter(
-                    x=[x_ref_start, x_ref_end], y=[y_ref, y_ref],
-                    mode="lines", name=label,
-                    legendgroup=f"color_{i}",
-                    showlegend=False,
-                    line=dict(color=color, width=1.2, dash="dot"),
-                    hoverinfo="skip",
-                ))
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x_ref_start, x_ref_end],
+                        y=[y_ref, y_ref],
+                        mode="lines",
+                        name=label,
+                        legendgroup=f"color_{i}",
+                        showlegend=False,
+                        line=dict(color=color, width=1.2, dash="dot"),
+                        hoverinfo="skip",
+                    )
+                )
 
         if scenario_obj is not None:
             y_sc = scenario_obj.Values[:, elem_idx] * _sc
-            fig.add_trace(go.Scatter(
-                x=time_axis, y=y_sc.tolist(),
-                mode="lines", name=label,
-                legendgroup=f"color_{i}",
-                showlegend=False,
-                line=dict(color=color, width=2, dash="dash"),
-                hovertemplate=f"<b>{label} – Scenario</b><br>Year: %{{x}}<br>%{{y:,.0f}} {_unit}<extra></extra>",
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=time_axis,
+                    y=y_sc.tolist(),
+                    mode="lines",
+                    name=label,
+                    legendgroup=f"color_{i}",
+                    showlegend=False,
+                    line=dict(color=color, width=2, dash="dash"),
+                    hovertemplate=f"<b>{label} – Scenario</b><br>Year: %{{x}}<br>%{{y:,.0f}} {_unit}<extra></extra>",
+                )
+            )
 
     # ── Line-style legend entries (Baseline / Scenario) ────────────────────
     sc_short = scenario_label or "Application Stop (2075)"
-    fig.add_trace(go.Scatter(
-        x=[None], y=[None], mode="lines", name="Baseline",
-        legendgroup="__linestyle",
-        line=dict(color="#333", width=2, dash="solid"),
-    ))
-    fig.add_trace(go.Scatter(
-        x=[None], y=[None], mode="lines", name=sc_short,
-        legendgroup="__linestyle",
-        line=dict(color="#333", width=2, dash="dash"),
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="lines",
+            name="Baseline",
+            legendgroup="__linestyle",
+            line=dict(color="#333", width=2, dash="solid"),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="lines",
+            name=sc_short,
+            legendgroup="__linestyle",
+            line=dict(color="#333", width=2, dash="dash"),
+        )
+    )
 
     # ── Policy year vertical line ─────────────────────────────────────────
     if policy_year is not None:
@@ -755,8 +815,10 @@ def plot_scenario_stock_publication(
     layout_config["yaxis"]["exponentformat"] = "none"
     layout_config["legend"] = dict(
         orientation="h",
-        x=0.5, y=-0.18,
-        xanchor="center", yanchor="top",
+        x=0.5,
+        y=-0.18,
+        xanchor="center",
+        yanchor="top",
         font=dict(size=10),
         bgcolor="rgba(255,255,255,0.85)",
         bordercolor="#ccc",
@@ -779,8 +841,12 @@ def plot_scenario_stock_publication(
     def _do_export(b):
         try:
             paths = export_figure(
-                fig, f"scenario_stock_publication_{element}",
-                formats=["png", "svg"], quality="publication", size="publication", timestamp=False,
+                fig,
+                f"scenario_stock_publication_{element}",
+                formats=["png", "svg"],
+                quality="publication",
+                size="publication",
+                timestamp=False,
             )
             print(f"✅ Exported: {', '.join(paths)}")
         except Exception as e:

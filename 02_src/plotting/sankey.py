@@ -73,8 +73,9 @@ def _wrap_label_text(text, max_chars):
     # Wrap at word boundaries (including underscores and hyphens)
     # Split on spaces, underscores, and hyphens while preserving the separators
     import re
+
     # Split but keep the separators
-    parts = re.split(r'(\s+|_|-)', text)
+    parts = re.split(r"(\s+|_|-)", text)
     # Filter out empty strings
     parts = [p for p in parts if p]
 
@@ -174,8 +175,11 @@ def _prepare_sankey_data(
 
         if is_special:
             process_type = detect_biodym_process_type(
-                p.ID, dsm_params=dsm_params, fomp_params=fomp_params,
-                bom_params=bom_params, lfg_params=lfg_params,
+                p.ID,
+                dsm_params=dsm_params,
+                fomp_params=fomp_params,
+                bom_params=bom_params,
+                lfg_params=lfg_params,
             )
             node_colors.append(get_process_color(process_type))
         elif has_stocks:
@@ -815,8 +819,18 @@ def plot_element_multiplot_sankey(
 # Export functions
 # ---------------------------------------------------------------------------
 
-def export_sankey_json(mfa_system_results, year, element, filepath,
-                       dsm_params=None, fomp_params=None, bom_params=None, lfg_params=None, min_flow=0.0):
+
+def export_sankey_json(
+    mfa_system_results,
+    year,
+    element,
+    filepath,
+    dsm_params=None,
+    fomp_params=None,
+    bom_params=None,
+    lfg_params=None,
+    min_flow=0.0,
+):
     """Export Sankey data as a D3-compatible JSON file.
 
     The output follows the standard D3 Sankey JSON format (nodes + links),
@@ -855,7 +869,9 @@ def export_sankey_json(mfa_system_results, year, element, filepath,
 
     time_vector = mfa_system_results.Time_V
     if year not in time_vector:
-        raise ValueError(f"Year {year} not in model time range {time_vector[0]}-{time_vector[-1]}.")
+        raise ValueError(
+            f"Year {year} not in model time range {time_vector[0]}-{time_vector[-1]}."
+        )
     year_idx = list(time_vector).index(year)
 
     elements = mfa_system_results.Elements
@@ -870,16 +886,21 @@ def export_sankey_json(mfa_system_results, year, element, filepath,
     nodes = []
     for p in process_list:
         proc_type = detect_biodym_process_type(
-            p.ID, dsm_params=dsm_params, fomp_params=fomp_params,
-            bom_params=bom_params, lfg_params=lfg_params,
+            p.ID,
+            dsm_params=dsm_params,
+            fomp_params=fomp_params,
+            bom_params=bom_params,
+            lfg_params=lfg_params,
         )
         color = get_process_color(proc_type)
-        nodes.append({
-            "id":    p.ID,
-            "name":  p.Name,
-            "color": color,
-            "type":  proc_type,
-        })
+        nodes.append(
+            {
+                "id": p.ID,
+                "name": p.Name,
+                "color": color,
+                "type": proc_type,
+            }
+        )
 
     link_color = color_manager.get_element_color(element)
     links = []
@@ -889,20 +910,22 @@ def export_sankey_json(mfa_system_results, year, element, filepath,
             continue
         if flow.P_Start not in process_id_map or flow.P_End not in process_id_map:
             continue
-        links.append({
-            "source": process_id_map[flow.P_Start],
-            "target": process_id_map[flow.P_End],
-            "value":  round(value, 6),
-            "label":  getattr(flow, "DescriptiveName", flow.Name),
-            "color":  link_color,
-        })
+        links.append(
+            {
+                "source": process_id_map[flow.P_Start],
+                "target": process_id_map[flow.P_End],
+                "value": round(value, 6),
+                "label": getattr(flow, "DescriptiveName", flow.Name),
+                "color": link_color,
+            }
+        )
 
     payload = {
         "metadata": {
-            "year":    year,
+            "year": year,
             "element": element,
-            "unit":    mfa_system_results.Unit or "Mg",
-            "source":  "BioDYM",
+            "unit": mfa_system_results.Unit or "Mg",
+            "source": "BioDYM",
         },
         "nodes": nodes,
         "links": links,
@@ -916,9 +939,18 @@ def export_sankey_json(mfa_system_results, year, element, filepath,
     return payload
 
 
-def export_sankey_html(mfa_system_results, year, element, filepath,
-                       dsm_params=None, fomp_params=None, bom_params=None, lfg_params=None,
-                       min_flow=0.0, title=None):
+def export_sankey_html(
+    mfa_system_results,
+    year,
+    element,
+    filepath,
+    dsm_params=None,
+    fomp_params=None,
+    bom_params=None,
+    lfg_params=None,
+    min_flow=0.0,
+    title=None,
+):
     """Export an interactive standalone Sankey HTML file (no Python required to view).
 
     The output is a self-contained HTML file with the Plotly Sankey diagram
@@ -958,7 +990,9 @@ def export_sankey_html(mfa_system_results, year, element, filepath,
 
     time_vector = mfa_system_results.Time_V
     if year not in time_vector:
-        raise ValueError(f"Year {year} not in model time range {time_vector[0]}-{time_vector[-1]}.")
+        raise ValueError(
+            f"Year {year} not in model time range {time_vector[0]}-{time_vector[-1]}."
+        )
     year_idx = list(time_vector).index(year)
 
     elements = mfa_system_results.Elements
@@ -973,10 +1007,15 @@ def export_sankey_html(mfa_system_results, year, element, filepath,
 
     node_labels = [p.Name for p in process_list]
     node_colors = [
-        get_process_color(detect_biodym_process_type(
-            p.ID, dsm_params=dsm_params, fomp_params=fomp_params,
-            bom_params=bom_params, lfg_params=lfg_params,
-        ))
+        get_process_color(
+            detect_biodym_process_type(
+                p.ID,
+                dsm_params=dsm_params,
+                fomp_params=fomp_params,
+                bom_params=bom_params,
+                lfg_params=lfg_params,
+            )
+        )
         for p in process_list
     ]
 
@@ -992,15 +1031,24 @@ def export_sankey_html(mfa_system_results, year, element, filepath,
         values.append(round(value, 6))
         hover.append(getattr(flow, "DescriptiveName", flow.Name))
 
-    fig = go.Figure(go.Sankey(
-        node=dict(label=node_labels, color=node_colors,
-                  pad=sankey_config.NODE_SPACING,
-                  thickness=sankey_config.NODE_THICKNESS),
-        link=dict(source=sources, target=targets, value=values,
-                  customdata=hover,
-                  hovertemplate=f"%{{customdata}}<br />%{{value:.1f}} {mfa_system_results.Unit or 'Mg'}<extra></extra>",
-                  color=[link_color] * len(sources)),
-    ))
+    fig = go.Figure(
+        go.Sankey(
+            node=dict(
+                label=node_labels,
+                color=node_colors,
+                pad=sankey_config.NODE_SPACING,
+                thickness=sankey_config.NODE_THICKNESS,
+            ),
+            link=dict(
+                source=sources,
+                target=targets,
+                value=values,
+                customdata=hover,
+                hovertemplate=f"%{{customdata}}<br />%{{value:.1f}} {mfa_system_results.Unit or 'Mg'}<extra></extra>",
+                color=[link_color] * len(sources),
+            ),
+        )
+    )
 
     plot_title = title or f"BioDYM Sankey - {element} ({year})"
     fig.update_layout(title_text=plot_title, font_size=12, height=600)
@@ -1197,7 +1245,7 @@ def export_mfa_diagram_xlsx(
     """
     import pathlib
     import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.styles import Font
     from openpyxl.utils import get_column_letter
 
     if dsm_params is None:
@@ -1214,7 +1262,9 @@ def export_mfa_diagram_xlsx(
     # --- Resolve year and element indices ---
     time_vector = list(mfa_system_results.Time_V)
     if year not in time_vector:
-        raise ValueError(f"Year {year} not in model time range {time_vector[0]}–{time_vector[-1]}.")
+        raise ValueError(
+            f"Year {year} not in model time range {time_vector[0]}–{time_vector[-1]}."
+        )
     t_idx = time_vector.index(year)
 
     elements = mfa_system_results.Elements
@@ -1231,8 +1281,11 @@ def export_mfa_diagram_xlsx(
             if logic:
                 return str(logic).strip()
         return detect_biodym_process_type(
-            proc_id, dsm_params=dsm_params, fomp_params=fomp_params,
-            bom_params=bom_params, lfg_params=lfg_params,
+            proc_id,
+            dsm_params=dsm_params,
+            fomp_params=fomp_params,
+            bom_params=bom_params,
+            lfg_params=lfg_params,
         )
 
     # --- Collect nodes with stock values ---
@@ -1244,13 +1297,15 @@ def export_mfa_diagram_xlsx(
             sv = mfa_system_results.StockDict[stock_key].Values
             if sv is not None and sv.shape[0] > t_idx:
                 stock_val = float(sv[t_idx, el_idx])
-        node_rows.append({
-            "node_id": p.Name,
-            "title": p.Name,
-            "stock": round(stock_val, 4),
-            "stock_unit": stock_unit,
-            "proc_id": p.ID,
-        })
+        node_rows.append(
+            {
+                "node_id": p.Name,
+                "title": p.Name,
+                "stock": round(stock_val, 4),
+                "stock_unit": stock_unit,
+                "proc_id": p.ID,
+            }
+        )
 
     # --- Collect flows ---
     flow_rows = []
@@ -1260,12 +1315,14 @@ def export_mfa_diagram_xlsx(
             continue
         source = name_map.get(flow.P_Start, str(flow.P_Start))
         target = name_map.get(flow.P_End, str(flow.P_End))
-        flow_rows.append({
-            "source": source,
-            "target": target,
-            "value": round(val, 4),
-            "flow_unit": flow_unit,
-        })
+        flow_rows.append(
+            {
+                "source": source,
+                "target": target,
+                "value": round(val, 4),
+                "flow_unit": flow_unit,
+            }
+        )
 
     # --- Build groups: one row per (group_id, node) ---
     # Group logic: Input/boundary → "Boundary"; DSM/FOMP/LFG → own group; rest → "Process"
@@ -1288,7 +1345,9 @@ def export_mfa_diagram_xlsx(
     for nd in node_rows:
         ptype = _proc_type(nd["proc_id"])
         grp_id = _type_to_group.get(ptype, "Process")
-        group_rows.append({"group_id": grp_id, "group_name": grp_id, "node_id": nd["node_id"]})
+        group_rows.append(
+            {"group_id": grp_id, "group_name": grp_id, "node_id": nd["node_id"]}
+        )
         group_name_map[grp_id] = grp_id
 
     # --- Node colors from BioDYM theme ---
@@ -1328,8 +1387,15 @@ def export_mfa_diagram_xlsx(
         "Nodes",
         ["node_id", "title", "stock", "stock_unit"],
         ["Unique node identifier", "Display name", "Stock value", "Unit for stock"],
-        [{"node_id": r["node_id"], "title": r["title"],
-          "stock": r["stock"], "stock_unit": r["stock_unit"]} for r in node_rows],
+        [
+            {
+                "node_id": r["node_id"],
+                "title": r["title"],
+                "stock": r["stock"],
+                "stock_unit": r["stock_unit"],
+            }
+            for r in node_rows
+        ],
     )
 
     _add_sheet(
@@ -1469,25 +1535,35 @@ def export_sankey_batch(
             print(f"\n{Icons.SANKEY} Exporting Sankey — {element} | {year}")
 
             export_sankey_html(
-                mfa_system, year, element,
+                mfa_system,
+                year,
+                element,
                 filepath=sankey_root / "html" / f"{base}.html",
-                dsm_params=dsm_params, fomp_params=fomp_params,
+                dsm_params=dsm_params,
+                fomp_params=fomp_params,
                 min_flow=min_flow,
                 title=f"BioDYM — {element} ({year})",
             )
             export_sankey_json(
-                mfa_system, year, element,
+                mfa_system,
+                year,
+                element,
                 filepath=sankey_root / "json" / f"{base}.json",
-                dsm_params=dsm_params, fomp_params=fomp_params,
+                dsm_params=dsm_params,
+                fomp_params=fomp_params,
                 min_flow=min_flow,
             )
             export_sankey_sankeymatic(
-                mfa_system, year, element,
+                mfa_system,
+                year,
+                element,
                 filepath=sankey_root / "sankeymatic" / f"{base}.txt",
                 min_flow=min_flow,
             )
             export_mfa_diagram_xlsx(
-                mfa_system, year, element,
+                mfa_system,
+                year,
+                element,
                 filepath=sankey_root / "structuralcollective" / f"{base}.xlsx",
                 dsm_params=dsm_params,
                 fomp_params=fomp_params,

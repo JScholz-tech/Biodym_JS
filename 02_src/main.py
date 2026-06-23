@@ -21,7 +21,7 @@ import pandas as pd
 src_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, src_path)
 
-from bootstrap import setup_paths
+from bootstrap import setup_paths  # noqa: E402
 
 setup_paths(os.path.dirname(src_path))
 
@@ -33,7 +33,6 @@ try:
     import utils
     from engine import solver
     import plotting
-    import ODYM_Classes as msc
     from tqdm import tqdm
 except ImportError as e:
     print(f"FATAL ERROR: A required module could not be imported: {e}")

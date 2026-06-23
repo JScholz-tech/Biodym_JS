@@ -43,9 +43,9 @@ THEMES = {
         "grid_color": "#e8e8e8",
         "grid_dash": "solid",
         "margin": dict(l=70, r=30, t=20, b=100),
-        "scientific_y": False,   # readable tick labels, not 2.00e+4
+        "scientific_y": False,  # readable tick labels, not 2.00e+4
         "template": "plotly_white",
-        "mass_scale": 1e-3,      # Mg → Gg
+        "mass_scale": 1e-3,  # Mg → Gg
         "mass_unit": "Gg",
     },
     # Exploratory: wide, annotated, larger fonts — good for interactive notebook use.
@@ -61,9 +61,9 @@ THEMES = {
         "grid_color": "#E5E5E5",
         "grid_dash": "dot",
         "margin": dict(l=100, r=50, t=100, b=150),
-        "scientific_y": False,   # comma-separated thousands (e.g. 4,721,000)
+        "scientific_y": False,  # comma-separated thousands (e.g. 4,721,000)
         "template": "plotly_white",
-        "mass_scale": 1.0,       # keep Mg (overridden by _CONFIG_UNIT if set)
+        "mass_scale": 1.0,  # keep Mg (overridden by _CONFIG_UNIT if set)
         "mass_unit": "Mg",
     },
 }
@@ -138,6 +138,7 @@ def apply_theme(layout: dict) -> dict:
         The same dict, modified in-place with theme overrides applied.
     """
     import re as _re
+
     _t = get_active_theme()
     _sci_fmt = ".3~e" if _t.get("scientific_y", True) else ","
 
@@ -192,8 +193,11 @@ def apply_theme(layout: dict) -> dict:
         layout["legend"]["font"]["size"] = _t["font_legend"]
         if _t["legend_below"]:
             layout["legend"].update(
-                orientation="h", yanchor="top", y=-0.22,
-                xanchor="center", x=0.5,
+                orientation="h",
+                yanchor="top",
+                y=-0.22,
+                xanchor="center",
+                x=0.5,
             )
 
     # Title visibility
@@ -304,13 +308,13 @@ ELEMENT_COLORS = {
 
 # Process Type Colors (for BioDYM process logic)
 PROCESS_COLORS = {
-    "regular": "#2E86AB",       # Blue - standard MFA processes
-    "splitter": "#A23B72",      # Pink - splitter processes
-    "transformer": "#F18F01",   # Orange - transformer processes
-    "dsm": "#28A745",           # Green - Dynamic Stock Model processes
-    "fomp": "#C73E1D",          # Red - First-Order Mineralization Process
-    "bom_assembler": "#7B2D8B", # Purple - BOM Assembler (constrained assembly)
-    "lfg": "#1A7A4A",           # Dark green - Landfill Gas processes
+    "regular": "#2E86AB",  # Blue - standard MFA processes
+    "splitter": "#A23B72",  # Pink - splitter processes
+    "transformer": "#F18F01",  # Orange - transformer processes
+    "dsm": "#28A745",  # Green - Dynamic Stock Model processes
+    "fomp": "#C73E1D",  # Red - First-Order Mineralization Process
+    "bom_assembler": "#7B2D8B",  # Purple - BOM Assembler (constrained assembly)
+    "lfg": "#1A7A4A",  # Dark green - Landfill Gas processes
 }
 
 # Stock Colors — muted Okabe-Ito variants for stock visualization
@@ -365,7 +369,7 @@ EXPORT_SETTINGS = {
     "pdf": {"width": 1200, "height": 900, "format": "pdf"},
     "svg": {"width": 1200, "height": 900, "format": "svg"},
     "print": {"width": 1200, "height": 900, "scale": 4, "format": "png"},
-    "jie_svg": {"width": 658, "height": 440, "format": "svg"},           # vector, preferred
+    "jie_svg": {"width": 658, "height": 440, "format": "svg"},  # vector, preferred
     "jie_png": {"width": 658, "height": 440, "scale": 6.25, "format": "png"},  # 600 DPI
 }
 
