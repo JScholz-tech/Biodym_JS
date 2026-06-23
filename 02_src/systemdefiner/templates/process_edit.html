@@ -106,15 +106,16 @@
       <summary>DSM Parameters</summary>
       <div class="details-body">
         <p class="muted" style="margin:0 0 0.75rem;font-size:0.88rem">
-          Each row is one material category. Inflow split fractions must sum to 1.
+          Each row is one material category. Inflow split percentages must sum to 100%.
           For Normal/LogNormal fill Mean &amp; Std Dev. For Weibull fill Shape &amp; Scale.
+          For Fixed fill Mean only.
         </p>
         <div style="overflow-x:auto">
         <table id="edit-dsm-cat-table" style="width:100%;margin-bottom:0.5rem;font-size:0.88rem">
           <thead>
             <tr>
               <th>Name</th>
-              <th>Inflow split</th>
+              <th>Inflow split (%)</th>
               <th>Distribution</th>
               <th>Mean (yr)</th>
               <th>Std Dev (yr)</th>
@@ -128,10 +129,10 @@
             {% for cat in process.dsm.categories %}
             <tr>
               <td><input type="text"   name="dsm_cat_{{ loop.index0 }}_name"           value="{{ cat.name }}"           style="width:120px"></td>
-              <td><input type="number" name="dsm_cat_{{ loop.index0 }}_inflow_split"   value="{{ cat.inflow_split }}"   step="0.01" min="0" max="1" style="width:70px"></td>
+              <td><input type="number" name="dsm_cat_{{ loop.index0 }}_inflow_split"   value="{{ (cat.inflow_split * 100) | round(4) }}"   step="0.1" min="0" max="100" style="width:70px"></td>
               <td>
-                <select name="dsm_cat_{{ loop.index0 }}_lifetime_type" style="width:110px">
-                  {% for d in ["Normal","LogNormal","Weibull"] %}
+                <select name="dsm_cat_{{ loop.index0 }}_lifetime_type" style="width:110px" onchange="syncDsmRow(this.closest('tr'))">
+                  {% for d in ["Normal","LogNormal","Weibull","Fixed"] %}
                   <option value="{{ d }}" {% if cat.lifetime_type == d %}selected{% endif %}>{{ d }}</option>
                   {% endfor %}
                 </select>
@@ -146,8 +147,8 @@
             {% else %}
             <tr>
               <td><input type="text"   name="dsm_cat_0_name"           value="Default" style="width:120px"></td>
-              <td><input type="number" name="dsm_cat_0_inflow_split"   value="1.0"    step="0.01" min="0" max="1" style="width:70px"></td>
-              <td><select name="dsm_cat_0_lifetime_type" style="width:110px"><option>Normal</option><option>LogNormal</option><option>Weibull</option></select></td>
+              <td><input type="number" name="dsm_cat_0_inflow_split"   value="100"    step="0.1" min="0" max="100" style="width:70px"></td>
+              <td><select name="dsm_cat_0_lifetime_type" style="width:110px" onchange="syncDsmRow(this.closest('tr'))"><option>Normal</option><option>LogNormal</option><option>Weibull</option><option>Fixed</option></select></td>
               <td><input type="number" name="dsm_cat_0_lifetime_mean"  value="20.0"   step="0.1" min="0" style="width:75px"></td>
               <td><input type="number" name="dsm_cat_0_lifetime_std"   value="5.0"    step="0.1" min="0" style="width:75px"></td>
               <td><input type="number" name="dsm_cat_0_lifetime_shape" placeholder="—" step="0.01" min="0" style="width:70px"></td>
@@ -158,6 +159,7 @@
           </tbody>
         </table>
         </div>
+        <div id="dsm-split-feedback" style="font-size:0.85rem;margin:0.1rem 0 0.6rem"></div>
         <button type="button" class="btn btn-secondary btn-sm" onclick="addDsmCat()">+ Add Category</button>
         {% if cfg.references %}
         <div class="field" style="margin-top:0.75rem;max-width:400px">
@@ -316,17 +318,19 @@ function addDsmCat() {
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td><input type="text"   name="dsm_cat_${i}_name"           placeholder="Category name" style="width:120px"></td>
-    <td><input type="number" name="dsm_cat_${i}_inflow_split"   value="0.0" step="0.01" min="0" max="1" style="width:70px"></td>
-    <td><select name="dsm_cat_${i}_lifetime_type" style="width:110px">
-      <option>Normal</option><option>LogNormal</option><option>Weibull</option>
+    <td><input type="number" name="dsm_cat_${i}_inflow_split"   value="0" step="0.1" min="0" max="100" style="width:70px"></td>
+    <td><select name="dsm_cat_${i}_lifetime_type" style="width:110px" onchange="syncDsmRow(this.closest('tr'))">
+      <option>Normal</option><option>LogNormal</option><option>Weibull</option><option>Fixed</option>
     </select></td>
     <td><input type="number" name="dsm_cat_${i}_lifetime_mean"  placeholder="—" step="0.1"  min="0" style="width:75px"></td>
     <td><input type="number" name="dsm_cat_${i}_lifetime_std"   placeholder="—" step="0.1"  min="0" style="width:75px"></td>
     <td><input type="number" name="dsm_cat_${i}_lifetime_shape" placeholder="—" step="0.01" min="0" style="width:70px"></td>
     <td><input type="number" name="dsm_cat_${i}_lifetime_scale" placeholder="—" step="0.1"  min="0" style="width:70px"></td>
     <td><button type="button" class="btn btn-danger btn-sm"
-      onclick="this.closest('tr').remove(); reindexDsmCats()">✕</button></td>`;
+      onclick="this.closest('tr').remove(); reindexDsmCats(); updateDsmSplitSum()">✕</button></td>`;
   tbody.appendChild(tr);
+  syncDsmRow(tr);
+  updateDsmSplitSum();
 }
 function reindexDsmCats() {
   document.querySelectorAll('#edit-dsm-cat-body tr').forEach((tr, i) => {
@@ -336,6 +340,54 @@ function reindexDsmCats() {
     });
   });
   dsmCatCount = document.querySelectorAll('#edit-dsm-cat-body tr').length;
+}
+
+// Enable only the lifetime fields relevant to the selected distribution;
+// grey out (disable) the rest. Disabled inputs are not submitted, so the
+// engine receives only the parameters that matter for that distribution.
+const DSM_FIELDS_BY_TYPE = {
+  Normal:    { mean: true,  std: true,  shape: false, scale: false },
+  LogNormal: { mean: true,  std: true,  shape: false, scale: false },
+  Fixed:     { mean: true,  std: false, shape: false, scale: false },
+  Weibull:   { mean: false, std: false, shape: true,  scale: true  },
+};
+function syncDsmRow(tr) {
+  if (!tr) return;
+  const sel = tr.querySelector('[name$="_lifetime_type"]');
+  const active = DSM_FIELDS_BY_TYPE[sel ? sel.value : 'Normal'] || DSM_FIELDS_BY_TYPE.Normal;
+  [['mean','lifetime_mean'],['std','lifetime_std'],['shape','lifetime_shape'],['scale','lifetime_scale']]
+    .forEach(([key, suffix]) => {
+      const inp = tr.querySelector(`[name$="_${suffix}"]`);
+      if (!inp) return;
+      const on = active[key];
+      inp.disabled = !on;
+      inp.style.background = on ? '' : 'var(--bg)';
+      inp.style.opacity = on ? '' : '0.5';
+    });
+}
+function updateDsmSplitSum() {
+  const fb = document.getElementById('dsm-split-feedback');
+  if (!fb) return;
+  const inputs = document.querySelectorAll('#edit-dsm-cat-body [name$="_inflow_split"]');
+  if (!inputs.length) { fb.textContent = ''; return; }
+  let sum = 0;
+  inputs.forEach(inp => { sum += parseFloat(inp.value) || 0; });
+  const ok = Math.abs(sum - 100) < 0.05;
+  fb.textContent = ok
+    ? `Inflow split sums to 100% ✓`
+    : `Inflow split sums to ${(+sum.toFixed(2))}% — should be 100%`;
+  fb.style.color = ok ? 'var(--ok-border, #2e7d32)' : 'var(--danger)';
+  fb.style.fontWeight = ok ? '400' : '600';
+}
+// Initialise greying + sum feedback for the rows present on page load, and
+// keep them in sync as the user edits split values.
+document.querySelectorAll('#edit-dsm-cat-body tr').forEach(syncDsmRow);
+updateDsmSplitSum();
+const _dsmBody = document.getElementById('edit-dsm-cat-body');
+if (_dsmBody) {
+  _dsmBody.addEventListener('input', e => {
+    if (e.target.name && e.target.name.endsWith('_inflow_split')) updateDsmSplitSum();
+  });
 }
 
 // LFG fractions

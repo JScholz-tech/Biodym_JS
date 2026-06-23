@@ -20,7 +20,9 @@
 {% else %}
 <div class="alert alert-info" style="margin-bottom:1rem;background:var(--bg);border-left:3px solid var(--primary)">
   <strong>Transformer mode — per-element TCs.</strong>
-  Each element column is applied independently and must sum to 100 %.
+  Each <em>element</em> column is applied independently and must sum to 100 %.
+  The <em>material</em> column is derived by the engine (sum of the top-level
+  elements, e.g. WC + DM), so it is disabled here.
 </div>
 {% endif %}
 
@@ -39,7 +41,8 @@
     {% if is_splitter %}
     The <strong>material</strong> column must sum to 100 %. Non-material columns are greyed out.
     {% else %}
-    Each column must sum to 100 % across all flows.
+    Each <strong>element</strong> column must sum to 100 % across all flows.
+    The <strong>material</strong> column is derived and greyed out.
     {% endif %}
   </p>
 
@@ -50,10 +53,10 @@
           <tr>
             <th>Flow</th>
             {% for elem in cfg.model.elements %}
-            {% set disabled = is_splitter and not loop.first %}
+            {% set disabled = (is_splitter and not loop.first) or (is_transformer and loop.first) %}
             <th style="{{ 'color:var(--muted);' if disabled else '' }}">
               {{ elem }} <span style="font-weight:400;font-size:0.85rem">%</span>
-              {% if disabled %}<br><span style="font-size:0.72rem;font-weight:400">(inherited)</span>{% endif %}
+              {% if disabled %}<br><span style="font-size:0.72rem;font-weight:400">{{ '(derived)' if is_transformer else '(inherited)' }}</span>{% endif %}
             </th>
             {% endfor %}
             {% if cfg.references %}
@@ -69,7 +72,7 @@
               <span class="muted">{{ row.flow.name }}</span>
             </td>
             {% for elem in cfg.model.elements %}
-            {% set disabled = is_splitter and not loop.first %}
+            {% set disabled = (is_splitter and not loop.first) or (is_transformer and loop.first) %}
             <td style="{{ 'background:var(--bg);' if disabled else '' }}">
               <input type="number"
                      name="tc_{{ row.flow.id }}_{{ elem }}"
@@ -102,7 +105,7 @@
           <tr style="font-weight:600;background:var(--bg)">
             <td>Sum</td>
             {% for elem in cfg.model.elements %}
-            {% set disabled = is_splitter and not loop.first %}
+            {% set disabled = (is_splitter and not loop.first) or (is_transformer and loop.first) %}
             <td>
               {% if disabled %}
               <span style="color:var(--muted)">—</span>

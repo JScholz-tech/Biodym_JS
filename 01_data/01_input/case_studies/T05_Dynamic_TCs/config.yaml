@@ -1,0 +1,217 @@
+schema_version: '1.0'
+name: T05_Dynamic_TCs
+description: "Tutorial T04 - Dynamic Stock Modelling\r\n\r\nModels multiple product\
+  \ cohorts in a DSM Process. Construction material is used in a building.\r\n\r\n\
+  What it shows\r\n• Elements material, WC (water), DM (dry matter), TC (carbon),\
+  \ with the hierarchy\r\n  material = WC + DM and DM = TC + (rest).\r\n• The DSM\
+  \ input is split into four product fractions.\r\n• Per fraction an individual lifetime\
+  \ is modelled with a normal, a lognormal and a Weibull distribution.\r\n  \r\nTry\
+  \ it\r\n• Open Flow DSM process to see the DSM Parameters.\r\n\r\nLook for\r\n•\
+  \ Composition tab: the product stream is dry (no WC); the vapour stream is pure\
+  \ water."
+model:
+  start_year: 2025
+  end_year: 2125
+  elements:
+  - material
+  - WC
+  - DM
+  - TC
+  unit_of_measurement: Mg
+  hierarchy_level_names:
+  - Product
+  - Component
+  - Material
+  - Element
+  input_file: ''
+  output_file: ''
+  run_dsm_calculation: true
+  run_fomp_calculation: false
+  run_monte_carlo: false
+  mc_iterations: 1000
+  run_scenario_analysis: false
+  selected_scenarios:
+  - ''
+  - ''
+  - ''
+  - ''
+processes:
+- id: 0
+  name: Process 0
+  logic: Input
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 1
+  name: Process 1 (Sorting)
+  logic: Splitter
+  stock: No_Stock
+  tc_config: Dynamic
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 2
+  name: Process 2
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 3
+  name: Process 3 (Incineration)
+  logic: Transformer
+  stock: No_Stock
+  tc_config: Dynamic
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 4
+  name: Process 4
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 5
+  name: Process 5
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+flows:
+- id: F_00_01
+  name: Flow 1
+  from_process: 0
+  to_process: 1
+- id: F_01_02
+  name: Flow 2
+  from_process: 1
+  to_process: 2
+- id: F_01_03
+  name: Flow 3
+  from_process: 1
+  to_process: 3
+- id: F_03_04
+  name: Flow 4
+  from_process: 3
+  to_process: 4
+- id: F_03_05
+  name: Flow 5
+  from_process: 3
+  to_process: 5
+transfer_coefficients:
+- process_id: 1
+  flow_id: F_01_02
+  tc_type: dynamic
+  values: {}
+  time_series:
+  - year: 2025
+    values:
+      material: 0.6
+  - year: 2050
+    values:
+      material: 0.5
+  - year: 2075
+    values:
+      material: 0.2
+  ref: ''
+- process_id: 1
+  flow_id: F_01_03
+  tc_type: dynamic
+  values: {}
+  time_series:
+  - year: 2025
+    values:
+      material: 0.4
+  - year: 2050
+    values:
+      material: 0.5
+  - year: 2075
+    values:
+      material: 0.8
+  ref: ''
+- process_id: 3
+  flow_id: F_03_04
+  tc_type: dynamic
+  values: {}
+  time_series:
+  - year: 2025
+    values:
+      WC: 1.0
+      DM: 0.2
+      TC: 0.5
+  - year: 2040
+    values:
+      WC: 1.0
+      DM: 0.3
+      TC: 0.4
+  - year: 2080
+    values:
+      WC: 1.0
+      DM: 0.4
+      TC: 0.3
+  ref: ''
+- process_id: 3
+  flow_id: F_03_05
+  tc_type: dynamic
+  values: {}
+  time_series:
+  - year: 2025
+    values:
+      WC: 0.0
+      DM: 0.8
+      TC: 0.5
+  - year: 2040
+    values:
+      WC: 0.0
+      DM: 0.7
+      TC: 0.6
+  - year: 2080
+    values:
+      WC: 0.0
+      DM: 0.6
+      TC: 0.7
+  ref: ''
+element_hierarchy:
+- parent: material
+  children:
+  - DM
+  - WC
+- parent: DM
+  children:
+  - TC
+flow_compositions:
+- flow_id: F_00_01
+  values:
+    material: 1.0
+    WC: 0.3
+    DM: 0.7
+    TC: 0.35
+  ref: ''
+flow_data:
+- flow_id: F_00_01
+  element: material
+  values:
+    '2025': 100.0
+    '2030': 200.0
+    '2045': 300.0
+    '2055': 400.0
+    '2065': 500.0
+    '2075': 600.0
+bom_assembly: []
+scenarios: []
+mc_parameters: []
+initial_stocks: []
+references: []

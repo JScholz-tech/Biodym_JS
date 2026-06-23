@@ -7,6 +7,7 @@ as human-readable YAML files suitable for version control.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -85,6 +86,7 @@ def model_to_yaml(excel_data: dict, source_file: str = "") -> dict:
         "flow_data": [],
         "scenarios": [],
         "mc_parameters": [],
+        "initial_stocks": [],
     }
 
     # ---- Model dimensions from 0_Configuration ----
@@ -490,6 +492,215 @@ def model_to_yaml(excel_data: dict, source_file: str = "") -> dict:
                     "process_name": proc_id_to_name.get(pid, ""),
                     "flows": bom_flows,
                 })
+
+    # ---- FlowCap params (3_4_Definition_FlowCap) ----
+    # Attach a per-process flowcap block to the matching process dict.
+    # Excel layout: Capped_Output rows carry Process_ID, Flow_ID, Year and the
+    # cap value (column "Flow"); a single Overflow row names the overflow flow.
+    # Output_flow_type can carry stray whitespace/tabs from the template, so we
+    # strip before matching. Without this block, importing an Excel silently
+    # dropped the cap (the inverse of the YAML->engine bridge).
+    fc_df = excel_data.get("3_4_Definition_FlowCap")
+    if fc_df is not None and not fc_df.empty and "Flow_ID" in fc_df.columns:
+        fc_df = fc_df.copy()
+        fc_df.columns = [str(c).strip() for c in fc_df.columns]
+        cap_col = next((c for c in ("Flow", "Cap_Value[UoM]", "Cap") if c in fc_df.columns), None)
+        has_pid = "Process_ID" in fc_df.columns
+        for _, row in fc_df.iterrows():
+            fid = str(row.get("Flow_ID", "")).strip()
+            if not fid or fid.lower() == "nan" or set(fid) <= {"F", "_"}:
+                continue  # blank / filler row (e.g. "F__")
+            pid = None
+            if has_pid and pd.notna(row.get("Process_ID")):
+                try:
+                    pid = int(float(row["Process_ID"]))
+                except (ValueError, TypeError):
+                    pid = None
+            if pid is None:  # infer from flow id F_<from>_<to>
+                parts = fid.split("_")
+                if len(parts) >= 2 and parts[1].isdigit():
+                    pid = int(parts[1])
+            idx = _pid_to_idx.get(pid)
+            if idx is None:
+                continue
+            block = out["processes"][idx].setdefault(
+                "flowcap",
+                {"capped_flow_id": "", "overflow_flow_id": "", "cap_series": {}, "cap_tc_id": ""},
+            )
+            ftype = str(row.get("Output_flow_type", "")).strip().lower()
+            if ftype.startswith("overflow"):
+                block["overflow_flow_id"] = fid
+            else:  # Capped_Output (default)
+                block["capped_flow_id"] = fid
+                if cap_col is not None and pd.notna(row.get(cap_col)):
+                    try:
+                        cap = float(str(row[cap_col]).replace(",", "."))
+                    except (ValueError, TypeError):
+                        cap = None
+                    if cap is not None:
+                        yr = row.get("Year")
+                        try:
+                            yr = int(float(yr)) if pd.notna(yr) else 0
+                        except (ValueError, TypeError):
+                            yr = 0
+                        block["cap_series"][yr] = cap
+        # discard incomplete blocks (no capped flow -> nothing to cap)
+        for _p in out["processes"]:
+            if "flowcap" in _p and not _p["flowcap"].get("capped_flow_id"):
+                del _p["flowcap"]
+
+    # ---- LFG params (3_3_Definition_LFG) ----
+    # Mirror load_lfg_parameters: site scalars (MCF/DOCf/F_CH4/OX/phi/f_capture
+    # + outflow IDs) and per-fraction rows whose LFG_Parameter_ID carries a
+    # _j{n} suffix. Map the Excel parameter names onto the LfgParams field names.
+    lfg_df = excel_data.get("3_3_Definition_LFG")
+    if (lfg_df is not None and not lfg_df.empty
+            and "LFG_Parameter_type" in lfg_df.columns
+            and "LFG_Parameter_Value" in lfg_df.columns):
+        _LFG_MAP = {  # excel type -> LfgParams field
+            "MCF": "mcf", "DOCf": "doc_f", "F": "f_ch4", "F_CH4": "f_ch4",
+            "OX": "ox", "Φ": "phi", "φ": "phi", "phi": "phi",
+            "f": "f_capture", "f_capture": "f_capture",
+            "output_CH4_id": "outflow_ch4_id", "outflow_ch4_id": "outflow_ch4_id",
+            "output_CO2_id": "outflow_co2_id", "outflow_co2_id": "outflow_co2_id",
+            "output_leaching": "outflow_leachate_id", "outflow_leachate_id": "outflow_leachate_id",
+        }
+        _SITE = {"mcf", "doc_f", "f_ch4", "ox", "phi", "f_capture"}
+        _ID_FIELDS = {"outflow_ch4_id", "outflow_co2_id", "outflow_leachate_id"}
+        _FRAC = {"Waste_Fraction_j": "name", "k_j": "k_j", "DOC_j": "doc_j",
+                 "f_input_j": "f_input_j", "f_ash_j": "f_ash_j"}
+        _jpat = re.compile(r"_j(\d+)\b", re.IGNORECASE)
+        has_pid = "Process_ID" in lfg_df.columns
+        has_id = "LFG_Parameter_ID" in lfg_df.columns
+        _site: dict[int, dict] = {}
+        _fracs: dict[int, dict] = {}
+        for _, row in lfg_df.iterrows():
+            ptype = row.get("LFG_Parameter_type")
+            if pd.isna(ptype):
+                continue
+            ptype = str(ptype).strip()
+            pval = row.get("LFG_Parameter_Value")
+            pidv = row.get("LFG_Parameter_ID") if has_id else None
+            pid = None
+            if has_pid and pd.notna(row.get("Process_ID")):
+                try:
+                    pid = int(float(row["Process_ID"]))
+                except (ValueError, TypeError):
+                    pid = None
+            if pid is None and pd.notna(pidv):
+                s = str(pidv).strip()
+                if s.startswith("P") and "_" in s:
+                    try:
+                        pid = int(s[1:].split("_")[0])
+                    except (ValueError, IndexError):
+                        pid = None
+            if pid is None or pid not in _pid_to_idx:
+                continue
+            fidx = None
+            if pd.notna(pidv):
+                m = _jpat.search(str(pidv))
+                if m:
+                    fidx = int(m.group(1))
+            if ptype in _FRAC and fidx is not None:
+                _fracs.setdefault(pid, {}).setdefault(fidx, {})[_FRAC[ptype]] = pval
+                continue
+            field = _LFG_MAP.get(ptype)
+            if field in _ID_FIELDS:
+                if pd.notna(pval):
+                    _site.setdefault(pid, {})[field] = str(pval).strip()
+            elif field in _SITE and pd.notna(pval):
+                try:
+                    _site.setdefault(pid, {})[field] = float(pval)
+                except (ValueError, TypeError):
+                    pass
+        for pid in set(_site) | set(_fracs):
+            idx = _pid_to_idx.get(pid)
+            if idx is None:
+                continue
+            block = dict(_site.get(pid, {}))
+            frac_list = []
+            for fi in sorted(_fracs.get(pid, {})):
+                fd = _fracs[pid][fi]
+
+                def _f(k, d=0.0):
+                    v = fd.get(k)
+                    if v is None or (isinstance(v, float) and pd.isna(v)):
+                        return d
+                    try:
+                        return float(v)
+                    except (ValueError, TypeError):
+                        return d
+
+                frac_list.append({
+                    "name": str(fd.get("name", f"Fraction_{fi}")).strip(),
+                    "k_j": _f("k_j"), "doc_j": _f("doc_j"),
+                    "f_input_j": _f("f_input_j"), "f_ash_j": _f("f_ash_j"),
+                })
+            if frac_list:
+                block["fractions"] = frac_list
+            if block:
+                out["processes"][idx]["lfg"] = block
+
+    # ---- Initial Stock (2_4_Initial_Stock) ----
+    # Tall format Process_ID / IS_Parameter_type / IS_Parameter_Value. Mirrors
+    # load_initial_stock_parameters: material quantity, Basic_E{n}_Fraction[%]
+    # element composition (absolute), and Cohort_* params. Top-level list.
+    is_df = excel_data.get("2_4_Initial_Stock")
+    if (is_df is not None and not is_df.empty
+            and {"Process_ID", "IS_Parameter_type", "IS_Parameter_Value"} <= set(is_df.columns)):
+        def _isf(v):
+            if pd.isna(v):
+                return None
+            try:
+                return float(str(v).replace(",", ".")) if isinstance(v, str) else float(v)
+            except (ValueError, TypeError):
+                return None
+        # element -> candidate IS_Parameter_type names (1-based id, skip material)
+        elem_candidates: dict[str, list[str]] = {}
+        for ei, elem in enumerate(elements):
+            if elem == "material":
+                continue
+            eid = ei + 1
+            elem_candidates[elem] = [
+                f"Basic_E{eid}_Fraction[%]", f"IS_E{eid}_Fraction[%]",
+                f"IS_E{eid}_[%]({elem})", f"IS_E{eid}[%]", f"IS_E{eid}_[%]", f"IS_{elem}[%]",
+            ]
+        _by_pid: dict[int, dict] = {}
+        for _, row in is_df.dropna(subset=["Process_ID", "IS_Parameter_type"]).iterrows():
+            try:
+                pid = int(float(row["Process_ID"]))
+            except (ValueError, TypeError):
+                continue
+            pname = str(row["IS_Parameter_type"]).strip()
+            praw = row["IS_Parameter_Value"]
+            pnum = _isf(praw)
+            entry = _by_pid.setdefault(pid, {"process_id": pid, "composition": {}})
+            if pname in ("IS_material_quantity[UoM]", "Basic_Material_Quantity[UoM]"):
+                if pnum is not None:
+                    entry["material_quantity"] = pnum
+            elif pname == "Cohort_Age_Distribution_Type":
+                entry["cohort_age_distribution_type"] = str(praw).strip()
+            elif pname == "Cohort_Mean_Age[years]":
+                if pnum is not None:
+                    entry["cohort_mean_age"] = pnum
+            elif pname == "Cohort_StdDev_Age[years]":
+                if pnum is not None:
+                    entry["cohort_std_age"] = pnum
+            elif pname == "Cohort_Max_Age[years]":
+                if pnum is not None:
+                    entry["cohort_max_age"] = int(pnum)
+            elif pname == "Cohort_Decay_Constant[years]":
+                if pnum is not None:
+                    entry["cohort_decay_constant"] = pnum
+            else:
+                for elem, cands in elem_candidates.items():
+                    if pname in cands and pnum is not None:
+                        entry["composition"][elem] = pnum
+                        break
+        for pid in sorted(_by_pid):
+            e = _by_pid[pid]
+            if e.get("material_quantity", 0) > 0 or e["composition"]:
+                out["initial_stocks"].append(e)
 
     # ---- Flow Compositions ----
     # Reads elemental fractions from 1_1_Definition_Flows for every flow that

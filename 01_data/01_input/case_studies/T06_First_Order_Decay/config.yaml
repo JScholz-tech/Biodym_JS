@@ -1,0 +1,141 @@
+schema_version: '1.0'
+name: T06_First_Order_Decay
+description: "Tutorial T04 - Dynamic Stock Modelling\r\n\r\nModels multiple product\
+  \ cohorts in a DSM Process. Construction material is used in a building.\r\n\r\n\
+  What it shows\r\n• Elements material, WC (water), DM (dry matter), TC (carbon),\
+  \ with the hierarchy\r\n  material = WC + DM and DM = TC + (rest).\r\n• The DSM\
+  \ input is split into four product fractions.\r\n• Per fraction an individual lifetime\
+  \ is modelled with a normal, a lognormal and a Weibull distribution.\r\n  \r\nTry\
+  \ it\r\n• Open Flow DSM process to see the DSM Parameters.\r\n\r\nLook for\r\n•\
+  \ Composition tab: the product stream is dry (no WC); the vapour stream is pure\
+  \ water."
+model:
+  start_year: 2025
+  end_year: 2125
+  elements:
+  - material
+  - WC
+  - DM
+  - TC
+  unit_of_measurement: Mg
+  hierarchy_level_names:
+  - Product
+  - Component
+  - Material
+  - Element
+  input_file: ''
+  output_file: ''
+  run_dsm_calculation: false
+  run_fomp_calculation: true
+  run_monte_carlo: false
+  mc_iterations: 1000
+  run_scenario_analysis: false
+  selected_scenarios:
+  - ''
+  - ''
+  - ''
+  - ''
+processes:
+- id: 0
+  name: Process 0
+  logic: Input
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 1
+  name: Process 1 (FOMP)
+  logic: FOMP
+  stock: Stock
+  tc_config: No TC
+  fomp:
+    f_labile: 0.5
+    k_labile: 1.0
+    k_recalcitrant: 0.01
+    outflow_id: F_01_02
+    outflow_id_2: F_01_03
+    ref: ''
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 2
+  name: Process 2
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 3
+  name: Process 3
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+flows:
+- id: F_00_01
+  name: Flow 1
+  from_process: 0
+  to_process: 1
+- id: F_01_02
+  name: Flow 2
+  from_process: 1
+  to_process: 2
+- id: F_01_03
+  name: Flow 3
+  from_process: 1
+  to_process: 3
+transfer_coefficients:
+- process_id: 1
+  flow_id: F_01_02
+  tc_type: static
+  values:
+    material: 0.5
+    WC: 0.0
+    DM: 0.0
+    TC: 0.0
+  time_series: []
+  ref: ''
+- process_id: 1
+  flow_id: F_01_03
+  tc_type: static
+  values:
+    material: 0.5
+    WC: 0.0
+    DM: 0.0
+    TC: 0.0
+  time_series: []
+  ref: ''
+element_hierarchy:
+- parent: material
+  children:
+  - DM
+  - WC
+- parent: DM
+  children:
+  - TC
+flow_compositions:
+- flow_id: F_00_01
+  values:
+    material: 1.0
+    WC: 0.3
+    DM: 0.7
+    TC: 0.35
+  ref: ''
+flow_data:
+- flow_id: F_00_01
+  element: material
+  values:
+    '2025': 100.0
+    '2026': 0.0
+bom_assembly: []
+scenarios: []
+mc_parameters: []
+initial_stocks: []
+references: []

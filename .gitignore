@@ -118,12 +118,16 @@ skills-lock.json
 tools/
 
 # -----------------------------------------------------------------------------
-# 01_data - Input Files (only template is tracked)
+# 01_data - Input Files (only the template, README, and tutorial studies ship)
 # -----------------------------------------------------------------------------
-# Exclude everything in input folder except the template subfolder
+# Exclude everything in the input folder except the curated, shippable assets:
+#   template/        — blank Excel Systemmanager (the Excel-format reference)
+#   README.md        — describes the Excel and YAML input formats + this layout
+#   case_studies/T0* — tutorial studies (SystemDefiner studies named T01_, T02_, …)
 01_data/01_input/*
 !01_data/01_input/template/
 !01_data/01_input/template/**
+!01_data/01_input/README.md
 # Tutorial studies (SystemDefiner studies named T0…) ship with the repo so a
 # fresh clone opens the app with them; all other case_studies/ are local.
 !01_data/01_input/case_studies/

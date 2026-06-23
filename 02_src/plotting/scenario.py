@@ -590,3 +590,202 @@ def plot_scenario_stock_dynamics(
 
     controls = HBox([stock_selector, element_dropdown, scenario_selector])
     display(VBox([controls, fig, export_btn, export_out]))
+
+
+def plot_scenario_stock_publication(
+    baseline_results,
+    all_scenario_results,
+    scenario_name=None,
+    element=None,
+    stock_ids=None,
+    stock_labels=None,
+    stock_colors=None,
+    scenario_label=None,
+    policy_year=2075,
+    enable_export=True,
+):
+    """Static JIE-ready publication figure for scenario vs. baseline stock comparison.
+
+    Shows baseline (solid) and one scenario (dashed) for selected stocks, with
+    a vertical policy-year line and horizontal dotted reference lines at each
+    stock's baseline value at policy_year.
+
+    Parameters
+    ----------
+    baseline_results : odym.MFAsystem
+    all_scenario_results : dict
+        Keyed by scenario name.
+    scenario_name : str or None
+        Scenario to plot. Defaults to first key in all_scenario_results.
+    element : str or None
+        Element to plot. Defaults to TC/CC fallback, then first element.
+    stock_ids : list[str] or None
+        Stock IDs (e.g. ["S_3", "S_4", "S_5"]). Defaults to all S_* stocks.
+    stock_labels : dict or None
+        {stock_id: display_name}. Defaults to process names.
+    stock_colors : list[str] or None
+        Hex colours per stock (same order as stock_ids).
+        Defaults to [teal-blue, magenta, amber] matching the case-study scheme.
+    scenario_label : str or None
+        Short legend label for the scenario line. Defaults to "Application Stop (2075)".
+    policy_year : int or None
+        Year for vertical reference line and horizontal dotted references. None = omit.
+    enable_export : bool
+        Show PNG/SVG export button.
+    """
+    if not all_scenario_results:
+        print("No scenario results to plot.")
+        return
+
+    if scenario_name is None:
+        scenario_name = next(iter(all_scenario_results))
+    if scenario_name not in all_scenario_results:
+        print(f"⚠️  Scenario '{scenario_name}' not found.")
+        return
+
+    scenario_results = all_scenario_results[scenario_name]
+    elements = baseline_results.Elements
+    time_axis = list(baseline_results.IndexTable.Classification["Time"].Items)
+
+    # Element selection
+    if element is None:
+        element = next((e for e in ("TC", "CC") if e in elements), elements[0])
+    if element not in elements:
+        print(f"⚠️  Element '{element}' not found. Available: {elements}")
+        return
+    elem_idx = elements.index(element)
+
+    # Stock selection
+    all_stock_ids = [s for s in baseline_results.StockDict if s.startswith("S_")]
+    if stock_ids is None:
+        stock_ids = all_stock_ids
+    stock_name_map = _build_stock_name_map(baseline_results)
+    if stock_labels is None:
+        stock_labels = stock_name_map
+
+    # Colours: default matches case-study scheme (teal-blue, magenta, amber)
+    _DEFAULT_COLORS = ["#1A6FAA", "#B0306A", "#D4A017", "#4A6741", "#6B5B7B"]
+    colors = list(stock_colors) if stock_colors is not None else _DEFAULT_COLORS
+
+    _sc, _unit = get_mass_display()
+
+    # Policy year index for reference lines
+    policy_idx = None
+    if policy_year is not None and policy_year in time_axis:
+        policy_idx = time_axis.index(policy_year)
+
+    fig = go.Figure()
+
+    # ── Baseline + scenario traces ────────────────────────────────────────────
+    for i, sid in enumerate(stock_ids):
+        color = colors[i % len(colors)]
+        label = stock_labels.get(sid, stock_name_map.get(sid, sid))
+        baseline_obj = baseline_results.StockDict.get(sid)
+        scenario_obj = scenario_results.StockDict.get(sid)
+
+        if baseline_obj is not None:
+            y_base = baseline_obj.Values[:, elem_idx] * _sc
+            fig.add_trace(go.Scatter(
+                x=time_axis, y=y_base.tolist(),
+                mode="lines", name=label,
+                legendgroup=f"color_{i}", legendgrouptitle_text=None,
+                line=dict(color=color, width=2),
+                hovertemplate=f"<b>{label} – Baseline</b><br>Year: %{{x}}<br>%{{y:,.0f}} {_unit}<extra></extra>",
+            ))
+
+            # Horizontal dotted reference at policy_year baseline value
+            if policy_idx is not None:
+                y_ref = float(y_base[policy_idx])
+                x_ref_start = time_axis[policy_idx]
+                x_ref_end = time_axis[-1]
+                fig.add_trace(go.Scatter(
+                    x=[x_ref_start, x_ref_end], y=[y_ref, y_ref],
+                    mode="lines", name=label,
+                    legendgroup=f"color_{i}",
+                    showlegend=False,
+                    line=dict(color=color, width=1.2, dash="dot"),
+                    hoverinfo="skip",
+                ))
+
+        if scenario_obj is not None:
+            y_sc = scenario_obj.Values[:, elem_idx] * _sc
+            fig.add_trace(go.Scatter(
+                x=time_axis, y=y_sc.tolist(),
+                mode="lines", name=label,
+                legendgroup=f"color_{i}",
+                showlegend=False,
+                line=dict(color=color, width=2, dash="dash"),
+                hovertemplate=f"<b>{label} – Scenario</b><br>Year: %{{x}}<br>%{{y:,.0f}} {_unit}<extra></extra>",
+            ))
+
+    # ── Line-style legend entries (Baseline / Scenario) ────────────────────
+    sc_short = scenario_label or "Application Stop (2075)"
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None], mode="lines", name="Baseline",
+        legendgroup="__linestyle",
+        line=dict(color="#333", width=2, dash="solid"),
+    ))
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None], mode="lines", name=sc_short,
+        legendgroup="__linestyle",
+        line=dict(color="#333", width=2, dash="dash"),
+    ))
+
+    # ── Policy year vertical line ─────────────────────────────────────────
+    if policy_year is not None:
+        fig.add_vline(
+            x=policy_year,
+            line=dict(color="black", dash="dash", width=0.8),
+            annotation_text=str(policy_year),
+            annotation_position="top right",
+            annotation_font_size=9,
+        )
+
+    # ── Layout ────────────────────────────────────────────────────────────
+    layout_config = get_publication_layout(
+        custom_title="",
+        x_title="Year",
+        y_title=f"mass TC ({_unit})",
+        show_grid=True,
+        y_range=[0, None],
+    )
+    apply_theme(layout_config)
+    layout_config["title"] = dict(text="")
+    layout_config["yaxis"]["tickformat"] = ","
+    layout_config["yaxis"]["exponentformat"] = "none"
+    layout_config["legend"] = dict(
+        orientation="h",
+        x=0.5, y=-0.18,
+        xanchor="center", yanchor="top",
+        font=dict(size=10),
+        bgcolor="rgba(255,255,255,0.85)",
+        bordercolor="#ccc",
+        borderwidth=1,
+    )
+    layout_config["margin"]["b"] = max(layout_config["margin"].get("b", 80), 110)
+    fig.update_layout(**layout_config)
+
+    if not enable_export:
+        display(fig)
+        return
+
+    export_btn = Button(
+        description="Export PNG/SVG",
+        button_style="success",
+        icon="download",
+        layout={"width": "160px"},
+    )
+
+    def _do_export(b):
+        try:
+            paths = export_figure(
+                fig, f"scenario_stock_publication_{element}",
+                formats=["png", "svg"], quality="publication", size="publication", timestamp=False,
+            )
+            print(f"✅ Exported: {', '.join(paths)}")
+        except Exception as e:
+            print(f"❌ Export failed: {e}")
+
+    export_btn.on_click(_do_export)
+    display(HBox([export_btn]))
+    display(fig)
