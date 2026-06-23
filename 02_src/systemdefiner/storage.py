@@ -5,7 +5,25 @@ from pathlib import Path
 
 import yaml
 
-from systemdefiner.models.config_schema import CaseStudyConfig
+from systemdefiner.models.config_schema import CaseStudyConfig, StockConfig
+
+_INITIAL_STOCK_CONFIGS = (
+    StockConfig.initial_stock_cohort,
+    StockConfig.initial_stock_decay,
+)
+
+
+def _prune_orphan_initial_stocks(config: CaseStudyConfig) -> None:
+    """Drop initial-stock entries that no longer belong to an initial-stock process.
+
+    An entry is an orphan when its process was deleted, its stock type changed
+    away from an InitialStock variant, or it was imported onto a process (e.g.
+    the boundary) that never carries one. The engine silently ignores such
+    entries, so we enforce the invariant on every save regardless of route.
+    """
+    valid = {p.id for p in config.processes if p.stock in _INITIAL_STOCK_CONFIGS}
+    config.initial_stocks = [s for s in config.initial_stocks if s.process_id in valid]
+
 
 CASE_STUDIES_DIR = Path("01_data/01_input/case_studies")
 _locks: dict[str, threading.Lock] = {}
@@ -93,6 +111,7 @@ def load_case_study(name: str) -> CaseStudyConfig:
 
 
 def save_case_study(config: CaseStudyConfig) -> None:
+    _prune_orphan_initial_stocks(config)
     path = _config_path(config.name)
     path.parent.mkdir(parents=True, exist_ok=True)
     data = config.model_dump(mode="json")

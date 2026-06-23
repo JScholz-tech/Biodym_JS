@@ -592,6 +592,56 @@ def _model_health(cfg) -> list[dict]:
             if (fm.k_labile or 0.0) < 0 or (fm.k_recalcitrant or 0.0) < 0:
                 warn(f"P{p.id} {p.name}: FOMP decay rate is negative.")
 
+    # Monte Carlo parameter sanity — catches the percentage-vs-fraction trap.
+    # TC_… are fractions (0–1); F_… flows are absolute amounts (a multiplier near
+    # 1.0 under 'multiply'). A flow has no normalisation safety net, so a wrong
+    # magnitude there silently blows up the result.
+    def _flow_baseline(fid: str):
+        fd = next(
+            (d for d in cfg.flow_data if d.flow_id == fid and d.element == "material"),
+            None,
+        )
+        if fd and fd.values:
+            return max(fd.values.values())
+        return None
+
+    for mp in cfg.mc_parameters:
+        pid = (mp.parameter_id or "").strip()
+        if not pid:
+            continue
+        vals = {
+            k: v
+            for k, v in (("mean", mp.mean), ("min", mp.min), ("max", mp.max), ("mode", mp.mode))
+            if v is not None
+        }
+        op = (mp.operation or "").strip().lower()
+        if pid.startswith("TC"):
+            over = {k: v for k, v in vals.items() if v > 1.0}
+            if over:
+                shown = ", ".join(f"{k}={v:g}" for k, v in over.items())
+                warn(
+                    f"MC {pid}: transfer coefficients are fractions 0–1, but {shown} > 1 "
+                    f"— did you enter a percentage? (use 0.3, not 30)."
+                )
+            if any(v < 0 for v in vals.values()):
+                warn(f"MC {pid}: transfer coefficient has a negative value.")
+        elif pid.startswith("F"):
+            if op in ("multiply", "scale"):
+                if mp.mean is not None and (mp.mean <= 0 or mp.mean > 5):
+                    warn(
+                        f"MC {pid}: 'multiply' expects a multiplier near 1.0 (e.g. 1.1 for +10%), "
+                        f"but mean={mp.mean:g}. Did you enter an absolute amount or a percentage?"
+                    )
+            elif op in ("set", "replace", "add"):
+                base = _flow_baseline(pid)
+                if base and base > 0 and mp.mean and mp.mean > 0:
+                    ratio = mp.mean / base
+                    if ratio > 10 or ratio < 0.1:
+                        warn(
+                            f"MC {pid}: mean={mp.mean:g} is {ratio:.0f}× the baseline flow "
+                            f"(~{base:g}) — check the units/magnitude."
+                        )
+
     # InitialStock processes without a defined stock
     for p in cfg.processes:
         if p.stock in (
@@ -603,6 +653,28 @@ def _model_health(cfg) -> list[dict]:
                 warn(
                     f"P{p.id} {p.name}: initial-stock process has no initial stock quantity."
                 )
+            elif p.logic not in (ProcessLogic.dsm,):
+                warn(
+                    f"P{p.id} {p.name}: initial stock only depletes through a DSM process "
+                    f"(set logic to DSM); on '{p.logic.value}' the stock is placed but never released."
+                )
+
+    # Orphaned initial-stock entries: present in the config but the process is
+    # gone or no longer an initial-stock process, so the engine ignores them.
+    _is_proc = {p.id: p for p in cfg.processes}
+    for s in cfg.initial_stocks:
+        p = _is_proc.get(s.process_id)
+        if p is None:
+            warn(f"Initial stock references P{s.process_id}, which does not exist.")
+        elif p.stock not in (
+            StockConfig.initial_stock_cohort,
+            StockConfig.initial_stock_decay,
+        ):
+            warn(
+                f"P{s.process_id} {p.name}: has an initial-stock entry but its stock "
+                f"config is '{p.stock.value}' — the entry is ignored (set an InitialStock "
+                f"stock config, or remove it via the process editor)."
+            )
 
     # FlowCap processes without a defined cap (otherwise the cap is silently ignored)
     for p in cfg.processes:
@@ -719,8 +791,11 @@ async def process_new(request: Request, name: str):
     cfg = storage.load_case_study(name)
 
     # Process IDs are 0-based to match the BioDYM Excel convention (P0 is the
-    # system boundary / Atmosphere). First process added gets id 0.
-    new_id = max((p.id for p in cfg.processes), default=-1) + 1
+    # system boundary / Atmosphere). First process added gets id 0. Reuse the
+    # lowest free id so a gap left by a deleted process gets filled instead of
+    # leaving a permanent hole in the numbering.
+    existing_ids = {p.id for p in cfg.processes}
+    new_id = next(i for i in range(len(existing_ids) + 1) if i not in existing_ids)
     _valid_logic = {e.value for e in ProcessLogic}
     _valid_stock = {e.value for e in StockConfig}
     _valid_tc = {e.value for e in TCConfig}
