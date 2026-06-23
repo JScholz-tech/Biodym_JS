@@ -209,6 +209,21 @@ def _apply_extra_yaml(yaml_data: dict, cfg: "CaseStudyConfig") -> None:
             for p in yaml_data["mc_parameters"]
         ]
 
+    if yaml_data.get("initial_stocks"):
+        cfg.initial_stocks = [
+            InitialStockEntry(
+                process_id=int(s["process_id"]),
+                material_quantity=float(s.get("material_quantity", 0.0) or 0.0),
+                composition={k: float(v) for k, v in s.get("composition", {}).items()},
+                cohort_age_distribution_type=s.get("cohort_age_distribution_type", "Normal"),
+                cohort_mean_age=s.get("cohort_mean_age"),
+                cohort_std_age=s.get("cohort_std_age"),
+                cohort_max_age=s.get("cohort_max_age"),
+                cohort_decay_constant=s.get("cohort_decay_constant"),
+            )
+            for s in yaml_data["initial_stocks"]
+        ]
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # HOME — Case study list
