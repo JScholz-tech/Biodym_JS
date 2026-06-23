@@ -1,14 +1,34 @@
 schema_version: '1.0'
 name: T06_First_Order_Decay
-description: "Tutorial T04 - Dynamic Stock Modelling\r\n\r\nModels multiple product\
-  \ cohorts in a DSM Process. Construction material is used in a building.\r\n\r\n\
-  What it shows\r\n• Elements material, WC (water), DM (dry matter), TC (carbon),\
-  \ with the hierarchy\r\n  material = WC + DM and DM = TC + (rest).\r\n• The DSM\
-  \ input is split into four product fractions.\r\n• Per fraction an individual lifetime\
-  \ is modelled with a normal, a lognormal and a Weibull distribution.\r\n  \r\nTry\
-  \ it\r\n• Open Flow DSM process to see the DSM Parameters.\r\n\r\nLook for\r\n•\
-  \ Composition tab: the product stream is dry (no WC); the vapour stream is pure\
-  \ water."
+description: '📘 Tutorial T06 — First-order decay (FOMP)
+
+
+  Introduces the FOMP process: organic matter held in a stock mineralises over time
+  following first-order kinetics.
+
+
+  What it shows
+
+  • A FOMP process holds a stock that decays at a constant rate (decay constant k).
+
+  • Material is split into a labile (fast-decaying) and a recalcitrant (slow-decaying)
+  pool.
+
+  • Decayed carbon leaves through a defined outflow; the remainder stays in the stock.
+
+
+  Try it
+
+  • Open the FOMP process to see the labile fraction and the decay rates.
+
+  • Change a decay rate and re-run to see how fast the stock depletes.
+
+
+  Look for
+
+  • Stock plot: an exponential-style decline as the pools mineralise.
+
+  • The larger the rate k, the quicker the stock falls.'
 model:
   start_year: 2025
   end_year: 2125

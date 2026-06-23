@@ -1,14 +1,36 @@
 schema_version: '1.0'
 name: T05_Dynamic_TCs
-description: "Tutorial T04 - Dynamic Stock Modelling\r\n\r\nModels multiple product\
-  \ cohorts in a DSM Process. Construction material is used in a building.\r\n\r\n\
-  What it shows\r\n• Elements material, WC (water), DM (dry matter), TC (carbon),\
-  \ with the hierarchy\r\n  material = WC + DM and DM = TC + (rest).\r\n• The DSM\
-  \ input is split into four product fractions.\r\n• Per fraction an individual lifetime\
-  \ is modelled with a normal, a lognormal and a Weibull distribution.\r\n  \r\nTry\
-  \ it\r\n• Open Flow DSM process to see the DSM Parameters.\r\n\r\nLook for\r\n•\
-  \ Composition tab: the product stream is dry (no WC); the vapour stream is pure\
-  \ water."
+description: '📘 Tutorial T05 — Dynamic transfer coefficients
+
+
+  Builds on the Splitter and Transformer tutorials: transfer coefficients that change
+  over time instead of staying constant.
+
+
+  What it shows
+
+  • A process whose transfer coefficients are defined per year rather than as a single
+  static value.
+
+  • The engine interpolates between the years you enter, so a split can shift gradually
+  over the modelled period.
+
+  • Dynamic TCs let you model trends — e.g. a recycling rate that rises over time.
+
+
+  Try it
+
+  • Open the Transfer Coefficients page and switch to the dynamic view to see the
+  year/value points.
+
+  • Add or move a time point (keeping each year''s outgoing split at 100%) and re-run.
+
+
+  Look for
+
+  • Sankey: step through the years and watch the split change.
+
+  • Downstream flows track the changing coefficients over time.'
 model:
   start_year: 2025
   end_year: 2125

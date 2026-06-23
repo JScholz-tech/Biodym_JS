@@ -1,14 +1,37 @@
 schema_version: '1.0'
 name: T04_Dynamic_Stock_Modelling
-description: "Tutorial T04 - Dynamic Stock Modelling\r\n\r\nModels multiple product\
-  \ cohorts in a DSM Process. Construction material is used in a building.\r\n\r\n\
-  What it shows\r\n• Elements material, WC (water), DM (dry matter), TC (carbon),\
-  \ with the hierarchy\r\n  material = WC + DM and DM = TC + (rest).\r\n• The DSM\
-  \ input is split into four product fractions.\r\n• Per fraction an individual lifetime\
-  \ is modelled with a normal, a lognormal and a Weibull distribution.\r\n  \r\nTry\
-  \ it\r\n• Open Flow DSM process to see the DSM Parameters.\r\n\r\nLook for\r\n•\
-  \ Composition tab: the product stream is dry (no WC); the vapour stream is pure\
-  \ water."
+description: '📘 Tutorial T04 — Dynamic Stock Modelling
+
+
+  Introduces the DSM process: an inflow accumulates in a stock and leaves years later
+  according to a product-lifetime distribution.
+
+
+  What it shows
+
+  • A DSM process receives an inflow that is split into several product fractions
+  (categories).
+
+  • Each fraction has its own lifetime distribution — Normal, LogNormal or Weibull
+  — so cohorts leave the stock at different times.
+
+  • The in-use stock builds up over time and releases material as each cohort reaches
+  end-of-life.
+
+
+  Try it
+
+  • Open the DSM process to see its categories: inflow split (%), distribution type
+  and lifetime parameters.
+
+  • Switch a category''s distribution and re-run to see how the outflow timing changes.
+
+
+  Look for
+
+  • Stock plot: the in-use stock grows, then turns over as old cohorts retire.
+
+  • Outflow lags the inflow by roughly the mean product lifetime.'
 model:
   start_year: 2025
   end_year: 2125

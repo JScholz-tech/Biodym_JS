@@ -1,14 +1,37 @@
 schema_version: '1.0'
 name: T07_Initial_Stock
-description: "Tutorial T04 - Dynamic Stock Modelling\r\n\r\nModels multiple product\
-  \ cohorts in a DSM Process. Construction material is used in a building.\r\n\r\n\
-  What it shows\r\n• Elements material, WC (water), DM (dry matter), TC (carbon),\
-  \ with the hierarchy\r\n  material = WC + DM and DM = TC + (rest).\r\n• The DSM\
-  \ input is split into four product fractions.\r\n• Per fraction an individual lifetime\
-  \ is modelled with a normal, a lognormal and a Weibull distribution.\r\n  \r\nTry\
-  \ it\r\n• Open Flow DSM process to see the DSM Parameters.\r\n\r\nLook for\r\n•\
-  \ Composition tab: the product stream is dry (no WC); the vapour stream is pure\
-  \ water."
+description: '📘 Tutorial T07 — Initial stock
+
+
+  Shows how to seed a process with material that already exists at the start of the
+  model (t = 0), instead of building it up from inflows.
+
+
+  What it shows
+
+  • A process configured with an initial stock: a starting quantity and its element
+  composition.
+
+  • The pre-existing stock is present from year one and behaves like any other stock
+  thereafter.
+
+  • Useful for legacy stocks — landfills, soils or buildings already in place when
+  the study begins.
+
+
+  Try it
+
+  • Open the process''s Initial Stock editor to see the starting quantity, composition
+  and cohort/decay settings.
+
+  • Change the initial quantity and re-run.
+
+
+  Look for
+
+  • Stock plot: a non-zero stock in the very first year.
+
+  • The initial stock draws down or persists according to the process''s stock configuration.'
 model:
   start_year: 2025
   end_year: 2125
