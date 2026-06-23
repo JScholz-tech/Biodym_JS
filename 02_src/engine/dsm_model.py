@@ -244,12 +244,19 @@ def _calculate_outflow_from_initial_stock(
     decaying_stock_ts = np.zeros((num_years, num_elements))
 
     if np.sum(initial_stock_vector) > 0:
+        # The initial stock is established at t=0, so there is no outflow in the
+        # first year. In every later year the amount leaving the stock is exactly
+        # the stock's decrease, O[t] = S[t-1] - S[t], which keeps the process
+        # mass-balanced. (The previous version emitted S[0]*k already at t=0 while
+        # still recording the full initial stock — creating that much material out
+        # of nowhere and a persistent mass-balance error.)
         current_decaying_stock = initial_stock_vector.copy()
-        for t in range(num_years):
-            decaying_stock_ts[t, :] = current_decaying_stock
+        decaying_stock_ts[0, :] = current_decaying_stock
+        for t in range(1, num_years):
             outflow_t = current_decaying_stock * decay_rate_k
             outflow_from_initial_stock_ts[t, :] = outflow_t
-            current_decaying_stock -= outflow_t
+            current_decaying_stock = current_decaying_stock - outflow_t
+            decaying_stock_ts[t, :] = current_decaying_stock
 
     return decaying_stock_ts, outflow_from_initial_stock_ts
 
