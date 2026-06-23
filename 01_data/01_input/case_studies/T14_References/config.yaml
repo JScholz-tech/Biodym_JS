@@ -1,0 +1,248 @@
+schema_version: '1.0'
+name: T14_References
+description: '📘 Tutorial T14 — Linking references
+
+
+  Shows the reference manager: one citation reused across every parameter type that
+  can carry a source reference.
+
+
+  What it shows
+
+  • A single reference (cite key) is linked to all seven parameter types that accept
+  one: a transfer coefficient, a flow composition, a DSM lifetime, a FOMP decay, an
+  initial stock, a scenario modification, and a Monte Carlo parameter.
+
+  • References are managed centrally (Zotero-style cite keys) and attached per parameter
+  via its "Source reference" field.
+
+
+  Try it
+
+  • Open the References page to see the citation and bump its details.
+
+  • Open each parameter editor — each shows the same reference selected.
+
+
+  Look for
+
+  • Every parameter cites the same source: reusable, auditable provenance across the
+  whole model.'
+model:
+  start_year: 2025
+  end_year: 2125
+  elements:
+  - material
+  - WC
+  - DM
+  - TC
+  unit_of_measurement: Mg
+  sankey_title: ''
+  hierarchy_level_names:
+  - Product
+  - Component
+  - Material
+  - Element
+  input_file: ''
+  output_file: ''
+  run_dsm_calculation: true
+  run_fomp_calculation: true
+  run_monte_carlo: false
+  mc_iterations: 1000
+  run_scenario_analysis: false
+  selected_scenarios:
+  - ''
+  - ''
+  - ''
+  - ''
+processes:
+- id: 0
+  name: Boundary
+  logic: Input
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 1
+  name: Sorting
+  logic: Splitter
+  stock: No_Stock
+  tc_config: Static
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 2
+  name: In-use stock (DSM)
+  logic: DSM
+  stock: Stock_with_InitialStock_Cohort
+  tc_config: Static
+  fomp: null
+  dsm:
+    categories:
+    - name: Products
+      inflow_split: 1.0
+      lifetime_type: Normal
+      lifetime_mean: 15.0
+      lifetime_std: 4.0
+      lifetime_shape: null
+      lifetime_scale: null
+    ref: Mustermann2025
+  lfg: null
+  flowcap: null
+- id: 3
+  name: Soil (FOMP)
+  logic: FOMP
+  stock: No_Stock
+  tc_config: No TC
+  fomp:
+    f_labile: 0.6
+    k_labile: 0.5
+    k_recalcitrant: 0.02
+    outflow_id: F_03_05
+    outflow_id_2: null
+    ref: Mustermann2025
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 4
+  name: Recycling sink
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 5
+  name: Atmosphere (CO2)
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+flows:
+- id: F_00_01
+  name: Input
+  from_process: 0
+  to_process: 1
+- id: F_01_02
+  name: To stock
+  from_process: 1
+  to_process: 2
+- id: F_01_03
+  name: To soil
+  from_process: 1
+  to_process: 3
+- id: F_02_04
+  name: End-of-life
+  from_process: 2
+  to_process: 4
+- id: F_03_05
+  name: Mineralised C
+  from_process: 3
+  to_process: 5
+transfer_coefficients:
+- process_id: 1
+  flow_id: F_01_02
+  tc_type: static
+  values:
+    material: 0.5
+    WC: 0.5
+    DM: 0.5
+    TC: 0.5
+  time_series: []
+  ref: Mustermann2025
+- process_id: 1
+  flow_id: F_01_03
+  tc_type: static
+  values:
+    material: 0.5
+    WC: 0.5
+    DM: 0.5
+    TC: 0.5
+  time_series: []
+  ref: ''
+- process_id: 2
+  flow_id: F_02_04
+  tc_type: static
+  values:
+    material: 1.0
+    WC: 1.0
+    DM: 1.0
+    TC: 1.0
+  time_series: []
+  ref: ''
+element_hierarchy:
+- parent: material
+  children:
+  - DM
+  - WC
+- parent: DM
+  children:
+  - TC
+flow_compositions:
+- flow_id: F_00_01
+  values:
+    material: 1.0
+    WC: 0.3
+    DM: 0.7
+    TC: 0.35
+  ref: Mustermann2025
+flow_data:
+- flow_id: F_00_01
+  element: material
+  values:
+    '2025': 100.0
+    '2125': 100.0
+bom_assembly: []
+scenarios:
+- name: More to soil
+  modifications:
+  - parameter_name: TC_E1_01_03
+    parameter_type: TC
+    operation: replace
+    new_value: 0.7
+    start_year: null
+    end_year: null
+    ref: Mustermann2025
+mc_parameters:
+- parameter_id: TC_E1_01_02
+  enabled: true
+  distribution: normal
+  mean: 0.5
+  std: 0.05
+  min: null
+  max: null
+  mode: null
+  operation: set
+  start_year: null
+  end_year: null
+  flow_group: null
+  ref: Mustermann2025
+initial_stocks:
+- process_id: 2
+  material_quantity: 500.0
+  composition:
+    material: 1.0
+    WC: 0.2
+    DM: 0.8
+    TC: 0.4
+  cohort_age_distribution_type: Normal
+  cohort_mean_age: 15.0
+  cohort_std_age: 4.0
+  cohort_max_age: 40
+  cohort_decay_constant: null
+  ref: Mustermann2025
+references:
+- cite_key: Mustermann2025
+  title: Example reference linked to every BioDYM parameter
+  authors: Mustermann et al. (2025)
+  year: '2025'
+  item_type: article-journal
+  doi: ''
+  note: ''

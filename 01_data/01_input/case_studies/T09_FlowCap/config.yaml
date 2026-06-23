@@ -140,4 +140,11 @@ bom_assembly: []
 scenarios: []
 mc_parameters: []
 initial_stocks: []
-references: []
+references:
+- cite_key: baiSpatialTemporalVariations2019
+  title: Spatial and Temporal Variations of Embodied Carbon Emissions in China’s Infrastructure
+  authors: Bai et al.
+  year: '2019'
+  item_type: article-journal
+  doi: 10.3390/su11030749
+  note: ''

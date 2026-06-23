@@ -39,6 +39,7 @@ model:
   - DM
   - TC
   unit_of_measurement: Mg
+  sankey_title: ''
   hierarchy_level_names:
   - Product
   - Component
