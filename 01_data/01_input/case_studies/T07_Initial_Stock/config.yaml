@@ -3,35 +3,38 @@ name: T07_Initial_Stock
 description: '📘 Tutorial T07 — Initial stock
 
 
-  Shows how to seed a process with material that already exists at the start of the
-  model (t = 0), instead of building it up from inflows.
+  Some processes start with material already in place at t = 0 — a legacy stock that
+  then feeds into the system over time. This model shows the two ways an initial stock
+  is released, side by side.
 
 
   What it shows
 
-  • A process configured with an initial stock: a starting quantity and its element
-  composition.
+  • An initial stock only depletes through a DSM process: the stock is placed at t
+  = 0 and the DSM module releases it over time.
 
-  • The pre-existing stock is present from year one and behaves like any other stock
-  thereafter.
+  • P1 "Legacy stock — cohort" uses the age-cohort method — the stock retires on a
+  lifetime distribution (Normal, mean 20 yr, std 5).
 
-  • Useful for legacy stocks — landfills, soils or buildings already in place when
-  the study begins.
+  • P3 "Legacy stock — decay" uses simple exponential decay (characteristic time ~20
+  yr).
+
+  • Neither process has an inflow, so the curves are pure legacy-stock drawdown.
 
 
   Try it
 
-  • Open the process''s Initial Stock editor to see the starting quantity, composition
+  • Open each DSM process''s Initial Stock editor to see the quantity, composition
   and cohort/decay settings.
 
-  • Change the initial quantity and re-run.
+  • Compare the P1 and P3 stock curves: the cohort retires as a delayed, bell-shaped
+  wave; decay falls fastest at the start.
 
 
   Look for
 
-  • Stock plot: a non-zero stock in the very first year.
-
-  • The initial stock draws down or persists according to the process''s stock configuration.'
+  • Stock plot: both stocks start at 1000 Mg and drain toward 0; the released material
+  accumulates in the two sinks (P2, P4).'
 model:
   start_year: 2025
   end_year: 2125
@@ -48,8 +51,8 @@ model:
   - Element
   input_file: ''
   output_file: ''
-  run_dsm_calculation: false
-  run_fomp_calculation: true
+  run_dsm_calculation: true
+  run_fomp_calculation: false
   run_monte_carlo: false
   mc_iterations: 1000
   run_scenario_analysis: false
@@ -60,7 +63,7 @@ model:
   - ''
 processes:
 - id: 0
-  name: Process 0
+  name: Boundary (environment)
   logic: Input
   stock: Stock
   tc_config: No TC
@@ -69,16 +72,25 @@ processes:
   lfg: null
   flowcap: null
 - id: 1
-  name: Process 1 (Initial Stock)
-  logic: Splitter
-  stock: Stock_with_InitialStock_Decay
+  name: Legacy stock — cohort
+  logic: DSM
+  stock: Stock_with_InitialStock_Cohort
   tc_config: Static
   fomp: null
-  dsm: null
+  dsm:
+    categories:
+    - name: Legacy
+      inflow_split: 1.0
+      lifetime_type: Normal
+      lifetime_mean: 20.0
+      lifetime_std: 5.0
+      lifetime_shape: null
+      lifetime_scale: null
+    ref: ''
   lfg: null
   flowcap: null
 - id: 2
-  name: Process 2
+  name: Sink (cohort)
   logic: Output
   stock: Stock
   tc_config: No TC
@@ -87,7 +99,25 @@ processes:
   lfg: null
   flowcap: null
 - id: 3
-  name: Process 3
+  name: Legacy stock — decay
+  logic: DSM
+  stock: Stock_with_InitialStock_Decay
+  tc_config: Static
+  fomp: null
+  dsm:
+    categories:
+    - name: Legacy
+      inflow_split: 1.0
+      lifetime_type: Normal
+      lifetime_mean: 20.0
+      lifetime_std: 5.0
+      lifetime_shape: null
+      lifetime_scale: null
+    ref: ''
+  lfg: null
+  flowcap: null
+- id: 4
+  name: Sink (decay)
   logic: Output
   stock: Stock
   tc_config: No TC
@@ -96,37 +126,33 @@ processes:
   lfg: null
   flowcap: null
 flows:
-- id: F_00_01
-  name: Flow 1
-  from_process: 0
-  to_process: 1
 - id: F_01_02
-  name: Flow 2
+  name: Cohort release
   from_process: 1
   to_process: 2
-- id: F_01_03
-  name: Flow 3
-  from_process: 1
-  to_process: 3
+- id: F_03_04
+  name: Decay release
+  from_process: 3
+  to_process: 4
 transfer_coefficients:
 - process_id: 1
   flow_id: F_01_02
   tc_type: static
   values:
-    material: 0.5
-    WC: 0.0
-    DM: 0.0
-    TC: 0.0
+    material: 1.0
+    WC: 1.0
+    DM: 1.0
+    TC: 1.0
   time_series: []
   ref: ''
-- process_id: 1
-  flow_id: F_01_03
+- process_id: 3
+  flow_id: F_03_04
   tc_type: static
   values:
-    material: 0.5
-    WC: 0.0
-    DM: 0.0
-    TC: 0.0
+    material: 1.0
+    WC: 1.0
+    DM: 1.0
+    TC: 1.0
   time_series: []
   ref: ''
 element_hierarchy:
@@ -137,47 +163,36 @@ element_hierarchy:
 - parent: DM
   children:
   - TC
-flow_compositions:
-- flow_id: F_00_01
-  values:
-    material: 1.0
-    WC: 0.3
-    DM: 0.7
-    TC: 0.35
-  ref: ''
-flow_data:
-- flow_id: F_00_01
-  element: material
-  values:
-    '2025': 100.0
-    '2026': 0.0
+flow_compositions: []
+flow_data: []
 bom_assembly: []
 scenarios: []
 mc_parameters: []
 initial_stocks:
-- process_id: 0
-  material_quantity: 1000.0
-  composition:
-    material: 1.0
-    WC: 0.8
-    DM: 0.2
-    TC: 0.1
-  cohort_age_distribution_type: Normal
-  cohort_mean_age: null
-  cohort_std_age: null
-  cohort_max_age: null
-  cohort_decay_constant: 0.5
-  ref: ''
 - process_id: 1
-  material_quantity: 999.0
+  material_quantity: 1000.0
   composition:
     material: 1.0
     WC: 0.5
     DM: 0.5
+    TC: 0.25
+  cohort_age_distribution_type: Normal
+  cohort_mean_age: 20.0
+  cohort_std_age: 5.0
+  cohort_max_age: 40
+  cohort_decay_constant: null
+  ref: ''
+- process_id: 3
+  material_quantity: 1000.0
+  composition:
+    material: 1.0
+    WC: 0.5
+    DM: 0.5
+    TC: 0.25
   cohort_age_distribution_type: Normal
   cohort_mean_age: null
   cohort_std_age: null
   cohort_max_age: null
-  cohort_decay_constant: 0.5
+  cohort_decay_constant: 20.0
   ref: ''
 references: []
