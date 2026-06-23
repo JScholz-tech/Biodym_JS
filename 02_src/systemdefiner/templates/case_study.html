@@ -80,6 +80,11 @@
                   placeholder="Describe this study — e.g. tutorial notes shown below the diagram on every page. Markdown is rendered."
                   style="width:100%;resize:vertical;font-family:inherit;font-size:0.9rem">{{ cfg.description }}</textarea>
       </div>
+      <div class="field" style="margin-bottom:1rem">
+        <label>Sankey title <span class="muted" style="font-weight:400;font-size:0.8rem">— shown on the Sankey diagram; blank uses the study name</span></label>
+        <input type="text" name="sankey_title" value="{{ cfg.model.sankey_title }}"
+               placeholder="{{ cfg.name }}" style="width:100%">
+      </div>
       <div class="form-grid">
         <div class="field">
           <label>Start Year</label>

@@ -158,6 +158,8 @@ class ModelSettings(BaseModel):
     end_year: int = 2125
     elements: list[str] = ["material", "WC", "DM", "TC"]
     unit_of_measurement: str = "Mg"
+    # Title shown on the Sankey diagram. Blank → the study name is used.
+    sankey_title: str = ""
     hierarchy_level_names: list[str] = ["Product", "Component", "Material", "Element"]
 
     @field_validator("hierarchy_level_names", mode="before")

@@ -750,6 +750,7 @@ async def update_settings(request: Request, name: str):
     m.unit_of_measurement = form.get(
         "unit_of_measurement", m.unit_of_measurement
     ).strip()
+    m.sankey_title = form.get("sankey_title", m.sankey_title).strip()
     m.input_file = form.get("input_file", m.input_file).strip()
     m.output_file = form.get("output_file", m.output_file).strip()
     m.run_dsm_calculation = _bool("run_dsm_calculation")

@@ -32,9 +32,25 @@ FONT_WEIGHT_LABELS = "normal"  # Node label font weight: "normal", "bold"
 # Title Settings
 # Main title template - Use {element} for element name, {year} for year
 # Example: "Wood Material Flows - {element} ({year})"
-TITLE_TEMPLATE = (
-    "bioDYM - Case-Study - ICT/ Lexmark MS 521  - Element: {element} Year: {year}"
-)
+# The leading study name is set per study via set_title() (driven by the
+# study file's sankey_title / name); the default is generic.
+_DEFAULT_TITLE_TEMPLATE = "bioDYM Material Flows — Element: {element}  Year: {year}"
+TITLE_TEMPLATE = _DEFAULT_TITLE_TEMPLATE
+
+
+def set_title(title) -> None:
+    """Set the Sankey title prefix from a study name.
+
+    Builds ``TITLE_TEMPLATE`` as ``"<title> — Element: {element}  Year: {year}"``.
+    A blank/None title restores the generic default.
+    """
+    global TITLE_TEMPLATE
+    if title and str(title).strip():
+        TITLE_TEMPLATE = (
+            f"{str(title).strip()} — Element: {{element}}  Year: {{year}}"
+        )
+    else:
+        TITLE_TEMPLATE = _DEFAULT_TITLE_TEMPLATE
 # Element formatting in main title: "title" (Material), "upper" (MATERIAL), "lower" (material)
 TITLE_ELEMENT_FORMAT = "upper"
 

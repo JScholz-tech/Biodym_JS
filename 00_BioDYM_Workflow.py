@@ -248,6 +248,7 @@ else:
     config_obj = config.load_configuration(input_file)
     print(format_success("Configuration object loaded."))
 plotting.set_mass_unit_from_config(config_obj)
+plotting.set_sankey_title_from_config(config_obj)  # Sankey title from study file
 plotting.set_theme(PLOT_THEME)  # re-assert theme so it wins over config unit
 
 dims              = config.extract_workflow_dimensions(config_obj, input_data)

@@ -548,6 +548,9 @@ def load_config_from_yaml(yaml_path: str):
 
     selected = model.get("selected_scenarios") or []
 
+    # Sankey title: explicit sankey_title, else the study name.
+    sankey_title = (model.get("sankey_title") or raw.get("name") or "").strip()
+
     config_dict = {
         # Time range
         "Start_Year": int(model.get("start_year", 2025)),
@@ -574,6 +577,8 @@ def load_config_from_yaml(yaml_path: str):
         "Selected_Scenario_Name 2": selected[1] if len(selected) > 1 else "",
         "Selected_Scenario_Name 3": selected[2] if len(selected) > 2 else "",
         "Selected_Scenario_Name 4": selected[3] if len(selected) > 3 else "",
+        # Sankey diagram title (blank falls back to the study name)
+        "Sankey_Title": sankey_title,
         # Defaults
         "Min_Flow_Threshold": 0.0,
         "Show_Zero_Flows": False,

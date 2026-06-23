@@ -62,6 +62,24 @@ from .sankey import (
     export_sankey_sankeymatic,
     export_mfa_diagram_xlsx,
 )
+from . import sankey_config as _sankey_config
+
+
+def set_sankey_title_from_config(config_obj) -> None:
+    """Set the Sankey diagram title from the configuration object.
+
+    Call once after load_configuration()/load_config_from_yaml(), like
+    set_mass_unit_from_config(). Reads the resolved ``Sankey_Title`` (which the
+    YAML loader fills from the study's sankey_title, falling back to its name);
+    a blank value keeps the generic default.
+    """
+    title = None
+    for attr in ("Sankey_Title", "SANKEY_TITLE", "Name", "name"):
+        val = getattr(config_obj, attr, None)
+        if val and isinstance(val, str) and val.strip():
+            title = val.strip()
+            break
+    _sankey_config.set_title(title)
 
 __all__ = [
     "set_theme",
@@ -71,6 +89,7 @@ __all__ = [
     "get_mass_display",
     "y_label",
     "set_mass_unit_from_config",
+    "set_sankey_title_from_config",
     "plot_interactive_sankey",
     "plot_enhanced_sankey",
     "plot_element_multiplot_sankey",
