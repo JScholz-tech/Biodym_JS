@@ -100,14 +100,26 @@ def test_load_dsm_parameters_parsing():
         6: {
             "category_names": ["Category A", "Category B"],
             "inflow_split": [0.8, 0.2],
-            "lifetimes": {"Type": ["Normal", "Normal"], "Mean": [20, 5], "StdDev": [2.0, 0.5]},
+            "lifetimes": {
+                "Type": ["Normal", "Normal"],
+                "Mean": [20.0, 5.0],
+                "StdDev": [2.0, 0.5],
+                "Scale": [None, None],
+                "Shape": [None, None],
+            },
             "parameter_based": False,
             "stock_configuration": "Stock",
         },
         7: {
             "category_names": ["Category C"],
             "inflow_split": [1.0],
-            "lifetimes": {"Type": ["Lognormal"], "Mean": [50], "StdDev": [10.0]},
+            "lifetimes": {
+                "Type": ["Lognormal"],
+                "Mean": [50.0],
+                "StdDev": [10.0],
+                "Scale": [None],
+                "Shape": [None],
+            },
             "parameter_based": False,
             "stock_configuration": "Stock",
         },
