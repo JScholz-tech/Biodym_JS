@@ -40,6 +40,7 @@ from .scenario import (
     plot_multi_scenario_comparison,
     plot_scenario_flow_dynamics,
     plot_scenario_stock_dynamics,
+    plot_scenario_stock_publication,
 )
 from .graphviz_flow_charts import plot_graphviz_flow_chart_sankey_style
 from .sankey import (
@@ -86,6 +87,7 @@ __all__ = [
     "plot_multi_scenario_comparison",
     "plot_scenario_flow_dynamics",
     "plot_scenario_stock_dynamics",
+    "plot_scenario_stock_publication",
     "plot_graphviz_flow_chart_sankey_style",
     "plot_lfg_gas_production",
     "plot_lfg_stock_details",

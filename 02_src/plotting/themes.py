@@ -61,9 +61,9 @@ THEMES = {
         "grid_color": "#E5E5E5",
         "grid_dash": "dot",
         "margin": dict(l=100, r=50, t=100, b=150),
-        "scientific_y": True,    # 2.00e+4 format
+        "scientific_y": False,   # comma-separated thousands (e.g. 4,721,000)
         "template": "plotly_white",
-        "mass_scale": 1.0,       # keep Mg
+        "mass_scale": 1.0,       # keep Mg (overridden by _CONFIG_UNIT if set)
         "mass_unit": "Mg",
     },
 }
@@ -77,6 +77,10 @@ def set_theme(name: str) -> None:
         import plotting
         plotting.set_theme('jie')
 
+    Calling set_theme() always takes full unit control: any config-driven unit
+    override set by set_mass_unit_from_config() is cleared so the theme's
+    mass_scale / mass_unit values are used by get_mass_display().
+
     Parameters
     ----------
     name : str
@@ -84,10 +88,12 @@ def set_theme(name: str) -> None:
         - 'exploratory' (default) — 1000×800 px, large fonts, title visible
         - 'jie' — 672×432 px (7×4.5 in), 11 pt fonts, no title, legend below
     """
-    global _ACTIVE_THEME
+    global _ACTIVE_THEME, _CONFIG_UNIT
     if name not in THEMES:
         raise ValueError(f"Unknown theme '{name}'. Choose from: {list(THEMES)}")
     _ACTIVE_THEME = name
+    if name == "jie":
+        _CONFIG_UNIT = None  # JIE always uses theme unit (Gg), ignores config
 
 
 def get_active_theme() -> dict:

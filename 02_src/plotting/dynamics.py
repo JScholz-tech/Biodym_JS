@@ -377,8 +377,11 @@ def plot_dsm_stock_details(mfa_system_results, dsm_params, dsm_details):
             apply_theme(layout_config)
             fig.update_layout(**layout_config)
 
+    # Dropdown shows process names but yields the process ID as its value, so
+    # update_plot() still receives the integer ID it expects.
+    process_name_by_id = {p.ID: p.Name for p in mfa_system_results.ProcessList}
     process_dropdown = Dropdown(
-        options=list(dsm_params.keys()),
+        options=[(process_name_by_id.get(pid, f"Process {pid}"), pid) for pid in dsm_params.keys()],
         description="DSM Process:",
         style={"description_width": "120px"},
     )
@@ -437,7 +440,7 @@ def plot_dsm_stock_publication(
     """Publication-ready static stacked-area plot of DSM in-use stock by cohort category.
 
     Renders the cohort breakdown for a single DSM process in JIE single-column
-    format: 10⁶ Mg y-scale, no title, inside legend, optional policy year vline.
+    format: theme mass scale (Gg in JIE, Mg in exploratory), no title, inside legend, optional policy year vline.
 
     Parameters
     ----------
@@ -489,9 +492,8 @@ def plot_dsm_stock_publication(
         f"Process {process_id}",
     )
 
-    # Y-scale: always 10⁶ Mg for publication (ignore theme mass_scale)
-    _Y_SCALE = 1e-6
-    _Y_UNIT  = "10⁶ Mg"
+    # Y-scale: use theme mass scale (Gg in JIE, Mg in exploratory)
+    _Y_SCALE, _Y_UNIT = get_mass_display()
 
     # Default color palette: dark-to-light blue-grey (bottom = darkest)
     _DEFAULT_COLORS = ["#2C5282", "#4A7C9E", "#7AADC4", "#A8C4DC", "#D0E4F0", "#EBF4FA"]
@@ -556,7 +558,7 @@ def plot_dsm_stock_publication(
     layout_config["yaxis"]["title"]["font"] = dict(size=10)
     layout_config["xaxis"]["tickfont"]      = dict(size=10)
     layout_config["yaxis"]["tickfont"]      = dict(size=10)
-    layout_config["yaxis"]["tickformat"]    = ".2f"
+    layout_config["yaxis"]["tickformat"]    = ","
     layout_config["yaxis"]["exponentformat"] = "none"
 
     # Legend inside bottom-right, horizontal, 9pt
@@ -969,7 +971,7 @@ def plot_fomp_stock_comparison(
     apply_theme(layout_config)
 
     layout_config["title"]  = dict(text="")
-    layout_config["yaxis"]["tickformat"]     = ".0f"
+    layout_config["yaxis"]["tickformat"]     = ","
     layout_config["yaxis"]["exponentformat"] = "none"
 
     # Legend directly below the plot, no extra gap
