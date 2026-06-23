@@ -14,6 +14,27 @@ import dynamic_stock_model as dsm
 from .element_utils import recalculate_hierarchical_elements
 
 
+# ODYM's DynamicStockModel matches lifetime types by exact string ("Fixed",
+# "Normal", "FoldedNormal", "LogNormal", "Weibull"). Earlier code used
+# str.capitalize(), which silently turned "LogNormal" → "Lognormal" — a value
+# ODYM never matches, so the survival function stayed zero. Normalise to the
+# canonical spelling instead, preserving the embedded capital letters.
+_DSM_LIFETIME_TYPES = {
+    "fixed": "Fixed",
+    "normal": "Normal",
+    "foldednormal": "FoldedNormal",
+    "lognormal": "LogNormal",
+    "weibull": "Weibull",
+}
+
+
+def _canon_lifetime_type(name, default="Normal"):
+    """Map any user/Excel spelling to ODYM's canonical lifetime-type string."""
+    if not isinstance(name, str) or not name.strip():
+        return default
+    return _DSM_LIFETIME_TYPES.get(name.strip().lower(), name.strip())
+
+
 def _weibull_shape_scale_from_mean_std(mean, std):
     """Derive Weibull shape k and scale λ from distribution mean and std.
 
@@ -92,12 +113,11 @@ def _calculate_outflow_from_inflows(total_inflow_values, params, time_vector):
         lifetime_type = (
             lifetime_type[i] if isinstance(lifetime_type, list) else lifetime_type
         )
-        if isinstance(lifetime_type, str):
-            lifetime_type = lifetime_type.capitalize()
+        lifetime_type = _canon_lifetime_type(lifetime_type)
 
-        if std_devs[i] == 0 and lifetime_type == "Normal":
+        if std_devs[i] == 0 and lifetime_type not in ("Weibull", "Fixed"):
             print(
-                f"  INFO: StdDev is 0 for category {i + 1}. Using 'Fixed' lifetime model instead of 'Normal'."
+                f"  INFO: StdDev is 0 for category {i + 1}. Using 'Fixed' lifetime model instead of '{lifetime_type}'."
             )
             lifetime_type = "Fixed"
 
@@ -292,8 +312,7 @@ def _calculate_outflow_from_initial_stock_cohort(
     lt_raw = params.get("lifetimes", {})
     type_raw = lt_raw.get("Type", "Normal")
     lt_type = (type_raw[0] if isinstance(type_raw, list) else type_raw) or "Normal"
-    if isinstance(lt_type, str):
-        lt_type = lt_type.capitalize()
+    lt_type = _canon_lifetime_type(lt_type)
 
     lt_means  = lt_raw.get("Mean",   [0.0])
     lt_stds   = lt_raw.get("StdDev", [0.0])
