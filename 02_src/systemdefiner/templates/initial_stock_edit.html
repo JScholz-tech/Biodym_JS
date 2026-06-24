@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ref_select.html" import ref_multiselect %}
 {% block title %}Initial Stock P{{ process.id }} — {{ cfg.name }}{% endblock %}
 {% block breadcrumb %}
   <a href="/">Case Studies</a> <span>/</span>
@@ -30,14 +31,8 @@
       </div>
       {% if cfg.references %}
       <div class="field">
-        <label>Source reference</label>
-        <select name="is_ref" style="font-size:0.88rem">
-          <option value="">—</option>
-          {% for ref in cfg.references %}
-          <option value="{{ ref.cite_key }}"
-                  {% if entry and entry.ref == ref.cite_key %}selected{% endif %}>[{{ loop.index }}] {{ ref.authors }}{% if ref.year %} ({{ ref.year }}){% endif %}</option>
-          {% endfor %}
-        </select>
+        <label>Source references</label>
+        {{ ref_multiselect("is_refs", (entry.refs if entry else []), cfg.references) }}
       </div>
       {% endif %}
     </div>

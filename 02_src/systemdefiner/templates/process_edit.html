@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ref_select.html" import ref_multiselect %}
 {% block title %}Edit {{ process.name }} — {{ cfg.name }}{% endblock %}
 {% block breadcrumb %}
   <a href="/">Case Studies</a> <span>/</span>
@@ -87,15 +88,8 @@
           </div>
           {% if cfg.references %}
           <div class="field">
-            <label>Source reference</label>
-            <select name="fomp_ref" style="font-size:0.88rem">
-              <option value="">—</option>
-              {% for ref in cfg.references %}
-              <option value="{{ ref.cite_key }}"
-                      title="{{ ref.authors }}{% if ref.year %} ({{ ref.year }}){% endif %}{% if ref.title %} — {{ ref.title[:80] }}{% endif %}"
-                      {% if process.fomp and process.fomp.ref == ref.cite_key %}selected{% endif %}>[{{ loop.index }}] {{ ref.authors }}{% if ref.year %} ({{ ref.year }}){% endif %}</option>
-              {% endfor %}
-            </select>
+            <label>Source references</label>
+            {{ ref_multiselect("fomp_refs", (process.fomp.refs if process.fomp else []), cfg.references) }}
           </div>
           {% endif %}
         </div>
@@ -163,15 +157,8 @@
         <button type="button" class="btn btn-secondary btn-sm" onclick="addDsmCat()">+ Add Category</button>
         {% if cfg.references %}
         <div class="field" style="margin-top:0.75rem;max-width:400px">
-          <label>Source reference</label>
-          <select name="dsm_ref" style="font-size:0.88rem">
-            <option value="">—</option>
-            {% for ref in cfg.references %}
-            <option value="{{ ref.cite_key }}"
-                    title="{{ ref.authors }}{% if ref.year %} ({{ ref.year }}){% endif %}{% if ref.title %} — {{ ref.title[:80] }}{% endif %}"
-                    {% if process.dsm and process.dsm.ref == ref.cite_key %}selected{% endif %}>[{{ loop.index }}] {{ ref.authors }}{% if ref.year %} ({{ ref.year }}){% endif %}</option>
-            {% endfor %}
-          </select>
+          <label>Source references</label>
+          {{ ref_multiselect("dsm_refs", (process.dsm.refs if process.dsm else []), cfg.references) }}
         </div>
         {% endif %}
       </div>

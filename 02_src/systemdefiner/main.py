@@ -905,7 +905,7 @@ def _parse_fomp(form) -> FompParams:
         k_recalcitrant=_flt("fomp_k_recalcitrant", 0.01),
         outflow_id=form.get("fomp_outflow_id", "") or "",
         outflow_id_2=form.get("fomp_outflow_id_2", "") or "",
-        ref=(form.get("fomp_ref") or "").strip(),
+        refs=[c.strip() for c in form.getlist("fomp_refs") if c.strip()],
     )
 
 
@@ -938,7 +938,7 @@ def _parse_dsm(form) -> DsmParams:
         categories = [DsmCategory()]
     return DsmParams(
         categories=categories,
-        ref=(form.get("dsm_ref") or "").strip(),
+        refs=[c.strip() for c in form.getlist("dsm_refs") if c.strip()],
     )
 
 
@@ -2702,7 +2702,7 @@ async def initial_stock_save(request: Request, name: str, pid: int):
                 cohort_std_age=_flt("is_cohort_std_age"),
                 cohort_max_age=_iv("is_cohort_max_age"),
                 cohort_decay_constant=_flt("is_cohort_decay_constant"),
-                ref=(form.get("is_ref") or "").strip(),
+                refs=[c.strip() for c in form.getlist("is_refs") if c.strip()],
             )
         )
     storage.save_case_study(cfg)
