@@ -7,14 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.2.1] - 2026-06-23
+## [1.2.1] - 2026-06-25
 
 ### Added
-- Tutorial studies T01–T07 shipped with the repository — a fresh clone opens
-  the bioDYM SystemDefiner with seven ready-to-run worked examples
+- Tutorial studies **T01–T14** ship with the repository — a fresh clone opens
+  the bioDYM SystemDefiner with fourteen ready-to-run worked examples, one per
+  feature: first MFA, splitting, composition/hierarchy, DSM, dynamic TCs, FOMP,
+  initial stock, scenarios, FlowCap, BOM assembly, Monte Carlo (process and
+  input-flow group), LFG, and the reference manager
 - `GETTING_STARTED_FROM_ZERO.md` — step-by-step onboarding guide for new users
-- SystemDefiner: DSM editor with category UX and model validation
-- SystemDefiner: health-check panel flags incomplete processes before export
+- SystemDefiner: **reference manager** with two labelled lists — Literature
+  (numbered) and Assumptions & notes (lettered) — plus an "Add assumption" form
+  for self-authored, non-Zotero entries
+- SystemDefiner: **multiple references per parameter** — a checkbox-dropdown
+  multi-select (showing titles, with hover) on every editor: transfer
+  coefficients (static + dynamic), flow compositions, DSM, FOMP, initial stock,
+  scenarios, Monte Carlo, flow data, LFG, FlowCap and BOM
+- SystemDefiner: study-configurable **Sankey diagram title** (`sankey_title`,
+  falling back to the study name); applied in both the notebook and the Voilà dashboard
+- SystemDefiner: study **description rendered as Markdown**; "Back to study"
+  navigation link on every page
+- SystemDefiner: DSM editor UX — distribution-aware fields (Normal/LogNormal/
+  Weibull/Fixed), percent inflow split with a live sum-to-100 % check
+- SystemDefiner: health checks — incomplete FlowCap/FOMP processes,
+  BOM_Assembler requires transfer coefficients, Monte Carlo unit guards
+  (TC fractions vs percentages, implausible flow magnitudes)
 - SystemDefiner: per-study description displayed under the system diagram
 - SystemDefiner: DSM, LFG, Initial Stock, and FlowCap parameters importable
   from an existing Excel Systemmanager
@@ -22,7 +39,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - DSM engine: Fixed and LogNormal lifetime types now handled correctly
-- SystemDefiner: 0-based process IDs, displayed as P{id}
+- DSM engine: exponential-decay initial stock is mass-balanced — removed a
+  phantom first-year outflow that created material out of nowhere
+- SystemDefiner: 0-based process IDs, displayed as P{id}; adding a process
+  reuses the lowest free id, filling gaps left by deletions
+- SystemDefiner: initial-stock entries removed when cleared, and pruned when
+  orphaned; flagged when attached to a non-DSM process or the boundary
+- SystemDefiner: numeric value fields accept arbitrary decimal precision
+- SystemDefiner: case-study / diagram deletion tolerates Windows
+  read-only / locked files
 - SystemDefiner: Transformer TCs correctly use element-level entries
 - SystemDefiner: Duplicate (clone) button made reliable
 - SystemDefiner: dynamic TC editor aligned with static editor
@@ -31,12 +56,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (LFG, FlowCap, FOMP, DSM, Scenario Manager, empty TC sheets)
 - export: Excel sheet names sanitised to ≤31 characters
 - DGAW published case study input file restored (mistakenly removed in v1.2.0)
-- Tutorial descriptions T05–T07 corrected (were copies of T04 description)
+- Tutorial descriptions corrected (some were copies of the T04 description)
 
 ### Changed
+- References are now multi-valued (`refs` list) on every parameter, with a
+  backward-compatible single-`ref` fallback; a parameter can cite both a
+  literature source and a self-authored assumption
+- Tutorial studies tracked in place via the `case_studies/T[0-9][0-9]_*` whitelist
 - Notebook refactored: `sys.path` / widget bootstrap extracted to
   `02_src/bootstrap.py`; MC table styling moved into `mc_dashboard.py`
-- Publication plots now honour the configured theme unit
+- Publication plots now honour the configured theme unit + thousands formatting
 - CI and first-run environment parity improvements
 
 ---
