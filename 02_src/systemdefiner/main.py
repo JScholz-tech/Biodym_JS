@@ -981,6 +981,7 @@ def _parse_lfg(form) -> LfgParams:
         outflow_co2_id=form.get("lfg_outflow_co2_id", "") or "",
         outflow_leachate_id=form.get("lfg_outflow_leachate_id", "") or "",
         fractions=fractions,
+        refs=[c.strip() for c in form.getlist("lfg_refs") if c.strip()],
     )
 
 
@@ -1009,6 +1010,7 @@ def _parse_flowcap(form) -> Optional[FlowCapParams]:
         capped_flow_id=capped,
         overflow_flow_id=form.get("flowcap_overflow_flow_id", "") or "",
         cap_series=cap_series,
+        refs=[c.strip() for c in form.getlist("flowcap_refs") if c.strip()],
     )
 
 
@@ -2570,6 +2572,7 @@ async def bom_edit_form(request: Request, name: str, pid: int):
             paths_json=paths_json,
             bom_comps_json=bom_comps_json,
             flow_list_json=flow_list_json,
+            bom_refs=(entry.refs if entry else []),
         ),
     )
 
@@ -2602,8 +2605,11 @@ async def bom_save(request: Request, name: str, pid: int):
                 fractions=fractions,
             )
         )
+    refs = [c.strip() for c in form.getlist("bom_refs") if c.strip()]
     cfg.bom_assembly = [e for e in cfg.bom_assembly if e.process_id != pid]
-    cfg.bom_assembly.append(BomAssemblyEntry(process_id=pid, flows=bom_flows))
+    cfg.bom_assembly.append(
+        BomAssemblyEntry(process_id=pid, flows=bom_flows, refs=refs)
+    )
     storage.save_case_study(cfg)
     return RedirectResponse(f"/{name}/bom/{pid}", status_code=303)
 
@@ -2725,10 +2731,17 @@ async def get_flow_data(request: Request, name: str, saved: bool = False):
     flow_data_map = {
         fd.flow_id: dict(sorted(fd.values.items())) for fd in cfg.flow_data
     }
+    flow_data_refs = {fd.flow_id: fd.refs for fd in cfg.flow_data}
     return templates.TemplateResponse(
         request,
         "flow_data.html",
-        _ctx(cfg=cfg, input_flows=flows, flow_data_map=flow_data_map, saved=saved),
+        _ctx(
+            cfg=cfg,
+            input_flows=flows,
+            flow_data_map=flow_data_map,
+            flow_data_refs=flow_data_refs,
+            saved=saved,
+        ),
     )
 
 
@@ -2760,9 +2773,12 @@ async def post_flow_data(request: Request, name: str):
             except (ValueError, TypeError):
                 pass
             i += 1
+        refs = [c.strip() for c in form.getlist(f"fd_{j}_refs") if c.strip()]
         if values:
             new_entries.append(
-                FlowDataEntry(flow_id=fid, element="material", values=values)
+                FlowDataEntry(
+                    flow_id=fid, element="material", values=values, refs=refs
+                )
             )
         j += 1
 

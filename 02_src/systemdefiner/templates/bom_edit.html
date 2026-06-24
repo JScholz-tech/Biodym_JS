@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ref_select.html" import ref_multiselect %}
 {% block title %}BOM Assembly P{{ process.id }} — {{ cfg.name }}{% endblock %}
 {% block breadcrumb %}
   <a href="/">Case Studies</a> <span>/</span>
@@ -53,6 +54,13 @@
     <div id="bommatrix_{{ safe_fid }}" style="overflow-x:auto"></div>
   </div>
   {% endfor %}
+
+  {% if cfg.references %}
+  <div class="field" style="margin-bottom:1rem;max-width:400px">
+    <label>Source references</label>
+    {{ ref_multiselect("bom_refs", bom_refs, cfg.references) }}
+  </div>
+  {% endif %}
 
   <div class="btn-row">
     <button type="submit" class="btn btn-primary">Save BOM Assembly</button>

@@ -82,7 +82,7 @@ class LfgFraction(BaseModel):
     f_ash_j: float = 0.05  # ash / inert fraction
 
 
-class LfgParams(BaseModel):
+class LfgParams(_Referenced):
     mcf: float = 1.0
     doc_f: float = 0.5
     f_ch4: float = 0.5
@@ -95,14 +95,14 @@ class LfgParams(BaseModel):
     fractions: list[LfgFraction] = []
 
 
-class FlowCapParams(BaseModel):
+class FlowCapParams(_Referenced):
     capped_flow_id: str = ""  # flow that receives routed output (up to cap)
     overflow_flow_id: str = ""  # flow that receives excess above cap
     cap_series: dict[int, float] = {}  # {year: cap_value_Mg_per_yr}
     cap_tc_id: str = ""  # optional ParameterDict key for scenario switching
 
 
-class FlowDataEntry(BaseModel):
+class FlowDataEntry(_Referenced):
     flow_id: str
     element: str = "material"
     values: dict[int, float] = {}  # {year: value_Mg_per_yr}, sparse — gets interpolated
@@ -114,7 +114,7 @@ class BomAssemblyFlow(BaseModel):
     fractions: dict[str, float] = {}  # element -> fraction (target_Product only)
 
 
-class BomAssemblyEntry(BaseModel):
+class BomAssemblyEntry(_Referenced):
     process_id: int
     flows: list[BomAssemblyFlow] = []
 

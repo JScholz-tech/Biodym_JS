@@ -227,6 +227,12 @@
           </tbody>
         </table>
         <button type="button" class="btn btn-secondary btn-sm" onclick="addLfgFrac()">+ Add Fraction</button>
+        {% if cfg.references %}
+        <div class="field" style="margin-top:0.75rem;max-width:400px">
+          <label>Source references</label>
+          {{ ref_multiselect("lfg_refs", (process.lfg.refs if process.lfg else []), cfg.references) }}
+        </div>
+        {% endif %}
       </div>
     </details>
 
@@ -269,6 +275,12 @@
           </tbody>
         </table>
         <button type="button" class="btn btn-secondary btn-sm" onclick="addCapRow()">+ Add Year</button>
+        {% if cfg.references %}
+        <div class="field" style="margin-top:0.75rem;max-width:400px">
+          <label>Source references</label>
+          {{ ref_multiselect("flowcap_refs", (process.flowcap.refs if process.flowcap else []), cfg.references) }}
+        </div>
+        {% endif %}
       </div>
     </details>
 

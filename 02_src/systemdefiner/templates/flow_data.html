@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ref_select.html" import ref_multiselect %}
 {% block title %}Flow Data — {{ cfg.name }}{% endblock %}
 {% block breadcrumb %}
   <a href="/">Case Studies</a> <span>/</span>
@@ -40,6 +41,10 @@
     <h2 style="margin:0;font-size:1.1rem">{{ flow.name }}</h2>
     <span class="tag">{{ flow.id }}</span>
     <span class="muted" style="font-size:0.83rem">P{{ flow.from_process }} → P{{ flow.to_process }}</span>
+    {% if cfg.references %}
+    <span style="margin-left:auto;font-size:0.83rem;color:var(--muted)">Sources:
+      {{ ref_multiselect("fd_" ~ j ~ "_refs", flow_data_refs.get(flow.id, []), cfg.references) }}</span>
+    {% endif %}
   </div>
 
   <div style="display:grid;grid-template-columns:300px 1fr;gap:1.5rem;align-items:start">
