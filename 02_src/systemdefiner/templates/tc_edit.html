@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ref_select.html" import ref_multiselect %}
 {% block title %}TCs P{{ process.id }} — {{ cfg.name }}{% endblock %}
 {% block breadcrumb %}
   <a href="/">Case Studies</a> <span>/</span>
@@ -85,18 +86,7 @@
             </td>
             {% endfor %}
             {% if cfg.references %}
-            <td>
-              <select name="ref_{{ row.flow.id }}"
-                      style="width:64px;font-size:0.83rem;padding:2px 4px"
-                      title="Link a reference">
-                <option value="">—</option>
-                {% for ref in cfg.references %}
-                <option value="{{ ref.cite_key }}"
-                        title="{{ ref.authors }}{% if ref.year %} ({{ ref.year }}){% endif %}{% if ref.title %} — {{ ref.title[:60] }}{% endif %}"
-                        {% if ref.cite_key == row.tc_ref %}selected{% endif %}>[{{ loop.index }}]</option>
-                {% endfor %}
-              </select>
-            </td>
+            <td>{{ ref_multiselect("refs_" ~ row.flow.id, tc_refs.get(row.flow.id, []), cfg.references) }}</td>
             {% endif %}
           </tr>
           {% endfor %}

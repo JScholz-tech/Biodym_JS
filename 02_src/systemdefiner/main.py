@@ -1281,6 +1281,10 @@ async def tc_edit_form(request: Request, name: str, pid: int):
     existing_tcs = {
         tc.flow_id: tc for tc in cfg.transfer_coefficients if tc.process_id == pid
     }
+    tc_refs = {
+        f.id: (existing_tcs[f.id].refs if f.id in existing_tcs else [])
+        for f in outgoing_flows
+    }
     is_dynamic = process.tc_config == TCConfig.dynamic
 
     if is_dynamic:
@@ -1309,6 +1313,7 @@ async def tc_edit_form(request: Request, name: str, pid: int):
                 outgoing_flows=outgoing_flows,
                 is_splitter=is_splitter,
                 is_transformer=is_transformer,
+                tc_refs=tc_refs,
             ),
         )
     else:
@@ -1319,7 +1324,6 @@ async def tc_edit_form(request: Request, name: str, pid: int):
                 {
                     "flow": flow,
                     "tc_values": tc.values if tc else {},
-                    "tc_ref": tc.ref if tc else "",
                 }
             )
         is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
@@ -1333,6 +1337,7 @@ async def tc_edit_form(request: Request, name: str, pid: int):
                 rows=rows,
                 is_splitter=is_splitter,
                 is_transformer=is_transformer,
+                tc_refs=tc_refs,
             ),
         )
 
@@ -1395,12 +1400,14 @@ async def tc_save(request: Request, name: str, pid: int):
                 if year and values:
                     points.append(DynamicTCPoint(year=year, values=values))
             points.sort(key=lambda p: p.year)
+            refs = [c.strip() for c in form.getlist(f"refs_{flow.id}") if c.strip()]
             cfg.transfer_coefficients.append(
                 TransferCoefficient(
                     process_id=pid,
                     flow_id=flow.id,
                     tc_type="dynamic",
                     time_series=points,
+                    refs=refs,
                 )
             )
 
@@ -1443,6 +1450,10 @@ async def tc_save(request: Request, name: str, pid: int):
                 if tc.flow_id == flow.id
                 for pt in tc.time_series
             ]
+            tc_refs = {
+                f.id: [c.strip() for c in form.getlist(f"refs_{f.id}") if c.strip()]
+                for f in outgoing_flows
+            }
             return templates.TemplateResponse(
                 request,
                 "tc_edit_dynamic.html",
@@ -1453,6 +1464,7 @@ async def tc_save(request: Request, name: str, pid: int):
                     outgoing_flows=outgoing_flows,
                     is_splitter=is_splitter,
                     errors=errors,
+                    tc_refs=tc_refs,
                 ),
                 status_code=422,
             )
@@ -1471,14 +1483,14 @@ async def tc_save(request: Request, name: str, pid: int):
                 values[elem] = float(raw) if raw else 0.0
             except ValueError:
                 values[elem] = 0.0
-        ref = (form.get(f"ref_{flow.id}") or "").strip()
+        refs = [c.strip() for c in form.getlist(f"refs_{flow.id}") if c.strip()]
         cfg.transfer_coefficients.append(
             TransferCoefficient(
                 process_id=pid,
                 flow_id=flow.id,
                 tc_type="static",
+                refs=refs,
                 values=values,
-                ref=ref,
             )
         )
 
@@ -1508,15 +1520,13 @@ async def tc_save(request: Request, name: str, pid: int):
                         process_id=pid, flow_id=f.id, tc_type="static", values={}
                     ),
                 ).values,
-                "tc_ref": existing_tcs.get(
-                    f.id,
-                    TransferCoefficient(
-                        process_id=pid, flow_id=f.id, tc_type="static", values={}
-                    ),
-                ).ref,
             }
             for f in outgoing_flows
         ]
+        tc_refs = {
+            f.id: (existing_tcs[f.id].refs if f.id in existing_tcs else [])
+            for f in outgoing_flows
+        }
         return templates.TemplateResponse(
             request,
             "tc_edit.html",
@@ -1525,6 +1535,7 @@ async def tc_save(request: Request, name: str, pid: int):
                 process=process,
                 rows=rows,
                 errors=errors,
+                tc_refs=tc_refs,
                 is_splitter=is_splitter,
             ),
             status_code=422,
