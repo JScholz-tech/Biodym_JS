@@ -36,24 +36,12 @@
   <div id="zotero-results"></div>
 </div>
 
-<!-- ── Saved references ───────────────────────────────────────────────────── -->
-<div class="card">
-  <h2 style="margin-top:0">
-    Saved references
-    <span class="tag" style="font-size:0.85rem;font-weight:400;margin-left:0.4rem">
-      {{ cfg.references | length }}
-    </span>
-  </h2>
-
-  {% if not cfg.references %}
-  <p class="muted">No references yet — search above to add some.</p>
-  {% else %}
-
-  <div id="ref-list">
-  {% for ref in cfg.references %}
+<!-- ── Shared reference card ──────────────────────────────────────────────── -->
+{% macro ref_card(ref, label, cn) %}
   <div class="ref-card" style="border:1px solid var(--border);border-radius:6px;padding:0.75rem 1rem;margin-bottom:0.75rem">
 
     <div style="display:flex;align-items:baseline;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.35rem">
+      <span class="tag" style="background:var(--primary);color:#fff;font-weight:700;min-width:1.4rem;text-align:center">{{ label }}</span>
       <code style="font-size:0.9rem;color:var(--primary)">@{{ ref.cite_key }}</code>
       {% if ref.year %}<span class="tag">{{ ref.year }}</span>{% endif %}
       {% if ref.item_type %}<span class="muted" style="font-size:0.8rem">{{ ref.item_type }}</span>{% endif %}
@@ -74,16 +62,16 @@
     {% endif %}
 
     <!-- inline note editor -->
-    <form method="post" action="/{{ cfg.name }}/references/note"
+    <form method="post" action="/{{ cn }}/references/note"
           style="display:flex;gap:0.4rem;align-items:center;margin-top:0.4rem">
       <input type="hidden" name="cite_key" value="{{ ref.cite_key }}">
       <input type="text" name="note" value="{{ ref.note }}"
-             placeholder="Note: which parameter / table this supports"
+             placeholder="Note: which parameter / assumption this supports"
              style="flex:1;font-size:0.85rem">
       <button type="submit" class="btn btn-secondary btn-sm">Save note</button>
     </form>
 
-    <form method="post" action="/{{ cfg.name }}/references/delete"
+    <form method="post" action="/{{ cn }}/references/delete"
           style="margin-top:0.4rem;text-align:right"
           onsubmit="return confirm('Remove @{{ ref.cite_key }}?')">
       <input type="hidden" name="cite_key" value="{{ ref.cite_key }}">
@@ -91,10 +79,58 @@
     </form>
 
   </div>
-  {% endfor %}
-  </div>
+{% endmacro %}
 
+{% set assumptions = cfg.references | selectattr('item_type', 'equalto', 'assumption') | list %}
+{% set literature  = cfg.references | rejectattr('item_type', 'equalto', 'assumption') | list %}
+{% set _letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}
+
+<!-- ── Literature (numbered 1, 2, 3 …) ────────────────────────────────────── -->
+<div class="card" style="margin-bottom:1.25rem">
+  <h2 style="margin-top:0">
+    Literature
+    <span class="tag" style="font-size:0.85rem;font-weight:400;margin-left:0.4rem">{{ literature | length }}</span>
+  </h2>
+  {% if not literature %}
+  <p class="muted">No literature references yet — search Zotero above to add some.</p>
   {% endif %}
+  {% for ref in literature %}{{ ref_card(ref, loop.index, cfg.name) }}{% endfor %}
+</div>
+
+<!-- ── Assumptions & notes (lettered A, B, C …) ───────────────────────────── -->
+<div class="card">
+  <h2 style="margin-top:0">
+    Assumptions &amp; notes
+    <span class="tag" style="font-size:0.85rem;font-weight:400;margin-left:0.4rem">{{ assumptions | length }}</span>
+  </h2>
+  <p class="muted" style="font-size:0.88rem;margin-top:0">
+    Your own modelling assumptions / explanations — labelled A, B, C… to set them apart from the numbered
+    literature. Link them to parameters via the same "Source reference" field, just like a citation.
+  </p>
+
+  <!-- add a custom assumption (no Zotero needed) -->
+  <form method="post" action="/{{ cfg.name }}/references/add"
+        style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1rem;padding:0.7rem;background:var(--bg);border-radius:6px">
+    <input type="hidden" name="item_type" value="assumption">
+    <div class="field" style="margin:0">
+      <label style="font-size:0.8rem">Key</label>
+      <input type="text" name="cite_key" required placeholder="assume_lifetime" style="width:150px">
+    </div>
+    <div class="field" style="margin:0;flex:1;min-width:160px">
+      <label style="font-size:0.8rem">Short title</label>
+      <input type="text" name="title" placeholder="Straw bale service life ≈ 50 a" style="width:100%">
+    </div>
+    <div class="field" style="margin:0;flex:2;min-width:200px">
+      <label style="font-size:0.8rem">Explanation / note</label>
+      <input type="text" name="note" placeholder="Why, and which parameter it justifies" style="width:100%">
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">➕ Add assumption</button>
+  </form>
+
+  {% if not assumptions %}
+  <p class="muted">No assumptions yet — add one above.</p>
+  {% endif %}
+  {% for ref in assumptions %}{{ ref_card(ref, (_letters[loop.index0] if loop.index0 < 26 else loop.index), cfg.name) }}{% endfor %}
 </div>
 
 <!-- hidden add form (submitted by JS) -->
