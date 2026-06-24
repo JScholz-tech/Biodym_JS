@@ -3,7 +3,27 @@ from __future__ import annotations
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
+
+
+class _Referenced(BaseModel):
+    """Mixin for parameters that can cite one or more references by cite_key.
+
+    ``refs`` is the current multi-value field; ``ref`` is the legacy single-value
+    field, kept and synced for backward compatibility so old configs (and any
+    code still reading ``ref``) keep working.
+    """
+
+    ref: str = ""  # legacy single cite key
+    refs: list[str] = []  # current: list of cite keys (literature and/or assumptions)
+
+    @model_validator(mode="after")
+    def _sync_refs(self):
+        if not self.refs and self.ref:
+            self.refs = [self.ref]
+        elif self.refs and not self.ref:
+            self.ref = self.refs[0]
+        return self
 
 
 class ProcessLogic(str, Enum):
@@ -32,13 +52,12 @@ class TCConfig(str, Enum):
     dynamic = "Dynamic"
 
 
-class FompParams(BaseModel):
+class FompParams(_Referenced):
     f_labile: float = 0.5
     k_labile: float = 1.0
     k_recalcitrant: float = 0.01
     outflow_id: str = ""
     outflow_id_2: Optional[str] = None
-    ref: str = ""
 
 
 class DsmCategory(BaseModel):
@@ -51,9 +70,8 @@ class DsmCategory(BaseModel):
     lifetime_scale: Optional[float] = None
 
 
-class DsmParams(BaseModel):
+class DsmParams(_Referenced):
     categories: list[DsmCategory] = []
-    ref: str = ""
 
 
 class LfgFraction(BaseModel):
@@ -101,7 +119,7 @@ class BomAssemblyEntry(BaseModel):
     flows: list[BomAssemblyFlow] = []
 
 
-class InitialStockEntry(BaseModel):
+class InitialStockEntry(_Referenced):
     """Pre-existing stock present at t=0 for a process whose StockConfig is one
     of the InitialStock variants. Element fractions are absolute (of material),
     matching the engine: stock[element] = material_quantity × fraction."""
@@ -115,7 +133,6 @@ class InitialStockEntry(BaseModel):
     cohort_std_age: Optional[float] = None
     cohort_max_age: Optional[int] = None
     cohort_decay_constant: Optional[float] = None
-    ref: str = ""
 
 
 class Process(BaseModel):
@@ -144,13 +161,12 @@ class DynamicTCPoint(BaseModel):
     values: dict[str, float]  # element_name -> fraction (0.0–1.0)
 
 
-class TransferCoefficient(BaseModel):
+class TransferCoefficient(_Referenced):
     process_id: int
     flow_id: str
     tc_type: str = "static"  # "static" or "dynamic"
     values: dict[str, float] = {}  # static: element -> fraction
     time_series: list[DynamicTCPoint] = []  # dynamic: list of (year, values)
-    ref: str = ""  # cite key from cfg.references
 
 
 class ModelSettings(BaseModel):
@@ -199,13 +215,12 @@ class ElementHierarchyRule(BaseModel):
     children: list[str]
 
 
-class FlowComposition(BaseModel):
+class FlowComposition(_Referenced):
     flow_id: str
     values: dict[str, float] = {}  # element_name -> fraction (0.0–1.0)
-    ref: str = ""  # cite key from cfg.references
 
 
-class ScenarioModification(BaseModel):
+class ScenarioModification(_Referenced):
     parameter_name: str = ""
     parameter_type: str = ""  # "Flow","TC","DSM","FOMP","IS", or "" for auto-detect
     operation: str = (
@@ -214,7 +229,6 @@ class ScenarioModification(BaseModel):
     new_value: float = 0.0
     start_year: Optional[int] = None
     end_year: Optional[int] = None
-    ref: str = ""
 
 
 class ScenarioDefinition(BaseModel):
@@ -222,7 +236,7 @@ class ScenarioDefinition(BaseModel):
     modifications: list[ScenarioModification] = []
 
 
-class McParameter(BaseModel):
+class McParameter(_Referenced):
     parameter_id: str = ""
     enabled: bool = True  # MC_Parameter_Selection toggle
     distribution: str = "normal"  # uniform | normal | triangular | lognormal
@@ -235,7 +249,6 @@ class McParameter(BaseModel):
     start_year: Optional[int] = None
     end_year: Optional[int] = None
     flow_group: Optional[str] = None  # MC_Flow_Group (optional)
-    ref: str = ""
 
 
 class ReferenceEntry(BaseModel):
