@@ -20,20 +20,24 @@
     <div class="muted" style="font-size:0.8rem">No references yet — add some on the References page.</div>
     {% endif %}
     {% for r in _lit %}
-    <label style="display:block;font-size:0.85rem;padding:0.12rem 0;white-space:nowrap">
+    {% set _disp = r.title or (r.authors ~ ((' (' ~ r.year ~ ')') if r.year else '')) or ('@' ~ r.cite_key) %}
+    <label title="@{{ r.cite_key }}{% if r.authors %} — {{ r.authors }}{% if r.year %} ({{ r.year }}){% endif %}{% endif %}{% if r.title %} — {{ r.title }}{% endif %}"
+           style="display:block;font-size:0.85rem;padding:0.12rem 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:420px">
       <input type="checkbox" name="{{ field }}" value="{{ r.cite_key }}"
              onchange="var c=this.closest('.ref-ms').querySelector('.ref-ms-count');c.textContent=this.closest('.ref-ms-panel').querySelectorAll('input:checked').length"
              {% if r.cite_key in selected %}checked{% endif %}>
-      <span class="tag">{{ loop.index }}</span> @{{ r.cite_key }}
+      <span class="tag">{{ loop.index }}</span> {{ _disp | truncate(52, True) }}
     </label>
     {% endfor %}
     {% if _asm %}<div class="muted" style="font-size:0.72rem;margin:0.35rem 0 0.1rem;border-top:1px solid var(--border);padding-top:0.25rem">Assumptions</div>{% endif %}
     {% for r in _asm %}
-    <label style="display:block;font-size:0.85rem;padding:0.12rem 0;white-space:nowrap">
+    {% set _disp = r.title or r.note or ('@' ~ r.cite_key) %}
+    <label title="@{{ r.cite_key }}{% if r.title %} — {{ r.title }}{% endif %}{% if r.note %} — {{ r.note }}{% endif %}"
+           style="display:block;font-size:0.85rem;padding:0.12rem 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:420px">
       <input type="checkbox" name="{{ field }}" value="{{ r.cite_key }}"
              onchange="var c=this.closest('.ref-ms').querySelector('.ref-ms-count');c.textContent=this.closest('.ref-ms-panel').querySelectorAll('input:checked').length"
              {% if r.cite_key in selected %}checked{% endif %}>
-      <span class="tag">{{ _letters[loop.index0] if loop.index0 < 26 else loop.index }}</span> @{{ r.cite_key }}
+      <span class="tag">{{ _letters[loop.index0] if loop.index0 < 26 else loop.index }}</span> {{ _disp | truncate(52, True) }}
     </label>
     {% endfor %}
   </div>

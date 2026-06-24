@@ -141,7 +141,7 @@ function buildMatrix(flow) {
     const nameAttr = isRoot ? '' : `name="bom_${fid}_${elem}"`;
     let h = `<div style="font-size:0.8rem;font-weight:600;color:${lblCol};margin-bottom:5px">${elem}</div>`;
     h += `<input type="number" id="bi_${safe}_${elem}" ${nameAttr} class="bom-pct"` +
-         ` value="${val}" step="0.01" min="0" max="100" style="width:88px;${roStyle}" ${roAttr}` +
+         ` value="${val}" step="any" min="0" max="100" style="width:88px;${roStyle}" ${roAttr}` +
          ` oninput="updateGaps('${fid}')"> <span style="font-size:0.85rem;color:var(--muted)">%</span>`;
     if (isParent) h += `<div id="bgap_${safe}_${elem}"></div>`;
     return h;

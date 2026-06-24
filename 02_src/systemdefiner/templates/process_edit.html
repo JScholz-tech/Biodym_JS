@@ -52,19 +52,19 @@
             <label>f labile</label>
             <input type="number" name="fomp_f_labile"
                    value="{{ process.fomp.f_labile if process.fomp else 0.5 }}"
-                   step="0.001" min="0" max="1">
+                   step="any" min="0" max="1">
           </div>
           <div class="field">
             <label>k labile (yr⁻¹)</label>
             <input type="number" name="fomp_k_labile"
                    value="{{ process.fomp.k_labile if process.fomp else 1.0 }}"
-                   step="0.001" min="0">
+                   step="any" min="0">
           </div>
           <div class="field">
             <label>k recalcitrant (yr⁻¹)</label>
             <input type="number" name="fomp_k_recalcitrant"
                    value="{{ process.fomp.k_recalcitrant if process.fomp else 0.01 }}"
-                   step="0.0001" min="0">
+                   step="any" min="0">
           </div>
         </div>
         <div class="form-grid" style="margin-top:0.75rem">
@@ -123,7 +123,7 @@
             {% for cat in process.dsm.categories %}
             <tr>
               <td><input type="text"   name="dsm_cat_{{ loop.index0 }}_name"           value="{{ cat.name }}"           style="width:120px"></td>
-              <td><input type="number" name="dsm_cat_{{ loop.index0 }}_inflow_split"   value="{{ (cat.inflow_split * 100) | round(4) }}"   step="0.1" min="0" max="100" style="width:70px"></td>
+              <td><input type="number" name="dsm_cat_{{ loop.index0 }}_inflow_split"   value="{{ (cat.inflow_split * 100) | round(4) }}"   step="any" min="0" max="100" style="width:70px"></td>
               <td>
                 <select name="dsm_cat_{{ loop.index0 }}_lifetime_type" style="width:110px" onchange="syncDsmRow(this.closest('tr'))">
                   {% for d in ["Normal","LogNormal","Weibull","Fixed"] %}
@@ -131,22 +131,22 @@
                   {% endfor %}
                 </select>
               </td>
-              <td><input type="number" name="dsm_cat_{{ loop.index0 }}_lifetime_mean"  value="{{ cat.lifetime_mean  if cat.lifetime_mean  is not none else '' }}" step="0.1" min="0" style="width:75px" placeholder="—"></td>
-              <td><input type="number" name="dsm_cat_{{ loop.index0 }}_lifetime_std"   value="{{ cat.lifetime_std   if cat.lifetime_std   is not none else '' }}" step="0.1" min="0" style="width:75px" placeholder="—"></td>
-              <td><input type="number" name="dsm_cat_{{ loop.index0 }}_lifetime_shape" value="{{ cat.lifetime_shape if cat.lifetime_shape is not none else '' }}" step="0.01" min="0" style="width:70px" placeholder="—"></td>
-              <td><input type="number" name="dsm_cat_{{ loop.index0 }}_lifetime_scale" value="{{ cat.lifetime_scale if cat.lifetime_scale is not none else '' }}" step="0.1"  min="0" style="width:70px" placeholder="—"></td>
+              <td><input type="number" name="dsm_cat_{{ loop.index0 }}_lifetime_mean"  value="{{ cat.lifetime_mean  if cat.lifetime_mean  is not none else '' }}" step="any" min="0" style="width:75px" placeholder="—"></td>
+              <td><input type="number" name="dsm_cat_{{ loop.index0 }}_lifetime_std"   value="{{ cat.lifetime_std   if cat.lifetime_std   is not none else '' }}" step="any" min="0" style="width:75px" placeholder="—"></td>
+              <td><input type="number" name="dsm_cat_{{ loop.index0 }}_lifetime_shape" value="{{ cat.lifetime_shape if cat.lifetime_shape is not none else '' }}" step="any" min="0" style="width:70px" placeholder="—"></td>
+              <td><input type="number" name="dsm_cat_{{ loop.index0 }}_lifetime_scale" value="{{ cat.lifetime_scale if cat.lifetime_scale is not none else '' }}" step="any"  min="0" style="width:70px" placeholder="—"></td>
               <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove(); reindexDsmCats()">✕</button></td>
             </tr>
             {% endfor %}
             {% else %}
             <tr>
               <td><input type="text"   name="dsm_cat_0_name"           value="Default" style="width:120px"></td>
-              <td><input type="number" name="dsm_cat_0_inflow_split"   value="100"    step="0.1" min="0" max="100" style="width:70px"></td>
+              <td><input type="number" name="dsm_cat_0_inflow_split"   value="100"    step="any" min="0" max="100" style="width:70px"></td>
               <td><select name="dsm_cat_0_lifetime_type" style="width:110px" onchange="syncDsmRow(this.closest('tr'))"><option>Normal</option><option>LogNormal</option><option>Weibull</option><option>Fixed</option></select></td>
-              <td><input type="number" name="dsm_cat_0_lifetime_mean"  value="20.0"   step="0.1" min="0" style="width:75px"></td>
-              <td><input type="number" name="dsm_cat_0_lifetime_std"   value="5.0"    step="0.1" min="0" style="width:75px"></td>
-              <td><input type="number" name="dsm_cat_0_lifetime_shape" placeholder="—" step="0.01" min="0" style="width:70px"></td>
-              <td><input type="number" name="dsm_cat_0_lifetime_scale" placeholder="—" step="0.1"  min="0" style="width:70px"></td>
+              <td><input type="number" name="dsm_cat_0_lifetime_mean"  value="20.0"   step="any" min="0" style="width:75px"></td>
+              <td><input type="number" name="dsm_cat_0_lifetime_std"   value="5.0"    step="any" min="0" style="width:75px"></td>
+              <td><input type="number" name="dsm_cat_0_lifetime_shape" placeholder="—" step="any" min="0" style="width:70px"></td>
+              <td><input type="number" name="dsm_cat_0_lifetime_scale" placeholder="—" step="any"  min="0" style="width:70px"></td>
               <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove(); reindexDsmCats()">✕</button></td>
             </tr>
             {% endif %}
@@ -168,12 +168,12 @@
       <summary>LFG Parameters</summary>
       <div class="details-body">
         <div class="form-grid">
-          <div class="field"><label>MCF</label><input type="number" name="lfg_mcf" value="{{ process.lfg.mcf if process.lfg else 1.0 }}" step="0.01" min="0" max="1"></div>
-          <div class="field"><label>DOCf</label><input type="number" name="lfg_doc_f" value="{{ process.lfg.doc_f if process.lfg else 0.5 }}" step="0.01" min="0" max="1"></div>
-          <div class="field"><label>F CH4</label><input type="number" name="lfg_f_ch4" value="{{ process.lfg.f_ch4 if process.lfg else 0.5 }}" step="0.01" min="0" max="1"></div>
-          <div class="field"><label>OX</label><input type="number" name="lfg_ox" value="{{ process.lfg.ox if process.lfg else 0.1 }}" step="0.01" min="0" max="1"></div>
-          <div class="field"><label>φ (phi)</label><input type="number" name="lfg_phi" value="{{ process.lfg.phi if process.lfg else 1.0 }}" step="0.01" min="0" max="1"></div>
-          <div class="field"><label>f capture</label><input type="number" name="lfg_f_capture" value="{{ process.lfg.f_capture if process.lfg else 0.0 }}" step="0.01" min="0" max="1"></div>
+          <div class="field"><label>MCF</label><input type="number" name="lfg_mcf" value="{{ process.lfg.mcf if process.lfg else 1.0 }}" step="any" min="0" max="1"></div>
+          <div class="field"><label>DOCf</label><input type="number" name="lfg_doc_f" value="{{ process.lfg.doc_f if process.lfg else 0.5 }}" step="any" min="0" max="1"></div>
+          <div class="field"><label>F CH4</label><input type="number" name="lfg_f_ch4" value="{{ process.lfg.f_ch4 if process.lfg else 0.5 }}" step="any" min="0" max="1"></div>
+          <div class="field"><label>OX</label><input type="number" name="lfg_ox" value="{{ process.lfg.ox if process.lfg else 0.1 }}" step="any" min="0" max="1"></div>
+          <div class="field"><label>φ (phi)</label><input type="number" name="lfg_phi" value="{{ process.lfg.phi if process.lfg else 1.0 }}" step="any" min="0" max="1"></div>
+          <div class="field"><label>f capture</label><input type="number" name="lfg_f_capture" value="{{ process.lfg.f_capture if process.lfg else 0.0 }}" step="any" min="0" max="1"></div>
         </div>
         <div class="form-grid" style="margin-top:0.75rem">
           <div class="field">
@@ -216,10 +216,10 @@
             {% for frac in process.lfg.fractions %}
             <tr>
               <td><input type="text"   name="lfg_frac_{{ loop.index0 }}_name"      value="{{ frac.name }}"      style="width:120px"></td>
-              <td><input type="number" name="lfg_frac_{{ loop.index0 }}_k_j"       value="{{ frac.k_j }}"       step="0.001" min="0" style="width:80px"></td>
-              <td><input type="number" name="lfg_frac_{{ loop.index0 }}_doc_j"     value="{{ frac.doc_j }}"     step="0.01"  min="0" max="1" style="width:80px"></td>
-              <td><input type="number" name="lfg_frac_{{ loop.index0 }}_f_input_j" value="{{ frac.f_input_j }}" step="0.01"  min="0" max="1" style="width:80px"></td>
-              <td><input type="number" name="lfg_frac_{{ loop.index0 }}_f_ash_j"   value="{{ frac.f_ash_j }}"   step="0.001" min="0" max="1" style="width:80px"></td>
+              <td><input type="number" name="lfg_frac_{{ loop.index0 }}_k_j"       value="{{ frac.k_j }}"       step="any" min="0" style="width:80px"></td>
+              <td><input type="number" name="lfg_frac_{{ loop.index0 }}_doc_j"     value="{{ frac.doc_j }}"     step="any"  min="0" max="1" style="width:80px"></td>
+              <td><input type="number" name="lfg_frac_{{ loop.index0 }}_f_input_j" value="{{ frac.f_input_j }}" step="any"  min="0" max="1" style="width:80px"></td>
+              <td><input type="number" name="lfg_frac_{{ loop.index0 }}_f_ash_j"   value="{{ frac.f_ash_j }}"   step="any" min="0" max="1" style="width:80px"></td>
               <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove(); reindexLfgFracs()">✕</button></td>
             </tr>
             {% endfor %}
@@ -261,7 +261,7 @@
             {% for year, cap in process.flowcap.cap_series.items() %}
             <tr>
               <td><input type="number" name="flowcap_year_{{ loop.index0 }}" value="{{ year }}" step="1" min="1900" max="2300" style="width:80px"></td>
-              <td><input type="number" name="flowcap_cap_{{ loop.index0 }}"  value="{{ cap }}"  step="0.01" min="0" style="width:120px"></td>
+              <td><input type="number" name="flowcap_cap_{{ loop.index0 }}"  value="{{ cap }}"  step="any" min="0" style="width:120px"></td>
               <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">✕</button></td>
             </tr>
             {% endfor %}
@@ -305,14 +305,14 @@ function addDsmCat() {
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td><input type="text"   name="dsm_cat_${i}_name"           placeholder="Category name" style="width:120px"></td>
-    <td><input type="number" name="dsm_cat_${i}_inflow_split"   value="0" step="0.1" min="0" max="100" style="width:70px"></td>
+    <td><input type="number" name="dsm_cat_${i}_inflow_split"   value="0" step="any" min="0" max="100" style="width:70px"></td>
     <td><select name="dsm_cat_${i}_lifetime_type" style="width:110px" onchange="syncDsmRow(this.closest('tr'))">
       <option>Normal</option><option>LogNormal</option><option>Weibull</option><option>Fixed</option>
     </select></td>
-    <td><input type="number" name="dsm_cat_${i}_lifetime_mean"  placeholder="—" step="0.1"  min="0" style="width:75px"></td>
-    <td><input type="number" name="dsm_cat_${i}_lifetime_std"   placeholder="—" step="0.1"  min="0" style="width:75px"></td>
-    <td><input type="number" name="dsm_cat_${i}_lifetime_shape" placeholder="—" step="0.01" min="0" style="width:70px"></td>
-    <td><input type="number" name="dsm_cat_${i}_lifetime_scale" placeholder="—" step="0.1"  min="0" style="width:70px"></td>
+    <td><input type="number" name="dsm_cat_${i}_lifetime_mean"  placeholder="—" step="any"  min="0" style="width:75px"></td>
+    <td><input type="number" name="dsm_cat_${i}_lifetime_std"   placeholder="—" step="any"  min="0" style="width:75px"></td>
+    <td><input type="number" name="dsm_cat_${i}_lifetime_shape" placeholder="—" step="any" min="0" style="width:70px"></td>
+    <td><input type="number" name="dsm_cat_${i}_lifetime_scale" placeholder="—" step="any"  min="0" style="width:70px"></td>
     <td><button type="button" class="btn btn-danger btn-sm"
       onclick="this.closest('tr').remove(); reindexDsmCats(); updateDsmSplitSum()">✕</button></td>`;
   tbody.appendChild(tr);
@@ -385,10 +385,10 @@ function addLfgFrac() {
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td><input type="text"   name="lfg_frac_${i}_name"      placeholder="Fraction name" style="width:120px"></td>
-    <td><input type="number" name="lfg_frac_${i}_k_j"       value="0.1"  step="0.001" min="0" style="width:80px"></td>
-    <td><input type="number" name="lfg_frac_${i}_doc_j"     value="0.5"  step="0.01"  min="0" max="1" style="width:80px"></td>
-    <td><input type="number" name="lfg_frac_${i}_f_input_j" value="1.0"  step="0.01"  min="0" max="1" style="width:80px"></td>
-    <td><input type="number" name="lfg_frac_${i}_f_ash_j"   value="0.05" step="0.001" min="0" max="1" style="width:80px"></td>
+    <td><input type="number" name="lfg_frac_${i}_k_j"       value="0.1"  step="any" min="0" style="width:80px"></td>
+    <td><input type="number" name="lfg_frac_${i}_doc_j"     value="0.5"  step="any"  min="0" max="1" style="width:80px"></td>
+    <td><input type="number" name="lfg_frac_${i}_f_input_j" value="1.0"  step="any"  min="0" max="1" style="width:80px"></td>
+    <td><input type="number" name="lfg_frac_${i}_f_ash_j"   value="0.05" step="any" min="0" max="1" style="width:80px"></td>
     <td><button type="button" class="btn btn-danger btn-sm"
       onclick="this.closest('tr').remove(); reindexLfgFracs()">✕</button></td>`;
   tbody.appendChild(tr);
@@ -411,7 +411,7 @@ function addCapRow() {
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td><input type="number" name="flowcap_year_${i}" step="1" min="1900" max="2300" style="width:80px"></td>
-    <td><input type="number" name="flowcap_cap_${i}"  step="0.01" min="0" style="width:120px"></td>
+    <td><input type="number" name="flowcap_cap_${i}"  step="any" min="0" style="width:120px"></td>
     <td><button type="button" class="btn btn-danger btn-sm"
       onclick="this.closest('tr').remove()">✕</button></td>`;
   tbody.appendChild(tr);

@@ -79,7 +79,7 @@
                      name="tc_{{ row.flow.id }}_{{ elem }}"
                      class="tc-input tc-col-{{ loop.index0 }}"
                      value="{{ (row.tc_values.get(elem, 0.0) * 100) | round(4) }}"
-                     step="0.01" min="0" max="100"
+                     step="any" min="0" max="100"
                      style="width:90px{{ ';opacity:0.4;pointer-events:none' if disabled else '' }}"
                      {% if disabled %}disabled tabindex="-1"{% endif %}
                      {% if not disabled %}oninput="updateSum({{ loop.index0 }})"{% endif %}>

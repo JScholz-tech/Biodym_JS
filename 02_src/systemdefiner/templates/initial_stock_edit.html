@@ -62,12 +62,12 @@
       </div>
       <div class="field">
         <label>Mean age (years)</label>
-        <input type="number" name="is_cohort_mean_age" step="0.1" min="0" placeholder="—"
+        <input type="number" name="is_cohort_mean_age" step="any" min="0" placeholder="—"
                value="{{ entry.cohort_mean_age if entry and entry.cohort_mean_age is not none else '' }}">
       </div>
       <div class="field">
         <label>Std dev age (years)</label>
-        <input type="number" name="is_cohort_std_age" step="0.1" min="0" placeholder="—"
+        <input type="number" name="is_cohort_std_age" step="any" min="0" placeholder="—"
                value="{{ entry.cohort_std_age if entry and entry.cohort_std_age is not none else '' }}">
       </div>
       <div class="field">
@@ -83,7 +83,7 @@
     <div class="form-grid">
       <div class="field">
         <label>Decay constant (yr⁻¹)</label>
-        <input type="number" name="is_cohort_decay_constant" step="0.0001" min="0" placeholder="—"
+        <input type="number" name="is_cohort_decay_constant" step="any" min="0" placeholder="—"
                value="{{ entry.cohort_decay_constant if entry and entry.cohort_decay_constant is not none else '' }}">
       </div>
     </div>
@@ -202,7 +202,7 @@ function buildMatrix() {
     const roAttr = isRoot ? 'readonly tabindex="-1"' : '';
     const roStyle = isRoot ? 'background:var(--bg);color:var(--muted);border-style:dashed;cursor:default;' : '';
     let h = `<div style="font-size:0.8rem;font-weight:600;color:${lblCol};margin-bottom:5px">${elem}</div>`;
-    h += `<input type="number" id="is_ci_${elem}" name="is_${elem}" value="${val}" step="0.01" min="0" max="100"` +
+    h += `<input type="number" id="is_ci_${elem}" name="is_${elem}" value="${val}" step="any" min="0" max="100"` +
          ` style="width:88px;${roStyle}" ${roAttr} oninput="updateGaps()"> <span style="font-size:0.85rem;color:var(--muted)">%</span>`;
     if (isParent) h += `<div id="is_gap_${elem}"></div>`;
     return h;

@@ -215,7 +215,7 @@ function buildFlowMatrix(flow) {
     ELEMENTS.forEach(e => {
       html += `<tr><td style="${tdSt}">${e}</td><td style="${tdSt}">` +
         `<input type="number" id="ci_${safe}_${e}" name="comp_${fid}_${e}" class="comp-pct"` +
-        ` value="${(relV[e] || 0).toFixed(2)}" step="0.01" min="0" max="100" style="width:88px"` +
+        ` value="${(relV[e] || 0).toFixed(2)}" step="any" min="0" max="100" style="width:88px"` +
         ` oninput="updateGaps('${fid}')"> %</td></tr>`;
     });
     return html + '</tbody></table>';
@@ -250,7 +250,7 @@ function buildFlowMatrix(flow) {
       html += `<div style="font-size:0.8rem;font-weight:600;color:${lblCol};margin-bottom:5px">${elem}</div>`;
       html += `<input type="number" id="ci_${safe}_${elem}" name="comp_${fid}_${elem}"` +
               ` class="comp-pct" data-flow="${fid}" data-elem="${elem}"` +
-              ` value="${val}" step="0.01" min="0" max="100"` +
+              ` value="${val}" step="any" min="0" max="100"` +
               ` style="width:88px;${roStyle}" ${roAttr}` +
               ` oninput="updateGaps('${fid}')">` +
               ` <span style="font-size:0.85rem;color:var(--muted)">%</span>`;
@@ -269,7 +269,7 @@ function buildFlowMatrix(flow) {
       html += `<tr><td colspan="3" style="${tdSt};color:var(--muted)">${e}</td><td style="${tdSt}">` +
               `<input type="number" id="ci_${safe}_${e}" name="comp_${fid}_${e}"` +
               ` class="comp-pct" data-flow="${fid}" data-elem="${e}"` +
-              ` value="${(relV[e] || 0).toFixed(2)}" step="0.01" min="0" max="100" style="width:88px"` +
+              ` value="${(relV[e] || 0).toFixed(2)}" step="any" min="0" max="100" style="width:88px"` +
               ` oninput="updateGaps('${fid}')"> %</td></tr>`;
     });
   }
