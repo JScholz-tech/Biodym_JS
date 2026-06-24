@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ref_select.html" import ref_multiselect %}
 {% block title %}MC Parameters — {{ cfg.name }}{% endblock %}
 {% block breadcrumb %}
   <a href="/">Case Studies</a> <span>/</span>
@@ -127,16 +128,7 @@
                      style="width:100px">
             </td>
             {% if cfg.references %}
-            <td>
-              <select name="mc_{{ i }}_ref" style="width:64px;font-size:0.83rem;padding:2px 4px">
-                <option value="">—</option>
-                {% for ref in cfg.references %}
-                <option value="{{ ref.cite_key }}"
-                        title="{{ ref.authors }}{% if ref.year %} ({{ ref.year }}){% endif %}{% if ref.title %} — {{ ref.title[:80] }}{% endif %}"
-                        {% if p.ref == ref.cite_key %}selected{% endif %}>[{{ loop.index }}]</option>
-                {% endfor %}
-              </select>
-            </td>
+            <td>{{ ref_multiselect("mc_" ~ i ~ "_refs", p.refs, cfg.references) }}</td>
             {% endif %}
             <td>
               <button type="button" class="btn btn-danger btn-sm"
@@ -176,15 +168,34 @@ const PARAMS      = {{ params_json | safe }};
 const REFS        = {{ cfg.references | map(attribute='cite_key') | list | tojson }};
 const REF_LABELS  = {{ cfg.references | map(attribute='authors') | list | tojson }};
 const REF_YEARS   = {{ cfg.references | map(attribute='year') | list | tojson }};
+const REF_TITLES  = {{ cfg.references | map(attribute='title') | list | tojson }};
+const REF_TYPES   = {{ cfg.references | map(attribute='item_type') | list | tojson }};
 
-function refOptions(sel) {
+function msCount(cb){var c=cb.closest('.ref-ms').querySelector('.ref-ms-count');c.textContent=cb.closest('.ref-ms-panel').querySelectorAll('input:checked').length;}
+
+// Build the references checkbox-dropdown (mirrors the _ref_select.html macro)
+// for JS-generated rows. `selected` is an array of cite keys.
+function refMS(field, selected) {
   if (!REFS.length) return '';
-  let html = '<option value="">—</option>';
-  REFS.forEach((ck, idx) => {
-    const label = `[${idx+1}] ${REF_LABELS[idx]}${REF_YEARS[idx] ? ' (' + REF_YEARS[idx] + ')' : ''}`;
-    html += `<option value="${ck}"${ck === sel ? ' selected' : ''}>${label}</option>`;
-  });
-  return html;
+  selected = selected || [];
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lit = [], asm = [];
+  REFS.forEach((ck, idx) => (REF_TYPES[idx] === 'assumption' ? asm : lit).push(idx));
+  const esc = s => String(s == null ? '' : s).replace(/"/g, '&quot;');
+  const item = (idx, lbl) => {
+    const disp = (REF_TITLES[idx] || (REF_LABELS[idx] ? REF_LABELS[idx] + (REF_YEARS[idx] ? ' (' + REF_YEARS[idx] + ')' : '') : '') || ('@' + REFS[idx]));
+    const chk = selected.includes(REFS[idx]) ? ' checked' : '';
+    return `<label title="@${esc(REFS[idx])}${REF_TITLES[idx] ? ' — ' + esc(REF_TITLES[idx]) : ''}" style="display:block;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:420px">` +
+      `<input type="checkbox" name="${field}" value="${esc(REFS[idx])}"${chk} onchange="msCount(this)">` +
+      `<span class="tag">${lbl}</span> ${esc(disp).slice(0,52)}</label>`;
+  };
+  let html = '';
+  lit.forEach((idx, n) => html += item(idx, n + 1));
+  if (asm.length) html += '<div class="muted" style="font-size:0.72rem;border-top:1px solid var(--border);margin-top:0.3rem;padding-top:0.2rem">Assumptions</div>';
+  asm.forEach((idx, n) => html += item(idx, n < 26 ? letters[n] : (n + 1)));
+  return `<div class="ref-ms" style="position:relative;display:inline-block">` +
+    `<button type="button" class="btn btn-secondary btn-sm" onclick="var p=this.nextElementSibling;p.style.display=(p.style.display==='block'?'none':'block')">🔖 <span class="ref-ms-count">${selected.length}</span> ▾</button>` +
+    `<div class="ref-ms-panel" style="display:none;position:absolute;z-index:30;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:0.5rem;min-width:240px;max-height:220px;overflow:auto;box-shadow:0 4px 14px rgba(0,0,0,0.15)">${html}</div></div>`;
 }
 
 // Which cells are active for each distribution
@@ -325,7 +336,7 @@ function addRow() {
     <td><input type="text" name="mc_${i}_flow_group" placeholder="—"
                title="Flows sharing a group label are sampled together (one draw applied to all)"
                style="width:100px"></td>
-    ${REFS.length ? `<td><select name="mc_${i}_ref" style="width:64px;font-size:0.83rem;padding:2px 4px">${refOptions('')}</select></td>` : ''}
+    ${REFS.length ? `<td>${refMS('mc_' + i + '_refs', [])}</td>` : ''}
     <td><button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)">✕</button></td>`;
   tbody.appendChild(tr);
   applyDist(tr);

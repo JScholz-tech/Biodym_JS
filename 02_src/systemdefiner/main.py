@@ -1890,7 +1890,7 @@ async def scenario_save(request: Request, name: str, sname: str):
                 new_value=float(form.get(f"mod_{i}_new_value", 0) or 0),
                 start_year=_opt_int(f"mod_{i}_start_year"),
                 end_year=_opt_int(f"mod_{i}_end_year"),
-                ref=(form.get(f"mod_{i}_ref") or "").strip(),
+                refs=[c.strip() for c in form.getlist(f"mod_{i}_refs") if c.strip()],
             )
         )
 
@@ -2408,7 +2408,7 @@ async def mc_params_save(request: Request, name: str):
                 start_year=_iv(i, "start_year"),
                 end_year=_iv(i, "end_year"),
                 flow_group=(form.get(f"mc_{i}_flow_group") or None) or None,
-                ref=(form.get(f"mc_{i}_ref") or "").strip(),
+                refs=[c.strip() for c in form.getlist(f"mc_{i}_refs") if c.strip()],
             )
         )
 
