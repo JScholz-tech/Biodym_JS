@@ -7,22 +7,20 @@
 
 BioDYM is a comprehensive Material Flow Analysis (MFA) tool designed for analyzing bio-based material systems. Built on the [ODYM framework](https://github.com/IndEcol/ODYM), it tracks material flows, stocks, and transformations through time with special features for organic waste management and biomass cascading.
 
-## ⚡ Quick Reference for Testers
-
-**To get started in 5 minutes:**
+## ⚡ Quick Start (5 minutes)
 
 1. **Install**: `uv sync` (or `conda env create -f environment.yml && conda activate biodym_env`)
 
-2. **Define your system** *(optional — skip if using an Excel Systemmanager)*:
-   `uv run python -m systemdefiner` → opens **bioDYM SystemDefiner** at http://localhost:8001
-   Configure your case study visually and export a `config.yaml`.
+2. **Define your system**: `uv run python -m systemdefiner` → opens **bioDYM SystemDefiner** at http://localhost:8001
+   Tutorial studies T01–T14 are pre-loaded. Export your study as `config.yaml`.
 
-3. **Open Jupyter**: `uv run jupyter lab`
+3. **Run the analysis** — choose one:
+   - **Dashboard** *(no code)*: `uv run voila 01_BioDYM_Dashboard.ipynb`
+   - **Notebook** *(full control)*: `uv run jupyter lab` → open `00_BioDYM_Workflow.ipynb`
 
-4. **Run the workflow**: Open `00_BioDYM_Workflow.ipynb`, set `input_file` to your Excel
-   Systemmanager **or** your exported `config.yaml`, then "Kernel → Restart & Run All"
+4. **Explore**: Interactive visualizations and exports appear automatically.
 
-5. **Explore**: Interactive visualizations appear automatically — no coding required!
+> New to BioDYM? Read [GETTING_STARTED_FROM_ZERO.md](GETTING_STARTED_FROM_ZERO.md) first.
 
 **Need help?** See [Getting Help](#-getting-help) section below.
 
@@ -105,7 +103,15 @@ cp 01_data/01_input/template/260503_bioDYM_Systemmanager_template_final.xlsm my_
 
 ### 3. Run Your Analysis
 
-**🎯 Recommended: Use the Interactive Jupyter Notebook**
+**🎯 Option A: Voilà Dashboard (recommended for users)**
+
+```bash
+uv run voila 01_BioDYM_Dashboard.ipynb
+```
+
+A clean browser interface opens — enter the path to your `config.yaml` or `.xlsm` file and click Run. No coding required.
+
+**🔬 Option B: Jupyter Notebook (recommended for developers)**
 
 ```bash
 # UV users:
@@ -115,7 +121,7 @@ uv run jupyter lab
 jupyter lab
 
 # Then open 00_BioDYM_Workflow.ipynb
-# Update the input_file path in the notebook to point to your Excel file
+# Update the input_file path in the notebook to point to your Excel or YAML file
 ```
 
 **Experimental: Command Line Interface**
@@ -168,22 +174,25 @@ rather than installed as a package — so run BioDYM from the repository root.
 
 ### Core Application
 - **`02_src/`** - Core application source code
-  - `engine/` - MFA calculation engine, DSM, FOMP, Monte Carlo
+  - `engine/` - MFA calculation engine, DSM, FOMP, LFG, Monte Carlo
   - `plotting/` - Visualization modules and interactive charts
   - `reporting/` - KPI dashboards and reports
+  - `systemdefiner/` - bioDYM SystemDefiner web app
 - **`06_framework/`** - ODYM framework and BioDYM extensions
 - **`04_tests/`** - Comprehensive test suite with unit and integration tests
 
 ### Data & Configuration
 - **`01_data/`** - Input/output data and examples
-  - `01_input/` - Example Excel files and templates
+  - `01_input/template/` - Blank Excel Systemmanager (starting point for Excel workflow)
+  - `01_input/case_studies/T01_…T14_*/` - Tutorial studies (pre-loaded in SystemDefiner)
   - `02_output/` - Analysis results and exports
-- **`01_data/02_output/scenarios/`** - Scenario comparison results (Excel, generated)
-- **`03_studies/`** - Case studies and research examples
+- **`03_studies/`** - Published case studies
 
 ### Documentation & Notebooks
-- **`05_docs/`** - Complete documentation and guides
-- **`00_BioDYM_Workflow.ipynb`** - Main interactive analysis notebook
+- **`05_docs/`** - User manual (PDF) and documentation
+- **`00_BioDYM_Workflow.ipynb`** - Main analysis notebook
+- **`01_BioDYM_Dashboard.ipynb`** - Voilà dashboard
+- **`GETTING_STARTED_FROM_ZERO.md`** - Step-by-step onboarding guide
 - **`environment.yml`** - Anaconda environment specification
 - **`pyproject.toml`** - UV/pip dependencies and project metadata
 
@@ -194,6 +203,10 @@ rather than installed as a package — so run BioDYM from the repository root.
 The repository includes the BioDYM Systemmanager template:
 
 - **`01_data/01_input/template/260503_bioDYM_Systemmanager_template_final.xlsm`** — Complete, runnable example system; also the starting point for a new analysis (the workflow notebook uses it by default)
+
+### Tutorial Studies
+
+14 tutorial studies (T01–T14) are included in `01_data/01_input/case_studies/` and open automatically in the bioDYM SystemDefiner. They cover all major process types from a simple first MFA (T01) to the reference manager (T14).
 
 ### Published Case Study
 
@@ -275,17 +288,15 @@ After running the workflow, results are written to `01_data/02_output/`:
 
 ```mermaid
 graph LR
-    A[Excel Data] --> B[BioDYM Tool]
-    B --> C{Analysis Type}
-    C --> D[Mass Balance Check]
-    C --> E[Flow Analysis] 
-    C --> F[Stock Dynamics]
-    C --> G[System Efficiency]
-    D --> H[Results & Visualizations]
-    E --> H
-    F --> H
-    G --> H
-    H --> I[Excel Export]
+    A[Excel Systemmanager] --> C[BioDYM Engine]
+    B[SystemDefiner + config.yaml] --> C
+    C --> D[Mass Balance]
+    C --> E[Flow & Stock Dynamics]
+    C --> F[Monte Carlo / Scenarios]
+    D --> G[Results & Visualizations]
+    E --> G
+    F --> G
+    G --> H[Excel / Figure Export]
 ```
 
 ## 🧪 Testing
@@ -313,12 +324,11 @@ pytest 04_tests/test_solver.py
 If you use BioDYM in your research, please cite:
 
 > Scholz, J. (2026). *BioDYM: Material Flow Analysis for Bio-based Systems* (v1.2.1).
-> Zenodo. https://doi.org/10.5281/zenodo.18759080
+> Zenodo. https://doi.org/10.5281/zenodo.20825821
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20825821.svg)](https://doi.org/10.5281/zenodo.20825821)
 
-> The DOI above is the *concept* DOI — it always resolves to the latest release.
-> For the version-specific archive, see [CITATION.cff](CITATION.cff).
+> For a machine-readable citation and full version history, see [CITATION.cff](CITATION.cff).
 
 A machine-readable citation is available in [CITATION.cff](CITATION.cff).
 
