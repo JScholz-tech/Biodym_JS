@@ -315,7 +315,7 @@ If you use BioDYM in your research, please cite:
 > Scholz, J. (2026). *BioDYM: Material Flow Analysis for Bio-based Systems* (v1.2.1).
 > Zenodo. https://doi.org/10.5281/zenodo.18759080
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18759080.svg)](https://doi.org/10.5281/zenodo.18759080)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20825821.svg)](https://doi.org/10.5281/zenodo.20825821)
 
 > The DOI above is the *concept* DOI — it always resolves to the latest release.
 > For the version-specific archive, see [CITATION.cff](CITATION.cff).
