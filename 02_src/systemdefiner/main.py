@@ -2426,7 +2426,7 @@ async def compositions_form(request: Request, name: str):
         for f in input_flows
     ]
     flow_refs = {
-        f.id: existing[f.id].ref if f.id in existing else "" for f in input_flows
+        f.id: (existing[f.id].refs if f.id in existing else []) for f in input_flows
     }
     hier_json = [
         {"parent": r.parent, "children": r.children} for r in cfg.element_hierarchy
@@ -2487,9 +2487,9 @@ async def compositions_save(request: Request, name: str):
             except ValueError:
                 v = 0.0
             values[elem] = v
-        ref = (form.get(f"ref_{flow.id}") or "").strip()
+        refs = [c.strip() for c in form.getlist(f"refs_{flow.id}") if c.strip()]
         if any(v != 0.0 for v in values.values()):
-            new_comps.append(FlowComposition(flow_id=flow.id, values=values, ref=ref))
+            new_comps.append(FlowComposition(flow_id=flow.id, values=values, refs=refs))
     cfg.flow_compositions = kept + new_comps
     storage.save_case_study(cfg)
     return RedirectResponse(f"/{name}/compositions", status_code=303)

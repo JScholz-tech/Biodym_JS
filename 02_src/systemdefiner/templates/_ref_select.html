@@ -1,0 +1,41 @@
+{# Reusable multi-select for references.
+   Usage:  {% from "_ref_select.html" import ref_multiselect %}
+           {{ ref_multiselect("refs_" ~ flow.id, selected_list, cfg.references) }}
+   Renders a checkbox dropdown of literature (numbered) + assumptions (lettered).
+   Each checkbox posts the cite_key under `field`, so the route reads
+   form.getlist(field) → a list of cite keys. #}
+{% macro ref_multiselect(field, selected, references) %}
+{% set selected = selected or [] %}
+{% set _lit = references | rejectattr('item_type', 'equalto', 'assumption') | list %}
+{% set _asm = references | selectattr('item_type', 'equalto', 'assumption') | list %}
+{% set _letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}
+<div class="ref-ms" style="position:relative;display:inline-block">
+  <button type="button" class="btn btn-secondary btn-sm"
+          onclick="var p=this.nextElementSibling;p.style.display=(p.style.display==='block'?'none':'block')">
+    🔖 <span class="ref-ms-count">{{ selected | length }}</span> ref{{ '' if selected|length == 1 else 's' }} ▾
+  </button>
+  <div class="ref-ms-panel"
+       style="display:none;position:absolute;z-index:30;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:0.5rem;min-width:260px;max-height:240px;overflow:auto;box-shadow:0 4px 14px rgba(0,0,0,0.15)">
+    {% if not references %}
+    <div class="muted" style="font-size:0.8rem">No references yet — add some on the References page.</div>
+    {% endif %}
+    {% for r in _lit %}
+    <label style="display:block;font-size:0.85rem;padding:0.12rem 0;white-space:nowrap">
+      <input type="checkbox" name="{{ field }}" value="{{ r.cite_key }}"
+             onchange="var c=this.closest('.ref-ms').querySelector('.ref-ms-count');c.textContent=this.closest('.ref-ms-panel').querySelectorAll('input:checked').length"
+             {% if r.cite_key in selected %}checked{% endif %}>
+      <span class="tag">{{ loop.index }}</span> @{{ r.cite_key }}
+    </label>
+    {% endfor %}
+    {% if _asm %}<div class="muted" style="font-size:0.72rem;margin:0.35rem 0 0.1rem;border-top:1px solid var(--border);padding-top:0.25rem">Assumptions</div>{% endif %}
+    {% for r in _asm %}
+    <label style="display:block;font-size:0.85rem;padding:0.12rem 0;white-space:nowrap">
+      <input type="checkbox" name="{{ field }}" value="{{ r.cite_key }}"
+             onchange="var c=this.closest('.ref-ms').querySelector('.ref-ms-count');c.textContent=this.closest('.ref-ms-panel').querySelectorAll('input:checked').length"
+             {% if r.cite_key in selected %}checked{% endif %}>
+      <span class="tag">{{ _letters[loop.index0] if loop.index0 < 26 else loop.index }}</span> @{{ r.cite_key }}
+    </label>
+    {% endfor %}
+  </div>
+</div>
+{% endmacro %}
