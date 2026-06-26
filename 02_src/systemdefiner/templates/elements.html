@@ -21,6 +21,17 @@
 
     <div id="elem-list" style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:1rem;max-width:480px">
       {% for elem in cfg.model.elements %}
+      {% if loop.first %}
+      {# First element is the conserved total-mass balance & hierarchy root —
+         the engine requires it to be named "material", so it is locked. #}
+      <div class="elem-row" style="display:flex;align-items:center;gap:0.5rem">
+        <span class="muted" style="user-select:none;font-size:1.1rem;padding:0 4px">🔒</span>
+        <input type="text" name="element_0" value="material" readonly
+               style="flex:1;font-family:monospace;background:var(--bg);color:var(--muted)"
+               title="The first element is the total mass balance and hierarchy root — its name is fixed to 'material'.">
+        <span class="muted" style="font-size:0.78rem;white-space:nowrap">total mass · fixed</span>
+      </div>
+      {% else %}
       <div class="elem-row" style="display:flex;align-items:center;gap:0.5rem">
         <span class="muted" style="user-select:none;font-size:1.1rem;padding:0 4px">⠿</span>
         <input type="text" name="element_{{ loop.index0 }}"
@@ -30,6 +41,7 @@
         <button type="button" class="btn btn-secondary btn-sm" onclick="moveElem(this,1)"  title="Move down">↓</button>
         <button type="button" class="btn btn-danger btn-sm"   onclick="removeElem(this)"  title="Remove">✕</button>
       </div>
+      {% endif %}
       {% endfor %}
     </div>
 
@@ -158,6 +170,8 @@ function moveElem(btn, dir) {
   const list = document.getElementById('elem-list');
   const rows = [...list.querySelectorAll('.elem-row')];
   const idx  = rows.indexOf(row);
+  // Index 0 is the locked 'material' element — nothing may move above it.
+  if (dir === -1 && idx <= 1) return;
   const tgt  = rows[idx + dir];
   if (!tgt) return;
   if (dir === -1) list.insertBefore(row, tgt);

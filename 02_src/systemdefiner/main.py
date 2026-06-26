@@ -517,6 +517,18 @@ def _model_health(cfg) -> list[dict]:
     if cfg.processes and not cfg.flows:
         warn("No flows defined.")
 
+    # The first element is the conserved total-mass balance and the hierarchy
+    # root. The engine hard-codes the name "material" (index lookups plus
+    # element == "material" gates), so renaming it breaks FOMP, composition
+    # plots, flow-data matching and hierarchy recalculation.
+    elems = cfg.model.elements
+    if elems and elems[0] != "material":
+        err(
+            f"First element is '{elems[0]}' but must be named 'material' "
+            f"(the total mass balance / hierarchy root). Rename it back to 'material' "
+            f"— use the hierarchy level names or process names for custom labels."
+        )
+
     # Flows pointing at processes that don't exist
     for f in cfg.flows:
         if f.from_process not in boundary:
@@ -2285,6 +2297,11 @@ async def elements_save(request: Request, name: str):
         if idx > 200:
             break
     if elements:
+        # The first element is the conserved total-mass balance / hierarchy root;
+        # the engine requires it to be named "material". Enforce it defensively
+        # (the editor locks the field, but guard against import/manual edits).
+        if elements[0] != "material":
+            elements = ["material"] + [e for e in elements if e != "material"]
         cfg.model.elements = elements
 
     # ── Level names ──────────────────────────────────────────────────────────
