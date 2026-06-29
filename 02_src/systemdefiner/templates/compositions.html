@@ -60,7 +60,7 @@ const ELEMENTS    = {{ cfg.model.elements | tojson }};
 const HIERARCHY   = {{ hier_json | tojson }};
 const LEVEL_NAMES = {{ cfg.model.hierarchy_level_names | tojson }};
 const INIT_PATHS  = {{ paths_json | safe }};
-const FLOW_COMPS  = {{ flow_comps_json | safe }};  // absolute % (fraction × 100) from server
+const FLOW_COMPS  = {{ flow_comps_json | safe }};  // parent-relative % (fraction of parent × 100) from server
 const FLOW_LIST   = {{ flow_list_json | safe }};
 
 // ── Structure maps ────────────────────────────────────────────────────────────
@@ -118,63 +118,28 @@ function getPct(fid, elem) {
   return inp ? (parseFloat(inp.value) || 0) : 0;
 }
 
-// ── Convert stored absolute % → parent-relative % for display ────────────────
-// At each level children sum to 100 % of their parent, not 100 % of material.
-// Example: DM = 70 % (of material), TC = 25 % (of DM) — not 25 % of material.
+// ── Return stored parent-relative % for display ───────────────────────────────
+// YAML stores fractions as fraction-of-parent (same convention as Excel import).
+// Root is always 100 %. All other values are already relative to their parent.
 function toParentRel(fid) {
-  const abs = FLOW_COMPS[fid] || {};   // absolute % from server
+  const stored = FLOW_COMPS[fid] || {};
   const rel = {};
-
-  if (!ROOT_ELEM) {
-    // No hierarchy: display as-is
-    ELEMENTS.forEach(e => { rel[e] = abs[e] || 0; });
-    return rel;
-  }
-
-  rel[ROOT_ELEM] = 100; // root is always 100 % of itself
-
-  // Top-down: child_parent_rel = child_abs / parent_abs × 100
-  TOP_DOWN_PARENTS.forEach(parent => {
-    const parentAbs = (parent === ROOT_ELEM) ? 100 : (abs[parent] || 0);
-    (PARENT_CHILDREN[parent] || []).forEach(child => {
-      rel[child] = parentAbs > 1e-6 ? (abs[child] || 0) / parentAbs * 100 : 0;
-    });
-  });
-
-  // Elements outside the hierarchy keep their absolute value
-  ELEMENTS.forEach(e => { if (!(e in rel)) rel[e] = abs[e] || 0; });
+  ELEMENTS.forEach(e => { rel[e] = stored[e] || 0; });
+  if (ROOT_ELEM) rel[ROOT_ELEM] = 100;
   return rel;
 }
 
-// ── Convert current parent-relative inputs → absolute fractions (0–1) for save
+// ── Convert current parent-relative inputs → parent-relative fractions (0–1) for save
+// Storage format: fraction of parent (same as Excel import convention).
+// Top-level elements have parent = material, so their fraction == absolute fraction.
 function toAbsFractions(fid) {
   const safe = safeId(fid);
   const abs = {};
-
-  if (!ROOT_ELEM) {
-    ELEMENTS.forEach(e => {
-      const inp = document.getElementById(`ci_${safe}_${e}`);
-      abs[e] = inp ? (parseFloat(inp.value) || 0) / 100 : 0;
-    });
-    return abs;
-  }
-
-  // Read display values (parent-relative %)
-  const rel = {};
-  ELEMENTS.forEach(e => { rel[e] = getPct(fid, e); });
-
-  abs[ROOT_ELEM] = 1.0; // root = 100 % → fraction 1.0
-
-  // Top-down: child_abs = child_rel / 100 × parent_abs
-  TOP_DOWN_PARENTS.forEach(parent => {
-    const parentAbs = abs[parent] || 0;
-    (PARENT_CHILDREN[parent] || []).forEach(child => {
-      abs[child] = (rel[child] / 100) * parentAbs;
-    });
+  ELEMENTS.forEach(e => {
+    const inp = document.getElementById(`ci_${safe}_${e}`);
+    abs[e] = inp ? (parseFloat(inp.value) || 0) / 100 : 0;
   });
-
-  // Non-hierarchy elements: treat their % as absolute
-  ELEMENTS.forEach(e => { if (!(e in abs)) abs[e] = (rel[e] || 0) / 100; });
+  if (ROOT_ELEM) abs[ROOT_ELEM] = 1.0;
   return abs;
 }
 
@@ -276,7 +241,7 @@ function buildFlowMatrix(flow) {
   return html + '</tbody></table>';
 }
 
-// ── Submit: convert parent-relative display values → absolute fractions (0–1) ─
+// ── Submit: convert parent-relative display values → parent-relative fractions (0–1) ─
 document.getElementById('comp-form').addEventListener('submit', function () {
   FLOW_LIST.forEach(flow => {
     const abs  = toAbsFractions(flow.id);
