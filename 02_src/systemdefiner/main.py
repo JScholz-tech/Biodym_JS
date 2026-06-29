@@ -15,6 +15,7 @@ from systemdefiner.storage import CaseStudyNotFound
 from systemdefiner.models.config_schema import (
     BomAssemblyEntry,
     DsmCategory,
+    DsmComponentItem,
     BomAssemblyFlow,
     CaseStudyConfig,
     DsmParams,
@@ -552,7 +553,7 @@ def _model_health(cfg) -> list[dict]:
                 )
 
     # TC-eligible processes with outgoing flows but no TCs
-    _tc_elig = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm}
+    _tc_elig = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm, ProcessLogic.dsm_component}
     tc_pids = {tc.process_id for tc in cfg.transfer_coefficients}
     for p in cfg.processes:
         if p.logic in _tc_elig and p.tc_config != TCConfig.no_tc:
@@ -665,10 +666,10 @@ def _model_health(cfg) -> list[dict]:
                 warn(
                     f"P{p.id} {p.name}: initial-stock process has no initial stock quantity."
                 )
-            elif p.logic not in (ProcessLogic.dsm,):
+            elif p.logic not in (ProcessLogic.dsm, ProcessLogic.dsm_component):
                 warn(
                     f"P{p.id} {p.name}: initial stock only depletes through a DSM process "
-                    f"(set logic to DSM); on '{p.logic.value}' the stock is placed but never released."
+                    f"(set logic to DSM or DSM_Component); on '{p.logic.value}' the stock is placed but never released."
                 )
 
     # Orphaned initial-stock entries: present in the config but the process is
@@ -827,7 +828,8 @@ async def process_new(request: Request, name: str):
         else StockConfig.no_stock,
         tc_config=TCConfig(tc_raw) if tc_raw in _valid_tc else TCConfig.no_tc,
         fomp=_parse_fomp(form) if logic == ProcessLogic.fomp else None,
-        dsm=_parse_dsm(form) if logic == ProcessLogic.dsm else None,
+        dsm=_parse_dsm_component(form) if logic == ProcessLogic.dsm_component
+            else _parse_dsm(form) if logic == ProcessLogic.dsm else None,
         lfg=_parse_lfg(form) if logic == ProcessLogic.lfg else None,
         flowcap=_parse_flowcap(form) if logic == ProcessLogic.flowcap else None,
     )
@@ -879,7 +881,11 @@ async def process_edit_save(request: Request, name: str, pid: int):
     )
     process.tc_config = TCConfig(tc_raw) if tc_raw in _valid_tc else TCConfig.no_tc
     process.fomp = _parse_fomp(form) if logic == ProcessLogic.fomp else None
-    process.dsm = _parse_dsm(form) if logic == ProcessLogic.dsm else None
+    process.dsm = (
+        _parse_dsm_component(form) if logic == ProcessLogic.dsm_component
+        else _parse_dsm(form) if logic == ProcessLogic.dsm
+        else None
+    )
     process.lfg = _parse_lfg(form) if logic == ProcessLogic.lfg else None
     process.flowcap = _parse_flowcap(form) if logic == ProcessLogic.flowcap else None
 
@@ -899,6 +905,79 @@ async def process_edit_save(request: Request, name: str, pid: int):
 async def process_delete(name: str, pid: int):
     cfg = storage.load_case_study(name)
     _delete_process_cascade(cfg, pid)
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/processes", status_code=303)
+
+
+def _compact_process_ids(cfg) -> dict:
+    """Renumber process IDs to a contiguous 0..N-1 range (gaps left by deletions
+    break the engine, which expects 0-based contiguous IDs).
+
+    Cascades the renumber through every reference: flow endpoints, the
+    ``F_<from>_<to>`` flow IDs and all string references to them (TCs, flow
+    compositions, flow data, BOM flows, FOMP/LFG/FlowCap outflow IDs), plus the
+    ``process_id`` on TCs, BOM entries and initial stocks. Returns the old→new
+    id map (empty when already contiguous).
+    """
+    old_ids = sorted(p.id for p in cfg.processes)
+    id_map = {old: new for new, old in enumerate(old_ids)}
+    if all(o == n for o, n in id_map.items()):
+        return {}
+
+    for p in cfg.processes:
+        p.id = id_map[p.id]
+    for f in cfg.flows:
+        f.from_process = id_map.get(f.from_process, f.from_process)
+        f.to_process = id_map.get(f.to_process, f.to_process)
+
+    # Rename F_<from>_<to> flow IDs to match new endpoints (collision-safe).
+    existing = {f.id for f in cfg.flows}
+    flow_rename: dict[str, str] = {}
+    for f in cfg.flows:
+        if not re.fullmatch(r"F_\d+_\d+", f.id):
+            continue
+        cand = f"F_{f.from_process:02d}_{f.to_process:02d}"
+        if cand == f.id or cand in existing:
+            continue
+        existing.discard(f.id)
+        existing.add(cand)
+        flow_rename[f.id] = cand
+        f.id = cand
+
+    def _rn(fid):
+        return flow_rename.get(fid, fid) if fid else fid
+
+    for tc in cfg.transfer_coefficients:
+        tc.process_id = id_map.get(tc.process_id, tc.process_id)
+        tc.flow_id = _rn(tc.flow_id)
+    for fc in cfg.flow_compositions:
+        fc.flow_id = _rn(fc.flow_id)
+    for fd in cfg.flow_data:
+        fd.flow_id = _rn(fd.flow_id)
+    for e in cfg.bom_assembly:
+        e.process_id = id_map.get(e.process_id, e.process_id)
+        for bf in e.flows:
+            bf.flow_id = _rn(bf.flow_id)
+    for s in cfg.initial_stocks:
+        s.process_id = id_map.get(s.process_id, s.process_id)
+    for p in cfg.processes:
+        if p.fomp:
+            p.fomp.outflow_id = _rn(p.fomp.outflow_id)
+            p.fomp.outflow_id_2 = _rn(p.fomp.outflow_id_2)
+        if p.lfg:
+            p.lfg.outflow_ch4_id = _rn(p.lfg.outflow_ch4_id)
+            p.lfg.outflow_co2_id = _rn(p.lfg.outflow_co2_id)
+            p.lfg.outflow_leachate_id = _rn(p.lfg.outflow_leachate_id)
+        if p.flowcap:
+            p.flowcap.capped_flow_id = _rn(p.flowcap.capped_flow_id)
+            p.flowcap.overflow_flow_id = _rn(p.flowcap.overflow_flow_id)
+    return id_map
+
+
+@app.post("/{name}/processes/renumber")
+async def processes_renumber(name: str):
+    cfg = storage.load_case_study(name)
+    _compact_process_ids(cfg)
     storage.save_case_study(cfg)
     return RedirectResponse(f"/{name}/processes", status_code=303)
 
@@ -952,6 +1031,56 @@ def _parse_dsm(form) -> DsmParams:
         categories=categories,
         refs=[c.strip() for c in form.getlist("dsm_refs") if c.strip()],
     )
+
+
+def _parse_dsm_component(form) -> DsmParams:
+    """Parse DSM_Component form: device categories (dsmc_cat_*) + component rows (dsm_comp_*).
+
+    Uses a separate dsmc_cat_* prefix to avoid colliding with the standard DSM block's
+    dsm_cat_* fields — both blocks coexist in the DOM, only one is visible at a time.
+    """
+    def _s(key): return (form.get(key) or "").strip()
+    def _f(key, default=None):
+        v = _s(key)
+        try: return float(v) if v else default
+        except ValueError: return default
+
+    # Device lifetime categories
+    cats: list[DsmCategory] = []
+    i = 0
+    while f"dsmc_cat_{i}_name" in form:
+        cats.append(DsmCategory(
+            name=_s(f"dsmc_cat_{i}_name") or "Default",
+            inflow_split=(_f(f"dsmc_cat_{i}_inflow_split") or 0.0) / 100.0,
+            lifetime_type=_s(f"dsmc_cat_{i}_lifetime_type") or "Normal",
+            lifetime_mean=_f(f"dsmc_cat_{i}_lifetime_mean"),
+            lifetime_std=_f(f"dsmc_cat_{i}_lifetime_std"),
+            lifetime_shape=_f(f"dsmc_cat_{i}_lifetime_shape"),
+            lifetime_scale=_f(f"dsmc_cat_{i}_lifetime_scale"),
+        ))
+        i += 1
+    if not cats:
+        cats = [DsmCategory(name="Default", inflow_split=1.0, lifetime_type="Normal")]
+
+    # Component renewal rows
+    components: list[DsmComponentItem] = []
+    i = 0
+    while f"dsm_comp_{i}_element" in form:
+        elem = _s(f"dsm_comp_{i}_element")
+        mean_lt = _f(f"dsm_comp_{i}_mean_lifetime")
+        outflow = _s(f"dsm_comp_{i}_sparepart_outflow")
+        inflow  = _s(f"dsm_comp_{i}_sparepart_inflow")
+        if elem and mean_lt:
+            components.append(DsmComponentItem(
+                element=elem,
+                mean_lifetime=mean_lt,
+                sparepart_outflow=outflow,
+                sparepart_inflow=inflow,
+            ))
+        i += 1
+
+    refs = [v for v in form.getlist("dsm_refs") if v]
+    return DsmParams(categories=cats, components=components, refs=refs)
 
 
 def _parse_lfg(form) -> LfgParams:
@@ -1277,7 +1406,7 @@ async def flow_delete(name: str, fid: str):
 async def tcs_overview(request: Request, name: str):
     cfg = storage.load_case_study(name)
     # Only Splitter, Transformer, and DSM processes use TCs in the engine
-    _tc_eligible = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm}
+    _tc_eligible = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm, ProcessLogic.dsm_component}
     tc_processes = [p for p in cfg.processes if p.logic in _tc_eligible]
     return templates.TemplateResponse(
         request, "tcs.html", _ctx(cfg=cfg, tc_processes=tc_processes)
@@ -1315,7 +1444,7 @@ async def tc_edit_form(request: Request, name: str, pid: int):
                         "tc_values": pt.values,
                     }
                 )
-        is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
+        is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm, ProcessLogic.dsm_component)
         is_transformer = process.logic == ProcessLogic.transformer
         return templates.TemplateResponse(
             request,
@@ -1340,7 +1469,7 @@ async def tc_edit_form(request: Request, name: str, pid: int):
                     "tc_values": tc.values if tc else {},
                 }
             )
-        is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
+        is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm, ProcessLogic.dsm_component)
         is_transformer = process.logic == ProcessLogic.transformer
         return templates.TemplateResponse(
             request,
@@ -1430,7 +1559,7 @@ async def tc_save(request: Request, name: str, pid: int):
         # material only; Transformer validates the non-material elements (material
         # is derived by the engine). Years not shared by every flow are
         # interpolated, so they're not validated.
-        is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
+        is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm, ProcessLogic.dsm_component)
         validate_elements = elements[:1] if is_splitter else elements[1:]
         proc_tcs = [tc for tc in cfg.transfer_coefficients if tc.process_id == pid]
         year_sets = [set(pt.year for pt in tc.time_series) for tc in proc_tcs]
@@ -1510,7 +1639,7 @@ async def tc_save(request: Request, name: str, pid: int):
 
     # Splitter/DSM validate the material column; Transformer validates the
     # non-material elements (the engine derives material = sum of WC+DM).
-    is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
+    is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm, ProcessLogic.dsm_component)
     validate_elements = elements[:1] if is_splitter else elements[1:]
     for elem in validate_elements:
         total = sum(
@@ -1595,7 +1724,7 @@ def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
     # TC is stored (e.g. Transformer with tc_config=Dynamic and empty 2_3 sheet).
     # BioDYM naming (matches the Excel template): every element uses
     # TC_E{n}_{from:02d}_{to:02d}, with E1 = material, E2 = WC, …
-    _tc_eligible = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm}
+    _tc_eligible = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm, ProcessLogic.dsm_component}
     # Build TC lookup: (process_id, flow_id) → first matching TC (for current values)
     _tc_lookup: dict[tuple, "TransferCoefficient"] = {}
     for _tc in cfg.transfer_coefficients:
@@ -1672,7 +1801,7 @@ def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
 
     # ── DSM Parameters ─────────────────────────────────────────────────────────
     for proc in cfg.processes:
-        if proc.logic != ProcessLogic.dsm or not proc.dsm:
+        if proc.logic not in (ProcessLogic.dsm, ProcessLogic.dsm_component) or not proc.dsm:
             continue
         pid, pn = proc.id, proc.name
         cats = proc.dsm.categories if proc.dsm.categories else []

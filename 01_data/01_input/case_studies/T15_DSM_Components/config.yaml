@@ -1,0 +1,196 @@
+schema_version: '1.0'
+name: T15_DSM_Components
+description: '📘 Tutorial T04 — Dynamic Stock Modelling
+
+
+  Introduces the DSM process: an inflow accumulates in a stock and leaves years later
+  according to a product-lifetime distribution.
+
+
+  What it shows
+
+  • A DSM process receives an inflow that is split into several product fractions
+  (categories).
+
+  • Each fraction has its own lifetime distribution — Normal, LogNormal or Weibull
+  — so cohorts leave the stock at different times.
+
+  • The in-use stock builds up over time and releases material as each cohort reaches
+  end-of-life.
+
+
+  Try it
+
+  • Open the DSM process to see its categories: inflow split (%), distribution type
+  and lifetime parameters.
+
+  • Switch a category''s distribution and re-run to see how the outflow timing changes.
+
+
+  Look for
+
+  • Stock plot: the in-use stock grows, then turns over as old cohorts retire.
+
+  • Outflow lags the inflow by roughly the mean product lifetime.'
+model:
+  start_year: 2025
+  end_year: 2125
+  elements:
+  - material
+  - WC
+  - DM
+  - TC
+  unit_of_measurement: Mg
+  sankey_title: ''
+  hierarchy_level_names:
+  - Product
+  - Component
+  - Material
+  - Element
+  input_file: ''
+  output_file: ''
+  run_dsm_calculation: true
+  run_fomp_calculation: false
+  run_monte_carlo: false
+  mc_iterations: 1000
+  run_scenario_analysis: false
+  selected_scenarios:
+  - ''
+  - ''
+  - ''
+  - ''
+processes:
+- id: 0
+  name: Process 0
+  logic: Input
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 1
+  name: Process 1 (Construction Material)
+  logic: DSM
+  stock: Stock
+  tc_config: Static
+  fomp: null
+  dsm:
+    ref: ''
+    refs: []
+    categories:
+    - name: Material 1
+      inflow_split: 0.25
+      lifetime_type: Fixed
+      lifetime_mean: 20.0
+      lifetime_std: null
+      lifetime_shape: null
+      lifetime_scale: null
+    - name: Material 2
+      inflow_split: 0.25
+      lifetime_type: Normal
+      lifetime_mean: 20.0
+      lifetime_std: 5.0
+      lifetime_shape: null
+      lifetime_scale: null
+    - name: Material 3
+      inflow_split: 0.25
+      lifetime_type: LogNormal
+      lifetime_mean: 20.0
+      lifetime_std: 5.0
+      lifetime_shape: null
+      lifetime_scale: null
+    - name: Material 4
+      inflow_split: 0.25
+      lifetime_type: Weibull
+      lifetime_mean: null
+      lifetime_std: null
+      lifetime_shape: 3.0
+      lifetime_scale: 20.0
+    components: []
+  lfg: null
+  flowcap: null
+- id: 2
+  name: Process 2
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+- id: 3
+  name: Process 3
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+flows:
+- id: F_00_01
+  name: Flow 1
+  from_process: 0
+  to_process: 1
+- id: F_01_02
+  name: Flow 2
+  from_process: 1
+  to_process: 2
+- id: F_01_03
+  name: Flow 3
+  from_process: 1
+  to_process: 3
+transfer_coefficients:
+- ref: ''
+  refs: []
+  process_id: 1
+  flow_id: F_01_02
+  tc_type: static
+  values:
+    material: 0.5
+    WC: 0.0
+    DM: 0.0
+    TC: 0.0
+  time_series: []
+- ref: ''
+  refs: []
+  process_id: 1
+  flow_id: F_01_03
+  tc_type: static
+  values:
+    material: 0.5
+    WC: 0.0
+    DM: 0.0
+    TC: 0.0
+  time_series: []
+element_hierarchy:
+- parent: material
+  children:
+  - DM
+  - WC
+- parent: DM
+  children:
+  - TC
+flow_compositions:
+- ref: ''
+  refs: []
+  flow_id: F_00_01
+  values:
+    material: 1.0
+    WC: 0.3
+    DM: 0.7
+    TC: 0.35
+flow_data:
+- ref: ''
+  refs: []
+  flow_id: F_00_01
+  element: material
+  values:
+    '2025': 100.0
+    '2026': 0.0
+bom_assembly: []
+scenarios: []
+mc_parameters: []
+initial_stocks: []
+references: []
