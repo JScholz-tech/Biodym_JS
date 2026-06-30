@@ -787,6 +787,8 @@ async def update_settings(request: Request, name: str):
 @app.get("/{name}/processes")
 async def processes_list(request: Request, name: str):
     cfg = storage.load_case_study(name)
+    ids = sorted(p.id for p in cfg.processes)
+    has_id_gap = ids != list(range(len(ids)))
     return templates.TemplateResponse(
         request,
         "processes.html",
@@ -795,6 +797,7 @@ async def processes_list(request: Request, name: str):
             logic_options=list(ProcessLogic),
             stock_options=list(StockConfig),
             tc_options=list(TCConfig),
+            has_id_gap=has_id_gap,
         ),
     )
 
