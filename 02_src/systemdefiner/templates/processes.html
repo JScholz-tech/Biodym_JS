@@ -9,7 +9,22 @@
 {% block content %}
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
   <h1 style="margin:0">Processes</h1>
+  {% if cfg.processes %}
+  <form method="post" action="/{{ cfg.name }}/processes/renumber" style="margin:0"
+        onsubmit="return confirm('Renumber all process IDs to a contiguous 0…N range? Flows, TCs and references are updated automatically.')">
+    <button type="submit" class="btn btn-secondary btn-sm"
+            title="Renumber process IDs to a contiguous 0…N range (fixes gaps left by deletions)">↻ Compact IDs</button>
+  </form>
+  {% endif %}
 </div>
+
+{% if has_id_gap %}
+<div class="alert alert-warn" style="margin-bottom:1.25rem">
+  ⚠️ Process IDs are not contiguous (a deletion left a gap). The engine expects
+  0-based contiguous IDs, so this study won't run until the gap is closed —
+  click <strong>↻ Compact IDs</strong> above to renumber automatically.
+</div>
+{% endif %}
 
 {% if cfg.processes %}
 <div class="card" style="padding:0;margin-bottom:1.5rem">

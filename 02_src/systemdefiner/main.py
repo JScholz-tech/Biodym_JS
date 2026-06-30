@@ -786,6 +786,8 @@ async def update_settings(request: Request, name: str):
 @app.get("/{name}/processes")
 async def processes_list(request: Request, name: str):
     cfg = storage.load_case_study(name)
+    ids = sorted(p.id for p in cfg.processes)
+    has_id_gap = ids != list(range(len(ids)))
     return templates.TemplateResponse(
         request,
         "processes.html",
@@ -794,6 +796,7 @@ async def processes_list(request: Request, name: str):
             logic_options=list(ProcessLogic),
             stock_options=list(StockConfig),
             tc_options=list(TCConfig),
+            has_id_gap=has_id_gap,
         ),
     )
 
@@ -899,6 +902,79 @@ async def process_edit_save(request: Request, name: str, pid: int):
 async def process_delete(name: str, pid: int):
     cfg = storage.load_case_study(name)
     _delete_process_cascade(cfg, pid)
+    storage.save_case_study(cfg)
+    return RedirectResponse(f"/{name}/processes", status_code=303)
+
+
+def _compact_process_ids(cfg) -> dict:
+    """Renumber process IDs to a contiguous 0..N-1 range (gaps left by deletions
+    break the engine, which expects 0-based contiguous IDs).
+
+    Cascades the renumber through every reference: flow endpoints, the
+    ``F_<from>_<to>`` flow IDs and all string references to them (TCs, flow
+    compositions, flow data, BOM flows, FOMP/LFG/FlowCap outflow IDs), plus the
+    ``process_id`` on TCs, BOM entries and initial stocks. Returns the old→new
+    id map (empty when already contiguous).
+    """
+    old_ids = sorted(p.id for p in cfg.processes)
+    id_map = {old: new for new, old in enumerate(old_ids)}
+    if all(o == n for o, n in id_map.items()):
+        return {}
+
+    for p in cfg.processes:
+        p.id = id_map[p.id]
+    for f in cfg.flows:
+        f.from_process = id_map.get(f.from_process, f.from_process)
+        f.to_process = id_map.get(f.to_process, f.to_process)
+
+    # Rename F_<from>_<to> flow IDs to match new endpoints (collision-safe).
+    existing = {f.id for f in cfg.flows}
+    flow_rename: dict[str, str] = {}
+    for f in cfg.flows:
+        if not re.fullmatch(r"F_\d+_\d+", f.id):
+            continue
+        cand = f"F_{f.from_process:02d}_{f.to_process:02d}"
+        if cand == f.id or cand in existing:
+            continue
+        existing.discard(f.id)
+        existing.add(cand)
+        flow_rename[f.id] = cand
+        f.id = cand
+
+    def _rn(fid):
+        return flow_rename.get(fid, fid) if fid else fid
+
+    for tc in cfg.transfer_coefficients:
+        tc.process_id = id_map.get(tc.process_id, tc.process_id)
+        tc.flow_id = _rn(tc.flow_id)
+    for fc in cfg.flow_compositions:
+        fc.flow_id = _rn(fc.flow_id)
+    for fd in cfg.flow_data:
+        fd.flow_id = _rn(fd.flow_id)
+    for e in cfg.bom_assembly:
+        e.process_id = id_map.get(e.process_id, e.process_id)
+        for bf in e.flows:
+            bf.flow_id = _rn(bf.flow_id)
+    for s in cfg.initial_stocks:
+        s.process_id = id_map.get(s.process_id, s.process_id)
+    for p in cfg.processes:
+        if p.fomp:
+            p.fomp.outflow_id = _rn(p.fomp.outflow_id)
+            p.fomp.outflow_id_2 = _rn(p.fomp.outflow_id_2)
+        if p.lfg:
+            p.lfg.outflow_ch4_id = _rn(p.lfg.outflow_ch4_id)
+            p.lfg.outflow_co2_id = _rn(p.lfg.outflow_co2_id)
+            p.lfg.outflow_leachate_id = _rn(p.lfg.outflow_leachate_id)
+        if p.flowcap:
+            p.flowcap.capped_flow_id = _rn(p.flowcap.capped_flow_id)
+            p.flowcap.overflow_flow_id = _rn(p.flowcap.overflow_flow_id)
+    return id_map
+
+
+@app.post("/{name}/processes/renumber")
+async def processes_renumber(name: str):
+    cfg = storage.load_case_study(name)
+    _compact_process_ids(cfg)
     storage.save_case_study(cfg)
     return RedirectResponse(f"/{name}/processes", status_code=303)
 
