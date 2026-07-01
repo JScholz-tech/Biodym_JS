@@ -15,6 +15,7 @@ from systemdefiner.storage import CaseStudyNotFound
 from systemdefiner.models.config_schema import (
     BomAssemblyEntry,
     DsmCategory,
+    DsmComponentItem,
     BomAssemblyFlow,
     CaseStudyConfig,
     DsmParams,
@@ -552,7 +553,7 @@ def _model_health(cfg) -> list[dict]:
                 )
 
     # TC-eligible processes with outgoing flows but no TCs
-    _tc_elig = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm}
+    _tc_elig = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm, ProcessLogic.dsm_component}
     tc_pids = {tc.process_id for tc in cfg.transfer_coefficients}
     for p in cfg.processes:
         if p.logic in _tc_elig and p.tc_config != TCConfig.no_tc:
@@ -665,10 +666,10 @@ def _model_health(cfg) -> list[dict]:
                 warn(
                     f"P{p.id} {p.name}: initial-stock process has no initial stock quantity."
                 )
-            elif p.logic not in (ProcessLogic.dsm,):
+            elif p.logic not in (ProcessLogic.dsm, ProcessLogic.dsm_component):
                 warn(
                     f"P{p.id} {p.name}: initial stock only depletes through a DSM process "
-                    f"(set logic to DSM); on '{p.logic.value}' the stock is placed but never released."
+                    f"(set logic to DSM or DSM_Component); on '{p.logic.value}' the stock is placed but never released."
                 )
 
     # Orphaned initial-stock entries: present in the config but the process is
@@ -830,7 +831,8 @@ async def process_new(request: Request, name: str):
         else StockConfig.no_stock,
         tc_config=TCConfig(tc_raw) if tc_raw in _valid_tc else TCConfig.no_tc,
         fomp=_parse_fomp(form) if logic == ProcessLogic.fomp else None,
-        dsm=_parse_dsm(form) if logic == ProcessLogic.dsm else None,
+        dsm=_parse_dsm_component(form) if logic == ProcessLogic.dsm_component
+            else _parse_dsm(form) if logic == ProcessLogic.dsm else None,
         lfg=_parse_lfg(form) if logic == ProcessLogic.lfg else None,
         flowcap=_parse_flowcap(form) if logic == ProcessLogic.flowcap else None,
     )
@@ -882,7 +884,11 @@ async def process_edit_save(request: Request, name: str, pid: int):
     )
     process.tc_config = TCConfig(tc_raw) if tc_raw in _valid_tc else TCConfig.no_tc
     process.fomp = _parse_fomp(form) if logic == ProcessLogic.fomp else None
-    process.dsm = _parse_dsm(form) if logic == ProcessLogic.dsm else None
+    process.dsm = (
+        _parse_dsm_component(form) if logic == ProcessLogic.dsm_component
+        else _parse_dsm(form) if logic == ProcessLogic.dsm
+        else None
+    )
     process.lfg = _parse_lfg(form) if logic == ProcessLogic.lfg else None
     process.flowcap = _parse_flowcap(form) if logic == ProcessLogic.flowcap else None
 
@@ -1028,6 +1034,69 @@ def _parse_dsm(form) -> DsmParams:
         categories=categories,
         refs=[c.strip() for c in form.getlist("dsm_refs") if c.strip()],
     )
+
+
+def _parse_dsm_component(form) -> DsmParams:
+    """Parse DSM_Component form: device categories (dsmc_cat_*) + component rows (dsm_comp_*).
+
+    Uses a separate dsmc_cat_* prefix to avoid colliding with the standard DSM block's
+    dsm_cat_* fields — both blocks coexist in the DOM, only one is visible at a time.
+    """
+    def _s(key): return (form.get(key) or "").strip()
+    def _f(key, default=None):
+        v = _s(key)
+        try: return float(v) if v else default
+        except ValueError: return default
+
+    # Read component element names first (needed to build per-category lifetime dicts)
+    _comp_elems: list[str] = []
+    _j = 0
+    while f"dsm_comp_{_j}_element" in form:
+        _comp_elems.append(_s(f"dsm_comp_{_j}_element"))
+        _j += 1
+
+    # Device lifetime categories (with optional per-component lifetime overrides)
+    cats: list[DsmCategory] = []
+    i = 0
+    while f"dsmc_cat_{i}_name" in form:
+        comp_lts: dict[str, float] = {}
+        for j, elem in enumerate(_comp_elems):
+            val = _f(f"dsmc_cat_{i}_comp_lt_{j}")
+            if val is not None and val > 0 and elem:
+                comp_lts[elem] = val
+        cats.append(DsmCategory(
+            name=_s(f"dsmc_cat_{i}_name") or "Default",
+            inflow_split=(_f(f"dsmc_cat_{i}_inflow_split") or 0.0) / 100.0,
+            lifetime_type=_s(f"dsmc_cat_{i}_lifetime_type") or "Normal",
+            lifetime_mean=_f(f"dsmc_cat_{i}_lifetime_mean"),
+            lifetime_std=_f(f"dsmc_cat_{i}_lifetime_std"),
+            lifetime_shape=_f(f"dsmc_cat_{i}_lifetime_shape"),
+            lifetime_scale=_f(f"dsmc_cat_{i}_lifetime_scale"),
+            component_lifetimes=comp_lts,
+        ))
+        i += 1
+    if not cats:
+        cats = [DsmCategory(name="Default", inflow_split=1.0, lifetime_type="Normal")]
+
+    # Component renewal rows
+    components: list[DsmComponentItem] = []
+    i = 0
+    while f"dsm_comp_{i}_element" in form:
+        elem = _s(f"dsm_comp_{i}_element")
+        mean_lt = _f(f"dsm_comp_{i}_mean_lifetime")
+        outflow = _s(f"dsm_comp_{i}_sparepart_outflow")
+        inflow  = _s(f"dsm_comp_{i}_sparepart_inflow")
+        if elem and mean_lt:
+            components.append(DsmComponentItem(
+                element=elem,
+                mean_lifetime=mean_lt,
+                sparepart_outflow=outflow,
+                sparepart_inflow=inflow,
+            ))
+        i += 1
+
+    refs = [v for v in form.getlist("dsm_refs") if v]
+    return DsmParams(categories=cats, components=components, refs=refs)
 
 
 def _parse_lfg(form) -> LfgParams:
@@ -1353,7 +1422,7 @@ async def flow_delete(name: str, fid: str):
 async def tcs_overview(request: Request, name: str):
     cfg = storage.load_case_study(name)
     # Only Splitter, Transformer, and DSM processes use TCs in the engine
-    _tc_eligible = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm}
+    _tc_eligible = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm, ProcessLogic.dsm_component}
     tc_processes = [p for p in cfg.processes if p.logic in _tc_eligible]
     return templates.TemplateResponse(
         request, "tcs.html", _ctx(cfg=cfg, tc_processes=tc_processes)
@@ -1391,7 +1460,7 @@ async def tc_edit_form(request: Request, name: str, pid: int):
                         "tc_values": pt.values,
                     }
                 )
-        is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
+        is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm, ProcessLogic.dsm_component)
         is_transformer = process.logic == ProcessLogic.transformer
         return templates.TemplateResponse(
             request,
@@ -1416,7 +1485,7 @@ async def tc_edit_form(request: Request, name: str, pid: int):
                     "tc_values": tc.values if tc else {},
                 }
             )
-        is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
+        is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm, ProcessLogic.dsm_component)
         is_transformer = process.logic == ProcessLogic.transformer
         return templates.TemplateResponse(
             request,
@@ -1506,7 +1575,7 @@ async def tc_save(request: Request, name: str, pid: int):
         # material only; Transformer validates the non-material elements (material
         # is derived by the engine). Years not shared by every flow are
         # interpolated, so they're not validated.
-        is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
+        is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm, ProcessLogic.dsm_component)
         validate_elements = elements[:1] if is_splitter else elements[1:]
         proc_tcs = [tc for tc in cfg.transfer_coefficients if tc.process_id == pid]
         year_sets = [set(pt.year for pt in tc.time_series) for tc in proc_tcs]
@@ -1586,7 +1655,7 @@ async def tc_save(request: Request, name: str, pid: int):
 
     # Splitter/DSM validate the material column; Transformer validates the
     # non-material elements (the engine derives material = sum of WC+DM).
-    is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm)
+    is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm, ProcessLogic.dsm_component)
     validate_elements = elements[:1] if is_splitter else elements[1:]
     for elem in validate_elements:
         total = sum(
@@ -1671,7 +1740,7 @@ def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
     # TC is stored (e.g. Transformer with tc_config=Dynamic and empty 2_3 sheet).
     # BioDYM naming (matches the Excel template): every element uses
     # TC_E{n}_{from:02d}_{to:02d}, with E1 = material, E2 = WC, …
-    _tc_eligible = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm}
+    _tc_eligible = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm, ProcessLogic.dsm_component}
     # Build TC lookup: (process_id, flow_id) → first matching TC (for current values)
     _tc_lookup: dict[tuple, "TransferCoefficient"] = {}
     for _tc in cfg.transfer_coefficients:
@@ -1748,7 +1817,7 @@ def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
 
     # ── DSM Parameters ─────────────────────────────────────────────────────────
     for proc in cfg.processes:
-        if proc.logic != ProcessLogic.dsm or not proc.dsm:
+        if proc.logic not in (ProcessLogic.dsm, ProcessLogic.dsm_component) or not proc.dsm:
             continue
         pid, pn = proc.id, proc.name
         cats = proc.dsm.categories if proc.dsm.categories else []

@@ -25,7 +25,8 @@ from systemdefiner.models.config_schema import (
 class TestProcessLogicEnum:
     ALL_EXPECTED = [
         "Input", "Output", "Splitter", "Transformer",
-        "DSM", "FOMP", "LFG", "BOM_Assembler", "Pass-through", "FlowCap",
+        "DSM", "DSM_Component", "FOMP", "LFG", "BOM_Assembler",
+        "Pass-through", "FlowCap",
     ]
 
     def test_all_expected_values_present(self):

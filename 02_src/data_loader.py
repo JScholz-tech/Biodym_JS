@@ -525,7 +525,7 @@ def validate_unified_configuration(excel_data):
                 "Stock_with_InitialStock_Cohort",
                 "Stock_with_InitialStock_Decay",
             ]
-            if process_logic == "DSM" and stock_config not in valid_dsm_stock_configs:
+            if process_logic in ("DSM", "DSM_Component") and stock_config not in valid_dsm_stock_configs:
                 stock_issues.append(
                     f"Process {process_id}: DSM with invalid Stock_Configuration '{stock_config}' "
                     f"(should be one of: {', '.join(valid_dsm_stock_configs)})"
@@ -770,7 +770,7 @@ def load_tc_parameters(all_excel_data, elements, time_vector, debug_mode=False):
             continue
 
         # Only processes with Splitter, Transformer, or DSM logic can have TCs
-        if pd.notna(process_id) and process_logic in ["Splitter", "Transformer", "DSM"]:
+        if pd.notna(process_id) and process_logic in ["Splitter", "Transformer", "DSM", "DSM_Component"]:
             if tc_config in ["Static", "Dynamic"]:
                 process_tc_types[int(process_id)] = tc_config
             else:
@@ -981,7 +981,7 @@ def load_dsm_parameters(excel_data, debug_mode=False):
     if main_sheet_name in excel_data:
         main_df = excel_data[main_sheet_name]
         if "Process_Logic" in main_df.columns:
-            dsm_processes = main_df[main_df["Process_Logic"] == "DSM"]
+            dsm_processes = main_df[main_df["Process_Logic"].isin(["DSM", "DSM_Component"])]
             dsm_process_ids = dsm_processes["Process_ID"].dropna().astype(int).tolist()
             if debug_mode:
                 print(
@@ -1033,6 +1033,33 @@ def load_dsm_parameters(excel_data, debug_mode=False):
                     process_row.iloc[0].get("Stock_Configuration", "Stock")
                 ).strip()
                 dsm_params[process_id]["stock_configuration"] = stock_config
+
+    # Merge component params from the optional "3_1_DSM_Components" sheet.
+    # Each row: Process_ID, Element_Name, Mean_Lifetime, SpareOutflow_ID, SpareInflow_ID[, Lifetime_Per_Category]
+    import json as _json
+    comp_sheet = excel_data.get("3_1_DSM_Components")
+    if comp_sheet is not None and not comp_sheet.empty:
+        required_cols = {"Process_ID", "Element_Name", "Mean_Lifetime", "SpareOutflow_ID", "SpareInflow_ID"}
+        if required_cols.issubset(comp_sheet.columns):
+            for _, row in comp_sheet.iterrows():
+                pid = int(row["Process_ID"])
+                if pid not in dsm_params:
+                    continue
+                comp_entry = {
+                    "element": str(row["Element_Name"]),
+                    "mean_lifetime": float(row["Mean_Lifetime"]),
+                    "sparepart_outflow": str(row["SpareOutflow_ID"]),
+                    "sparepart_inflow": str(row["SpareInflow_ID"]),
+                }
+                raw_lt = row.get("Lifetime_Per_Category") if "Lifetime_Per_Category" in comp_sheet.columns else None
+                if raw_lt is not None and str(raw_lt) not in ("", "nan", "None"):
+                    try:
+                        comp_entry["lifetime_per_category"] = _json.loads(str(raw_lt))
+                    except (ValueError, TypeError):
+                        pass
+                dsm_params[pid].setdefault("components", []).append(comp_entry)
+        else:
+            print(f"--> WARNING: '3_1_DSM_Components' sheet missing required columns: {required_cols - set(comp_sheet.columns)}")
 
     if debug_mode:
         print(
@@ -2700,8 +2727,9 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
     # One row per category (load_dsm_parameters category-based format). Note the
     # correct sheet name is 3_1_Definition_DSM (the loader reads this exact name).
     dsm_rows = []
+    comp_rows = []
     for p in processes:
-        if p.get("logic") != "DSM":
+        if p.get("logic") not in ("DSM", "DSM_Component"):
             continue
         pid = p.get("id")
         cats = (p.get("dsm") or {}).get("categories") or [{}]
@@ -2719,6 +2747,28 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
                     "Lifetime_Scale": cat.get("lifetime_scale"),
                 }
             )
+        # Component rows (DSM_Component only)
+        if p.get("logic") == "DSM_Component":
+            # Collect per-category component lifetimes keyed by element name
+            cat_lt_by_elem: dict[str, dict] = {}
+            for cat in (p.get("dsm") or {}).get("categories", []):
+                cat_name = cat.get("name", "Default")
+                for elem, lt in (cat.get("component_lifetimes") or {}).items():
+                    cat_lt_by_elem.setdefault(elem, {})[cat_name] = lt
+            import json as _json
+            for comp in (p.get("dsm") or {}).get("components", []):
+                elem = comp.get("element", "")
+                cat_lts = cat_lt_by_elem.get(elem, {})
+                comp_rows.append(
+                    {
+                        "Process_ID": pid,
+                        "Element_Name": elem,
+                        "Mean_Lifetime": comp.get("mean_lifetime"),
+                        "SpareOutflow_ID": comp.get("sparepart_outflow", ""),
+                        "SpareInflow_ID": comp.get("sparepart_inflow", ""),
+                        "Lifetime_Per_Category": _json.dumps(cat_lts) if cat_lts else None,
+                    }
+                )
     result["3_1_Definition_DSM"] = (
         pd.DataFrame(dsm_rows)
         if dsm_rows
@@ -2734,6 +2784,13 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
                 "Lifetime_Shape",
                 "Lifetime_Scale",
             ]
+        )
+    )
+    result["3_1_DSM_Components"] = (
+        pd.DataFrame(comp_rows)
+        if comp_rows
+        else pd.DataFrame(
+            columns=["Process_ID", "Element_Name", "Mean_Lifetime", "SpareOutflow_ID", "SpareInflow_ID"]
         )
     )
 

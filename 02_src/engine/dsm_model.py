@@ -561,8 +561,157 @@ def _distribute_and_assign_outflows(
     print(f"Total outflow assigned to flows (material): {total_assigned:.2f}")
 
 
+def _ancestors_in_hierarchy(element_name, element_hierarchy):
+    """Return the set of element names on the path from element_name to the root.
+
+    Given the mfa_system._element_hierarchy dict (elem_id → {"name": str, "parent": str|None}),
+    walks upward through parent links and collects every ancestor including the
+    element itself.  Used to build a replacement flow that is non-zero only for
+    the replaced element and its ancestors (preserving hierarchy sums).
+    """
+    name_to_parent = {
+        info["name"]: info.get("parent") for info in element_hierarchy.values()
+    }
+    ancestors = set()
+    current = element_name
+    while current is not None:
+        ancestors.add(current)
+        current = name_to_parent.get(current)
+    return ancestors
+
+
+def calculate_dynamic_stock_component(
+    mfa_system, dsm_params_config, component_params, flow_tc_map=None
+):
+    """DSM with element-level component renewal flows (DSM_Component logic).
+
+    Runs the standard product-level DSM first, then overlays replacement flows
+    for each listed component using the stationary renewal approximation:
+
+        replacement[t] = (1 / mean_lifetime_j) × stock_material[t] × fraction_j[t]
+
+    Two flows are written per component:
+    - sparepart_outflow: worn parts → downstream (WEEE / recycling)
+    - sparepart_inflow:  new parts  ← upstream   (spare-parts storage)
+
+    Both flows carry the same mass (immediate replacement, net-zero stock effect).
+    The product outflow (device EoL) is handled entirely by the underlying DSM and
+    carries the full defined flow composition unchanged.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+    dsm_params_config : dict  — {process_id: params_dict}  (same as calculate_dynamic_stock)
+    component_params : list   — list of component dicts for this process, each with keys:
+                                  element, mean_lifetime, sparepart_outflow, sparepart_inflow
+    flow_tc_map : dict, optional
+
+    Returns
+    -------
+    tuple
+        (mfa_system, dsm_details)  — same shape as calculate_dynamic_stock
+    """
+    # Zero spare flows before the DSM run and before the accumulation loop below.
+    # Inflows must be zeroed so the device DSM doesn't count them as new product
+    # inflow (self-amplifying feedback). Outflows must be zeroed so that multiple
+    # components sharing the same flow ID accumulate correctly with += below.
+    spare_inflow_ids  = {c.get("sparepart_inflow",  "") for c in component_params}
+    spare_outflow_ids = {c.get("sparepart_outflow", "") for c in component_params}
+    for fid in spare_inflow_ids | spare_outflow_ids:
+        if fid and fid in mfa_system.FlowDict:
+            mfa_system.FlowDict[fid].Values[:, :] = 0.0
+
+    mfa_system, dsm_details = calculate_dynamic_stock(
+        mfa_system, dsm_params_config, flow_tc_map=flow_tc_map,
+        excluded_outflow_ids=spare_outflow_ids,
+    )
+
+    process_id = list(dsm_params_config.keys())[0]
+    elements = mfa_system.Elements
+    num_years = mfa_system.StockDict[f"S_{process_id}"].Values.shape[0]
+    element_hierarchy = getattr(mfa_system, "_element_hierarchy", {})
+
+    stock_material = mfa_system.StockDict[f"S_{process_id}"].Values[:, 0]
+
+    # Pull per-category stock breakdown from dsm_details
+    _det = dsm_details.get(process_id, {})
+    inflow_stocks_by_cat = _det.get("inflow_stock_ts_by_cat", [])
+    cat_names = _det.get("category_names", [])
+    initial_stock_ts = _det.get("initial_stock_ts")  # (T, N_elem) or None
+
+    for comp in component_params:
+        element_name = comp.get("element", "")
+        mean_lifetime = comp.get("mean_lifetime", 0.0)
+        lifetime_per_cat = comp.get("lifetime_per_category", {})
+        outflow_id = comp.get("sparepart_outflow", "")
+        inflow_id = comp.get("sparepart_inflow", "")
+
+        if element_name not in elements:
+            print(f"  -> WARNING DSM_Component P{process_id}: element '{element_name}' not in system. Skipping.")
+            continue
+        if mean_lifetime <= 0:
+            print(f"  -> WARNING DSM_Component P{process_id}: mean_lifetime must be > 0 for '{element_name}'. Skipping.")
+            continue
+
+        elem_idx = elements.index(element_name)
+        stock_elem = mfa_system.StockDict[f"S_{process_id}"].Values[:, elem_idx]
+
+        # Fraction of material that is this element (time-varying, from stock composition)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            fraction_j = np.where(stock_material > 0, stock_elem / stock_material, 0.0)
+
+        # Per-category replacement rate: Σ_i (cat_stock_i / μ_i_j)
+        # Falls back to simple total-stock formula when no category data available.
+        if lifetime_per_cat and cat_names and inflow_stocks_by_cat:
+            rate_sum = np.zeros(num_years)
+            for ci, cat_name in enumerate(cat_names):
+                cat_lt = lifetime_per_cat.get(cat_name, mean_lifetime)
+                if cat_lt > 0 and ci < len(inflow_stocks_by_cat):
+                    rate_sum += inflow_stocks_by_cat[ci][:, 0] / cat_lt
+            # Initial stock (pre-existing at t=0) uses the component's fallback lifetime
+            if initial_stock_ts is not None and mean_lifetime > 0:
+                rate_sum += initial_stock_ts[:, 0] / mean_lifetime
+            replacement_mass = rate_sum * fraction_j
+        else:
+            replacement_mass = (1.0 / mean_lifetime) * stock_material * fraction_j  # (T,)
+
+        # Build replacement flow: material root + element itself + all ancestor elements.
+        # Multiple components may share a flow ID; += accumulates their contributions.
+        replacement_flow = np.zeros((num_years, len(elements)))
+        replacement_flow[:, 0] = replacement_mass        # material (root) always
+        replacement_flow[:, elem_idx] = replacement_mass  # element itself
+        if element_hierarchy:
+            ancestors = _ancestors_in_hierarchy(element_name, element_hierarchy)
+            for i, e in enumerate(elements):
+                if e in ancestors and i != 0:  # root already set above
+                    replacement_flow[:, i] = replacement_mass
+
+        if outflow_id in mfa_system.FlowDict:
+            mfa_system.FlowDict[outflow_id].Values[:, :] += replacement_flow  # accumulate
+            mfa_system.FlowDict[outflow_id]._spare_protected = True  # skip TC solver
+        else:
+            print(f"  -> WARNING DSM_Component P{process_id}: outflow '{outflow_id}' not in FlowDict. Skipping.")
+            continue
+
+        if inflow_id in mfa_system.FlowDict:
+            mfa_system.FlowDict[inflow_id].Values[:, :] += replacement_flow  # accumulate
+            mfa_system.FlowDict[inflow_id]._spare_protected = True   # skip TC solver
+        else:
+            print(f"  -> WARNING DSM_Component P{process_id}: inflow '{inflow_id}' not in FlowDict. Skipping.")
+
+        _avg_rate = float(np.mean(replacement_mass)) if np.any(stock_material > 0) else 0.0
+        _mode = "per-category" if (lifetime_per_cat and cat_names) else "total-stock"
+        print(
+            f"  -> DSM_Component P{process_id} '{element_name}' [{_mode}]: "
+            f"avg_r={_avg_rate:.3f}/yr, total replacement={float(np.sum(replacement_mass)):.1f}"
+        )
+
+    return mfa_system, dsm_details
+
+
 def calculate_dynamic_stock(
-    mfa_system, dsm_params_config, initial_stock_configs=None, flow_tc_map=None
+    mfa_system, dsm_params_config, initial_stock_configs=None, flow_tc_map=None,
+    excluded_outflow_ids=None,
 ):
     """Calculates stock and outflow for a single Dynamic Stock Model (DSM) process.
 
@@ -638,7 +787,11 @@ def calculate_dynamic_stock(
         sum(inflows) if inflows else np.zeros((num_years, num_elements))
     )
 
-    outflow_flows = [f for f in mfa_system.FlowDict.values() if f.P_Start == process_id]
+    _excluded = excluded_outflow_ids or set()
+    outflow_flows = [
+        f for fid, f in mfa_system.FlowDict.items()
+        if f.P_Start == process_id and fid not in _excluded
+    ]
     if not outflow_flows:
         print(
             f"WARNING: No outflow defined for DSM process {process_id}. Cannot calculate."

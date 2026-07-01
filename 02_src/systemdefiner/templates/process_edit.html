@@ -164,6 +164,138 @@
       </div>
     </details>
 
+    <details id="edit-dsm-component-block">
+      <summary>DSM_Component Parameters</summary>
+      <div class="details-body">
+        <p class="muted" style="margin:0 0 0.75rem;font-size:0.88rem">
+          <strong>Device lifetime</strong> — whole-device end-of-life outflow (same as standard DSM).
+          Inflow split percentages must sum to 100%. For Normal/LogNormal fill Mean &amp; Std Dev.
+          For Weibull fill Shape &amp; Scale. For Fixed fill Mean only.
+        </p>
+        <div style="overflow-x:auto">
+        <table id="edit-dsmc-cat-table" style="width:100%;margin-bottom:0.5rem;font-size:0.88rem">
+          <thead>
+            <tr>
+              <th>Name</th><th>Inflow split (%)</th><th>Distribution</th>
+              <th>Mean (yr)</th><th>Std Dev (yr)</th><th>Shape</th><th>Scale</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="edit-dsmc-cat-body">
+            {% if process.dsm and process.dsm.categories %}
+            {% for cat in process.dsm.categories %}
+            {% set cat_idx = loop.index0 %}
+            <tr>
+              <td><input type="text"   name="dsmc_cat_{{ cat_idx }}_name"           value="{{ cat.name }}"           style="width:120px"></td>
+              <td><input type="number" name="dsmc_cat_{{ cat_idx }}_inflow_split"   value="{{ (cat.inflow_split * 100) | round(4) }}"   step="any" min="0" max="100" style="width:70px"></td>
+              <td>
+                <select name="dsmc_cat_{{ cat_idx }}_lifetime_type" style="width:110px" onchange="syncDsmcRow(this.closest('tr'))">
+                  {% for d in ["Normal","LogNormal","Weibull","Fixed"] %}
+                  <option value="{{ d }}" {% if cat.lifetime_type == d %}selected{% endif %}>{{ d }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td><input type="number" name="dsmc_cat_{{ cat_idx }}_lifetime_mean"  value="{{ cat.lifetime_mean  if cat.lifetime_mean  is not none else '' }}" step="any" min="0" style="width:75px" placeholder="—"></td>
+              <td><input type="number" name="dsmc_cat_{{ cat_idx }}_lifetime_std"   value="{{ cat.lifetime_std   if cat.lifetime_std   is not none else '' }}" step="any" min="0" style="width:75px" placeholder="—"></td>
+              <td><input type="number" name="dsmc_cat_{{ cat_idx }}_lifetime_shape" value="{{ cat.lifetime_shape if cat.lifetime_shape is not none else '' }}" step="any" min="0" style="width:70px" placeholder="—"></td>
+              <td><input type="number" name="dsmc_cat_{{ cat_idx }}_lifetime_scale" value="{{ cat.lifetime_scale if cat.lifetime_scale is not none else '' }}" step="any"  min="0" style="width:70px" placeholder="—"></td>
+              <td><button type="button" class="btn btn-danger btn-sm" onclick="removeDsmcCat(this)">✕</button></td>
+            </tr>
+            <tr class="dsmc-comp-lt-row" style="background:var(--bg,#f8f9fa);border-bottom:1px solid #dee2e6">
+              <td colspan="8" style="padding:2px 8px 6px;font-size:0.82rem">
+                <span style="color:#888;margin-right:0.5rem">Component lifetimes (yr):</span>
+                {% if process.dsm and process.dsm.components %}{% for comp in process.dsm.components %}
+                <label style="margin-right:0.75rem">{{ comp.element }}
+                  <input type="number" name="dsmc_cat_{{ cat_idx }}_comp_lt_{{ loop.index0 }}"
+                         value="{{ cat.component_lifetimes.get(comp.element, '') if cat.component_lifetimes else '' }}"
+                         step="any" min="0" style="width:65px;margin-left:2px" placeholder="fallback">
+                </label>
+                {% endfor %}{% else %}<em style="color:#aaa">(add components below)</em>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr>
+              <td><input type="text"   name="dsmc_cat_0_name"           value="Default" style="width:120px"></td>
+              <td><input type="number" name="dsmc_cat_0_inflow_split"   value="100"    step="any" min="0" max="100" style="width:70px"></td>
+              <td><select name="dsmc_cat_0_lifetime_type" style="width:110px" onchange="syncDsmcRow(this.closest('tr'))"><option>Normal</option><option>LogNormal</option><option>Weibull</option><option>Fixed</option></select></td>
+              <td><input type="number" name="dsmc_cat_0_lifetime_mean"  value="5.0"   step="any" min="0" style="width:75px"></td>
+              <td><input type="number" name="dsmc_cat_0_lifetime_std"   value="1.5"    step="any" min="0" style="width:75px"></td>
+              <td><input type="number" name="dsmc_cat_0_lifetime_shape" placeholder="—" step="any" min="0" style="width:70px"></td>
+              <td><input type="number" name="dsmc_cat_0_lifetime_scale" placeholder="—" step="any"  min="0" style="width:70px"></td>
+              <td><button type="button" class="btn btn-danger btn-sm" onclick="removeDsmcCat(this)">✕</button></td>
+            </tr>
+            <tr class="dsmc-comp-lt-row" style="background:var(--bg,#f8f9fa);border-bottom:1px solid #dee2e6">
+              <td colspan="8" style="padding:2px 8px 6px;font-size:0.82rem">
+                <span style="color:#888;margin-right:0.5rem">Component lifetimes (yr):</span>
+                <em style="color:#aaa">(add components below)</em>
+              </td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+        </div>
+        <div id="dsmc-split-feedback" style="font-size:0.85rem;margin:0.1rem 0 0.6rem"></div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addDsmcCat()">+ Add Category</button>
+
+        <h4 style="margin:1.25rem 0 0.5rem">Component Renewal Rates</h4>
+        <p class="muted" style="margin:0 0 0.75rem;font-size:0.88rem">
+          Each row defines one replaceable component. Annual renewal rate = 1 / mean lifetime.
+          Select the element this component tracks, its mean replacement interval (yr),
+          and the worn-part outflow / new-part inflow flows.
+        </p>
+        <div style="overflow-x:auto">
+        <table id="edit-dsm-comp-table" style="width:100%;margin-bottom:0.5rem;font-size:0.88rem">
+          <thead>
+            <tr>
+              <th>Element</th><th>Mean lifetime (yr)</th><th>Worn-part outflow</th><th>New-part inflow</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="edit-dsm-comp-body">
+            {% if process.dsm and process.dsm.components %}
+            {% for comp in process.dsm.components %}
+            <tr>
+              <td>
+                <select name="dsm_comp_{{ loop.index0 }}_element" style="width:160px">
+                  {% for elem in cfg.model.elements %}
+                  <option value="{{ elem }}" {% if comp.element == elem %}selected{% endif %}>{{ elem }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td><input type="number" name="dsm_comp_{{ loop.index0 }}_mean_lifetime" value="{{ comp.mean_lifetime }}" step="any" min="0" style="width:90px"></td>
+              <td>
+                <select name="dsm_comp_{{ loop.index0 }}_sparepart_outflow" style="width:200px">
+                  <option value="">— none —</option>
+                  {% for f in cfg.flows %}
+                  <option value="{{ f.id }}" {% if comp.sparepart_outflow == f.id %}selected{% endif %}>{{ f.id }} – {{ f.name }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <select name="dsm_comp_{{ loop.index0 }}_sparepart_inflow" style="width:200px">
+                  <option value="">— none —</option>
+                  {% for f in cfg.flows %}
+                  <option value="{{ f.id }}" {% if comp.sparepart_inflow == f.id %}selected{% endif %}>{{ f.id }} – {{ f.name }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove(); reindexDsmComps()">✕</button></td>
+            </tr>
+            {% endfor %}
+            {% endif %}
+          </tbody>
+        </table>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addDsmComp()">+ Add Component</button>
+
+        {% if cfg.references %}
+        <div class="field" style="margin-top:0.75rem;max-width:400px">
+          <label>Source references</label>
+          {{ ref_multiselect("dsm_refs", (process.dsm.refs if process.dsm else []), cfg.references) }}
+        </div>
+        {% endif %}
+      </div>
+    </details>
+
     <details id="edit-lfg-block">
       <summary>LFG Parameters</summary>
       <div class="details-body">
@@ -293,10 +425,11 @@
 
 <script>
 const LOGIC_BLOCK_MAP = {
-  'fomp':     'edit-fomp-block',
-  'dsm':      'edit-dsm-block',
-  'lfg':      'edit-lfg-block',
-  'flowcap':  'edit-flowcap-block',
+  'fomp':          'edit-fomp-block',
+  'dsm':           'edit-dsm-block',
+  'dsm_component': 'edit-dsm-component-block',
+  'lfg':           'edit-lfg-block',
+  'flowcap':       'edit-flowcap-block',
 };
 function toggleParamBlocks(logic) {
   Object.entries(LOGIC_BLOCK_MAP).forEach(([key, id]) => {
@@ -413,6 +546,171 @@ function reindexLfgFracs() {
     });
   });
   lfgFracCount = document.querySelectorAll('#edit-lfg-frac-body tr').length;
+}
+
+// DSM_Component — device lifetime categories (dsmc_cat_* prefix)
+let dsmcCatCount = document.querySelectorAll('#edit-dsmc-cat-body tr:not(.dsmc-comp-lt-row)').length;
+
+function removeDsmcCat(btn) {
+  const tr = btn.closest('tr');
+  const next = tr.nextElementSibling;
+  if (next && next.classList.contains('dsmc-comp-lt-row')) next.remove();
+  tr.remove();
+  reindexDsmcCats();
+  updateDsmcSplitSum();
+}
+
+function _getCompElems() {
+  return Array.from(document.querySelectorAll('#edit-dsm-comp-body tr')).map(tr => {
+    const sel = tr.querySelector('[name$="_element"]');
+    return sel ? sel.value : '';
+  }).filter(Boolean);
+}
+
+function _rebuildCompLtSubrows() {
+  const compElems = _getCompElems();
+  let ci = 0;
+  document.querySelectorAll('#edit-dsmc-cat-body tr:not(.dsmc-comp-lt-row)').forEach(tr => {
+    const sub = tr.nextElementSibling;
+    if (!sub || !sub.classList.contains('dsmc-comp-lt-row')) return;
+    const td = sub.querySelector('td');
+    if (!td) return;
+    // Collect existing values by position before rebuild
+    const oldVals = [];
+    sub.querySelectorAll('input[type="number"]').forEach(inp => oldVals.push(inp.value));
+    let html = '<span style="color:#888;margin-right:0.5rem">Component lifetimes (yr):</span>';
+    if (compElems.length === 0) {
+      html += '<em style="color:#aaa">(add components below)</em>';
+    } else {
+      compElems.forEach((elem, j) => {
+        const val = oldVals[j] !== undefined ? oldVals[j] : '';
+        html += `<label style="margin-right:0.75rem">${elem}
+          <input type="number" name="dsmc_cat_${ci}_comp_lt_${j}"
+                 value="${val}" step="any" min="0" style="width:65px;margin-left:2px" placeholder="fallback">
+        </label>`;
+      });
+    }
+    td.innerHTML = html;
+    ci++;
+  });
+}
+
+function addDsmcCat() {
+  const tbody = document.getElementById('edit-dsmc-cat-body');
+  const i = dsmcCatCount++;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text"   name="dsmc_cat_${i}_name"           placeholder="Category name" style="width:120px"></td>
+    <td><input type="number" name="dsmc_cat_${i}_inflow_split"   value="0" step="any" min="0" max="100" style="width:70px"></td>
+    <td><select name="dsmc_cat_${i}_lifetime_type" style="width:110px" onchange="syncDsmcRow(this.closest('tr'))">
+      <option>Normal</option><option>LogNormal</option><option>Weibull</option><option>Fixed</option>
+    </select></td>
+    <td><input type="number" name="dsmc_cat_${i}_lifetime_mean"  placeholder="—" step="any" min="0" style="width:75px"></td>
+    <td><input type="number" name="dsmc_cat_${i}_lifetime_std"   placeholder="—" step="any" min="0" style="width:75px"></td>
+    <td><input type="number" name="dsmc_cat_${i}_lifetime_shape" placeholder="—" step="any" min="0" style="width:70px"></td>
+    <td><input type="number" name="dsmc_cat_${i}_lifetime_scale" placeholder="—" step="any" min="0" style="width:70px"></td>
+    <td><button type="button" class="btn btn-danger btn-sm" onclick="removeDsmcCat(this)">✕</button></td>`;
+  const sub = document.createElement('tr');
+  sub.className = 'dsmc-comp-lt-row';
+  sub.style.cssText = 'background:var(--bg,#f8f9fa);border-bottom:1px solid #dee2e6';
+  sub.innerHTML = '<td colspan="8" style="padding:2px 8px 6px;font-size:0.82rem"></td>';
+  tbody.appendChild(tr);
+  tbody.appendChild(sub);
+  syncDsmcRow(tr);
+  updateDsmcSplitSum();
+  _rebuildCompLtSubrows();
+}
+function reindexDsmcCats() {
+  let ci = 0;
+  document.querySelectorAll('#edit-dsmc-cat-body tr:not(.dsmc-comp-lt-row)').forEach(tr => {
+    ['name','inflow_split','lifetime_type','lifetime_mean','lifetime_std','lifetime_shape','lifetime_scale'].forEach(f => {
+      const inp = tr.querySelector(`[name*="dsmc_cat_"][name$="_${f}"]`);
+      if (inp) inp.name = `dsmc_cat_${ci}_${f}`;
+    });
+    const sub = tr.nextElementSibling;
+    if (sub && sub.classList.contains('dsmc-comp-lt-row')) {
+      sub.querySelectorAll('input[type="number"]').forEach(inp => {
+        const m = inp.name.match(/_comp_lt_(\d+)$/);
+        if (m) inp.name = `dsmc_cat_${ci}_comp_lt_${m[1]}`;
+      });
+    }
+    ci++;
+  });
+  dsmcCatCount = ci;
+}
+function syncDsmcRow(tr) {
+  if (!tr) return;
+  const sel = tr.querySelector('[name*="dsmc_cat_"][name$="_lifetime_type"]');
+  const active = DSM_FIELDS_BY_TYPE[sel ? sel.value : 'Normal'] || DSM_FIELDS_BY_TYPE.Normal;
+  [['mean','lifetime_mean'],['std','lifetime_std'],['shape','lifetime_shape'],['scale','lifetime_scale']]
+    .forEach(([key, suffix]) => {
+      const inp = tr.querySelector(`[name*="dsmc_cat_"][name$="_${suffix}"]`);
+      if (!inp) return;
+      const on = active[key];
+      inp.disabled = !on;
+      inp.style.background = on ? '' : 'var(--bg)';
+      inp.style.opacity = on ? '' : '0.5';
+    });
+}
+function updateDsmcSplitSum() {
+  const fb = document.getElementById('dsmc-split-feedback');
+  if (!fb) return;
+  const inputs = document.querySelectorAll('#edit-dsmc-cat-body [name$="_inflow_split"]');
+  if (!inputs.length) { fb.textContent = ''; return; }
+  let sum = 0;
+  inputs.forEach(inp => { sum += parseFloat(inp.value) || 0; });
+  const ok = Math.abs(sum - 100) < 0.05;
+  fb.textContent = ok
+    ? 'Inflow split sums to 100% ✓'
+    : `Inflow split sums to ${(+sum.toFixed(2))}% — should be 100%`;
+  fb.style.color = ok ? 'var(--ok-border, #2e7d32)' : 'var(--danger)';
+  fb.style.fontWeight = ok ? '400' : '600';
+}
+document.querySelectorAll('#edit-dsmc-cat-body tr:not(.dsmc-comp-lt-row)').forEach(syncDsmcRow);
+updateDsmcSplitSum();
+const _dsmcBody = document.getElementById('edit-dsmc-cat-body');
+if (_dsmcBody) {
+  _dsmcBody.addEventListener('input', e => {
+    if (e.target.name && e.target.name.endsWith('_inflow_split')) updateDsmcSplitSum();
+  });
+}
+
+// DSM_Component — component renewal table (dsm_comp_* prefix)
+const _DSM_COMP_ELEMENTS = {{ cfg.model.elements | tojson }};
+const _DSM_COMP_FLOWS = [{% for f in cfg.flows %}{"id": {{ f.id | tojson }}, "name": {{ f.name | tojson }}},{% endfor %}];
+function _dsmCompFlowOptions(selected) {
+  let opts = '<option value="">— none —</option>';
+  _DSM_COMP_FLOWS.forEach(f => {
+    const sel = f.id === selected ? ' selected' : '';
+    opts += `<option value="${f.id}"${sel}>${f.id} – ${f.name}</option>`;
+  });
+  return opts;
+}
+let dsmCompCount = document.querySelectorAll('#edit-dsm-comp-body tr').length;
+function addDsmComp() {
+  const tbody = document.getElementById('edit-dsm-comp-body');
+  const i = dsmCompCount++;
+  const elemOpts = _DSM_COMP_ELEMENTS.map(e => `<option value="${e}">${e}</option>`).join('');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><select name="dsm_comp_${i}_element" style="width:160px">${elemOpts}</select></td>
+    <td><input type="number" name="dsm_comp_${i}_mean_lifetime" value="5" step="any" min="0" style="width:90px"></td>
+    <td><select name="dsm_comp_${i}_sparepart_outflow" style="width:200px">${_dsmCompFlowOptions('')}</select></td>
+    <td><select name="dsm_comp_${i}_sparepart_inflow"  style="width:200px">${_dsmCompFlowOptions('')}</select></td>
+    <td><button type="button" class="btn btn-danger btn-sm"
+      onclick="this.closest('tr').remove(); reindexDsmComps()">✕</button></td>`;
+  tbody.appendChild(tr);
+  _rebuildCompLtSubrows();
+}
+function reindexDsmComps() {
+  document.querySelectorAll('#edit-dsm-comp-body tr').forEach((tr, i) => {
+    ['element','mean_lifetime','sparepart_outflow','sparepart_inflow'].forEach(f => {
+      const inp = tr.querySelector(`[name$="_${f}"]`);
+      if (inp) inp.name = `dsm_comp_${i}_${f}`;
+    });
+  });
+  dsmCompCount = document.querySelectorAll('#edit-dsm-comp-body tr').length;
+  _rebuildCompLtSubrows();
 }
 
 // FlowCap capacity series

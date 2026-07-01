@@ -241,7 +241,9 @@ def _calculate_tc_driven_flows(
         else ((flow.Name, flow) for flow in mfa_system.FlowDict.values())
     )
     for _name, flow in flow_iter:
-        if flow.P_Start in special_processes or hasattr(flow, "_fomp_protected"):
+        if (flow.P_Start in special_processes
+                or hasattr(flow, "_fomp_protected")
+                or hasattr(flow, "_spare_protected")):
             continue
 
         process_logic = process_logic_map.get(flow.P_Start)
@@ -359,12 +361,16 @@ def _calculate_tc_driven_flows(
 
 
 def _calculate_dsm_flows(
-    mfa_system, dsm_processes, dsm_params, iteration, flow_tc_map=None
+    mfa_system, dsm_processes, dsm_params, iteration, flow_tc_map=None,
+    process_logic_map=None,
 ):
     """Calculates all stocks and flows for Dynamic Stock Model (DSM) processes.
 
     For each DSM process with valid inputs, this function calls the core DSM
     engine to calculate stock evolution and outflows for the current iteration.
+    Processes with logic "DSM_Component" are routed to
+    dsm_model.calculate_dynamic_stock_component(), which additionally computes
+    element-level replacement flows via the stationary renewal approximation.
 
     Parameters
     ----------
@@ -378,6 +384,8 @@ def _calculate_dsm_flows(
         The current solver iteration number, used for debug printing.
     flow_tc_map : dict, optional
         Map from flow names to TC parameter names.
+    process_logic_map : dict, optional
+        Map from process ID to logic string.  Used to dispatch DSM_Component.
 
     Returns
     -------
@@ -388,6 +396,8 @@ def _calculate_dsm_flows(
     """
     if flow_tc_map is None:
         flow_tc_map = {}
+    if process_logic_map is None:
+        process_logic_map = {}
     something_changed = False
     dsm_details = {}
     for process_id in dsm_processes:
@@ -420,9 +430,20 @@ def _calculate_dsm_flows(
 
         old_out_values = mfa_system.FlowDict[outflow_flow_name].Values.copy()
 
-        mfa_system, dsm_details_single_run = dsm_model.calculate_dynamic_stock(
-            mfa_system, {process_id: dsm_params[process_id]}, flow_tc_map=flow_tc_map
-        )
+        is_component_dsm = process_logic_map.get(process_id) == "DSM_Component"
+        component_params = dsm_params[process_id].get("components", [])
+
+        if is_component_dsm and component_params:
+            mfa_system, dsm_details_single_run = dsm_model.calculate_dynamic_stock_component(
+                mfa_system,
+                {process_id: dsm_params[process_id]},
+                component_params,
+                flow_tc_map=flow_tc_map,
+            )
+        else:
+            mfa_system, dsm_details_single_run = dsm_model.calculate_dynamic_stock(
+                mfa_system, {process_id: dsm_params[process_id]}, flow_tc_map=flow_tc_map
+            )
         dsm_details.update(dsm_details_single_run)
 
         if not np.allclose(
@@ -844,7 +865,8 @@ def run_mfa_calculation(
         dsm_changed = False
         if config.RUN_DSM_CALCULATION:
             dsm_changed, dsm_run_details = _calculate_dsm_flows(
-                mfa_system, dsm_processes, dsm_params, i, flow_tc_map
+                mfa_system, dsm_processes, dsm_params, i, flow_tc_map,
+                process_logic_map=process_logic_map,
             )
             dsm_details.update(dsm_run_details)
             pass_changes.append(dsm_changed)

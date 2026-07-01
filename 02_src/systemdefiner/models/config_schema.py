@@ -32,6 +32,7 @@ class ProcessLogic(str, Enum):
     splitter = "Splitter"
     transformer = "Transformer"
     dsm = "DSM"
+    dsm_component = "DSM_Component"
     fomp = "FOMP"
     lfg = "LFG"
     bom_assembler = "BOM_Assembler"
@@ -68,10 +69,20 @@ class DsmCategory(BaseModel):
     lifetime_std: Optional[float] = None
     lifetime_shape: Optional[float] = None
     lifetime_scale: Optional[float] = None
+    component_lifetimes: dict[str, float] = {}  # {element_name: mean_lifetime_yr} per category
+
+
+class DsmComponentItem(BaseModel):
+    """One replaceable component tracked by the DSM_Component logic."""
+    element: str
+    mean_lifetime: float
+    sparepart_outflow: str  # flow ID: worn parts → WEEE / recycling
+    sparepart_inflow: str   # flow ID: new parts ← storage
 
 
 class DsmParams(_Referenced):
     categories: list[DsmCategory] = []
+    components: list[DsmComponentItem] = []  # only used for DSM_Component logic
 
 
 class LfgFraction(BaseModel):
