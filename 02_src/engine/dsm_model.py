@@ -611,15 +611,15 @@ def calculate_dynamic_stock_component(
     tuple
         (mfa_system, dsm_details)  — same shape as calculate_dynamic_stock
     """
-    # Temporarily zero spare-part inflows so they don't inflate the DSM inflow sum.
-    # If sparepart_inflow has P_End == this DSM process, the standard calculate_dynamic_stock
-    # would count it as new product inflow → self-amplifying feedback loop (infinite growth).
-    spare_inflow_ids = {c.get("sparepart_inflow", "") for c in component_params}
-    for fid in spare_inflow_ids:
+    # Zero spare flows before the DSM run and before the accumulation loop below.
+    # Inflows must be zeroed so the device DSM doesn't count them as new product
+    # inflow (self-amplifying feedback). Outflows must be zeroed so that multiple
+    # components sharing the same flow ID accumulate correctly with += below.
+    spare_inflow_ids  = {c.get("sparepart_inflow",  "") for c in component_params}
+    spare_outflow_ids = {c.get("sparepart_outflow", "") for c in component_params}
+    for fid in spare_inflow_ids | spare_outflow_ids:
         if fid and fid in mfa_system.FlowDict:
             mfa_system.FlowDict[fid].Values[:, :] = 0.0
-
-    spare_outflow_ids = {c.get("sparepart_outflow", "") for c in component_params}
 
     mfa_system, dsm_details = calculate_dynamic_stock(
         mfa_system, dsm_params_config, flow_tc_map=flow_tc_map,
@@ -655,26 +655,26 @@ def calculate_dynamic_stock_component(
 
         replacement_mass = (1.0 / mean_lifetime) * stock_material * fraction_j  # (T,)
 
-        # Build full replacement flow array: ancestors in hierarchy get replacement_mass
+        # Build replacement flow: material root + element itself + all ancestor elements.
+        # Multiple components may share a flow ID; += accumulates their contributions.
         replacement_flow = np.zeros((num_years, len(elements)))
-        replacement_flow[:, 0] = replacement_mass  # material (root) always
+        replacement_flow[:, 0] = replacement_mass        # material (root) always
+        replacement_flow[:, elem_idx] = replacement_mass  # element itself
         if element_hierarchy:
             ancestors = _ancestors_in_hierarchy(element_name, element_hierarchy)
             for i, e in enumerate(elements):
-                if e in ancestors:
+                if e in ancestors and i != 0:  # root already set above
                     replacement_flow[:, i] = replacement_mass
-        else:
-            replacement_flow[:, elem_idx] = replacement_mass
 
         if outflow_id in mfa_system.FlowDict:
-            mfa_system.FlowDict[outflow_id].Values[:, :] = replacement_flow
+            mfa_system.FlowDict[outflow_id].Values[:, :] += replacement_flow  # accumulate
             mfa_system.FlowDict[outflow_id]._spare_protected = True  # skip TC solver
         else:
             print(f"  -> WARNING DSM_Component P{process_id}: outflow '{outflow_id}' not in FlowDict. Skipping.")
             continue
 
         if inflow_id in mfa_system.FlowDict:
-            mfa_system.FlowDict[inflow_id].Values[:, :] = replacement_flow.copy()
+            mfa_system.FlowDict[inflow_id].Values[:, :] += replacement_flow  # accumulate
             mfa_system.FlowDict[inflow_id]._spare_protected = True   # skip TC solver
         else:
             print(f"  -> WARNING DSM_Component P{process_id}: inflow '{inflow_id}' not in FlowDict. Skipping.")
