@@ -1048,10 +1048,22 @@ def _parse_dsm_component(form) -> DsmParams:
         try: return float(v) if v else default
         except ValueError: return default
 
-    # Device lifetime categories
+    # Read component element names first (needed to build per-category lifetime dicts)
+    _comp_elems: list[str] = []
+    _j = 0
+    while f"dsm_comp_{_j}_element" in form:
+        _comp_elems.append(_s(f"dsm_comp_{_j}_element"))
+        _j += 1
+
+    # Device lifetime categories (with optional per-component lifetime overrides)
     cats: list[DsmCategory] = []
     i = 0
     while f"dsmc_cat_{i}_name" in form:
+        comp_lts: dict[str, float] = {}
+        for j, elem in enumerate(_comp_elems):
+            val = _f(f"dsmc_cat_{i}_comp_lt_{j}")
+            if val is not None and val > 0 and elem:
+                comp_lts[elem] = val
         cats.append(DsmCategory(
             name=_s(f"dsmc_cat_{i}_name") or "Default",
             inflow_split=(_f(f"dsmc_cat_{i}_inflow_split") or 0.0) / 100.0,
@@ -1060,6 +1072,7 @@ def _parse_dsm_component(form) -> DsmParams:
             lifetime_std=_f(f"dsmc_cat_{i}_lifetime_std"),
             lifetime_shape=_f(f"dsmc_cat_{i}_lifetime_shape"),
             lifetime_scale=_f(f"dsmc_cat_{i}_lifetime_scale"),
+            component_lifetimes=comp_lts,
         ))
         i += 1
     if not cats:

@@ -1035,7 +1035,8 @@ def load_dsm_parameters(excel_data, debug_mode=False):
                 dsm_params[process_id]["stock_configuration"] = stock_config
 
     # Merge component params from the optional "3_1_DSM_Components" sheet.
-    # Each row: Process_ID, Element_Name, Mean_Lifetime, SpareOutflow_ID, SpareInflow_ID
+    # Each row: Process_ID, Element_Name, Mean_Lifetime, SpareOutflow_ID, SpareInflow_ID[, Lifetime_Per_Category]
+    import json as _json
     comp_sheet = excel_data.get("3_1_DSM_Components")
     if comp_sheet is not None and not comp_sheet.empty:
         required_cols = {"Process_ID", "Element_Name", "Mean_Lifetime", "SpareOutflow_ID", "SpareInflow_ID"}
@@ -1044,12 +1045,19 @@ def load_dsm_parameters(excel_data, debug_mode=False):
                 pid = int(row["Process_ID"])
                 if pid not in dsm_params:
                     continue
-                dsm_params[pid].setdefault("components", []).append({
+                comp_entry = {
                     "element": str(row["Element_Name"]),
                     "mean_lifetime": float(row["Mean_Lifetime"]),
                     "sparepart_outflow": str(row["SpareOutflow_ID"]),
                     "sparepart_inflow": str(row["SpareInflow_ID"]),
-                })
+                }
+                raw_lt = row.get("Lifetime_Per_Category") if "Lifetime_Per_Category" in comp_sheet.columns else None
+                if raw_lt is not None and str(raw_lt) not in ("", "nan", "None"):
+                    try:
+                        comp_entry["lifetime_per_category"] = _json.loads(str(raw_lt))
+                    except (ValueError, TypeError):
+                        pass
+                dsm_params[pid].setdefault("components", []).append(comp_entry)
         else:
             print(f"--> WARNING: '3_1_DSM_Components' sheet missing required columns: {required_cols - set(comp_sheet.columns)}")
 
@@ -2741,14 +2749,24 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
             )
         # Component rows (DSM_Component only)
         if p.get("logic") == "DSM_Component":
+            # Collect per-category component lifetimes keyed by element name
+            cat_lt_by_elem: dict[str, dict] = {}
+            for cat in (p.get("dsm") or {}).get("categories", []):
+                cat_name = cat.get("name", "Default")
+                for elem, lt in (cat.get("component_lifetimes") or {}).items():
+                    cat_lt_by_elem.setdefault(elem, {})[cat_name] = lt
+            import json as _json
             for comp in (p.get("dsm") or {}).get("components", []):
+                elem = comp.get("element", "")
+                cat_lts = cat_lt_by_elem.get(elem, {})
                 comp_rows.append(
                     {
                         "Process_ID": pid,
-                        "Element_Name": comp.get("element", ""),
+                        "Element_Name": elem,
                         "Mean_Lifetime": comp.get("mean_lifetime"),
                         "SpareOutflow_ID": comp.get("sparepart_outflow", ""),
                         "SpareInflow_ID": comp.get("sparepart_inflow", ""),
+                        "Lifetime_Per_Category": _json.dumps(cat_lts) if cat_lts else None,
                     }
                 )
     result["3_1_Definition_DSM"] = (

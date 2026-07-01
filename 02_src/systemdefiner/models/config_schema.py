@@ -69,6 +69,7 @@ class DsmCategory(BaseModel):
     lifetime_std: Optional[float] = None
     lifetime_shape: Optional[float] = None
     lifetime_scale: Optional[float] = None
+    component_lifetimes: dict[str, float] = {}  # {element_name: mean_lifetime_yr} per category
 
 
 class DsmComponentItem(BaseModel):

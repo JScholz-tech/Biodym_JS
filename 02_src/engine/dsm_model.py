@@ -633,9 +633,16 @@ def calculate_dynamic_stock_component(
 
     stock_material = mfa_system.StockDict[f"S_{process_id}"].Values[:, 0]
 
+    # Pull per-category stock breakdown from dsm_details
+    _det = dsm_details.get(process_id, {})
+    inflow_stocks_by_cat = _det.get("inflow_stock_ts_by_cat", [])
+    cat_names = _det.get("category_names", [])
+    initial_stock_ts = _det.get("initial_stock_ts")  # (T, N_elem) or None
+
     for comp in component_params:
         element_name = comp.get("element", "")
         mean_lifetime = comp.get("mean_lifetime", 0.0)
+        lifetime_per_cat = comp.get("lifetime_per_category", {})
         outflow_id = comp.get("sparepart_outflow", "")
         inflow_id = comp.get("sparepart_inflow", "")
 
@@ -653,7 +660,20 @@ def calculate_dynamic_stock_component(
         with np.errstate(divide="ignore", invalid="ignore"):
             fraction_j = np.where(stock_material > 0, stock_elem / stock_material, 0.0)
 
-        replacement_mass = (1.0 / mean_lifetime) * stock_material * fraction_j  # (T,)
+        # Per-category replacement rate: Σ_i (cat_stock_i / μ_i_j)
+        # Falls back to simple total-stock formula when no category data available.
+        if lifetime_per_cat and cat_names and inflow_stocks_by_cat:
+            rate_sum = np.zeros(num_years)
+            for ci, cat_name in enumerate(cat_names):
+                cat_lt = lifetime_per_cat.get(cat_name, mean_lifetime)
+                if cat_lt > 0 and ci < len(inflow_stocks_by_cat):
+                    rate_sum += inflow_stocks_by_cat[ci][:, 0] / cat_lt
+            # Initial stock (pre-existing at t=0) uses the component's fallback lifetime
+            if initial_stock_ts is not None and mean_lifetime > 0:
+                rate_sum += initial_stock_ts[:, 0] / mean_lifetime
+            replacement_mass = rate_sum * fraction_j
+        else:
+            replacement_mass = (1.0 / mean_lifetime) * stock_material * fraction_j  # (T,)
 
         # Build replacement flow: material root + element itself + all ancestor elements.
         # Multiple components may share a flow ID; += accumulates their contributions.
@@ -679,9 +699,11 @@ def calculate_dynamic_stock_component(
         else:
             print(f"  -> WARNING DSM_Component P{process_id}: inflow '{inflow_id}' not in FlowDict. Skipping.")
 
+        _avg_rate = float(np.mean(replacement_mass)) if np.any(stock_material > 0) else 0.0
+        _mode = "per-category" if (lifetime_per_cat and cat_names) else "total-stock"
         print(
-            f"  -> DSM_Component P{process_id} '{element_name}': "
-            f"r={1/mean_lifetime:.3f}/yr, total replacement={float(np.sum(replacement_mass)):.1f}"
+            f"  -> DSM_Component P{process_id} '{element_name}' [{_mode}]: "
+            f"avg_r={_avg_rate:.3f}/yr, total replacement={float(np.sum(replacement_mass)):.1f}"
         )
 
     return mfa_system, dsm_details
