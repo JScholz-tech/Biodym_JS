@@ -8,6 +8,11 @@ based on a more precise analytical solution for first-order decay.
 
 import numpy as np
 
+try:
+    from .element_utils import get_carbon_element_name, get_element_index
+except ImportError:  # flat import with 02_src/engine directly on sys.path
+    from element_utils import get_carbon_element_name, get_element_index
+
 
 def _calculate_fomp_series(
     dm_inflow_series, params, initial_stock_labile, initial_stock_recalcitrant
@@ -186,12 +191,12 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
             f"❌ FOMP Error: MFA system is missing a required element: {e}"
         )
     # Accept "TC" (new hierarchy) or "CC" (legacy) as the carbon element
-    _tc_name = next((e for e in ("TC", "CC") if e in mfa_system.Elements), None)
+    _tc_name = get_carbon_element_name(mfa_system.Elements)
     if _tc_name is None:
         raise ValueError(
             "❌ FOMP Error: MFA system is missing carbon element (TC or CC)"
         )
-    cc_idx = mfa_system.Elements.index(_tc_name)
+    cc_idx = get_element_index(mfa_system.Elements, _tc_name)
 
     # Get the total Dry Matter (DM) inflow time-series
     inflows = [f.Values for f in mfa_system.FlowDict.values() if f.P_End == process_id]

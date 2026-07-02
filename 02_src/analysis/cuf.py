@@ -52,10 +52,12 @@ import numpy as np
 
 def _get_cc_idx(mfa_system):
     """Return TC/CC element index using the standard TC→CC fallback."""
-    tc_name = next((e for e in ("TC", "CC") if e in mfa_system.Elements), None)
-    if tc_name is None:
+    from engine.element_utils import get_carbon_element_index
+
+    idx = get_carbon_element_index(mfa_system.Elements)
+    if idx is None:
         raise ValueError("MFA system is missing a carbon element (TC or CC).")
-    return mfa_system.Elements.index(tc_name)
+    return idx
 
 
 def _pid_set(process_logic_map, *logic_labels):

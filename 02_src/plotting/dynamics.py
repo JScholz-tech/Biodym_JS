@@ -885,7 +885,9 @@ def plot_fomp_stock_details(mfa_system_results, fomp_params, comparison_process=
         return
 
     # Default element: prefer TC/CC, otherwise first in list
-    _tc = next((e for e in ("TC", "CC") if e in element_items), element_items[0])
+    from engine.element_utils import get_carbon_element_name
+
+    _tc = get_carbon_element_name(element_items, default=element_items[0])
 
     process_dropdown = Dropdown(
         options=list(process_options.keys()),
@@ -1174,7 +1176,9 @@ def plot_fomp_pool_breakdown(
     time_items = mfa_system_results.IndexTable.Classification["Time"].Items
     element_items = mfa_system_results.Elements
 
-    _tc_name = next((e for e in ("TC", "CC") if e in element_items), None)
+    from engine.element_utils import get_carbon_element_name
+
+    _tc_name = get_carbon_element_name(element_items)
     if element is None:
         element = _tc_name if _tc_name else element_items[0]
     use_tc = element in ("TC", "CC")

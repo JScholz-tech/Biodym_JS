@@ -16,6 +16,7 @@ import numpy as np
 
 # Import other engine components
 from . import dsm_model
+from . import element_utils as _element_utils
 from . import fomp_model
 from . import lfg_model
 from . import bom_assembler as _bom_assembler
@@ -481,7 +482,7 @@ def _calculate_fomp_flows(mfa_system, fomp_processes, fomp_params):
     """
     # Check if required elements exist for FOMP
     # Accept "TC" (new hierarchy with TC/TOC/TIC) or "CC" (legacy naming)
-    _tc_name = next((e for e in ("TC", "CC") if e in mfa_system.Elements), None)
+    _tc_name = _element_utils.get_carbon_element_name(mfa_system.Elements)
     missing_elements = ["DM"] if "DM" not in mfa_system.Elements else []
     if _tc_name is None:
         missing_elements.append("TC or CC")

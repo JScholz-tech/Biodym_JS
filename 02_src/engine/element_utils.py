@@ -9,6 +9,53 @@ particularly for hierarchical element relationships.
 import numpy as np
 
 
+def get_carbon_element_name(elements, default=None):
+    """Return the total-carbon element name: ``"TC"`` (new) or ``"CC"`` (legacy).
+
+    BioDYM's canonical fallback for the element-naming split: newer systems
+    call total carbon ``TC``, legacy input files use ``CC``. Never hardcode
+    either — always resolve through this helper.
+
+    Parameters
+    ----------
+    elements : sequence of str
+        Element names, e.g. ``mfa_system.Elements``.
+    default : any, optional
+        Returned when neither ``TC`` nor ``CC`` is present (default None).
+    """
+    return next((e for e in ("TC", "CC") if e in elements), default)
+
+
+def get_element_index(elements, name, default=None, strict=False):
+    """Return the index of ``name`` in ``elements`` with unified error handling.
+
+    Parameters
+    ----------
+    elements : sequence of str
+    name : str or None
+        Element name to look up (None simply yields ``default``).
+    default : any, optional
+        Returned when the element is missing and ``strict`` is False.
+    strict : bool, optional
+        When True, a missing element raises ValueError instead of
+        returning ``default``.
+    """
+    if name is not None:
+        elements = list(elements)
+        if name in elements:
+            return elements.index(name)
+    if strict:
+        raise ValueError(f"Element '{name}' not found in elements: {list(elements)}")
+    return default
+
+
+def get_carbon_element_index(elements, default=None, strict=False):
+    """Index of the total-carbon element (TC/CC fallback), or ``default``."""
+    return get_element_index(
+        elements, get_carbon_element_name(elements), default=default, strict=strict
+    )
+
+
 def recalculate_hierarchical_elements(
     flow_values, elements, element_hierarchy, mfa_system=None
 ):

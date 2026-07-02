@@ -686,7 +686,9 @@ def plot_scenario_stock_publication(
 
     # Element selection
     if element is None:
-        element = next((e for e in ("TC", "CC") if e in elements), elements[0])
+        from engine.element_utils import get_carbon_element_name
+
+        element = get_carbon_element_name(elements, default=elements[0])
     if element not in elements:
         print(f"⚠️  Element '{element}' not found. Available: {elements}")
         return

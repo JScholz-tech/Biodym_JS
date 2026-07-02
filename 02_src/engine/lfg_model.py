@@ -15,6 +15,11 @@ Key differences from FOMP:
 
 import numpy as np
 
+try:
+    from .element_utils import get_carbon_element_index, get_element_index
+except ImportError:  # flat import with 02_src/engine directly on sys.path
+    from element_utils import get_carbon_element_index, get_element_index
+
 
 # ---------------------------------------------------------------------------
 # IPCC 2019 default waste fraction parameters (temperate climate)
@@ -198,18 +203,11 @@ def calculate_lfg(mfa_system, lfg_params_config):
     except ValueError as e:
         raise ValueError(f"❌ LFG Error: MFA system missing required element: {e}")
 
-    dm_idx = mfa_system.Elements.index("DM") if "DM" in mfa_system.Elements else None
-    wc_idx = mfa_system.Elements.index("WC") if "WC" in mfa_system.Elements else None
+    dm_idx = get_element_index(mfa_system.Elements, "DM")
+    wc_idx = get_element_index(mfa_system.Elements, "WC")
     # Accept "TC" (new hierarchy) or "CC" (legacy) as the total-carbon element
-    tc_idx = next(
-        (
-            mfa_system.Elements.index(e)
-            for e in ("TC", "CC")
-            if e in mfa_system.Elements
-        ),
-        None,
-    )
-    toc_idx = mfa_system.Elements.index("TOC") if "TOC" in mfa_system.Elements else None
+    tc_idx = get_carbon_element_index(mfa_system.Elements)
+    toc_idx = get_element_index(mfa_system.Elements, "TOC")
 
     # --- Read total inflows to this process ---
     inflows = [f.Values for f in mfa_system.FlowDict.values() if f.P_End == process_id]
