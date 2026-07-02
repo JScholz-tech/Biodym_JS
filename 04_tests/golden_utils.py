@@ -15,8 +15,8 @@ import system_setup
 from engine import solver
 
 
-def run_case_study_yaml(yaml_path):
-    """Run the full deterministic pipeline for a YAML case study.
+def build_case_study_yaml(yaml_path):
+    """Build a fully configured but unsolved MFA system from a YAML case study.
 
     Parameters
     ----------
@@ -26,9 +26,11 @@ def run_case_study_yaml(yaml_path):
 
     Returns
     -------
-    tuple
-        ``(mfa_system, dsm_details, solver_info)`` as returned by
-        ``solver.run_mfa_calculation``.
+    dict
+        Everything needed to call the solver (or the MC simulation):
+        ``mfa_system``, ``config_obj``, ``all_excel_data``, ``flow_tc_map``,
+        ``process_logic_map``, ``dsm_params``, ``fomp_params``, ``lfg_params``,
+        ``bom_params``, ``flow_cap_params``.
     """
     yaml_path = str(yaml_path)
 
@@ -98,17 +100,42 @@ def run_case_study_yaml(yaml_path):
             if process_logic_map.get(pid) == "LFG"
         }
 
+    return {
+        "mfa_system": mfa_system,
+        "config_obj": config_obj,
+        "all_excel_data": all_excel_data,
+        "flow_tc_map": flow_tc_map,
+        "process_logic_map": process_logic_map,
+        "dsm_params": dsm_params,
+        "fomp_params": fomp_params,
+        "lfg_params": lfg_params,
+        "bom_params": bom_params,
+        "flow_cap_params": flow_cap_params,
+    }
+
+
+def run_case_study_yaml(yaml_path):
+    """Run the full deterministic pipeline for a YAML case study.
+
+    Returns
+    -------
+    tuple
+        ``(mfa_system, dsm_details, solver_info)`` as returned by
+        ``solver.run_mfa_calculation``.
+    """
+    parts = build_case_study_yaml(yaml_path)
+
     # 2.1.6 — baseline calculation
     return solver.run_mfa_calculation(
-        mfa_system,
-        dsm_params,
-        fomp_params,
-        config_obj,
-        flow_tc_map=flow_tc_map,
-        process_logic_map=process_logic_map,
-        lfg_params=lfg_params,
-        bom_params=bom_params,
-        flow_cap_params=flow_cap_params,
+        parts["mfa_system"],
+        parts["dsm_params"],
+        parts["fomp_params"],
+        parts["config_obj"],
+        flow_tc_map=parts["flow_tc_map"],
+        process_logic_map=parts["process_logic_map"],
+        lfg_params=parts["lfg_params"],
+        bom_params=parts["bom_params"],
+        flow_cap_params=parts["flow_cap_params"],
     )
 
 
