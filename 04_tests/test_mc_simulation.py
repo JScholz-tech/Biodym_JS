@@ -296,3 +296,105 @@ def test_sample_parameters_accepts_seeded_generator():
     b = sample_parameters(params, rng=np.random.default_rng(7))
     assert a == b
     assert a["p_trunc"] >= 9
+
+
+# --------------------------------------------------------------------------
+# Physical bounds — sampled lifetimes / decay constants cannot be negative
+# --------------------------------------------------------------------------
+
+def test_enforce_physical_bounds_resamples_negative_lifetime():
+    import numpy as np
+
+    from engine.mc_simulation import _enforce_physical_bounds
+
+    rng = np.random.default_rng(0)
+    # Mean 5, std 2: negative draws are possible but resampling finds
+    # positive ones easily
+    defn = {"P08_DSM_Lifetime_Mean_Cat_1": {
+        "distribution": "normal", "mean": 5, "std": 2,
+    }}
+    sampled = {"P08_DSM_Lifetime_Mean_Cat_1": -3.0}
+    _enforce_physical_bounds(sampled, defn, rng=rng)
+    assert sampled["P08_DSM_Lifetime_Mean_Cat_1"] > 0
+
+
+def test_enforce_physical_bounds_clamps_hopeless_distribution():
+    import numpy as np
+
+    from engine.mc_simulation import _enforce_physical_bounds
+
+    rng = np.random.default_rng(0)
+    # Distribution entirely below zero — resampling cannot succeed
+    defn = {"P08_decay_k1 (Labile pool)": {
+        "distribution": "uniform", "min": -10, "max": -5,
+    }}
+    sampled = {"P08_decay_k1 (Labile pool)": -7.0}
+    _enforce_physical_bounds(sampled, defn, rng=rng, max_retries=10)
+    assert sampled["P08_decay_k1 (Labile pool)"] == 1e-9
+
+
+def test_enforce_physical_bounds_leaves_other_params_alone():
+    from engine.mc_simulation import _enforce_physical_bounds
+
+    sampled = {"TC_05_06": -0.3, "F_00_01": -1.0}
+    _enforce_physical_bounds(sampled, {})
+    assert sampled == {"TC_05_06": -0.3, "F_00_01": -1.0}
+
+
+# --------------------------------------------------------------------------
+# Process-ID validation in the solver
+# --------------------------------------------------------------------------
+
+def test_unknown_process_id_warns():
+    import pytest
+
+    yaml_path = os.path.join(CASE_STUDIES_DIR, "T01_First_MFA", "config.yaml")
+    parts = build_case_study_yaml(yaml_path)
+    from engine import solver
+
+    with pytest.warns(UserWarning, match=r"dsm_params\[999\]"):
+        solver.run_mfa_calculation(
+            parts["mfa_system"],
+            {999: {"lifetimes": {}}},  # typo'd process ID
+            parts["fomp_params"],
+            parts["config_obj"],
+            flow_tc_map=parts["flow_tc_map"],
+            process_logic_map=parts["process_logic_map"],
+        )
+
+
+def test_unknown_process_id_raises_under_strict():
+    import pytest
+
+    yaml_path = os.path.join(CASE_STUDIES_DIR, "T01_First_MFA", "config.yaml")
+    parts = build_case_study_yaml(yaml_path)
+    parts["config_obj"].SOLVER_STRICT = True
+    from engine import solver
+
+    with pytest.raises(ValueError, match="unknown process IDs"):
+        solver.run_mfa_calculation(
+            parts["mfa_system"],
+            {999: {"lifetimes": {}}},
+            parts["fomp_params"],
+            parts["config_obj"],
+            flow_tc_map=parts["flow_tc_map"],
+            process_logic_map=parts["process_logic_map"],
+        )
+
+
+def test_non_dict_params_raise_type_error():
+    import pytest
+
+    yaml_path = os.path.join(CASE_STUDIES_DIR, "T01_First_MFA", "config.yaml")
+    parts = build_case_study_yaml(yaml_path)
+    from engine import solver
+
+    with pytest.raises(TypeError, match="dsm_params must be a dict"):
+        solver.run_mfa_calculation(
+            parts["mfa_system"],
+            [1, 2, 3],  # wrong type
+            parts["fomp_params"],
+            parts["config_obj"],
+            flow_tc_map=parts["flow_tc_map"],
+            process_logic_map=parts["process_logic_map"],
+        )

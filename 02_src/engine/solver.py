@@ -653,6 +653,41 @@ def _calculate_lfg_flows(mfa_system, lfg_processes, lfg_params):
     return something_changed
 
 
+def _validate_process_params(mfa_system_setup, config, **param_dicts):
+    """Check that process-ID-keyed parameter dicts reference real processes.
+
+    A typo'd process ID would otherwise silently no-op (the process is never
+    calculated). Warns by default; raises ValueError when config.SOLVER_STRICT
+    is set.
+    """
+    known_ids = {p.ID for p in mfa_system_setup.ProcessList}
+    if not known_ids:
+        return
+
+    unknown = []
+    for dict_name, params in param_dicts.items():
+        if not params:
+            continue
+        if not isinstance(params, dict):
+            raise TypeError(
+                f"{dict_name} must be a dict keyed by process ID, "
+                f"got {type(params).__name__}"
+            )
+        for process_id in params:
+            if process_id not in known_ids:
+                unknown.append(f"{dict_name}[{process_id!r}]")
+
+    if unknown:
+        message = (
+            f"Parameter entries reference unknown process IDs and will be "
+            f"IGNORED: {', '.join(unknown)}. Known process IDs: "
+            f"{sorted(known_ids)}."
+        )
+        if getattr(config, "SOLVER_STRICT", False):
+            raise ValueError(message)
+        warnings.warn(message, UserWarning, stacklevel=3)
+
+
 def run_mfa_calculation(
     mfa_system_setup,
     dsm_params,
@@ -738,6 +773,16 @@ def run_mfa_calculation(
         - dsm_details (dict): Detailed results from the DSM calculations.
 
     """
+    _validate_process_params(
+        mfa_system_setup,
+        config,
+        dsm_params=dsm_params,
+        fomp_params=fomp_params,
+        lfg_params=lfg_params,
+        bom_params=bom_params,
+        flow_cap_params=flow_cap_params,
+    )
+
     mfa_system = copy.deepcopy(mfa_system_setup)
 
     if tc_updates:

@@ -606,6 +606,67 @@ def normalize_tc_updates(
     return tc_updates
 
 
+#: Sampled parameters matching these name markers must be strictly positive
+#: (mean lifetimes, Weibull shape/scale, first-order decay constants) or
+#: non-negative (lifetime standard deviations). Draws outside the valid range
+#: are rejection-resampled to preserve the distribution shape within bounds.
+_STRICTLY_POSITIVE_MARKERS = (
+    "_DSM_Lifetime_Mean",
+    "_DSM_Lifetime_Shape",
+    "_DSM_Lifetime_Scale",
+    "_decay_",
+)
+_NON_NEGATIVE_MARKERS = ("_DSM_Lifetime_StdDev",)
+
+
+def _enforce_physical_bounds(
+    sampled_params, uncertainty_params, rng=None, max_retries=100
+):
+    """Rejection-resample physically impossible draws (negative rates/lifetimes).
+
+    Modifies ``sampled_params`` in place and returns it. If a valid draw
+    cannot be found within ``max_retries`` (a distribution with almost all
+    mass below zero), the value is clamped to a small positive epsilon and a
+    warning is printed — such a distribution definition is almost certainly
+    a data-entry error.
+    """
+    for param_name, value in sampled_params.items():
+        strictly_positive = any(
+            m in param_name for m in _STRICTLY_POSITIVE_MARKERS
+        )
+        non_negative = any(m in param_name for m in _NON_NEGATIVE_MARKERS)
+        if not (strictly_positive or non_negative):
+            continue
+
+        def _valid(v):
+            return v > 0 if strictly_positive else v >= 0
+
+        if _valid(value):
+            continue
+
+        defn = uncertainty_params.get(param_name)
+        resampled = False
+        if defn:
+            for _ in range(max_retries):
+                value = sample_parameters({param_name: defn}, rng=rng)[param_name]
+                if _valid(value):
+                    resampled = True
+                    break
+
+        if not resampled:
+            epsilon = 1e-9
+            print(
+                f"[MC] WARNING: {param_name} produced no physically valid draw "
+                f"after {max_retries} attempts — clamped to {epsilon}. "
+                f"Check its distribution definition."
+            )
+            value = epsilon if strictly_positive else 0.0
+
+        sampled_params[param_name] = value
+
+    return sampled_params
+
+
 def _run_single_mc_iteration(
     iteration_num,
     mfa_system_setup,
@@ -651,6 +712,7 @@ def _run_single_mc_iteration(
     """
     # --- 3a. Sample parameters ---
     sampled_params = sample_parameters(uncertainty_params, rng=rng)
+    _enforce_physical_bounds(sampled_params, uncertainty_params, rng=rng)
 
     # --- 3a2. Flow group consolidation: all members share the first member's draw ---
     # Group by (flow_group, start_year, end_year) so different time windows are sampled independently
