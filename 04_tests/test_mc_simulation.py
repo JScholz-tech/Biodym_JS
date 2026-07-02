@@ -177,3 +177,63 @@ def test_run_mc_simulation_t11_smoke():
     # Final-year stock outputs and mass-balance diagnostics are recorded
     assert "mass_balance_error_abs" in results.columns
     assert any(col.startswith("mb_error_") for col in results.columns)
+
+
+# --------------------------------------------------------------------------
+# Batch robustness — one failed sample must not kill the batch
+# --------------------------------------------------------------------------
+
+def test_run_mc_simulation_survives_failed_iteration(monkeypatch):
+    from engine import mc_simulation
+
+    yaml_path = os.path.join(CASE_STUDIES_DIR, "T11_Monte_Carlo", "config.yaml")
+    parts = build_case_study_yaml(yaml_path)
+    parts["config_obj"].MC_ITERATIONS = 4
+
+    original = mc_simulation._run_single_mc_iteration
+
+    def poisoned(iteration_num, *args, **kwargs):
+        if iteration_num == 2:
+            raise ValueError("poisoned sample")
+        return original(iteration_num, *args, **kwargs)
+
+    monkeypatch.setattr(mc_simulation, "_run_single_mc_iteration", poisoned)
+
+    results = run_mc_simulation(
+        parts["mfa_system"],
+        parts["all_excel_data"],
+        parts["dsm_params"],
+        parts["fomp_params"],
+        parts["config_obj"],
+        parts["process_logic_map"],
+        parts["flow_tc_map"],
+    )
+
+    assert len(results) == 3  # iteration 2 skipped, batch completed
+    assert list(results["iteration"]) == [1, 3, 4]
+
+    summary = results.attrs["mc_summary"]
+    assert summary["n_failed"] == 1
+    assert summary["n_success"] == 3
+    assert summary["failed_runs"][0]["iteration"] == 2
+    assert "poisoned sample" in summary["failed_runs"][0]["error"]
+
+
+def test_mc_results_carry_converged_column():
+    yaml_path = os.path.join(CASE_STUDIES_DIR, "T11_Monte_Carlo", "config.yaml")
+    parts = build_case_study_yaml(yaml_path)
+    parts["config_obj"].MC_ITERATIONS = 2
+
+    results = run_mc_simulation(
+        parts["mfa_system"],
+        parts["all_excel_data"],
+        parts["dsm_params"],
+        parts["fomp_params"],
+        parts["config_obj"],
+        parts["process_logic_map"],
+        parts["flow_tc_map"],
+    )
+
+    assert "converged" in results.columns
+    assert results["converged"].all()
+    assert results.attrs["mc_summary"]["n_nonconverged"] == 0

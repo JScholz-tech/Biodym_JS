@@ -759,7 +759,7 @@ def _run_single_mc_iteration(
                 print(f"   {param} = {value:.6f}")
 
     # --- 3e. Run Solver ---
-    mfa_system_run, _, _ = solver.run_mfa_calculation(
+    mfa_system_run, _, solver_info = solver.run_mfa_calculation(
         mfa_system_setup,
         updated_dsm_params,
         updated_fomp_params,
@@ -771,7 +771,10 @@ def _run_single_mc_iteration(
     )
 
     # --- 3f. Collect Results ---
-    iteration_results = {"iteration": iteration_num}
+    iteration_results = {
+        "iteration": iteration_num,
+        "converged": bool(solver_info.get("converged", True)),
+    }
     for param, value in tc_updates.items():
         iteration_results[f"{param}_sample"] = value
 
@@ -1085,6 +1088,7 @@ def run_mc_simulation(
 
     # --- 3. Main Simulation Loop ---
     results_list = []
+    failed_runs = []
     print(f"[MC] Using {len(uncertainty_params)} validated parameters...")
 
     # Scale progress reporting: ~20 progress updates total
@@ -1094,18 +1098,48 @@ def run_mc_simulation(
         if (i + 1) % progress_interval == 0 or (i + 1) == n_iterations:
             print(f"  ... iteration {i + 1}/{n_iterations}")
 
-        iteration_results = _run_single_mc_iteration(
-            i + 1,
-            mfa_system_setup,
-            uncertainty_params,
-            dsm_params,  # Pass DSM parameters for MC sampling
-            fomp_params,
-            config,
-            flow_tc_map,
-            process_logic_map,
-            tc_info_map,
-        )
+        try:
+            iteration_results = _run_single_mc_iteration(
+                i + 1,
+                mfa_system_setup,
+                uncertainty_params,
+                dsm_params,  # Pass DSM parameters for MC sampling
+                fomp_params,
+                config,
+                flow_tc_map,
+                process_logic_map,
+                tc_info_map,
+            )
+        except Exception as exc:
+            # One bad sample must not kill the whole batch: record it, skip
+            # the iteration (no partial/NaN row), and keep going.
+            failed_runs.append({"iteration": i + 1, "error": repr(exc)})
+            print(f"[MC] WARNING: iteration {i + 1} failed and was skipped: {exc!r}")
+            continue
         results_list.append(iteration_results)
 
-    print("[MC] Simulation finished.")
-    return pd.DataFrame(results_list)
+    # --- 4. Batch summary ---
+    n_failed = len(failed_runs)
+    n_success = len(results_list)
+    n_nonconverged = sum(1 for r in results_list if not r.get("converged", True))
+    print(
+        f"[MC] Simulation finished: {n_success} succeeded, {n_failed} failed, "
+        f"{n_nonconverged} did not converge."
+    )
+    if n_failed:
+        print(f"[MC] Failed iterations: {[f['iteration'] for f in failed_runs]}")
+    if n_nonconverged:
+        print(
+            "[MC] WARNING: non-converged iterations are included in the results "
+            "(filter on the 'converged' column to exclude them)."
+        )
+
+    results_df = pd.DataFrame(results_list)
+    results_df.attrs["mc_summary"] = {
+        "n_iterations": n_iterations,
+        "n_success": n_success,
+        "n_failed": n_failed,
+        "n_nonconverged": n_nonconverged,
+        "failed_runs": failed_runs,
+    }
+    return results_df

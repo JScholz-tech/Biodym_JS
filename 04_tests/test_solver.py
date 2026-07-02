@@ -164,3 +164,61 @@ def test_calculate_dynamic_stock_normal_lifetime():
     # With increasing inflows (1,2,3...10), peak outflow occurs when largest cohorts age out
     peak_year = np.argmax(actual_outflow)
     assert peak_year >= 4, f"Peak outflow at year {peak_year}, should be >= 4 (mean lifetime is 5)"
+
+
+# --------------------------------------------------------------------------
+# Non-convergence handling (SOLVER_STRICT)
+# --------------------------------------------------------------------------
+
+def _build_nonconverging_run(monkeypatch):
+    """Force non-convergence by making the TC pass always report changes."""
+    import os
+
+    from engine import solver
+    from golden_utils import build_case_study_yaml
+
+    monkeypatch.setattr(
+        solver, "_calculate_tc_driven_flows", lambda *args, **kwargs: True
+    )
+
+    tests_dir = os.path.dirname(os.path.abspath(__file__))
+    yaml_path = os.path.join(
+        os.path.dirname(tests_dir),
+        "01_data", "01_input", "case_studies", "T01_First_MFA", "config.yaml",
+    )
+    return build_case_study_yaml(yaml_path)
+
+
+def _run_from_parts(parts):
+    from engine import solver
+
+    return solver.run_mfa_calculation(
+        parts["mfa_system"],
+        parts["dsm_params"],
+        parts["fomp_params"],
+        parts["config_obj"],
+        flow_tc_map=parts["flow_tc_map"],
+        process_logic_map=parts["process_logic_map"],
+        lfg_params=parts["lfg_params"],
+        bom_params=parts["bom_params"],
+        flow_cap_params=parts["flow_cap_params"],
+    )
+
+
+def test_nonconvergence_warns_and_flags_solver_info(monkeypatch):
+    parts = _build_nonconverging_run(monkeypatch)
+
+    with pytest.warns(RuntimeWarning, match="did not converge"):
+        _, _, solver_info = _run_from_parts(parts)
+
+    assert solver_info["converged"] is False
+    assert solver_info["max_iterations_hit"] is True
+    assert solver_info["iterations"] == solver_info["max_iterations"]
+
+
+def test_nonconvergence_raises_under_solver_strict(monkeypatch):
+    parts = _build_nonconverging_run(monkeypatch)
+    parts["config_obj"].SOLVER_STRICT = True
+
+    with pytest.raises(RuntimeError, match="did not converge"):
+        _run_from_parts(parts)

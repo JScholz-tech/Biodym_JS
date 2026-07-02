@@ -8,8 +8,10 @@ functions (DSM, FOMP) in the correct sequence until the system converges.
 """
 
 import collections
-import numpy as np
 import copy
+import warnings
+
+import numpy as np
 
 
 # Import other engine components
@@ -921,14 +923,19 @@ def run_mfa_calculation(
             print(f"--> System converged after {i + 1} iterations.")
             break
     else:
-        print(
-            f"⚠️ WARNING: System did not converge after {max_iterations} iterations. Results may be unstable."
+        message = (
+            f"System did not converge after {max_iterations} iterations. "
+            f"Results may be unstable."
         )
+        if getattr(config, "SOLVER_STRICT", False):
+            raise RuntimeError(message)
+        warnings.warn(message, RuntimeWarning, stacklevel=2)
 
     solver_info = {
         "iterations": i + 1,
         "converged": converged,
         "max_iterations": max_iterations,
+        "max_iterations_hit": not converged,
         "convergence_log": convergence_log,
         "method": "Fixed-point iteration",
         "fomp_details": fomp_details,

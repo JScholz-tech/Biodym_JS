@@ -238,6 +238,10 @@ def get_default_config():
         "Mass Balance Tolerance": 0.001,
         "Data Validation Level": "Strict",
         "Auto-save Results": True,
+        # Raise RuntimeError when the fixed-point solver does not converge
+        # (default False: warn and continue). Excel: add a Configuration-sheet
+        # row with Setting Name "Solver_Strict" to control this per study.
+        "Solver_Strict": False,
     }
 
 
