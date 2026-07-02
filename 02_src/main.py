@@ -13,6 +13,7 @@ To run the model, execute this script from your terminal:
 
 import os
 import sys
+import numpy as np
 import pandas as pd
 
 # --- Add project structure to system path ---
@@ -113,9 +114,13 @@ def main():
         mc_run_results = []
         iterator = tqdm(range(config.MC_ITERATIONS), desc="MC Runs")
 
+        from engine.mc_simulation import _resolve_mc_seed
+
+        mc_rng = np.random.default_rng(_resolve_mc_seed(config))
+
         for i in iterator:
             # 1. Sample new parameter values for this iteration - This should be in a utils file
-            sampled_values = utils.sample_parameters(uncertainty_params)
+            sampled_values = utils.sample_parameters(uncertainty_params, rng=mc_rng)
             tc_updates = {
                 k: v for k, v in sampled_values.items() if k.startswith("TC_")
             }

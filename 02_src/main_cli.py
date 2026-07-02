@@ -14,6 +14,7 @@ Usage examples:
 import os
 import sys
 import argparse
+import numpy as np
 import pandas as pd
 
 # Ensure Unicode status icons print on consoles with a non-UTF-8 default
@@ -306,12 +307,18 @@ def run_mfa_analysis(args):
                 else range(args.iterations)
             )
 
+            from engine.mc_simulation import _resolve_mc_seed
+
+            mc_rng = np.random.default_rng(_resolve_mc_seed(config))
+
             for i in iterator:
                 if args.verbose and i % 10 == 0:
                     print(f"     Progress: {i}/{args.iterations}")
 
                 # Sample parameters
-                sampled_values = utils.sample_parameters(uncertainty_params)
+                sampled_values = utils.sample_parameters(
+                    uncertainty_params, rng=mc_rng
+                )
                 tc_updates = {
                     k: v for k, v in sampled_values.items() if k.startswith("TC_")
                 }

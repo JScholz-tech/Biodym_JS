@@ -242,6 +242,9 @@ def get_default_config():
         # (default False: warn and continue). Excel: add a Configuration-sheet
         # row with Setting Name "Solver_Strict" to control this per study.
         "Solver_Strict": False,
+        # Monte Carlo RNG seed — fixed by default so MC runs are reproducible.
+        # Configuration-sheet row "MC_Seed": an int, or "random" for unseeded.
+        "MC_Seed": 42,
     }
 
 

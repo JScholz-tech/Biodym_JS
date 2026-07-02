@@ -486,7 +486,7 @@ def _group_tc_params(uncertainty_params):
 
 
 def normalize_tc_updates(
-    tc_updates, mfa_system, uncertainty_params=None, max_retries=100
+    tc_updates, mfa_system, uncertainty_params=None, max_retries=100, rng=None
 ):
     """Normalizes sampled TC values so they sum to 1.0 per process and element.
 
@@ -571,7 +571,7 @@ def normalize_tc_updates(
             else:
                 # Resample just the TCs in this group from their distributions
                 tc_subset = {tc_name: uncertainty_params[tc_name] for tc_name in group}
-                candidate = sample_parameters(tc_subset)
+                candidate = sample_parameters(tc_subset, rng=rng)
 
             total = sum(candidate.values())
             if total <= 0:
@@ -616,6 +616,7 @@ def _run_single_mc_iteration(
     flow_tc_map,
     process_logic_map,
     tc_info_map,
+    rng=None,
 ):
     """Runs a single iteration of the Monte Carlo simulation.
 
@@ -649,7 +650,7 @@ def _run_single_mc_iteration(
         A dictionary containing all the results for this single iteration.
     """
     # --- 3a. Sample parameters ---
-    sampled_params = sample_parameters(uncertainty_params)
+    sampled_params = sample_parameters(uncertainty_params, rng=rng)
 
     # --- 3a2. Flow group consolidation: all members share the first member's draw ---
     # Group by (flow_group, start_year, end_year) so different time windows are sampled independently
@@ -712,7 +713,7 @@ def _run_single_mc_iteration(
     # --- 3d. Normalize TCs per process to maintain mass balance ---
     # Pass uncertainty_params to enable rejection sampling with bounds checking
     normalize_tc_updates(
-        tc_updates, mfa_system_setup, uncertainty_params=uncertainty_params
+        tc_updates, mfa_system_setup, uncertainty_params=uncertainty_params, rng=rng
     )
 
     # --- 3d2. Upgrade year-windowed TC entries to dict format (after normalization) ---
@@ -993,6 +994,29 @@ def generate_mc_setup_report(
     return "\n".join(report_lines)
 
 
+#: Default MC seed — fixed so Monte Carlo runs are reproducible by default.
+#: Override with a Configuration-sheet row "MC_Seed" (int), or set it to
+#: "random" / "none" for unseeded, non-reproducible sampling.
+DEFAULT_MC_SEED = 42
+
+
+def _resolve_mc_seed(config):
+    """Return the MC seed from config, or None for unseeded sampling."""
+    seed = getattr(config, "MC_SEED", DEFAULT_MC_SEED)
+    if seed is None:
+        return None
+    if isinstance(seed, str) and seed.strip().lower() in ("", "none", "random"):
+        return None
+    try:
+        return int(seed)
+    except (TypeError, ValueError):
+        print(
+            f"[MC] WARNING: invalid MC_Seed value {seed!r} — "
+            f"using default seed {DEFAULT_MC_SEED}."
+        )
+        return DEFAULT_MC_SEED
+
+
 def run_mc_simulation(
     mfa_system_setup,
     input_data,
@@ -1033,6 +1057,8 @@ def run_mc_simulation(
     """
     # --- 1. Configuration ---
     n_iterations = getattr(config, "MC_ITERATIONS", 100)
+    seed = _resolve_mc_seed(config)
+    rng = np.random.default_rng(seed)
     uncertainty_params = data_loader.load_uncertainty_definitions(input_data)
     input_data.get("4_1_Uncertainty_Parameters", pd.DataFrame())
 
@@ -1041,6 +1067,10 @@ def run_mc_simulation(
         return None
 
     print(f"\n[MC] Running Monte Carlo simulation with {n_iterations} iterations...")
+    if seed is not None:
+        print(f"[MC] RNG seed: {seed} (set 'MC_Seed' in the configuration to change)")
+    else:
+        print("[MC] RNG seed: none (results are NOT reproducible across runs)")
 
     # --- 1b. Pre-flight check: verify all F_... entries exist in FlowDict ---
     known_flows = set(mfa_system_setup.FlowDict.keys())
@@ -1109,6 +1139,7 @@ def run_mc_simulation(
                 flow_tc_map,
                 process_logic_map,
                 tc_info_map,
+                rng=rng,
             )
         except Exception as exc:
             # One bad sample must not kill the whole batch: record it, skip
@@ -1141,5 +1172,6 @@ def run_mc_simulation(
         "n_failed": n_failed,
         "n_nonconverged": n_nonconverged,
         "failed_runs": failed_runs,
+        "seed": seed,
     }
     return results_df

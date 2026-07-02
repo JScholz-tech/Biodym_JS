@@ -106,7 +106,7 @@ def safe_read_excel(excel_path, **kwargs):
             pass  # Temp file will be cleaned up on exit anyway
 
 
-def sample_parameters(uncertainty_params):
+def sample_parameters(uncertainty_params, rng=None):
     """
     Samples parameter values from their defined uncertainty distributions.
 
@@ -118,6 +118,10 @@ def sample_parameters(uncertainty_params):
 
     Parameters
     ----------
+    rng : numpy.random.Generator, optional
+        Random number generator to draw from. Pass a seeded generator
+        (``np.random.default_rng(seed)``) for reproducible sampling; when
+        omitted, a fresh unseeded generator is used (non-reproducible).
     uncertainty_params : dict
         A dictionary where keys are parameter names (str) and values are
         dictionaries defining the uncertainty distribution for each parameter.
@@ -158,6 +162,8 @@ def sample_parameters(uncertainty_params):
     True
     """
     sampled_values = {}
+    if rng is None:
+        rng = np.random.default_rng()
 
     for param_name, param_def in uncertainty_params.items():
         distribution = param_def.get("distribution", "normal")
@@ -171,16 +177,16 @@ def sample_parameters(uncertainty_params):
                 # Proper truncated normal — smooth distribution within bounds
                 a = (min_val - mean) / std if min_val is not None else -np.inf
                 b = (max_val - mean) / std if max_val is not None else np.inf
-                value = truncnorm.rvs(a, b, loc=mean, scale=std)
+                value = truncnorm.rvs(a, b, loc=mean, scale=std, random_state=rng)
             else:
-                value = np.random.normal(mean, std)
+                value = rng.normal(mean, std)
         elif distribution == "uniform":
-            value = np.random.uniform(min_val, max_val)
+            value = rng.uniform(min_val, max_val)
         elif distribution == "triangular":
             mode = param_def.get("mode", (min_val + max_val) / 2)
-            value = np.random.triangular(min_val, mode, max_val)
+            value = rng.triangular(min_val, mode, max_val)
         elif distribution == "lognormal":
-            value = np.random.lognormal(mean, std)
+            value = rng.lognormal(mean, std)
             # Clip to bounds if specified (no closed-form truncated lognormal)
             if min_val is not None:
                 value = max(value, min_val)

@@ -237,3 +237,62 @@ def test_mc_results_carry_converged_column():
     assert "converged" in results.columns
     assert results["converged"].all()
     assert results.attrs["mc_summary"]["n_nonconverged"] == 0
+
+
+# --------------------------------------------------------------------------
+# Reproducibility — seeded MC runs must be deterministic
+# --------------------------------------------------------------------------
+
+def _run_t11(seed):
+    yaml_path = os.path.join(CASE_STUDIES_DIR, "T11_Monte_Carlo", "config.yaml")
+    parts = build_case_study_yaml(yaml_path)
+    parts["config_obj"].MC_ITERATIONS = 3
+    parts["config_obj"].MC_SEED = seed
+    return run_mc_simulation(
+        parts["mfa_system"],
+        parts["all_excel_data"],
+        parts["dsm_params"],
+        parts["fomp_params"],
+        parts["config_obj"],
+        parts["process_logic_map"],
+        parts["flow_tc_map"],
+    )
+
+
+def test_same_seed_reproduces_identical_results():
+    a = _run_t11(seed=123)
+    b = _run_t11(seed=123)
+    numeric_cols = [
+        c for c in a.columns if a[c].dtype.kind in "if" and c != "iteration"
+    ]
+    assert numeric_cols
+    pd.testing.assert_frame_equal(a[numeric_cols], b[numeric_cols])
+    assert a.attrs["mc_summary"]["seed"] == 123
+
+
+def test_different_seeds_differ():
+    a = _run_t11(seed=123)
+    b = _run_t11(seed=456)
+    sampled_cols = [c for c in a.columns if c.endswith("_sample")]
+    varying_cols = sampled_cols or [
+        c for c in a.columns if c.startswith("mb_input_")
+    ]
+    assert not a[varying_cols].equals(b[varying_cols])
+
+
+def test_sample_parameters_accepts_seeded_generator():
+    import numpy as np
+
+    from utils import sample_parameters
+
+    params = {
+        "p_norm": {"distribution": "normal", "mean": 10, "std": 2},
+        "p_trunc": {"distribution": "normal", "mean": 10, "std": 2, "min": 9},
+        "p_uni": {"distribution": "uniform", "min": 0, "max": 1},
+        "p_tri": {"distribution": "triangular", "min": 0, "max": 2, "mode": 1},
+        "p_logn": {"distribution": "lognormal", "mean": 0, "std": 0.5},
+    }
+    a = sample_parameters(params, rng=np.random.default_rng(7))
+    b = sample_parameters(params, rng=np.random.default_rng(7))
+    assert a == b
+    assert a["p_trunc"] >= 9
