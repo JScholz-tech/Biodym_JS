@@ -142,8 +142,10 @@ def _extract_scenario_names(config_obj) -> List[str]:
         scenario_name = None
         for attr_name in possible_names:
             if hasattr(config_obj, attr_name):
-                scenario_name = getattr(config_obj, attr_name)
-                if scenario_name and not pd.isna(scenario_name):
+                candidate = getattr(config_obj, attr_name)
+                # NaN (empty Excel cell) is truthy — must be checked explicitly
+                if candidate and not pd.isna(candidate):
+                    scenario_name = candidate
                     break
 
         if scenario_name:
