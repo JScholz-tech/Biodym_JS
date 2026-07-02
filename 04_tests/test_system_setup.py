@@ -252,3 +252,27 @@ def test_load_and_define_processes(mocker):
     assert "S_2" in mfa_system_result.StockDict
     assert "dS_2" in mfa_system_result.StockDict
     assert isinstance(mfa_system_result.StockDict["S_2"], msc.Stock)
+
+
+# --------------------------------------------------------------------------
+# Process_Logic normalization (whitespace / case tolerance)
+# --------------------------------------------------------------------------
+
+def test_process_logic_map_strips_and_canonicalizes():
+    from system_setup import _normalize_process_logic_map
+
+    raw = {
+        0: "Input",
+        1: " FOMP ",       # trailing/leading whitespace
+        2: "fomp",         # wrong case
+        3: "Bom_assembler",
+        4: "Exotic_Logic",  # unknown — kept as stripped string, warned
+        5: float("nan"),    # non-string passes through
+    }
+    result = _normalize_process_logic_map(raw)
+    assert result[0] == "Input"
+    assert result[1] == "FOMP"
+    assert result[2] == "FOMP"
+    assert result[3] == "BOM_Assembler"
+    assert result[4] == "Exotic_Logic"
+    assert result[5] is raw[5]

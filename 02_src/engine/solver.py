@@ -270,9 +270,9 @@ def _calculate_tc_driven_flows(
 
         # Get element indices dynamically
         elements = mfa_system.Elements
-        mat_idx = 0  # Material is always first
-        other_elements = elements[
-            1:
+        mat_idx = _element_utils.get_element_index(elements, "material", default=0)
+        other_elements = [
+            e for i, e in enumerate(elements) if i != mat_idx
         ]  # All other elements (WC, DM, CC or Fe, Cu, Al, etc.)
         elem_indices = {elem: idx for idx, elem in enumerate(elements)}
 
@@ -891,7 +891,9 @@ def run_mfa_calculation(
         f"--> Flow dependency graph sorted ({len(sorted_flow_names)} flows in topological order)."
     )
 
-    max_iterations = 30  # Safeguard against infinite loops
+    # Safeguard against infinite loops; complex cyclic systems may need more —
+    # add a Configuration-sheet row "Solver_Max_Iterations" to raise the cap.
+    max_iterations = int(getattr(config, "SOLVER_MAX_ITERATIONS", 30))
     convergence_log = []
     converged = False
 

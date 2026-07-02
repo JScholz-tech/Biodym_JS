@@ -1160,6 +1160,37 @@ def run_mc_simulation(
         print(f"     Missing: {missing_flows}")
         print(f"     Available flows: {sorted(known_flows)}")
 
+    # --- 1c. Pre-flight check: every parameter name must be classifiable ---
+    # Consumers identify parameters purely by naming convention (TC_..., F_...,
+    # P##_DSM_..., P##_decay_... / P##_Inflow_fraction_f...). A renamed or
+    # malformed entry would otherwise be sampled but silently never applied.
+    unclassified = []
+    for _name in uncertainty_params:
+        if _name.startswith("TC_"):
+            if _parse_tc_group_key(_name) is None:
+                unclassified.append(f"{_name} (unparseable TC name)")
+        elif _name.startswith("F_"):
+            continue
+        elif _name.startswith("P") and "_DSM_" in _name:
+            continue
+        elif _name.startswith("P") and (
+            "_decay_" in _name or "_Inflow_fraction_f" in _name
+        ):
+            continue
+        else:
+            unclassified.append(_name)
+    if unclassified:
+        print(
+            "\n[MC] WARNING: the following uncertainty parameters match no known "
+            "naming convention and will be sampled but NEVER APPLIED:"
+        )
+        for _name in unclassified:
+            print(f"     - {_name}")
+        print(
+            "     Expected: TC_<p>_<p> / TC_E<n>_<p>_<p>, F_<flow>, "
+            "P<p>_DSM_..., P<p>_decay_... or P<p>_Inflow_fraction_f..."
+        )
+
     # --- 2. Build maps for efficient lookup ---
     tc_info_map = {}
     static_tc_defs = input_data.get("2_2_static_TCs")

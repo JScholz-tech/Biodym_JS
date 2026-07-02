@@ -245,6 +245,9 @@ def get_default_config():
         # Monte Carlo RNG seed — fixed by default so MC runs are reproducible.
         # Configuration-sheet row "MC_Seed": an int, or "random" for unseeded.
         "MC_Seed": 42,
+        # Fixed-point solver iteration cap (Configuration-sheet row
+        # "Solver_Max_Iterations"). Raise for complex cyclic systems.
+        "Solver_Max_Iterations": 30,
     }
 
 

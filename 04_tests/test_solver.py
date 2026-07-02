@@ -222,3 +222,15 @@ def test_nonconvergence_raises_under_solver_strict(monkeypatch):
 
     with pytest.raises(RuntimeError, match="did not converge"):
         _run_from_parts(parts)
+
+
+def test_solver_max_iterations_configurable(monkeypatch):
+    """SOLVER_MAX_ITERATIONS caps the fixed-point loop (H7)."""
+    parts = _build_nonconverging_run(monkeypatch)
+    parts["config_obj"].SOLVER_MAX_ITERATIONS = 5
+
+    with pytest.warns(RuntimeWarning, match="did not converge after 5"):
+        _, _, solver_info = _run_from_parts(parts)
+
+    assert solver_info["max_iterations"] == 5
+    assert solver_info["iterations"] == 5

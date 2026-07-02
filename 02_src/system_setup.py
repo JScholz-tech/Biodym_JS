@@ -786,6 +786,47 @@ def _calculate_elemental_compositions(mfa_system, element_hierarchy=None):
                     print("    Check fraction values sum to ≤ 1.0")
 
 
+#: Canonical Process_Logic values the engine dispatches on. Excel input is
+#: normalized against this list (whitespace-stripped, case-insensitive) so a
+#: trailing space or "fomp" instead of "FOMP" cannot silently disable a module.
+_KNOWN_PROCESS_LOGICS = (
+    "Input",
+    "Output",
+    "Splitter",
+    "Transformer",
+    "Pass-through",
+    "DSM",
+    "DSM_Component",
+    "FOMP",
+    "LFG",
+    "BOM_Assembler",
+    "FlowCap",
+)
+_LOGIC_LOOKUP = {logic.lower(): logic for logic in _KNOWN_PROCESS_LOGICS}
+
+
+def _normalize_process_logic_map(process_logic_map):
+    """Strip and canonicalize Process_Logic strings; warn on unknown values."""
+    normalized = {}
+    for process_id, logic in process_logic_map.items():
+        if isinstance(logic, str):
+            stripped = logic.strip()
+            canonical = _LOGIC_LOOKUP.get(stripped.lower())
+            if canonical is not None:
+                if canonical != logic:
+                    normalized[process_id] = canonical
+                    continue
+            elif stripped:
+                print(
+                    f"[WARNING] Process {process_id}: unrecognized Process_Logic "
+                    f"'{logic}' — known values: {', '.join(_KNOWN_PROCESS_LOGICS)}."
+                )
+            normalized[process_id] = stripped
+        else:
+            normalized[process_id] = logic
+    return normalized
+
+
 def _create_flow_and_process_maps(mfa_system, all_excel_data, debug_mode=False):
     """Creates lookup maps for process logic and flow-to-TC mappings.
 
@@ -808,9 +849,9 @@ def _create_flow_and_process_maps(mfa_system, all_excel_data, debug_mode=False):
     process_definitions = all_excel_data.get("2_1_Definition_Processes")
     process_logic_map = {}
     if process_definitions is not None:
-        process_logic_map = process_definitions.set_index("ID")[
-            "Process_Logic"
-        ].to_dict()
+        process_logic_map = _normalize_process_logic_map(
+            process_definitions.set_index("ID")["Process_Logic"].to_dict()
+        )
 
     if debug_mode:
         print("--> Creating Flow-to-TC mapping...")
