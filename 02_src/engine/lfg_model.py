@@ -79,8 +79,12 @@ def _calculate_lfg_series(
           "ch4_carbon_total": np.ndarray [T],  C emitted as CH4, Mg C
           "co2_carbon_total": np.ndarray [T],  C emitted as biogenic CO2, Mg C
           "leachate_total":   np.ndarray [T],  water exiting as leachate, Mg
-          "stable_stock":     np.ndarray [T],  organic C stock + ash stock, Mg
+          "organic_c_stock":  np.ndarray [T],  remaining organic C stock, Mg C
         }
+
+    Note: the organic carbon stock (Mg C) and the ash stock (Mg DM) are
+    returned separately — they carry different units and must not be summed
+    (the former "stable_stock" key did exactly that and was removed).
     """
     T = len(waste_inflow_series)
     fractions = params.get("fractions", [])
@@ -140,20 +144,24 @@ def _calculate_lfg_series(
             current_stocks[name] = new_stock
 
             # e. Carbon in gas outputs (Mg C, IPCC FOD equation)
-            #    phi: UNFCCC model correction factor (φ, default 1.0)
+            #    MCF, OX, and φ (UNFCCC model correction) apply to the methane
+            #    pathway only — the CO2 share of decayed carbon is emitted
+            #    directly and is not corrected. Consequently
+            #    CH4_C + CO2_C <= decay_C whenever MCF·(1-OX)·φ <= 1.
             ch4_carbon_total[t] += decay * F_CH4 * MCF * (1.0 - OX) * phi
-            co2_carbon_total[t] += decay * (1.0 - F_CH4) * MCF * (1.0 - OX) * phi
+            co2_carbon_total[t] += decay * (1.0 - F_CH4)
 
         ash_stock_total[t] = cumulative_ash
 
     # Leachate = WC inflow (water consumed in anaerobic decomposition exits as leachate)
     leachate_total = wc_inflow_series.copy()
 
-    # Stable stock = sum of all fraction organic C stocks + cumulative ash
-    stable_stock = (
-        sum(stocks[f["name"]] for f in fractions) + ash_stock_total
+    # Organic carbon stock (Mg C) — kept separate from the ash stock (Mg DM);
+    # the two quantities have different units and must not be summed.
+    organic_c_stock = (
+        sum(stocks[f["name"]] for f in fractions)
         if fractions
-        else ash_stock_total
+        else np.zeros(T)
     )
 
     return {
@@ -162,7 +170,7 @@ def _calculate_lfg_series(
         "ch4_carbon_total": ch4_carbon_total,
         "co2_carbon_total": co2_carbon_total,
         "leachate_total": leachate_total,
-        "stable_stock": stable_stock,
+        "organic_c_stock": organic_c_stock,
     }
 
 
@@ -272,11 +280,13 @@ def calculate_lfg(mfa_system, lfg_params_config):
         f"   Total CO2 carbon output:   {np.sum(results['co2_carbon_total']):.2f} Mg C"
     )
     print(f"   Total leachate output:     {np.sum(results['leachate_total']):.2f} Mg")
-    print(
-        f"   Final stable stock:        {results['stable_stock'][-1]:.2f} Mg"
-        if len(results["stable_stock"]) > 0
-        else ""
-    )
+    if len(results["organic_c_stock"]) > 0:
+        print(
+            f"   Final organic C stock:     {results['organic_c_stock'][-1]:.2f} Mg C"
+        )
+        print(
+            f"   Final ash stock:           {results['ash_stock_total'][-1]:.2f} Mg"
+        )
 
     try:
         mfa_system.Consistency_Check()

@@ -201,7 +201,7 @@ def test_lfg_leachate_equals_wc_in():
 # ---------------------------------------------------------------------------
 
 def test_lfg_site_params_mcf_effect():
-    """Setting MCF = 0 must result in zero CH4 and CO2 output."""
+    """MCF applies to the methane pathway only: MCF=0 zeroes CH4, not CO2."""
     T = 5
     waste_in = np.ones(T) * 100.0
     wc_in = np.zeros(T)
@@ -210,7 +210,9 @@ def test_lfg_site_params_mcf_effect():
     results = _calculate_lfg_series(waste_in, wc_in, params)
 
     assert np.all(results["ch4_carbon_total"] == 0), "CH4 should be 0 when MCF=0"
-    assert np.all(results["co2_carbon_total"] == 0), "CO2 should be 0 when MCF=0"
+    assert np.all(results["co2_carbon_total"] > 0), (
+        "CO2 must be unaffected by MCF (direct emission of the non-CH4 share)"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -243,11 +245,11 @@ def test_lfg_zero_inflow():
 
 
 # ---------------------------------------------------------------------------
-# Test: stable_stock = organic stock + ash stock
+# Test: organic C stock (Mg C) and ash stock (Mg DM) are reported separately
 # ---------------------------------------------------------------------------
 
-def test_lfg_stable_stock_composition():
-    """stable_stock must equal sum of fraction organic stocks plus ash stock."""
+def test_lfg_organic_and_ash_stocks_separate():
+    """organic_c_stock sums the fraction C stocks; ash stays its own key."""
     T = 5
     waste_in = np.ones(T) * 100.0
     wc_in = np.zeros(T)
@@ -261,18 +263,19 @@ def test_lfg_stable_stock_composition():
 
     results = _calculate_lfg_series(waste_in, wc_in, params)
 
-    expected_stable = results["stocks"]["A"] + results["stocks"]["B"] + results["ash_stock_total"]
-    assert np.allclose(results["stable_stock"], expected_stable), (
-        "stable_stock != organic_stocks + ash_stock"
-    )
+    expected_organic = results["stocks"]["A"] + results["stocks"]["B"]
+    assert np.allclose(results["organic_c_stock"], expected_organic)
+    # The unit-mixing "stable_stock" (Mg C + Mg DM) key was removed
+    assert "stable_stock" not in results
+    assert np.all(results["ash_stock_total"] >= 0)
 
 
 # ---------------------------------------------------------------------------
 # Test: phi (model correction factor) scales gas output
 # ---------------------------------------------------------------------------
 
-def test_lfg_phi_scales_gas_output():
-    """phi=0.75 must reduce CH4 and CO2 output to 75% of phi=1.0."""
+def test_lfg_phi_scales_ch4_only():
+    """phi=0.75 must reduce CH4 to 75% of phi=1.0; CO2 is not corrected."""
     T = 5
     waste_in = np.ones(T) * 100.0
     wc_in = np.zeros(T)
@@ -287,13 +290,13 @@ def test_lfg_phi_scales_gas_output():
     assert np.allclose(r075["ch4_carbon_total"], r1["ch4_carbon_total"] * 0.75), (
         "CH4 with phi=0.75 should be 75% of phi=1.0"
     )
-    assert np.allclose(r075["co2_carbon_total"], r1["co2_carbon_total"] * 0.75), (
-        "CO2 with phi=0.75 should be 75% of phi=1.0"
+    assert np.allclose(r075["co2_carbon_total"], r1["co2_carbon_total"]), (
+        "CO2 must be unaffected by phi (correction applies to CH4 only)"
     )
 
 
-def test_lfg_phi_zero_suppresses_gas():
-    """phi=0 must result in zero gas output (like MCF=0)."""
+def test_lfg_phi_zero_suppresses_ch4_only():
+    """phi=0 must zero the CH4 output; CO2 continues to be emitted."""
     T = 5
     waste_in = np.ones(T) * 100.0
     wc_in = np.zeros(T)
@@ -301,7 +304,27 @@ def test_lfg_phi_zero_suppresses_gas():
     results = _calculate_lfg_series(waste_in, wc_in, params)
 
     assert np.all(results["ch4_carbon_total"] == 0), "CH4 should be 0 when phi=0"
-    assert np.all(results["co2_carbon_total"] == 0), "CO2 should be 0 when phi=0"
+    assert np.all(results["co2_carbon_total"] > 0), (
+        "CO2 must be unaffected by phi"
+    )
+
+
+def test_lfg_gas_carbon_never_exceeds_decay():
+    """CH4_C + CO2_C must never exceed the decayed carbon (validation note)."""
+    T = 10
+    waste_in = np.ones(T) * 100.0
+    wc_in = np.zeros(T)
+    params = _single_fraction_params(MCF=0.7, OX=0.1, phi=0.9)
+    results = _calculate_lfg_series(waste_in, wc_in, params)
+
+    # Total decayed C = cumulative active inflow - final stock
+    frac = params["fractions"][0]
+    total_c_in = np.sum(waste_in * frac["f_input_j"] * frac["DOC_j"] * params["DOCf"])
+    total_decay = total_c_in - results["stocks"][frac["name"]][-1]
+    total_gas = np.sum(results["ch4_carbon_total"]) + np.sum(
+        results["co2_carbon_total"]
+    )
+    assert total_gas <= total_decay + 1e-9
 
 
 # ---------------------------------------------------------------------------
