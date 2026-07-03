@@ -993,3 +993,200 @@ def plot_interactive_mc_stock_comparison(mc_results_df, mfa_system_results=None)
     # Display layout
     controls = HBox([stock_multiselect, element_dropdown, export_btn])
     display(VBox([controls, fig_widget]))
+
+
+def plot_interactive_mc_boxplot(mc_results_df, mfa_system_results=None):
+    """Creates an interactive box plot of Monte Carlo stock distributions.
+
+    Complements the histogram views by summarising the uncertainty of several
+    stocks side by side: one box per selected stock for a chosen element,
+    showing the median, inter-quartile range, whiskers, and outlier points.
+    When a solved MFA system is supplied, the deterministic baseline value of
+    each stock's final year is overlaid as a marker for reference.
+
+    Parameters
+    ----------
+    mc_results_df : pd.DataFrame
+        DataFrame containing the Monte Carlo simulation results. Expected
+        columns follow the format 'S_X_ELEMENT' (e.g., 'S_0_TC'). The
+        per-iteration final-year stock columns are used (the '_timeseries'
+        columns are ignored).
+    mfa_system_results : odym.MFAsystem, optional
+        The MFA system object, used to map process IDs to readable names and
+        to overlay each stock's deterministic baseline final-year value.
+        Defaults to None.
+
+    Notes
+    -----
+    Uses ``go.Box`` with ``boxpoints="outliers"`` inside a ``go.FigureWidget``
+    for ipywidgets compatibility, mirroring the other Monte Carlo plots. A
+    multi-select chooses the stocks and a dropdown chooses the element.
+    """
+    if mc_results_df is None or mc_results_df.empty:
+        print("No Monte Carlo results to plot.")
+        return
+
+    # Extract unique stock IDs and elements from column headers (same
+    # convention as the histogram plots: S_<pid>_<ELEMENT>).
+    stock_ids = sorted(
+        set(
+            f"{col.split('_')[0]}_{col.split('_')[1]}"
+            for col in mc_results_df.columns
+            if col.startswith("S_")
+            and len(col.split("_")) >= 3
+            and not col.endswith("_timeseries")
+        )
+    )
+    elements = sorted(
+        set(
+            col.split("_")[2]
+            for col in mc_results_df.columns
+            if col.startswith("S_")
+            and len(col.split("_")) >= 3
+            and not col.endswith("_timeseries")
+        )
+    )
+
+    if not stock_ids or not elements:
+        print("No valid stock data found in Monte Carlo results.")
+        return
+
+    process_name_map = {}
+    if mfa_system_results and hasattr(mfa_system_results, "ProcessList"):
+        process_name_map = {p.ID: p.Name for p in mfa_system_results.ProcessList}
+
+    stock_id_to_display = {
+        stock_id: (
+            f"{process_name_map.get(int(stock_id.split('_')[1]), stock_id)} ({stock_id})"
+        )
+        for stock_id in stock_ids
+    }
+    display_to_stock_id = {v: k for k, v in stock_id_to_display.items()}
+    stock_display_names = [stock_id_to_display[sid] for sid in stock_ids]
+
+    def _baseline_value(stock_id, elem_idx):
+        """Deterministic final-year stock value, or None if unavailable."""
+        if mfa_system_results is None:
+            return None
+        stock = getattr(mfa_system_results, "StockDict", {}).get(stock_id)
+        if stock is None or getattr(stock, "Values", None) is None:
+            return None
+        try:
+            return float(stock.Values[-1, elem_idx])
+        except (IndexError, TypeError):
+            return None
+
+    # --- Widgets ---
+    element_dropdown = Dropdown(options=elements, description="Element:")
+    default_selection = stock_display_names[: min(4, len(stock_display_names))]
+    stock_multiselect = SelectMultiple(
+        options=stock_display_names,
+        value=default_selection,
+        description="Select Stocks:",
+        rows=min(10, len(stock_display_names)),
+        layout={"width": "400px"},
+    )
+    fig_widget = go.FigureWidget()
+
+    def update_plot(change):
+        element = element_dropdown.value
+        selected = list(stock_multiselect.value)
+        elem_idx = (
+            mfa_system_results.Elements.index(element)
+            if mfa_system_results
+            and hasattr(mfa_system_results, "Elements")
+            and element in mfa_system_results.Elements
+            else None
+        )
+        _sc, _unit = get_mass_display()
+        element_color = get_element_color(element)
+
+        with fig_widget.batch_update():
+            fig_widget.data = []
+            fig_widget.layout.annotations = []
+
+            if not selected:
+                fig_widget.update_layout(title_text="Select at least one stock")
+                return
+
+            baseline_x, baseline_y = [], []
+            for display_name in selected:
+                stock_id = display_to_stock_id.get(display_name)
+                col_name = f"{stock_id}_{element}"
+                if col_name not in mc_results_df.columns:
+                    continue
+                fig_widget.add_trace(
+                    go.Box(
+                        y=mc_results_df[col_name] * _sc,
+                        name=display_name,
+                        boxpoints="outliers",
+                        marker_color=element_color,
+                        line=dict(color=BIOYM_COLORS["dark"]),
+                        opacity=0.8,
+                    )
+                )
+                if elem_idx is not None:
+                    base = _baseline_value(stock_id, elem_idx)
+                    if base is not None:
+                        baseline_x.append(display_name)
+                        baseline_y.append(base * _sc)
+
+            # Overlay the deterministic baseline as diamond markers
+            if baseline_x:
+                fig_widget.add_trace(
+                    go.Scatter(
+                        x=baseline_x,
+                        y=baseline_y,
+                        mode="markers",
+                        name="Deterministic baseline",
+                        marker=dict(
+                            symbol="diamond",
+                            size=11,
+                            color=BIOYM_COLORS["dark"],
+                            line=dict(width=1, color="white"),
+                        ),
+                    )
+                )
+
+            layout_config = get_publication_layout(
+                size="large",
+                show_grid=True,
+                custom_title=f"Monte Carlo Spread by Stock ({element.upper()})",
+                x_title="Stock",
+                y_title=y_label(element.upper()),
+            )
+            apply_theme(layout_config)
+            layout_config["yaxis"].pop("range", None)
+            layout_config["showlegend"] = bool(baseline_x)
+            fig_widget.update_layout(**layout_config)
+
+    element_dropdown.observe(update_plot, names="value")
+    stock_multiselect.observe(update_plot, names="value")
+
+    export_btn = Button(
+        description="Export PNG/SVG",
+        button_style="success",
+        icon="download",
+        layout=Layout(width="160px"),
+    )
+
+    def _do_export(b):
+        try:
+            name = f"mc_boxplot_{element_dropdown.value}".replace(" ", "_")
+            paths = export_figure(
+                fig_widget,
+                name,
+                formats=["png", "svg"],
+                quality="publication",
+                size="large",
+            )
+            print(f"✅ Exported: {', '.join(paths)}")
+        except Exception as e:
+            print(f"❌ Export failed: {e}")
+
+    export_btn.on_click(_do_export)
+
+    update_plot(None)
+
+    controls = HBox([stock_multiselect, element_dropdown, export_btn])
+    display(VBox([controls, fig_widget]))

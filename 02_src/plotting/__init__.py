@@ -47,6 +47,7 @@ from .monte_carlo import (
     plot_interactive_mc_paths,
     plot_interactive_mc_stock_comparison,
     plot_interactive_mc_multiple_histograms,
+    plot_interactive_mc_boxplot,
 )
 from .scenario import (
     plot_multi_scenario_comparison,
@@ -115,6 +116,7 @@ __all__ = [
     "plot_interactive_mc_paths",
     "plot_interactive_mc_stock_comparison",
     "plot_interactive_mc_multiple_histograms",
+    "plot_interactive_mc_boxplot",
     "plot_multi_scenario_comparison",
     "plot_scenario_flow_dynamics",
     "plot_scenario_stock_dynamics",

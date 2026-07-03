@@ -689,6 +689,7 @@ if mc_enabled:
         from engine.mc_simulation import run_mc_simulation
         from plotting.monte_carlo import (
             plot_interactive_mc_multiple_histograms,
+            plot_interactive_mc_boxplot,
             plot_interactive_tornado,
             plot_interactive_mc_paths,
             plot_interactive_mc_stock_comparison,
@@ -715,6 +716,7 @@ if mc_enabled:
                 print(f"{Icons.WARNING} Could not export Monte Carlo results: {export_error}")
 
             plot_interactive_mc_multiple_histograms(mc_results, mfa_results_baseline)
+            plot_interactive_mc_boxplot(mc_results, mfa_results_baseline)
             plot_interactive_tornado(mc_results)
             plot_interactive_mc_paths(mc_results, mfa_results_baseline)
             plot_interactive_mc_stock_comparison(mc_results, mfa_results_baseline)
