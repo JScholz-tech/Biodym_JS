@@ -342,3 +342,75 @@ def test_fomp_carbon_flow_composition_follows_hierarchy():
     np.testing.assert_allclose(
         np.sum(total_tc_out) + stock_tc[-1], np.sum(inflow[:, 3]), rtol=1e-9
     )
+
+
+# ---------------------------------------------------------------------------
+# Documented-limitation warnings (Phase 7)
+# ---------------------------------------------------------------------------
+
+def _minimal_fomp_system():
+    import numpy as np
+    import ODYM_Classes as msc
+    import system_setup
+
+    model_class, index_table = system_setup.define_model_scope(
+        2020, 2029, ["material", "WC", "DM", "TC"]
+    )
+    mfa_system = system_setup.initialize_mfa_system(model_class, index_table)
+    for pid, name in [(0, "Env"), (1, "Soil"), (2, "Atmosphere")]:
+        mfa_system.ProcessList.append(msc.Process(Name=name, ID=pid))
+    mfa_system.StockDict["S_1"] = msc.Stock(
+        Name="S_1", P_Res=1, Type=0, Indices="t,e"
+    )
+    inflow = np.zeros((10, 4))
+    inflow[:, 0] = 100.0
+    inflow[:, 2] = 80.0
+    inflow[:, 3] = 32.0
+    mfa_system.FlowDict["F_0_1"] = msc.Flow(
+        Name="F_0_1", P_Start=0, P_End=1, Indices="t,e", Values=inflow.copy()
+    )
+    mfa_system.FlowDict["F_1_2"] = msc.Flow(
+        Name="F_1_2", P_Start=1, P_End=2, Indices="t,e"
+    )
+    mfa_system.Initialize_FlowValues()
+    mfa_system.FlowDict["F_0_1"].Values = inflow.copy()
+    mfa_system.Initialize_StockValues()
+    return mfa_system
+
+
+def test_fomp_warns_on_ignored_recalcitrant_fraction(capsys):
+    from engine import fomp_model
+
+    mfa_system = _minimal_fomp_system()
+    fomp_params = {
+        1: {
+            "Inflow_fraction_f (Labile pool)": 0.7,
+            "Inflow_fraction_f (Recalcitrant pool)": 0.9,  # contradicts 1-0.7=0.3
+            "decay_k1 (Labile pool)": 0.5,
+            "decay_k2 (Recalcitrant pool)": 0.025,
+            "outflow_id": "F_1_2",
+        }
+    }
+    fomp_model.calculate_fomp(mfa_system, fomp_params, None)
+    out = capsys.readouterr().out
+    assert "IGNORED" in out and "Recalcitrant" in out
+
+
+def test_fomp_warns_on_defined_initial_stock(capsys):
+    from engine import fomp_model
+
+    mfa_system = _minimal_fomp_system()
+    mfa_system._process_initial_stock_configs = {
+        1: {"initial_stock_values": {"Initial_Stock_material": 500.0}}
+    }
+    fomp_params = {
+        1: {
+            "Inflow_fraction_f (Labile pool)": 0.7,
+            "decay_k1 (Labile pool)": 0.5,
+            "decay_k2 (Recalcitrant pool)": 0.025,
+            "outflow_id": "F_1_2",
+        }
+    }
+    fomp_model.calculate_fomp(mfa_system, fomp_params, None)
+    out = capsys.readouterr().out
+    assert "initial stock" in out.lower() and "IGNORED" in out

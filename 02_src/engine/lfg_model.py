@@ -11,6 +11,17 @@ Key differences from FOMP:
 - Ash fraction per waste type (inert, accumulates permanently)
 - Leachate output (water consumed as reactant in anaerobic decomposition)
 - Site-level correction factors: MCF, DOCf, F_CH4, OX
+
+Mathematical notation (see bioDYM_mathematical_formulas.md §4):
+    Paper symbol      Code variable
+    k_j           ←→  k_j          (fraction decay rate)
+    DOC_j         ←→  DOC_j        (degradable organic carbon fraction)
+    DOC_f         ←→  DOCf
+    w_j           ←→  f_input_j    (waste category mass fraction)
+    f_ash,j       ←→  f_ash_j
+    ψ             ←→  phi          (UNFCCC model correction; CH4 pathway only)
+    G_CH4(t)      ←→  ch4_carbon_total   [Mg C]
+    G_CO2(t)      ←→  co2_carbon_total   [Mg C]
 """
 
 import numpy as np

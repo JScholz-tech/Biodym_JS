@@ -5,6 +5,13 @@ Solver Module for the BioDYM MFA Model's Engine.
 This file contains the core iterative solver that orchestrates the
 calculation of the entire MFA system. It calls the specific model
 functions (DSM, FOMP) in the correct sequence until the system converges.
+
+Mathematical notation (see bioDYM_mathematical_formulas.md §1):
+    Paper symbol      Code variable
+    F_f^e(t)      ←→  mfa_system.FlowDict[f].Values
+    S_p^e(t)      ←→  mfa_system.StockDict["S_p"].Values
+    TC_{f,e}      ←→  ParameterDict[tc_id].Values (Splitter/Transformer split)
+    mat index 0   ←→  mat_idx (resolved via element_utils, not hardcoded)
 """
 
 import collections

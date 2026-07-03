@@ -4,6 +4,14 @@ Enhanced First-Order Model Process (FOMP) Module for the BioDYM Engine.
 
 This file contains the calculation logic for a two-pool soil carbon decay model,
 based on a more precise analytical solution for first-order decay.
+
+Mathematical notation (see bioDYM_mathematical_formulas.md §3):
+    Paper symbol      Code variable
+    α_L           ←→  f_labile        (labile inflow fraction; recalcitrant = 1-α_L)
+    k_L           ←→  k_labile        (labile decay constant)
+    k_R           ←→  k_recalcitrant  (recalcitrant decay constant)
+    r_TC(t)       ←→  cc_dm_series    (time-series carbon-to-DM ratio)
+    D_L^e(t)      ←→  decay_labile / tc_decay_labile
 """
 
 import numpy as np
@@ -182,6 +190,22 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
     process_id = list(fomp_params_config.keys())[0]
     fomp_excel_params = fomp_params_config[process_id]
 
+    # FOMP always starts from a zero pool (documented limitation). If the user
+    # defined an initial stock for this process in 2_4_Initial_Stock, it will be
+    # silently ignored — warn so the mismatch is visible.
+    _is_configs = getattr(mfa_system, "_process_initial_stock_configs", {}) or {}
+    _is_cfg = _is_configs.get(process_id)
+    if _is_cfg:
+        _material_qty = (_is_cfg.get("initial_stock_values", {}) or {}).get(
+            "Initial_Stock_material", 0.0
+        )
+        if _material_qty:
+            print(
+                f"⚠️  FOMP (process {process_id}): an initial stock of "
+                f"{_material_qty:.1f} Mg is defined in 2_4_Initial_Stock but FOMP "
+                f"always starts from a zero pool — the initial stock is IGNORED."
+            )
+
     try:
         material_idx = mfa_system.Elements.index("material")
         dm_idx = mfa_system.Elements.index("DM")
@@ -215,12 +239,39 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
             dm_inflow_series > 0, cc_inflow_series / dm_inflow_series, 0.0
         )
 
+    f_labile = fomp_excel_params.get("Inflow_fraction_f (Labile pool)", 0.7)
     params_for_calc = {
-        "f_labile": fomp_excel_params.get("Inflow_fraction_f (Labile pool)", 0.7),
+        "f_labile": f_labile,
         "k_labile": fomp_excel_params.get("decay_k1 (Labile pool)", 0.5),
         "k_recalcitrant": fomp_excel_params.get("decay_k2 (Recalcitrant pool)", 0.025),
         "cc_dm": cc_dm_series,
     }
+
+    # The recalcitrant inflow fraction is hardcoded to (1 - f_labile); any
+    # explicit "Recalcitrant pool" inflow-fraction parameter in the Excel sheet
+    # is IGNORED. Warn when the user supplied one that contradicts 1 - f_labile,
+    # so a silently-ineffective knob does not go unnoticed.
+    _recalc_key = next(
+        (
+            k
+            for k in fomp_excel_params
+            if "Inflow_fraction" in str(k) and "Recalcitrant" in str(k)
+        ),
+        None,
+    )
+    if _recalc_key is not None:
+        _recalc_val = fomp_excel_params.get(_recalc_key)
+        try:
+            if _recalc_val is not None and not np.isclose(
+                float(_recalc_val), 1.0 - float(f_labile)
+            ):
+                print(
+                    f"⚠️  FOMP (process {process_id}): '{_recalc_key}'={_recalc_val} "
+                    f"is IGNORED — the recalcitrant inflow fraction is fixed at "
+                    f"1 - f_labile = {1.0 - float(f_labile):.3f}."
+                )
+        except (TypeError, ValueError):
+            pass
 
     # LIMITATION: Initial stocks for FOMP are currently set to zero
     # This is appropriate for systems where carbon sequestration starts from time zero

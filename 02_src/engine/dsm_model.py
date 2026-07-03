@@ -5,6 +5,16 @@ Dynamic Stock Model (DSM) Module for the BioDYM Engine.
 This file contains the specific calculation logic for processes that are
 modeled as dynamic stocks, where outflows are determined by the age
 structure of the stock and a lifetime distribution.
+
+Mathematical notation (see bioDYM_mathematical_formulas.md §5-6):
+    Paper symbol      Code variable
+    α_i           ←→  inflow_split[i]      (category inflow split)
+    μ_i, σ_i      ←→  lifetimes["Mean"/"StdDev"][i]
+    κ, λ          ←→  lifetimes["Shape"/"Scale"][i]   (Weibull)
+    s_c[t,t0]     ←→  s_c   (ODYM cohort stock matrix)
+    o_c[t,t0]     ←→  o_c   (ODYM cohort outflow matrix)
+    comp[t0,e]    ←→  comp  (vintage element composition)
+    sf(t)         ←→  compute_sf()[:,0]   (initial-stock survival, Method A)
 """
 
 import numpy as np

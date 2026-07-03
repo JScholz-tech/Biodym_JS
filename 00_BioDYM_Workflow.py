@@ -98,6 +98,11 @@ DEBUG_MODE = False  # Set to True for detailed technical output
 
 # ## 1.1 Environment Setup
 
+# Auto-reload edited 02_src modules without restarting the kernel. Without this,
+# a change to any engine/loader module only takes effect after Kernel → Restart.
+# %load_ext autoreload
+# %autoreload 2
+
 import os
 import sys
 import warnings

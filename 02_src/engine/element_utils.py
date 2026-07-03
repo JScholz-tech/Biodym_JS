@@ -4,6 +4,12 @@ Element Utilities Module for the BioDYM Engine.
 
 This module contains utility functions for handling element calculations,
 particularly for hierarchical element relationships.
+
+Mathematical notation (see bioDYM_mathematical_formulas.md §2.1, §2.4):
+    Paper symbol      Code variable
+    φ_e (=e/p(e))  ←→  fraction_vector   (per-year child/parent ratio)
+    p(e)           ←→  element_hierarchy[·]["parent"]
+    e^TC           ←→  get_carbon_element_name (TC new / CC legacy)
 """
 
 import numpy as np
