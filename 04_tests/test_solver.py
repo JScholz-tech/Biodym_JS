@@ -234,3 +234,117 @@ def test_solver_max_iterations_configurable(monkeypatch):
 
     assert solver_info["max_iterations"] == 5
     assert solver_info["iterations"] == 5
+
+
+# --------------------------------------------------------------------------
+# DSM initial-stock survival-function decay (Fix 4 of validation review)
+# --------------------------------------------------------------------------
+
+def _dsm_params_normal(mean=10.0, std=3.0):
+    return {
+        "lifetimes": {"Type": ["Normal"], "Mean": [mean], "StdDev": [std]},
+        "inflow_split": [1.0],
+        "category_names": ["Category_1"],
+    }
+
+
+def test_initial_stock_decay_conserves_mass():
+    from engine.dsm_model import _calculate_outflow_from_initial_stock
+
+    num_years, num_elements = 60, 4
+    time_vector = np.arange(2025, 2025 + num_years)
+    s0 = np.array([1000.0, 100.0, 900.0, 400.0])
+
+    stock_ts, outflow_ts = _calculate_outflow_from_initial_stock(
+        s0, _dsm_params_normal(), num_years, num_elements, time_vector
+    )
+
+    np.testing.assert_allclose(stock_ts[0], s0)
+    assert np.all(outflow_ts[0] == 0), "no outflow in the establishment year"
+    # Conservation: final stock + cumulative outflow == initial stock
+    np.testing.assert_allclose(stock_ts[-1] + outflow_ts.sum(axis=0), s0)
+    assert np.all(outflow_ts >= 0)
+    assert np.all(np.diff(stock_ts[:, 0]) <= 1e-9), "stock must not grow"
+
+
+def test_initial_stock_decay_fixed_lifetime_is_step():
+    """A Fixed lifetime must retire the whole cohort at the mean age —
+    the old k=1/mean exponential smeared it over the full horizon."""
+    from engine.dsm_model import _calculate_outflow_from_initial_stock
+
+    num_years, num_elements = 20, 1
+    time_vector = np.arange(2025, 2025 + num_years)
+    s0 = np.array([100.0])
+    params = {
+        "lifetimes": {"Type": ["Fixed"], "Mean": [5.0], "StdDev": [0.0]},
+        "inflow_split": [1.0],
+    }
+
+    stock_ts, outflow_ts = _calculate_outflow_from_initial_stock(
+        s0, params, num_years, num_elements, time_vector
+    )
+
+    # Survives fully until just before the fixed lifetime...
+    assert stock_ts[4, 0] == pytest.approx(100.0)
+    # ...then the entire cohort retires at age 5
+    assert stock_ts[5, 0] == pytest.approx(0.0)
+    assert outflow_ts[5, 0] == pytest.approx(100.0)
+
+
+def test_initial_stock_decay_consistent_with_cohort_method():
+    """Method A (survival decay) and Method B (ODYM age-cohort) must decay
+    along the SAME survival function — the validation condition of Fix 4.
+
+    Convention difference (deliberate, documented): Method A installs the
+    initial stock as a brand-new cohort at t=0, so S_A(t) = S0·sf(t).
+    Method B treats it as pre-existing items — with a uniform single-year
+    age distribution the cohort is one year old at t=0, so
+    S_B(t) = S0·sf(t+1)/sf(1). Both identities are asserted against the
+    same ODYM survival function.
+    """
+    import dynamic_stock_model as dsm_mod
+
+    from engine.dsm_model import (
+        _build_category_lt_dict,
+        _calculate_outflow_from_initial_stock,
+        _calculate_outflow_from_initial_stock_cohort,
+    )
+
+    num_years, num_elements = 40, 4
+    time_vector = np.arange(2025, 2025 + num_years)
+    s0_material = 1000.0
+    fractions = {"WC": 0.1, "DM": 0.9, "TC": 0.4}
+    s0 = np.array([s0_material, 100.0, 900.0, 400.0])
+    params = _dsm_params_normal(mean=12.0, std=4.0)
+
+    # Reference survival function (extended one step for the B identity)
+    lt_dict = _build_category_lt_dict(params, 0)
+    sf = dsm_mod.DynamicStockModel(
+        t=np.arange(num_years + 1), lt=lt_dict
+    ).compute_sf()[:, 0]
+
+    # --- Method A: new cohort at t=0 → S_A(t) = S0·sf(t) ---
+    stock_a, outflow_a = _calculate_outflow_from_initial_stock(
+        s0, params, num_years, num_elements, time_vector
+    )
+    expected_a = np.outer(sf[:num_years], s0)
+    expected_a[0] = s0  # establishment-year convention
+    np.testing.assert_allclose(stock_a, expected_a, rtol=1e-9)
+    np.testing.assert_allclose(stock_a[-1] + outflow_a.sum(axis=0), s0)
+
+    # --- Method B: pre-existing 1-year-old cohort → S_B(t) = S0·sf(t+1)/sf(1) ---
+    initial_stock_config = {
+        "process_id": 1,
+        "elements": ["material", "WC", "DM", "TC"],
+        "initial_stock_values": {
+            "Initial_Stock_material": s0_material,
+            **{f"Initial_Stock_{k}[%]": v for k, v in fractions.items()},
+        },
+        "cohort_age_distribution_type": "uniform",
+        "cohort_max_age": 1,
+    }
+    stock_b, _ = _calculate_outflow_from_initial_stock_cohort(
+        initial_stock_config, params, num_years, num_elements, time_vector
+    )
+    expected_b = np.outer(sf[1 : num_years + 1] / sf[1], s0)
+    np.testing.assert_allclose(stock_b, expected_b, rtol=1e-6, atol=1e-6)

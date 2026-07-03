@@ -62,6 +62,75 @@ def _weibull_shape_scale_from_mean_std(mean, std):
         return 0.0, float(mean)
 
 
+def _build_category_lt_dict(params, i):
+    """Build the ODYM lifetime dict for DSM category ``i``.
+
+    Shared by the inflow-driven cohort calculation and the initial-stock
+    survival calculation, so both always decay with the same distribution.
+    """
+    lt_params = params.get("lifetimes", {})
+    mean_lifetimes = lt_params.get("Mean", [])
+    std_devs = lt_params.get("StdDev", [0] * len(mean_lifetimes))
+
+    lifetime_type = lt_params.get("Type")
+    lifetime_type = (
+        lifetime_type[i] if isinstance(lifetime_type, list) else lifetime_type
+    )
+    lifetime_type = _canon_lifetime_type(lifetime_type)
+
+    if std_devs[i] == 0 and lifetime_type not in ("Weibull", "Fixed"):
+        print(
+            f"  INFO: StdDev is 0 for category {i + 1}. Using 'Fixed' lifetime model instead of '{lifetime_type}'."
+        )
+        lifetime_type = "Fixed"
+
+    if lifetime_type == "Weibull":
+        # ODYM Weibull needs Shape (k) and Scale (λ), not Mean/StdDev.
+        shape_list = lt_params.get("Shape", [])
+        scale_list = lt_params.get("Scale", [])
+        shape_val = (
+            shape_list[i]
+            if i < len(shape_list) and shape_list[i] is not None
+            else None
+        )
+        scale_val = (
+            scale_list[i]
+            if i < len(scale_list) and scale_list[i] is not None
+            else None
+        )
+
+        if shape_val is not None and scale_val is not None:
+            print(f"  Weibull: Shape(k)={shape_val}, Scale(λ)={scale_val}")
+            return {
+                "Type": "Weibull",
+                "Shape": np.array([float(shape_val)]),
+                "Scale": np.array([float(scale_val)]),
+            }
+        # Derive from Mean/StdDev via moment matching
+        k, lam = _weibull_shape_scale_from_mean_std(mean_lifetimes[i], std_devs[i])
+        if k > 0:
+            print(
+                f"  Weibull: derived Shape(k)={k:.4f}, Scale(λ)={lam:.4f} "
+                f"from Mean={mean_lifetimes[i]}, StdDev={std_devs[i]}"
+            )
+            return {
+                "Type": "Weibull",
+                "Shape": np.array([k]),
+                "Scale": np.array([lam]),
+            }
+        print(
+            f"  WARNING: Weibull moment-matching failed for Mean={mean_lifetimes[i]}, "
+            f"StdDev={std_devs[i]} — falling back to Fixed lifetime"
+        )
+        return {"Type": "Fixed", "Mean": np.array([mean_lifetimes[i]])}
+
+    return {
+        "Type": lifetime_type,
+        "Mean": np.array([mean_lifetimes[i]]),
+        "StdDev": np.array([std_devs[i]]),
+    }
+
+
 def _calculate_outflow_from_inflows(total_inflow_values, params, time_vector):
     """Calculate the stock and outflow generated from new inflows for all categories.
 
@@ -98,9 +167,6 @@ def _calculate_outflow_from_inflows(total_inflow_values, params, time_vector):
     num_elements = total_inflow_values.shape[1]
 
     inflow_split = params.get("inflow_split", [1.0])
-    lt_params = params.get("lifetimes", {})
-    mean_lifetimes = lt_params.get("Mean", [])
-    std_devs = lt_params.get("StdDev", [0] * len(mean_lifetimes))
 
     for i in range(len(inflow_split)):
         print(
@@ -109,67 +175,7 @@ def _calculate_outflow_from_inflows(total_inflow_values, params, time_vector):
         inflow_material = total_inflow_values[:, 0] * inflow_split[i]
         print(f"Inflow category {i + 1}: {inflow_material[:5]}... (first 5 years)")
 
-        lifetime_type = lt_params.get("Type")
-        lifetime_type = (
-            lifetime_type[i] if isinstance(lifetime_type, list) else lifetime_type
-        )
-        lifetime_type = _canon_lifetime_type(lifetime_type)
-
-        if std_devs[i] == 0 and lifetime_type not in ("Weibull", "Fixed"):
-            print(
-                f"  INFO: StdDev is 0 for category {i + 1}. Using 'Fixed' lifetime model instead of '{lifetime_type}'."
-            )
-            lifetime_type = "Fixed"
-
-        if lifetime_type == "Weibull":
-            # ODYM Weibull needs Shape (k) and Scale (λ), not Mean/StdDev.
-            shape_list = lt_params.get("Shape", [])
-            scale_list = lt_params.get("Scale", [])
-            shape_val = (
-                shape_list[i]
-                if i < len(shape_list) and shape_list[i] is not None
-                else None
-            )
-            scale_val = (
-                scale_list[i]
-                if i < len(scale_list) and scale_list[i] is not None
-                else None
-            )
-
-            if shape_val is not None and scale_val is not None:
-                print(f"  Weibull: Shape(k)={shape_val}, Scale(λ)={scale_val}")
-                lt_dict = {
-                    "Type": "Weibull",
-                    "Shape": np.array([float(shape_val)]),
-                    "Scale": np.array([float(scale_val)]),
-                }
-            else:
-                # Derive from Mean/StdDev via moment matching
-                k, lam = _weibull_shape_scale_from_mean_std(
-                    mean_lifetimes[i], std_devs[i]
-                )
-                if k > 0:
-                    print(
-                        f"  Weibull: derived Shape(k)={k:.4f}, Scale(λ)={lam:.4f} "
-                        f"from Mean={mean_lifetimes[i]}, StdDev={std_devs[i]}"
-                    )
-                    lt_dict = {
-                        "Type": "Weibull",
-                        "Shape": np.array([k]),
-                        "Scale": np.array([lam]),
-                    }
-                else:
-                    print(
-                        f"  WARNING: Weibull moment-matching failed for Mean={mean_lifetimes[i]}, "
-                        f"StdDev={std_devs[i]} — falling back to Fixed lifetime"
-                    )
-                    lt_dict = {"Type": "Fixed", "Mean": np.array([mean_lifetimes[i]])}
-        else:
-            lt_dict = {
-                "Type": lifetime_type,
-                "Mean": np.array([mean_lifetimes[i]]),
-                "StdDev": np.array([std_devs[i]]),
-            }
+        lt_dict = _build_category_lt_dict(params, i)
 
         # Run DSM on material inflow — retain full cohort matrices (T×T)
         dsm_model_instance = dsm.DynamicStockModel(
@@ -209,23 +215,31 @@ def _calculate_outflow_from_inflows(total_inflow_values, params, time_vector):
 
 
 def _calculate_outflow_from_initial_stock(
-    initial_stock_vector, mean_lifetimes, num_years, num_elements
+    initial_stock_vector, params, num_years, num_elements, time_vector
 ):
     """Calculate the stock decay and outflow generated from the initial stock.
 
-    This uses a simplified first-order decay model based on the average lifetime
-    of all categories in the DSM process.
+    The initial stock is treated as a single cohort installed at t=0 that
+    decays along the same lifetime distribution(s) as new inflows: one ODYM
+    survival function per DSM category, weighted by ``inflow_split``.
+
+    The former implementation used fixed-rate exponential decay with
+    k = 1/mean(lifetimes), which is exact only for exponential lifetime
+    distributions (Fix 4 of the mathematical validation review).
 
     Parameters
     ----------
     initial_stock_vector : np.ndarray
         An array representing the initial stock for all elements.
-    mean_lifetimes : list
-        A list of the mean lifetimes for each category.
+    params : dict
+        DSM parameter configuration (lifetimes + inflow_split) — the same
+        dict used for the inflow-driven cohorts.
     num_years : int
         The number of years in the simulation.
     num_elements : int
         The number of elements being tracked.
+    time_vector : np.ndarray
+        Array of years for the model run.
 
     Returns
     -------
@@ -234,29 +248,46 @@ def _calculate_outflow_from_initial_stock(
         - decaying_stock_ts (np.ndarray): Time series of the decaying initial stock.
         - outflow_from_initial_stock_ts (np.ndarray): Time series of the outflow from the initial stock.
     """
-    print("\n--- Initial Stock Processing ---")
-    valid_lifetimes = [
-        m for m in mean_lifetimes if m is not None and not np.isnan(float(m))
-    ]
-    avg_lifetime = np.mean(valid_lifetimes) if valid_lifetimes else 0
-    decay_rate_k = 1 / avg_lifetime if avg_lifetime > 0 else 0
+    print("\n--- Initial Stock Processing (survival-function decay) ---")
     outflow_from_initial_stock_ts = np.zeros((num_years, num_elements))
     decaying_stock_ts = np.zeros((num_years, num_elements))
 
-    if np.sum(initial_stock_vector) > 0:
-        # The initial stock is established at t=0, so there is no outflow in the
-        # first year. In every later year the amount leaving the stock is exactly
-        # the stock's decrease, O[t] = S[t-1] - S[t], which keeps the process
-        # mass-balanced. (The previous version emitted S[0]*k already at t=0 while
-        # still recording the full initial stock — creating that much material out
-        # of nowhere and a persistent mass-balance error.)
-        current_decaying_stock = initial_stock_vector.copy()
-        decaying_stock_ts[0, :] = current_decaying_stock
-        for t in range(1, num_years):
-            outflow_t = current_decaying_stock * decay_rate_k
-            outflow_from_initial_stock_ts[t, :] = outflow_t
-            current_decaying_stock = current_decaying_stock - outflow_t
-            decaying_stock_ts[t, :] = current_decaying_stock
+    if np.sum(initial_stock_vector) <= 0:
+        return decaying_stock_ts, outflow_from_initial_stock_ts
+
+    inflow_split = params.get("inflow_split", [1.0]) or [1.0]
+    mean_lifetimes = params.get("lifetimes", {}).get("Mean", [])
+
+    # Weighted survival function across categories (skip categories whose
+    # mean lifetime is undefined — their split weight is redistributed).
+    sf_combined = np.zeros(num_years)
+    total_weight = 0.0
+    for i, split in enumerate(inflow_split):
+        mean_i = mean_lifetimes[i] if i < len(mean_lifetimes) else None
+        if mean_i is None or np.isnan(float(mean_i)):
+            continue
+        lt_dict = _build_category_lt_dict(params, i)
+        dsm_instance = dsm.DynamicStockModel(t=time_vector, lt=lt_dict)
+        sf = dsm_instance.compute_sf()  # (T, T): sf[m, n] = survival at age m-n
+        sf_combined += float(split) * sf[:, 0]
+        total_weight += float(split)
+
+    if total_weight <= 0:
+        # No usable lifetime — stock persists unchanged (no decay information)
+        decaying_stock_ts[:, :] = initial_stock_vector
+        return decaying_stock_ts, outflow_from_initial_stock_ts
+    sf_combined /= total_weight
+
+    # The initial stock is established at t=0, so there is no outflow in the
+    # first year. In every later year the amount leaving the stock is exactly
+    # the stock's decrease, O[t] = S[t-1] - S[t], which keeps the process
+    # mass-balanced.
+    decaying_stock_ts[0, :] = initial_stock_vector
+    for t in range(1, num_years):
+        decaying_stock_ts[t, :] = initial_stock_vector * sf_combined[t]
+        outflow_from_initial_stock_ts[t, :] = (
+            decaying_stock_ts[t - 1, :] - decaying_stock_ts[t, :]
+        )
 
     return decaying_stock_ts, outflow_from_initial_stock_ts
 
@@ -721,8 +752,10 @@ def calculate_dynamic_stock(
     combined outflows back to the appropriate flow objects in the MFA system.
 
     The function supports two modes for initial stock handling:
-    - Stock_with_InitialStock_Decay: Simple exponential decay
-    - Stock_with_InitialStock_Cohort: ODYM age-cohort method (rigorous)
+    - Stock_with_InitialStock_Decay: single cohort at t=0 decaying along the
+      category lifetime distributions (ODYM survival function)
+    - Stock_with_InitialStock_Cohort: ODYM age-cohort method (age-distributed
+      initial stock)
 
     DSM outflows are now controlled via the standard TC (Transfer Coefficient) system,
     enabling dynamic (time-varying) splits and unified configuration.
@@ -831,16 +864,18 @@ def calculate_dynamic_stock(
             )
         )
     else:
-        # Use simple exponential decay method (Stock_with_InitialStock_Decay or Stock)
+        # Survival-function decay (Stock_with_InitialStock_Decay or Stock):
+        # single cohort at t=0, same lifetime distribution as new inflows
         if stock_configuration == "Stock_with_InitialStock_Decay":
-            print("  -> Using exponential decay method for initial stock")
+            print("  -> Using survival-function decay for initial stock")
 
         decaying_stock_ts, outflow_from_initial_stock_ts = (
             _calculate_outflow_from_initial_stock(
                 initial_stock_vector,
-                params.get("lifetimes", {}).get("Mean", []),
+                params,
                 num_years,
                 num_elements,
+                time_vector,
             )
         )
 
