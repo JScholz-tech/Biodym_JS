@@ -134,32 +134,34 @@ def recalculate_hierarchical_elements(
 
         parent_values = flow_values[:, parent_idx]
 
-        # Fraction is computed from current flow values (ParameterDict lookup not needed)
-        original_fraction = None
-
-        # Calculate the fraction from the flow values
-        # For hierarchical elements, we want to preserve the ratio relative to parent
-        # Use the first non-zero time step to get the "original" fraction
+        # Per-year fraction relative to the parent element. Years where the
+        # parent is zero leave the fraction undefined (NaN) and are filled
+        # from the nearest defined year (forward-fill, then back-fill for a
+        # leading gap). For time-invariant compositions this reduces to the
+        # previous single-constant behaviour; for feedstock whose composition
+        # changes over time, each year keeps its own ratio instead of being
+        # locked to the first non-zero year.
         with np.errstate(divide="ignore", invalid="ignore"):
-            # Try to get fraction from first non-zero parent value
             fraction_vector = np.divide(
                 flow_values[:, elem_idx],
                 parent_values,
-                out=np.zeros_like(parent_values, dtype=float),
+                out=np.full(len(parent_values), np.nan),
                 where=parent_values != 0,
             )
 
-            # Use the first non-zero fraction as the "original" fraction
-            # This assumes the initial setup was correct
-            first_nonzero_idx = np.where(fraction_vector != 0)[0]
-            if len(first_nonzero_idx) > 0:
-                original_fraction = fraction_vector[first_nonzero_idx[0]]
-            else:
-                # If all fractions are zero, use zero
-                original_fraction = 0.0
+        undefined = np.isnan(fraction_vector)
+        if undefined.all():
+            fraction_vector = np.zeros_like(fraction_vector)
+        elif undefined.any():
+            # Forward-fill: each undefined year takes the last defined ratio
+            last_defined = np.where(~undefined, np.arange(len(undefined)), 0)
+            np.maximum.accumulate(last_defined, out=last_defined)
+            fraction_vector = fraction_vector[last_defined]
+            # Back-fill a leading gap (years before the first defined ratio)
+            first_defined = int(np.argmax(~undefined))
+            fraction_vector[:first_defined] = fraction_vector[first_defined]
 
-        # Recalculate: hierarchical_element = parent × ORIGINAL_fraction
-        # This preserves the intended ratio even when parent changes
-        flow_values[:, elem_idx] = parent_values * original_fraction
+        # Recalculate: hierarchical_element(t) = parent(t) × fraction(t)
+        flow_values[:, elem_idx] = parent_values * fraction_vector
 
     return flow_values
