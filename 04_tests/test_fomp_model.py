@@ -260,3 +260,85 @@ def test_fomp_multi_element_composition():
     print("   - FOMP outputs maintain correct element separation")
     print("   - Water content stays 100% water")
     print("   - Carbon content goes to carbon output only")
+
+
+# ---------------------------------------------------------------------------
+# Flexible output composition: carbon flow carries hierarchy-consistent DM
+# ---------------------------------------------------------------------------
+
+def test_fomp_carbon_flow_composition_follows_hierarchy():
+    """The carbon outflow's DM equals TC / r_TC (inflow ratio), WC = 0, and
+    the per-element total over carbon + environmental flows is conserved."""
+    import numpy as np
+    import ODYM_Classes as msc
+    import system_setup
+    from engine import fomp_model
+
+    start_year, end_year = 2020, 2039
+    elements = ["material", "WC", "DM", "TC"]
+    model_class, index_table = system_setup.define_model_scope(
+        start_year, end_year, elements
+    )
+    mfa_system = system_setup.initialize_mfa_system(model_class, index_table)
+    for pid, name in [(0, "Env"), (1, "Soil"), (2, "Atmosphere"), (3, "Other")]:
+        mfa_system.ProcessList.append(msc.Process(Name=name, ID=pid))
+    mfa_system.StockDict["S_1"] = msc.Stock(
+        Name="S_1", P_Res=1, Type=0, Indices="t,e"
+    )
+
+    num_years = end_year - start_year + 1
+    inflow = np.zeros((num_years, 4))
+    inflow[:, 0] = 100.0   # material
+    inflow[:, 1] = 20.0    # WC
+    inflow[:, 2] = 80.0    # DM
+    inflow[:, 3] = 32.0    # TC → r_TC = 0.4
+
+    mfa_system.FlowDict["F_0_1"] = msc.Flow(
+        Name="F_0_1", P_Start=0, P_End=1, Indices="t,e", Values=inflow.copy()
+    )
+    mfa_system.FlowDict["F_1_2"] = msc.Flow(
+        Name="F_1_2", P_Start=1, P_End=2, Indices="t,e"
+    )
+    mfa_system.FlowDict["F_1_3"] = msc.Flow(
+        Name="F_1_3", P_Start=1, P_End=3, Indices="t,e"
+    )
+    mfa_system.Initialize_FlowValues()
+    mfa_system.FlowDict["F_0_1"].Values = inflow.copy()
+    mfa_system.Initialize_StockValues()
+
+    fomp_params = {
+        1: {
+            "Inflow_fraction_f (Labile pool)": 0.7,
+            "decay_k1 (Labile pool)": 0.5,
+            "decay_k2 (Recalcitrant pool)": 0.025,
+            "outflow_id": "F_1_2",
+            "outflow_id_2": "F_1_3",
+        }
+    }
+
+    mfa_system, _ = fomp_model.calculate_fomp(mfa_system, fomp_params, None)
+
+    carbon = mfa_system.FlowDict["F_1_2"].Values
+    env = mfa_system.FlowDict["F_1_3"].Values
+
+    # Hierarchy consistency on the carbon flow: DM = TC / 0.4, material = DM, WC = 0
+    np.testing.assert_allclose(carbon[:, 2], carbon[:, 3] / 0.4, rtol=1e-9)
+    np.testing.assert_allclose(carbon[:, 0], carbon[:, 2], rtol=1e-9)
+    assert np.all(carbon[:, 1] == 0), "gas flow must carry no water"
+    assert np.all(carbon[:, 3] <= carbon[:, 2] + 1e-12), "TC cannot exceed DM"
+
+    # Water bypass goes to the environmental flow
+    np.testing.assert_allclose(env[:, 1], inflow[:, 1])
+
+    # Conservation: total decayed DM split across the two flows without loss
+    total_dm_out = carbon[:, 2] + env[:, 2]
+    total_tc_out = carbon[:, 3] + env[:, 3]
+    stock_tc = mfa_system.StockDict["S_1"].Values[:, 3]
+    stock_dm = mfa_system.StockDict["S_1"].Values[:, 2]
+    # Cumulative balance: inflow = outflow + final stock (per element)
+    np.testing.assert_allclose(
+        np.sum(total_dm_out) + stock_dm[-1], np.sum(inflow[:, 2]), rtol=1e-9
+    )
+    np.testing.assert_allclose(
+        np.sum(total_tc_out) + stock_tc[-1], np.sum(inflow[:, 3]), rtol=1e-9
+    )
