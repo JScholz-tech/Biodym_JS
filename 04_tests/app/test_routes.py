@@ -74,6 +74,34 @@ class TestCaseStudyOverview:
         assert b"2000" in r.content
         assert b"2100" in r.content
 
+    def test_update_settings_persists_mc_seed_and_solver(self, client):
+        from systemdefiner import storage
+
+        name = self._create(client)
+        client.post(
+            f"/{name}/settings",
+            data={
+                "start_year": 2025,
+                "end_year": 2125,
+                "mc_iterations": 500,
+                "mc_seed": "1234",
+                "solver_strict": "on",
+                "solver_max_iterations": 60,
+            },
+            follow_redirects=True,
+        )
+        cfg = storage.load_case_study(name)
+        assert cfg.model.mc_seed == "1234"
+        assert cfg.model.solver_strict is True
+        assert cfg.model.solver_max_iterations == 60
+
+    def test_settings_form_exposes_new_fields(self, client):
+        name = self._create(client)
+        html = client.get(f"/{name}").content
+        assert b'name="mc_seed"' in html
+        assert b'name="solver_strict"' in html
+        assert b'name="solver_max_iterations"' in html
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PROCESSES

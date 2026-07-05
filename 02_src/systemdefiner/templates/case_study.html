@@ -110,6 +110,14 @@
           <label>MC Iterations</label>
           <input type="number" name="mc_iterations" value="{{ cfg.model.mc_iterations }}" min="1" max="100000">
         </div>
+        <div class="field">
+          <label title="Integer for reproducible runs, or 'random' for a fresh seed each run">MC Seed</label>
+          <input type="text" name="mc_seed" value="{{ cfg.model.mc_seed }}" placeholder="42 or random">
+        </div>
+        <div class="field">
+          <label title="Fixed-point iteration cap; raise for complex cyclic systems">Solver Max Iterations</label>
+          <input type="number" name="solver_max_iterations" value="{{ cfg.model.solver_max_iterations }}" min="1" max="1000">
+        </div>
       </div>
 
       <div style="display:flex;flex-wrap:wrap;gap:1.25rem;margin-top:0.75rem">
@@ -128,6 +136,11 @@
         <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.93rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text)">
           <input type="checkbox" name="run_scenario_analysis" {% if cfg.model.run_scenario_analysis %}checked{% endif %}>
           Run Scenario Analysis
+        </label>
+        <label title="Raise an error instead of a warning when the solver does not converge"
+               style="display:flex;align-items:center;gap:0.4rem;font-size:0.93rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text)">
+          <input type="checkbox" name="solver_strict" {% if cfg.model.solver_strict %}checked{% endif %}>
+          Strict Solver (fail on non-convergence)
         </label>
       </div>
 

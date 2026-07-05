@@ -576,6 +576,13 @@ def load_config_from_yaml(yaml_path: str):
         "RUN_MONTE_CARLO": run_mc,
         "Run_Monte_Carlo": run_mc,
         "MC_Iterations": int(model.get("mc_iterations", 1000)),
+        # Monte Carlo seed: int for reproducible runs, or "random"/"none" for
+        # a fresh unseeded generator. Passed through verbatim; the engine's
+        # _resolve_mc_seed() parses it.
+        "MC_Seed": model.get("mc_seed", 42),
+        # Solver controls
+        "Solver_Strict": bool(model.get("solver_strict", False)),
+        "Solver_Max_Iterations": int(model.get("solver_max_iterations", 30)),
         "Run_DSM_Calculation": run_dsm,
         "RUN_DSM_CALCULATION": run_dsm,
         "Run_FOMP_Calculation": run_fomp,

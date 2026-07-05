@@ -770,6 +770,9 @@ async def update_settings(request: Request, name: str):
     m.run_fomp_calculation = _bool("run_fomp_calculation")
     m.run_monte_carlo = _bool("run_monte_carlo")
     m.mc_iterations = _int("mc_iterations", m.mc_iterations)
+    m.mc_seed = (form.get("mc_seed", m.mc_seed) or "42").strip()
+    m.solver_strict = _bool("solver_strict")
+    m.solver_max_iterations = _int("solver_max_iterations", m.solver_max_iterations)
     m.run_scenario_analysis = _bool("run_scenario_analysis")
     m.selected_scenarios = [
         (form.get(f"scenario_{i}", "") or "").strip() for i in range(4)

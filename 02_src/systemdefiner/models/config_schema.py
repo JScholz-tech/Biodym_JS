@@ -203,8 +203,22 @@ class ModelSettings(BaseModel):
     run_fomp_calculation: bool = True
     run_monte_carlo: bool = False
     mc_iterations: int = 1000
+    # Monte Carlo RNG seed — an integer for reproducible runs, or "random"
+    # for a fresh (non-reproducible) seed each run. Stored as a string so
+    # both forms round-trip through the YAML/form cleanly.
+    mc_seed: str = "42"
+    # Solver controls
+    solver_strict: bool = False
+    solver_max_iterations: int = 30
     run_scenario_analysis: bool = False
     selected_scenarios: list[str] = ["", "", "", ""]
+
+    @field_validator("mc_seed", mode="before")
+    @classmethod
+    def normalize_seed(cls, v):
+        if v is None:
+            return "random"
+        return str(v).strip() or "42"
 
     @field_validator("elements", mode="before")
     @classmethod
