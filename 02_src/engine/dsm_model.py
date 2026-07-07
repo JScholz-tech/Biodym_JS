@@ -201,7 +201,8 @@ def _calculate_outflow_from_inflows(total_inflow_values, params, time_vector):
         comp[:, 0] = 1.0  # material fraction is always 1
         for elem_idx in range(1, num_elements):
             elem_inflow = total_inflow_values[:, elem_idx] * inflow_split[i]
-            frac = np.where(inflow_material > 0, elem_inflow / inflow_material, 0.0)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                frac = np.where(inflow_material > 0, elem_inflow / inflow_material, 0.0)
             last = 0.0
             for t0 in range(num_years):
                 if inflow_material[t0] > 0:
