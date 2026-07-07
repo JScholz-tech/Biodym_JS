@@ -31,7 +31,7 @@ sys.path.insert(0, _tests_dir)
 
 import numpy as np  # noqa: E402
 
-from golden_utils import collect_result_arrays, run_case_study_yaml  # noqa: E402
+from golden_utils import collect_full_results, config_file_hash  # noqa: E402
 
 CASE_STUDIES_DIR = os.path.join(
     _project_root, "01_data", "01_input", "case_studies"
@@ -50,14 +50,14 @@ def main():
         name = os.path.basename(os.path.dirname(yaml_path))
         print(f"\n{'=' * 60}\n>>> {name}\n{'=' * 60}")
         try:
-            mfa_system, _, solver_info = run_case_study_yaml(yaml_path)
+            arrays, solver_info = collect_full_results(yaml_path)
         except Exception as exc:  # keep going — report all failures at the end
             failures.append((name, repr(exc)))
             print(f">>> FAILED: {exc!r}")
             continue
 
-        arrays = collect_result_arrays(mfa_system)
         arrays["meta/converged"] = np.array(bool(solver_info.get("converged")))
+        arrays["meta/config_hash"] = np.array(config_file_hash(yaml_path))
         out_path = os.path.join(_here, f"{name}.npz")
         np.savez_compressed(out_path, **arrays)
         print(

@@ -21,7 +21,7 @@ import os
 import numpy as np
 import pytest
 
-from golden_utils import collect_result_arrays, run_case_study_yaml
+from golden_utils import collect_full_results, config_file_hash
 
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_TESTS_DIR)
@@ -55,16 +55,33 @@ def test_tutorial_golden(tutorial):
         f"`uv run python 04_tests/golden/generate_references.py` and commit it."
     )
 
-    mfa_system, _, solver_info = run_case_study_yaml(yaml_path)
-
-    assert solver_info.get("converged") is True, (
-        f"{tutorial}: solver did not converge"
-    )
-
-    actual = collect_result_arrays(mfa_system)
     with np.load(reference_path) as reference:
+        # Fixture/reference drift guard: if config.yaml changed since the
+        # reference was generated, fail immediately with a clear message
+        # instead of surfacing as a numeric mismatch (or worse, silently
+        # comparing against a stale fixture). See the T04 FoldedNormal
+        # staleness incident (af2b5f9 added a category without regenerating
+        # the reference; c15c547 fixed it after main was already broken).
+        if "meta/config_hash" in reference.files:
+            current_hash = config_file_hash(yaml_path)
+            ref_hash = str(reference["meta/config_hash"])
+            assert current_hash == ref_hash, (
+                f"{tutorial}: config.yaml has changed since its golden reference "
+                f"was generated. Regenerate with "
+                f"`uv run python 04_tests/golden/generate_references.py`, verify "
+                f"the diff is intentional, and commit it in its own "
+                f"`test(golden)` commit."
+            )
+
+        actual, solver_info = collect_full_results(yaml_path)
+
+        assert solver_info.get("converged") is True, (
+            f"{tutorial}: solver did not converge"
+        )
         assert bool(reference["meta/converged"]) is True
-        ref_keys = {k for k in reference.files if not k.startswith("meta/")}
+        ref_keys = {
+            k for k in reference.files if not k.startswith("meta/")
+        }
         assert set(actual) == ref_keys, (
             f"{tutorial}: result keys changed.\n"
             f"  missing: {sorted(ref_keys - set(actual))}\n"
