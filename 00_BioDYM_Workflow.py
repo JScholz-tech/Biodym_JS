@@ -137,6 +137,7 @@ try:
     from plotting.sankey import export_sankey_batch
     from reporting import kpi_dashboard
     from reporting.validation_summary import display_system_summary
+    from reporting.parameter_export import export_parameter_overview
 
     # Import standard icons
     from constants import (
@@ -816,5 +817,34 @@ export_sankey_batch(
     process_logic_map=process_logic_map,
     min_flow=min_flow,
 )
+
+# ## 5.3 Parameter Overview Export
+#
+# Export **all model input parameters** to one Excel workbook — one sheet per
+# parameter domain (configuration, processes, initial stocks, flow composition
+# φ_f^e, transfer coefficients TC_i(t), DSM, FOMP, LFG, FlowCap, BOM, Monte
+# Carlo uncertainties). Every entry is labeled with its paper symbol from the
+# notation reference, so the workbook documents exactly what was defined in
+# the SystemDefiner (or Excel input) for this run.
+
+print(format_step(Icons.EXPORT, "5.3", "Exporting parameter overview..."))
+parameter_overview_path = "01_data/02_output/results/parameter_overview.xlsx"
+export_parameter_overview(
+    mfa_results_baseline,
+    config_obj,
+    parameter_overview_path,
+    tc_params=tc_params,
+    dsm_params=dsm_params,
+    fomp_params=fomp_params,
+    lfg_params=lfg_params,
+    flow_cap_params=flow_cap_params,
+    bom_params=bom_params,
+    uncertainty_params=uncertainty_params,
+    process_logic_map=process_logic_map,
+    flow_tc_map=flow_tc_map,
+    all_excel_data=all_excel_data,
+    source_file=input_file,
+)
+print(format_success(f"Parameter overview exported to: {parameter_overview_path}"))
 
 print(format_header("ANALYSIS COMPLETE"))
