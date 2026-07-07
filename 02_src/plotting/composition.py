@@ -12,6 +12,7 @@ Author: BioDYM Development Team
 Date: 2025-11-04
 """
 
+import numpy as np
 import plotly.graph_objects as go
 from ipywidgets import IntSlider, Button, HBox, Layout, HTML
 from IPython.display import display
@@ -23,6 +24,25 @@ from .themes import (
 )
 from .dynamic_colors import ElementColorManager
 from .export_publication import export_figure
+from engine.element_utils import validate_element_hierarchy
+
+# Border color used to flag a "Remaining X" bar segment where children
+# exceed their parent (ρ_f^e(t) < -tolerance, §2.6) — distinct from the
+# BIOYM_COLORS palette since that has no dedicated warning/danger color.
+_HIERARCHY_VIOLATION_COLOR = "#D62728"
+
+
+def _summarize_pct_entries(entries):
+    """Reduces a list of (flow_label, year, pct) to (count, min_pct, max_pct).
+
+    Used to present "children vs. parent" percentages as one grouped range
+    instead of one line per flow/year — see bioDYM_mathematical_formulas.md
+    §2.6. Returns (0, None, None) for an empty list.
+    """
+    if not entries:
+        return 0, None, None
+    pcts = [p for _f, _y, p in entries]
+    return len(entries), min(pcts), max(pcts)
 
 
 def plot_flow_composition(
@@ -66,8 +86,7 @@ def plot_flow_composition(
     -----
     The plot shows composition as stacked horizontal bars where each element
     is represented by a distinct color. A time slider allows exploration across
-    years. Composition validation checks that element percentages sum to 100%
-    for each flow.
+    years.
 
     **Hierarchical Elements:** Elements with children display their "Remaining" portion
     to show hierarchy while avoiding double-counting. For example, if CC is defined
@@ -78,6 +97,17 @@ def plot_flow_composition(
 
     This ensures WC + Remaining_DM + CC = 100% of material, providing complete visibility
     of both hierarchy levels while maintaining accurate composition validation.
+
+    **Validation (see bioDYM_mathematical_formulas.md §2.6):** every branching
+    node of the element hierarchy is validated independently via
+    ``engine.element_utils.validate_element_hierarchy()`` — not only the
+    top-level "sum to 100% of material" check. A "Remaining X" segment gets a
+    red border for any flow/year where X's children exceed X
+    (ρ_f^X(t) < -tolerance); the warnings panel lists every such node
+    violation for the selected year. Children under-accounting for their
+    parent are reported informationally, not as errors (a genuine untracked
+    remainder is expected — see §2.2's "undefined elements default to 0"
+    note), matching how "material" itself was always treated.
 
     Examples
     --------
@@ -207,33 +237,22 @@ def plot_flow_composition(
     # Apply initial layout to figure
     fig.update_layout(initial_layout)
 
-    def validate_composition(
-        flow_name: str, percentages: Dict[str, float]
-    ) -> Tuple[bool, str]:
-        """
-        Validate that composition percentages sum to 100%.
-
-        Returns
-        -------
-        Tuple[bool, str]
-            (is_valid, warning_message)
-        """
-        total_pct = sum(percentages.values())
-
-        if abs(total_pct - 100.0) > composition_tolerance:
-            if total_pct > 100.0:
-                return False, f"⚠️ {flow_name}: Sum = {total_pct:.1f}% (EXCEEDS 100%)"
-            else:
-                return False, f"⚠️ {flow_name}: Sum = {total_pct:.1f}% (BELOW 100%)"
-
-        return True, ""
+    # Per-node composition validation (§2.6), computed once for all
+    # flows/years — not recomputed on every slider tick. Every branching
+    # node of the element hierarchy is checked independently (not only
+    # "material"), which is what the old aggregate "sum to 100%" check
+    # could never do (see the docstring Notes above and §2.6 for the proof).
+    all_violations = (
+        validate_element_hierarchy(mfa_system_results, tolerance=composition_tolerance)
+        if show_validation_warnings
+        else {}
+    )
 
     def update_plot(year):
         year_index = list(years).index(year)
 
         flow_names = []
         element_percentages = {elem: [] for elem in composable_elements}
-        validation_warnings = []
 
         for flow_id, flow in flows.items():
             values = flow.Values[year_index, :]
@@ -248,8 +267,6 @@ def plot_flow_composition(
                 flow_names.append(display_name)
 
                 # Calculate percentages for each composable element
-                flow_percentages = {}
-
                 for display_elem in composable_elements:
                     if display_elem.startswith("remaining_"):
                         # This is a "Remaining X" element
@@ -289,15 +306,43 @@ def plot_flow_composition(
                         )
 
                     element_percentages[display_elem].append(percentage)
-                    flow_percentages[display_elem] = percentage
 
-                # Validate composition
-                if show_validation_warnings:
-                    is_valid, warning = validate_composition(
-                        display_name, flow_percentages
+        # Composition validation for the selected year: query the
+        # precomputed per-node violations (§2.6) rather than recomputing
+        # an aggregate that could never detect anything below "material".
+        # Two different things are being checked here, kept visually and
+        # textually separate so they can't be mistaken for one another:
+        #   - "over" (children exceed parent) is a real hierarchy-consistency
+        #     bug — listed individually so the offending flow is easy to find.
+        #   - "under" (children fall short of parent) is expected whenever
+        #     only some of an element's children are tracked (§2.2) — grouped
+        #     into one count + range per node instead of one line per flow,
+        #     so it reads as "for your information", not as a wall of errors.
+        flagged_flows_by_node: Dict[str, set] = {}
+        error_lines = []
+        info_lines = []
+        for node, kinds in all_violations.items():
+            node_lower = node.lower()
+            for flow_label, viol_year, pct in kinds.get("over", []):
+                if viol_year == year:
+                    flagged_flows_by_node.setdefault(node_lower, set()).add(flow_label)
+                    error_lines.append(
+                        f"{flow_label}: node '{node}' — children sum to "
+                        f"{pct:.1f}% of parent (EXCEEDS 100%, likely a data error)"
                     )
-                    if not is_valid:
-                        validation_warnings.append(warning)
+            under_this_year = [
+                (f, y, p) for f, y, p in kinds.get("under", []) if y == year
+            ]
+            n_under, min_pct, max_pct = _summarize_pct_entries(under_this_year)
+            if n_under:
+                pct_range = (
+                    f"{min_pct:.0f}%" if min_pct == max_pct
+                    else f"{min_pct:.0f}%–{max_pct:.0f}%"
+                )
+                info_lines.append(
+                    f"node '{node}': {n_under} flow(s) have an untracked "
+                    f"remainder (children = {pct_range} of parent)"
+                )
 
         # Update figure
         with fig.batch_update():
@@ -326,6 +371,24 @@ def plot_flow_composition(
                     display_elem, display_elem.upper()
                 )
 
+                # Flag individual bar segments where this node's children
+                # exceed it (ρ_f^e(t) < -tolerance, §2.6) with a red border,
+                # instead of only reporting it in the text warnings panel.
+                if display_elem.startswith("remaining_"):
+                    flagged_flows = flagged_flows_by_node.get(parent_elem, set())
+                    border_color = [
+                        _HIERARCHY_VIOLATION_COLOR
+                        if fn in flagged_flows
+                        else BIOYM_COLORS["dark"]
+                        for fn in flow_names
+                    ]
+                    border_width = [
+                        2.5 if fn in flagged_flows else 0.5 for fn in flow_names
+                    ]
+                else:
+                    border_color = BIOYM_COLORS["dark"]
+                    border_width = 0.5
+
                 fig.add_trace(
                     go.Bar(
                         y=flow_names,
@@ -334,7 +397,7 @@ def plot_flow_composition(
                         orientation="h",
                         marker=dict(
                             color=element_color,
-                            line=dict(color=BIOYM_COLORS["dark"], width=0.5),
+                            line=dict(color=border_color, width=border_width),
                         ),
                         hovertemplate=f"<b>%{{y}}</b><br>{display_name}: %{{x:.1f}}%<extra></extra>",
                     )
@@ -371,17 +434,29 @@ def plot_flow_composition(
                 ],
             )
 
-        # Update validation warnings display
-        if show_validation_warnings and validation_warnings:
-            warning_html = "<div style='background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 10px; margin: 10px 0;'>"
-            warning_html += "<strong>⚠️ Composition Validation Warnings:</strong><br>"
-            for warning in validation_warnings:
-                warning_html += f"• {warning}<br>"
-            warning_html += f"<em>Tolerance: ±{composition_tolerance}%</em>"
-            warning_html += "</div>"
-            validation_output.value = warning_html
-        else:
-            validation_output.value = ""
+        # Update validation display — two visually distinct panels so a
+        # real problem (error_lines) can never be mistaken for the merely
+        # informational, and expected, partial sub-elements (info_lines).
+        panels = ""
+        if show_validation_warnings and error_lines:
+            panels += (
+                "<div style='background-color:#fdecea; border:1px solid #D62728; "
+                "border-radius:4px; padding:10px; margin:10px 0'>"
+                f"<strong>⚠️ Composition errors — Year {year} "
+                "(a sub-element exceeds its parent's mass; likely a data error):</strong><br>"
+                + "".join(f"• {line}<br>" for line in error_lines)
+                + f"<em>Tolerance: ±{composition_tolerance}%</em></div>"
+            )
+        if show_validation_warnings and info_lines:
+            panels += (
+                "<div style='background-color:#f1f3f5; border:1px solid #ced4da; "
+                "border-radius:4px; padding:10px; margin:10px 0; color:#495057'>"
+                f"<strong>ℹ️ Untracked remainder — Year {year} "
+                "(only some children are tracked for these elements; not an error):</strong><br>"
+                + "".join(f"• {line}<br>" for line in info_lines)
+                + "</div>"
+            )
+        validation_output.value = panels
 
     def export_current_plot(btn):
         """Export current plot configuration."""
@@ -448,12 +523,16 @@ def validate_flow_compositions(
     """
     Validate all flow compositions across all years.
 
-    This function checks that the sum of element percentages equals 100%
-    for each flow in each year, helping detect data quality issues.
-
-    Hierarchical elements are handled by calculating "Remaining" portions
-    (e.g., "Remaining DM" = DM - CC) to show hierarchy without double-counting.
-    This ensures validation sums: WC + Remaining_DM + CC = 100%.
+    Thin wrapper around ``engine.element_utils.validate_element_hierarchy()``
+    (see bioDYM_mathematical_formulas.md §2.6). The returned ``over_100`` /
+    ``under_100`` lists are the "material" node's slice — numerically
+    identical to what this function always computed, since summing every
+    "Remaining X" segment telescopes exactly to the top-level
+    Σ_{e∈E_top} F_f^e(t) regardless of deeper-node correctness (§2.6). That
+    telescoping is also why this function's aggregate check could never
+    detect a violation below the top level (e.g. TOC+TIC exceeding TC): the
+    verbose report below now surfaces those separately, since they are
+    invisible to the over_100/under_100 return value by construction.
 
     Parameters
     ----------
@@ -467,8 +546,10 @@ def validate_flow_compositions(
     Returns
     -------
     Dict[str, List[Tuple[str, int, float]]]
-        Dictionary with 'over_100' and 'under_100' keys, each containing
-        list of (flow_name, year, total_percentage) tuples for violations.
+        Dictionary with 'over_100' and 'under_100' keys (top-level /
+        "material" node only, for backward compatibility), plus
+        'valid_count'. Use ``validate_element_hierarchy()`` directly for
+        violations at every node.
 
     Examples
     --------
@@ -477,142 +558,102 @@ def validate_flow_compositions(
     >>> if issues['over_100']:
     ...     print("Flows exceeding 100%:", issues['over_100'])
     """
-    flows = mfa_system_results.FlowDict
-    years = mfa_system_results.IndexTable.Classification["Time"].Items
-    element_items = [e.lower() for e in mfa_system_results.Elements]
+    all_violations = validate_element_hierarchy(mfa_system_results, tolerance=tolerance)
+    material_violations = all_violations.get("material", {"over": [], "under": []})
+    over_100 = [(f, y, p) for f, y, p in material_violations.get("over", [])]
+    under_100 = [(f, y, p) for f, y, p in material_violations.get("under", [])]
 
-    # Get flow descriptions for display (use descriptive names instead of IDs)
-    flow_descriptions = getattr(mfa_system_results, "_flow_descriptions", {})
+    # valid_count = flow-year combinations with material mass, minus those
+    # already counted as a top-level over/under violation.
+    material_idx = list(mfa_system_results.Elements).index("material")
+    total_checked = sum(
+        int(np.sum(np.abs(flow.Values[:, material_idx]) > 1e-10))
+        for flow in mfa_system_results.FlowDict.values()
+    )
+    valid_count = total_checked - len(over_100) - len(under_100)
 
-    # Get element hierarchy info
-    # NOTE: _element_hierarchy is a BioDYM extension (stored by system_setup.py)
-    element_hierarchy = getattr(mfa_system_results, "_element_hierarchy", {})
+    deeper_violations = {
+        node: kinds for node, kinds in all_violations.items() if node != "material"
+    }
 
-    # Build composition structure respecting hierarchy (same as plot function)
-    elements_with_children = set()
-    leaf_elements = []
-
-    for e in element_items:
-        if e == "material":
-            continue
-
-        has_children = False
-        if element_hierarchy:
-            for elem_id, elem_info in element_hierarchy.items():
-                parent_name = (
-                    elem_info.get("parent", "").lower()
-                    if elem_info.get("parent")
-                    else None
-                )
-                if parent_name == e.lower():
-                    has_children = True
-                    break
-
-        if has_children:
-            elements_with_children.add(e)
-        else:
-            leaf_elements.append(e)
-
-    # Build display elements list
-    composable_elements = []
-    for e in element_items:
-        if e == "material":
-            continue
-        if e in elements_with_children:
-            composable_elements.append(f"remaining_{e}")
-        if e in leaf_elements:
-            composable_elements.append(e)
-
-    over_100 = []
-    under_100 = []
-    valid_count = 0
-
-    for flow_id, flow in flows.items():
-        # Use descriptive name if available, otherwise use Flow ID
-        display_name = flow_descriptions.get(flow_id, flow_id)
-
-        for year_idx, year in enumerate(years):
-            values = flow.Values[year_idx, :]
-
-            material_idx = element_items.index("material")
-            total_mass = values[material_idx]
-
-            if total_mass > 1e-10:
-                # Calculate total percentage using hierarchy-aware logic
-                total_pct = 0
-                for display_elem in composable_elements:
-                    if display_elem.startswith("remaining_"):
-                        # Calculate remaining portion
-                        parent_elem = display_elem.replace("remaining_", "")
-                        parent_idx = element_items.index(parent_elem)
-                        parent_val = values[parent_idx]
-
-                        # Subtract children
-                        children_sum = 0
-                        if element_hierarchy:
-                            for elem_id, elem_info in element_hierarchy.items():
-                                elem_parent = (
-                                    elem_info.get("parent", "").lower()
-                                    if elem_info.get("parent")
-                                    else None
-                                )
-                                if elem_parent == parent_elem.lower():
-                                    child_name = elem_info["name"].lower()
-                                    if child_name in element_items:
-                                        child_idx = element_items.index(child_name)
-                                        children_sum += values[child_idx]
-
-                        remaining_val = parent_val - children_sum
-                        total_pct += remaining_val / total_mass * 100
-                    else:
-                        # Regular element
-                        elem_idx = element_items.index(display_elem)
-                        elem_val = values[elem_idx]
-                        total_pct += elem_val / total_mass * 100
-
-                # Check validation
-                if total_pct > 100.0 + tolerance:
-                    over_100.append((display_name, year, total_pct))
-                elif total_pct < 100.0 - tolerance:
-                    under_100.append((display_name, year, total_pct))
-                else:
-                    valid_count += 1
-
-    # Print report
+    # Print report. Two things are checked, printed as two clearly labelled
+    # steps, and within each step the two possible outcomes are never mixed:
+    #   - "exceeds" (a sub-element's children add up to MORE than the
+    #     sub-element itself) is always a real data error — listed
+    #     individually (capped) so the offending flow can be found.
+    #   - "below" (children add up to LESS) is expected whenever only some
+    #     of an element's children are tracked (§2.2) — grouped into one
+    #     count + percentage range per relationship, not one line per flow,
+    #     so it reads as an FYI rather than a wall of warnings.
     if verbose:
         print("=" * 80)
         print("FLOW COMPOSITION VALIDATION REPORT")
         print("=" * 80)
-        print(f"Tolerance: ±{tolerance}%")
-        print(
-            f"Total flow-year combinations checked: {valid_count + len(over_100) + len(under_100)}"
-        )
-        print(f"✅ Valid (within tolerance): {valid_count}")
-        print(f"⚠️ Exceeding 100%: {len(over_100)}")
-        print(f"⚠️ Below 100%: {len(under_100)}")
+        print(f"Tolerance: ±{tolerance}%\n")
 
-        if over_100:
-            print("\n" + "=" * 80)
-            print("FLOWS EXCEEDING 100% (Data Quality Issue)")
-            print("=" * 80)
-            for flow_name, year, total_pct in sorted(
-                over_100, key=lambda x: x[2], reverse=True
-            )[:10]:
-                print(f"  {flow_name:40s} | Year {year} | {total_pct:6.2f}%")
-            if len(over_100) > 10:
-                print(f"  ... and {len(over_100) - 10} more")
+        print(f"STEP 1 — Top level: does every top-level element (e.g. WC, DM)")
+        print(f"add up to material? [{total_checked} flow-year combinations checked]")
+        if not over_100 and not under_100:
+            print(f"  ✅ {valid_count}/{total_checked} match. No errors.")
+        else:
+            print(f"  ✅ {valid_count}/{total_checked} match.")
+            if over_100:
+                print(f"  ⚠️  {len(over_100)} EXCEED 100% (real error — top-level "
+                      f"elements over-account for material):")
+                for flow_name, year, pct in sorted(
+                    over_100, key=lambda x: x[2], reverse=True
+                )[:10]:
+                    print(f"       {flow_name:40s} | Year {year} | {pct:6.2f}%")
+                if len(over_100) > 10:
+                    print(f"       ... and {len(over_100) - 10} more")
+            if under_100:
+                n, lo, hi = _summarize_pct_entries(under_100)
+                rng = f"{lo:.0f}%" if lo == hi else f"{lo:.0f}%–{hi:.0f}%"
+                print(f"  ℹ️  {n} below 100% (top-level elements = {rng} of "
+                      f"material — untracked remainder, not an error)")
 
-        if under_100:
-            print("\n" + "=" * 80)
-            print("FLOWS BELOW 100% (Missing Material)")
-            print("=" * 80)
-            for flow_name, year, total_pct in sorted(under_100, key=lambda x: x[2])[
-                :10
-            ]:
-                print(f"  {flow_name:40s} | Year {year} | {total_pct:6.2f}%")
-            if len(under_100) > 10:
-                print(f"  ... and {len(under_100) - 10} more")
+        print(f"\nSTEP 2 — Sub-elements: for every element with tracked children, "
+              f"does the sum\nof its children match its own mass? "
+              f"(e.g. does TOC + TIC add up to TC?)")
+        if not deeper_violations:
+            print("  ✅ No sub-element relationships found any issues.")
+        else:
+            for node, kinds in deeper_violations.items():
+                over = kinds.get("over", [])
+                under = kinds.get("under", [])
+                print(f"\n  {node}:")
+                if over:
+                    print(f"    ⚠️  {len(over)} EXCEED 100% of {node} "
+                          f"(real error — likely a data entry mistake):")
+                    for flow_name, year, pct in sorted(
+                        over, key=lambda x: x[2], reverse=True
+                    )[:10]:
+                        print(f"         {flow_name:30s} | Year {year} | "
+                              f"{pct:6.2f}% of {node}")
+                    if len(over) > 10:
+                        print(f"         ... and {len(over) - 10} more")
+                if under:
+                    n, lo, hi = _summarize_pct_entries(under)
+                    rng = f"{lo:.0f}%" if lo == hi else f"{lo:.0f}%–{hi:.0f}%"
+                    print(f"    ℹ️  {n} flow(s): children = {rng} of {node} "
+                          f"(untracked remainder — informational, not an error)")
 
-        print("\n" + "=" * 80)
+        # Overall headline: only "exceeds" cases are real errors.
+        error_nodes = ({"material"} if over_100 else set()) | {
+            node for node, kinds in deeper_violations.items() if kinds.get("over")
+        }
+        info_nodes = ({"material"} if under_100 else set()) | {
+            node for node, kinds in deeper_violations.items() if kinds.get("under")
+        }
+        print("\n" + "-" * 80)
+        if error_nodes:
+            print(f"⚠️  {len(error_nodes)} relationship(s) have real errors "
+                  f"(children exceed their parent) — see above.")
+        else:
+            print("✅ No real errors: no sub-element ever exceeds its parent's mass.")
+        if info_nodes:
+            print(f"ℹ️  {len(info_nodes)} relationship(s) have an untracked "
+                  f"remainder — informational only, see above.")
+        print("=" * 80)
 
     return {"over_100": over_100, "under_100": under_100, "valid_count": valid_count}

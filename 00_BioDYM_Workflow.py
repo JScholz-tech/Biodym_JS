@@ -132,7 +132,7 @@ try:
     from engine import scenario_engine
     import plotting
     import ODYM_Classes as msc
-    from plotting.composition import plot_flow_composition
+    from plotting.composition import plot_flow_composition, validate_flow_compositions
     from plotting.composition_export import export_flow_composition
     from plotting.sankey import export_sankey_batch
     from reporting import kpi_dashboard
@@ -425,8 +425,23 @@ except Exception as e:
 #
 # - Validates completeness of element composition across all flows
 # - Interactive visualization of the flow composition hierarchy
+#
+# **Per-node hierarchy check (bioDYM_mathematical_formulas.md §2.6):** every
+# branching node of the element hierarchy is validated independently, not
+# only the top-level "% of material" check — e.g. a TC→{TOC,TIC} split is
+# checked in its own right, not folded into the material-level total. The
+# text report below lists node-level violations that the interactive plot's
+# 100% line cannot show on its own; the plot itself flags the same
+# violations with a red border on the affected "Remaining X" segment.
 
-plot_flow_composition(mfa_results_baseline)
+COMPOSITION_TOLERANCE = 1.0  # percentage points around 100%, shared by plot + report
+
+plot_flow_composition(mfa_results_baseline, composition_tolerance=COMPOSITION_TOLERANCE)
+
+print(format_step(Icons.VALIDATION, "2.5", "Composition validation report (all years)..."))
+composition_validation = validate_flow_compositions(
+    mfa_results_baseline, tolerance=COMPOSITION_TOLERANCE, verbose=True
+)
 
 # Export flow composition data
 export_path = "01_data/02_output/composition/flow_composition.xlsx"

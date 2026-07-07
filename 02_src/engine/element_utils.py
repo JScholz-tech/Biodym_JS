@@ -5,11 +5,13 @@ Element Utilities Module for the BioDYM Engine.
 This module contains utility functions for handling element calculations,
 particularly for hierarchical element relationships.
 
-Mathematical notation (see bioDYM_mathematical_formulas.md §2.1, §2.4):
+Mathematical notation (see bioDYM_mathematical_formulas.md §2.1, §2.4, §2.6):
     Paper symbol      Code variable
     φ_e (=e/p(e))  ←→  fraction_vector   (per-year child/parent ratio)
     p(e)           ←→  element_hierarchy[·]["parent"]
     e^TC           ←→  get_carbon_element_name (TC new / CC legacy)
+    ch(e)          ←→  build_element_children_map(...)[e]
+    ρ_f^e(t)       ←→  per-node residual in validate_element_hierarchy()
 """
 
 import numpy as np
@@ -171,3 +173,137 @@ def recalculate_hierarchical_elements(
         flow_values[:, elem_idx] = parent_values * fraction_vector
 
     return flow_values
+
+
+def build_element_children_map(element_hierarchy, elements):
+    """Builds ch(e) = {parent_name: [child_name, ...]} from element_hierarchy.
+
+    This is the inverse of the parent function p(e) already used by
+    `recalculate_hierarchical_elements`: ch(e) := {e' : p(e') = e}
+    (see bioDYM_mathematical_formulas.md §2.6). Both ``parent=None`` and
+    ``parent="material"`` are treated as "child of mat" (top-level),
+    matching the convention used throughout this module.
+
+    Parameters
+    ----------
+    element_hierarchy : dict
+        {element_id: {'name': str, 'parent': str or None}}, as stored on
+        ``mfa_system._element_hierarchy``.
+    elements : list of str
+        Element names actually tracked by this mfa_system
+        (``mfa_system.Elements``). Hierarchy entries whose name is not in
+        this list are skipped — a hierarchy definition may reference an
+        element that a particular system does not track.
+
+    Returns
+    -------
+    dict
+        {parent_name: [child_name, ...]}. A key is present only if at
+        least one tracked child was found for it.
+    """
+    children_map = {}
+    for elem_info in (element_hierarchy or {}).values():
+        name = elem_info.get("name")
+        if name is None or name not in elements:
+            continue
+        if name == "material":
+            continue  # material is the root; it is never anyone's child
+        parent = elem_info.get("parent") or "material"
+        children_map.setdefault(parent, []).append(name)
+    return children_map
+
+
+def validate_element_hierarchy(mfa_system, tolerance=1.0):
+    """Validates the local composition residual ρ_f^e(t) at every branching node.
+
+    Generalizes the single top-level check performed once during setup
+    (system_setup._calculate_elemental_compositions) to every node in the
+    element hierarchy, not only children of "material". See
+    bioDYM_mathematical_formulas.md §2.6 for the underlying formalism and
+    for a proof that the previous aggregate "sum to 100%" check used by
+    `plotting.composition` could never detect a violation below the top
+    level (it telescopes to the top-level sum regardless of deeper-node
+    correctness) — this function replaces that blind spot.
+
+    For every node e with ch(e) != {}, and every flow f and year t:
+
+        ρ_f^e(t) = F_f^e(t) - Σ_{e' in ch(e)} F_f^{e'}(t)
+
+    reported as a percentage of F_f^e(t) (i.e. 100% means ch(e) exactly
+    accounts for e's mass). A violation is flagged when that percentage
+    falls outside [100-tolerance, 100+tolerance].
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        Must expose ``.Elements``, ``.FlowDict``, and
+        ``._element_hierarchy`` (set by system_setup.py). Works on both
+        solved and unsolved systems.
+    tolerance : float, optional
+        Tolerance in percentage points around 100%. Default 1.0 (i.e.
+        99%-101% is considered valid).
+
+    Returns
+    -------
+    dict
+        {node_name: {"over": [(flow_label, year, pct)],
+                     "under": [(flow_label, year, pct)]}}
+        Only nodes with at least one violation are present.
+        "over"  = ch(e) exceeds e (ρ_f^e(t) < 0 beyond tolerance) — a real
+                  hierarchy-consistency bug (e.g. TOC+TIC > TC).
+        "under" = ch(e) under-accounts for e — may be a genuine untracked
+                  remainder (e.g. H/N/S not modelled) rather than an error;
+                  reported for visibility, same convention as the
+                  historical top-level-only check.
+    """
+    elements = list(mfa_system.Elements)
+    element_hierarchy = getattr(mfa_system, "_element_hierarchy", None)
+    if not element_hierarchy:
+        return {}
+
+    children_map = build_element_children_map(element_hierarchy, elements)
+    if not children_map:
+        return {}
+
+    flow_descriptions = getattr(mfa_system, "_flow_descriptions", {})
+    years = list(mfa_system.IndexTable.Classification["Time"].Items)
+
+    violations = {}
+    for parent_name, child_names in children_map.items():
+        if parent_name not in elements:
+            print(
+                f"[WARNING] validate_element_hierarchy: parent '{parent_name}' "
+                f"not found in elements list. Skipping ch({parent_name}) check."
+            )
+            continue
+
+        parent_idx = elements.index(parent_name)
+        child_idx = [elements.index(c) for c in child_names]
+
+        node_over, node_under = [], []
+        for flow_id, flow in mfa_system.FlowDict.items():
+            values = flow.Values
+            parent_values = values[:, parent_idx]
+            children_sum = values[:, child_idx].sum(axis=1)
+
+            valid = np.abs(parent_values) > 1e-10
+            if not np.any(valid):
+                continue
+
+            pct = np.full(len(years), np.nan)
+            pct[valid] = children_sum[valid] / parent_values[valid] * 100.0
+
+            flow_label = flow_descriptions.get(flow_id, flow_id)
+            for year_idx, year in enumerate(years):
+                p = pct[year_idx]
+                if np.isnan(p):
+                    continue
+                if p > 100.0 + tolerance:
+                    node_over.append((flow_label, year, float(p)))
+                elif p < 100.0 - tolerance:
+                    node_under.append((flow_label, year, float(p)))
+
+        if node_over or node_under:
+            violations[parent_name] = {"over": node_over, "under": node_under}
+
+    return violations
