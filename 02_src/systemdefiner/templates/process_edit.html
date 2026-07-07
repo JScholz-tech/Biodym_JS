@@ -391,6 +391,15 @@
               {% endfor %}
             </select>
           </div>
+          <div class="field">
+            <label>Cap parameter ID (Scenario / MC switching)</label>
+            <input type="text" name="flowcap_cap_tc_id" style="font-family:monospace"
+                   value="{{ process.flowcap.cap_tc_id if process.flowcap else '' }}"
+                   placeholder="auto: TC_Cap_{{ '%02d' % process.id }}">
+            <small class="muted">ParameterDict key under which the cap series is registered.
+              Leave blank for the default — this is the name you pick in the Scenario Manager
+              or MC Parameters to vary the cap.</small>
+          </div>
         </div>
         <h4 style="margin:1rem 0 0.5rem">Capacity Series (Year → {{ cfg.model.unit_of_measurement }}/yr)</h4>
         <table style="width:auto;margin-bottom:0.5rem">
