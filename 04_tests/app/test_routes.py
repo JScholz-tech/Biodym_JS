@@ -281,6 +281,29 @@ class TestParameterCatalog:
         cap = next(p for p in params if p["group"] == "FlowCap")
         assert cap["name"] == "TC_Cap_01"
 
+    def test_catalog_hides_lfg_parameters(self):
+        # The engine cannot apply LFG parameter modifications (no LFG branch
+        # in apply_scenario, no MC update function) — offering them would be
+        # a silent no-op. Guard until engine support exists (Finding B).
+        from systemdefiner.main import _build_scenario_params
+        from systemdefiner.models.config_schema import (
+            LfgParams,
+            Process,
+            ProcessLogic,
+        )
+
+        cfg = self._cfg_with_flowcap_and_is()
+        cfg.processes.append(
+            Process(
+                id=3,
+                name="Landfill",
+                logic=ProcessLogic.lfg,
+                lfg=LfgParams(outflow_ch4_id="F_03_00"),
+            )
+        )
+        params = _build_scenario_params(cfg)
+        assert not [p for p in params if p["group"] == "LFG"]
+
     def test_catalog_offers_initial_stock_entries(self):
         from systemdefiner.main import _build_scenario_params
 
