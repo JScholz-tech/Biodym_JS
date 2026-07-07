@@ -1212,6 +1212,25 @@ def apply_scenario(
                         operation,
                         value,
                     )
+                elif param_base in ("DSM_Lifetime_Shape", "DSM_Lifetime_Scale"):
+                    # Weibull parameters may be absent for non-Weibull categories —
+                    # create the list on demand (same pattern as the MC engine)
+                    key = "Shape" if param_base.endswith("Shape") else "Scale"
+                    target = dsm_params[process_id]["lifetimes"].setdefault(
+                        key,
+                        [None] * len(dsm_params[process_id]["inflow_split"]),
+                    )
+                    if (
+                        category_idx < len(target)
+                        and target[category_idx] is None
+                        and operation != "replace"
+                    ):
+                        print(
+                            f"       WARNING: {param_base} Cat {category_idx + 1} has no "
+                            f"baseline value — '{operation}' requires one. Use 'replace'. Skipping."
+                        )
+                    else:
+                        _apply_operation(target, category_idx, operation, value)
                 elif param_base == "DSM_Inflow_Split":
                     _apply_operation(
                         dsm_params[process_id]["inflow_split"],
