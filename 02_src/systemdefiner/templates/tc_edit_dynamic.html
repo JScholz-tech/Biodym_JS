@@ -71,9 +71,10 @@
         </thead>
         <tbody id="tbody-{{ safe }}">
           {% for row in flow_rows %}
+          {% set row_idx = loop.index0 %}
           <tr>
             <td>
-              <input type="number" name="tc_{{ flow.id }}_year_{{ loop.index0 }}"
+              <input type="number" name="tc_{{ flow.id }}_year_{{ row_idx }}"
                      class="year-input" value="{{ row.year }}" step="1" min="1900" max="2300"
                      style="width:80px" oninput="recomputeBalance()">
             </td>
@@ -81,7 +82,7 @@
             {% set disabled = (is_splitter and not loop.first) or (is_transformer and loop.first) %}
             <td style="{{ 'background:var(--bg);' if disabled else '' }}">
               <input type="number"
-                     name="tc_{{ flow.id }}_idx_{{ loop.index0 }}_{{ elem }}"
+                     name="tc_{{ flow.id }}_idx_{{ row_idx }}_{{ elem }}"
                      class="dyn-input" data-elem="{{ loop.index0 }}"
                      value="{{ (row.tc_values.get(elem, 0.0) * 100) | round(4) }}"
                      step="any" min="0" max="100"
@@ -104,6 +105,24 @@
     {% endfor %}
 
     <div id="dyn-balance" class="alert" style="margin-top:1.25rem;font-size:0.85rem"></div>
+    {% if is_transformer and parent_to_children %}
+    <div id="hierarchy-panel" class="alert" style="margin-top:0.5rem;font-size:0.85rem"></div>
+    <details style="margin-top:0.75rem;border:1px solid var(--border);border-radius:4px">
+      <summary style="padding:0.5rem 0.75rem;cursor:pointer;font-size:0.85rem;font-weight:600;user-select:none">
+        ⚙ Inflow composition for hierarchy check
+        <span style="font-weight:400;color:var(--muted);margin-left:0.4rem">— saved with process; edit after running MFA once</span>
+      </summary>
+      <div style="padding:0.75rem;font-size:0.85rem">
+        <p class="muted" style="margin-bottom:0.75rem">
+          Enter the <em>parent-relative</em> fraction for each element as it arrives in this process's inflow.
+          Children of each parent must sum to 100 %. The consistency check uses these weights —
+          not the auto-detected flow compositions — to verify that parent TCs equal the
+          weighted average of child TCs.
+        </p>
+        <div id="checkcomp-matrix" style="overflow-x:auto"></div>
+      </div>
+    </details>
+    {% endif %}
 
     <div class="btn-row" style="margin-top:1rem">
       <button type="submit" class="btn btn-primary">Save Dynamic TCs</button>
@@ -113,9 +132,137 @@
 </div>
 
 <script>
-const ELEMENTS    = {{ cfg.model.elements | tojson }};
+const ELEMENTS       = {{ cfg.model.elements | tojson }};
 const IS_SPLITTER    = {{ 'true' if is_splitter else 'false' }};
 const IS_TRANSFORMER = {{ 'true' if is_transformer else 'false' }};
+const PARENT_TO_CHILDREN = {{ (parent_to_children | tojson) if parent_to_children is defined else '{}' }};
+
+// ── Inflow composition matrix (hierarchy-aware widget) ────────────────────────
+const COMP_HIERARCHY   = {{ hier_json | tojson if hier_json is defined else '[]' }};
+const COMP_LEVEL_NAMES = {{ cfg.model.hierarchy_level_names | tojson }};
+const COMP_PATHS_RAW   = {{ paths_json | safe if paths_json is defined else '[]' }};
+const INIT_COMP_VALUES = {{ comp_values_json | safe if comp_values_json is defined else '{}' }};
+
+const COMP_PARENT_CHILDREN = {};
+COMP_HIERARCHY.forEach(r => { COMP_PARENT_CHILDREN[r.parent] = r.children; });
+const COMP_ROOT_ELEM = ELEMENTS.length > 0 ? ELEMENTS[0] : null;
+const COMP_SORTED_PATHS = [...COMP_PATHS_RAW].sort((a, b) => {
+  for (let i = 0; i < 4; i++) { if (a[i] < b[i]) return -1; if (a[i] > b[i]) return 1; }
+  return 0;
+});
+
+function compSafeId(elem) { return elem.replace(/[\s.\-\/\(\)]/g, '_'); }
+function getCompPct(elem) {
+  const inp = document.getElementById('ci_' + compSafeId(elem));
+  return inp ? (parseFloat(inp.value) || 0) : 0;
+}
+
+function getCheckComposition() {
+  const comp = {};
+  ELEMENTS.forEach(elem => { comp[elem] = getCompPct(elem); });
+  return comp;
+}
+
+// ── Column spans for merged hierarchy cells ───────────────────────────────────
+function computeSpans(paths) {
+  const N = paths.length, L = 4;
+  const spans = Array.from({length: N}, () => Array(L).fill(1));
+  for (let row = 1; row < N; row++) {
+    for (let col = 0; col < L; col++) {
+      const val = paths[row][col];
+      if (!val) continue;
+      const sameVal    = val === paths[row-1][col];
+      const leftMerged = (col === 0) || (spans[row][col-1] === 0);
+      if (sameVal && leftMerged) {
+        spans[row][col] = 0;
+        for (let r = row - 1; r >= 0; r--) { if (spans[r][col] > 0) { spans[r][col]++; break; } }
+      }
+    }
+  }
+  return spans;
+}
+
+// ── Gap: children should sum to 100 % of their parent ────────────────────────
+function updateGapsCheck() {
+  ELEMENTS.forEach(e => {
+    if (!COMP_PARENT_CHILDREN[e]) return;
+    const gapEl = document.getElementById('cgap_' + compSafeId(e));
+    if (!gapEl) return;
+    const childSum = (COMP_PARENT_CHILDREN[e] || []).reduce((s, c) => s + getCompPct(c), 0);
+    const gap  = 100 - childSum;
+    const ok   = Math.abs(gap) < 0.01;
+    const col  = gap < -0.01 ? 'var(--danger)' : ok ? 'var(--primary)' : '#e07b20';
+    const sign = gap > 0.005 ? '+' : '';
+    gapEl.innerHTML =
+      `<div style="font-size:0.78rem;color:${col};margin-top:4px;white-space:nowrap">` +
+      `${ok ? '✓' : '✗'}&thinsp;gap: ${sign}${gap.toFixed(2)}&thinsp;%</div>`;
+  });
+}
+
+// ── Build the hierarchy composition matrix (one per Transformer process) ──────
+function buildCompMatrix() {
+  const stored = INIT_COMP_VALUES;
+  const thSt   = 'padding:6px 12px;border:1px solid var(--border);background:var(--bg);' +
+                 'text-align:left;font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em';
+  const tdSt   = 'padding:10px 12px;border:1px solid var(--border);vertical-align:top;min-width:140px';
+  const tdDash = 'padding:10px 12px;border:1px solid var(--border);vertical-align:middle;' +
+                 'text-align:center;color:var(--muted);min-width:100px';
+
+  function inputCell(elem, isRoot, isParent) {
+    const safe = compSafeId(elem);
+    const val  = isRoot ? '100.00' : (stored[elem] !== undefined ? stored[elem] : 0).toFixed(2);
+    const lblCol  = isParent ? 'var(--muted)' : 'var(--text)';
+    const roAttr  = isRoot ? 'readonly tabindex="-1"' : '';
+    const roStyle = isRoot ? 'background:var(--bg);color:var(--muted);border-style:dashed;cursor:default;' : '';
+    const nameAttr = isRoot ? '' : `name="check_comp_${elem}"`;
+    let h = `<div style="font-size:0.8rem;font-weight:600;color:${lblCol};margin-bottom:5px">${elem}</div>`;
+    h += `<input type="number" id="ci_${safe}" ${nameAttr} class="check-comp-input"` +
+         ` value="${val}" step="any" min="0" max="100" style="width:88px;${roStyle}" ${roAttr}` +
+         ` oninput="updateGapsCheck(); recomputeBalance()">` +
+         ` <span style="font-size:0.85rem;color:var(--muted)">%</span>`;
+    if (isParent) h += `<div id="cgap_${safe}"></div>`;
+    return h;
+  }
+
+  if (!COMP_SORTED_PATHS.length) {
+    // No hierarchy: flat fallback
+    let html = `<table style="border-collapse:collapse"><thead><tr>` +
+      `<th style="${thSt}">Element</th><th style="${thSt}">% of parent</th></tr></thead><tbody>`;
+    ELEMENTS.forEach(e => {
+      const isRoot = (e === COMP_ROOT_ELEM);
+      html += `<tr><td style="${tdSt}">${e}</td><td style="${tdSt}">${inputCell(e, isRoot, false)}</td></tr>`;
+    });
+    return html + '</tbody></table>';
+  }
+
+  const spans = computeSpans(COMP_SORTED_PATHS), N = COMP_SORTED_PATHS.length;
+  let html = `<table style="border-collapse:collapse"><thead><tr>`;
+  COMP_LEVEL_NAMES.forEach(n => { html += `<th style="${thSt}">${n}</th>`; });
+  html += '</tr></thead><tbody>';
+  for (let row = 0; row < N; row++) {
+    html += '<tr>';
+    for (let col = 0; col < 4; col++) {
+      if (spans[row][col] === 0) continue;
+      const elem = COMP_SORTED_PATHS[row][col], rs = spans[row][col];
+      if (!elem) { html += `<td rowspan="${rs}" style="${tdDash}">—</td>`; continue; }
+      const isParent = Object.prototype.hasOwnProperty.call(COMP_PARENT_CHILDREN, elem);
+      const isRoot   = (elem === COMP_ROOT_ELEM);
+      html += `<td rowspan="${rs}" style="${tdSt}">${inputCell(elem, isRoot, isParent)}</td>`;
+    }
+    html += '</tr>';
+  }
+  const covered   = new Set(COMP_SORTED_PATHS.flat().filter(Boolean));
+  const uncovered = ELEMENTS.filter(e => !covered.has(e));
+  if (uncovered.length) {
+    html += `<tr><td colspan="4" style="${tdSt};color:var(--muted);font-size:0.8rem;font-style:italic">` +
+            `Other elements (not in hierarchy)</td></tr>`;
+    uncovered.forEach(e => {
+      html += `<tr><td colspan="3" style="${tdSt};color:var(--muted)">${e}</td>` +
+              `<td style="${tdSt}">${inputCell(e, e === COMP_ROOT_ELEM, false)}</td></tr>`;
+    });
+  }
+  return html + '</tbody></table>';
+}
 
 function addDynRow(flowId, numElems) {
   const safe = flowId.replace(/[.\-]/g, '_');
@@ -175,6 +322,91 @@ function recomputeBalance() {
     panel.className = 'alert alert-warn';
     panel.innerHTML = '⚠ Years not summing to 100 % across flows: ' + issues.join(' · ');
   }
+  checkHierarchyConsistency();
+}
+
+function checkHierarchyConsistency() {
+  const panel = document.getElementById('hierarchy-panel');
+  if (!panel || !Object.keys(PARENT_TO_CHILDREN).length) return;
+
+  const checkComp = getCheckComposition();
+  // hasUserComp is true only when at least one non-root child element has been set.
+  // (Root element "material" is readonly at 100 — ignore it for this check.)
+  const childElems = Object.values(PARENT_TO_CHILDREN).flat();
+  const hasUserComp = childElems.some(e => (checkComp[e] || 0) > 0);
+
+  // Read current TC values: {flowId: {year: {elemName: pct}}}
+  const tcByFlow = {};
+  document.querySelectorAll('.dynamic-tc-table').forEach(table => {
+    const fid = table.dataset.flow;
+    tcByFlow[fid] = {};
+    table.querySelectorAll('tbody tr').forEach(row => {
+      const yr = (row.querySelector('.year-input')?.value || '').trim();
+      if (!yr) return;
+      tcByFlow[fid][yr] = tcByFlow[fid][yr] || {};
+      row.querySelectorAll('.dyn-input').forEach(inp => {
+        const ei = parseInt(inp.dataset.elem);
+        const name = ELEMENTS[ei];
+        if (name !== undefined) tcByFlow[fid][yr][name] = parseFloat(inp.value) || 0;
+      });
+    });
+  });
+
+  const issues = [];
+  let checkedAny = false;
+
+  for (const [parent, children] of Object.entries(PARENT_TO_CHILDREN)) {
+    // Skip material — it's derived by the engine, not entered by the user.
+    if (parent === 'material') continue;
+
+    const weights = {};
+    let wsum = 0;
+    for (const child of children) {
+      // Use user-entered composition; fall back to equal weights.
+      const w = (hasUserComp && checkComp[child] != null) ? checkComp[child] : (100 / children.length);
+      weights[child] = w;
+      wsum += w;
+    }
+    if (wsum === 0) continue;
+    for (const child of children) weights[child] /= wsum;
+
+    for (const [fid, yearData] of Object.entries(tcByFlow)) {
+      for (const [yr, elemData] of Object.entries(yearData)) {
+        if (!(parent in elemData)) continue;
+        const childVals = children.filter(c => c in elemData);
+        if (!childVals.length) continue;
+        checkedAny = true;
+
+        let expected = 0;
+        for (const child of children) {
+          expected += weights[child] * (elemData[child] ?? 0);
+        }
+        const entered = elemData[parent] ?? 0;
+        if (Math.abs(entered - expected) > 0.5) {
+          issues.push({ fid, yr, parent, entered: entered.toFixed(1), expected: expected.toFixed(1) });
+        }
+      }
+    }
+  }
+
+  if (!checkedAny) { panel.className = 'alert'; panel.innerHTML = ''; return; }
+
+  if (!issues.length) {
+    panel.className = 'alert alert-ok';
+    panel.innerHTML = '✓ Parent fractions are consistent with child elements.'
+      + (hasUserComp ? '' : ' <span style="color:var(--muted)">(equal weights — set inflow composition below for accurate check)</span>');
+  } else {
+    panel.className = 'alert alert-warn';
+    let html = '<strong>⚠ Hierarchy inconsistencies</strong> — parent TC ≠ weighted average of child TCs';
+    html += hasUserComp ? ' (weights from saved inflow composition)' : ' (equal weights — set inflow composition below for accurate check)';
+    html += ':<ul style="margin:0.4rem 0 0.2rem 1.2rem">';
+    for (const iss of issues) {
+      html += `<li><strong>${iss.parent}</strong> → flow ${iss.fid}, Year ${iss.yr}: `
+            + `entered <strong>${iss.entered}%</strong>, expected <strong>${iss.expected}%</strong></li>`;
+    }
+    html += '</ul>';
+    panel.innerHTML = html;
+  }
 }
 
 // divide by 100 before submit so server receives decimals
@@ -184,6 +416,10 @@ document.getElementById('dyn-form').addEventListener('submit', function () {
     inp.value = ((parseFloat(inp.value) || 0) / 100).toFixed(6);
   });
 });
+
+// Render inflow composition matrix (Transformer only)
+const compMatEl = document.getElementById('checkcomp-matrix');
+if (compMatEl) { compMatEl.innerHTML = buildCompMatrix(); updateGapsCheck(); }
 
 recomputeBalance();
 </script>

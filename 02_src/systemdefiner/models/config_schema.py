@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional
+from typing import Dict, Optional
 
 from pydantic import BaseModel, field_validator, model_validator
 
@@ -156,6 +156,7 @@ class Process(BaseModel):
     dsm: Optional[DsmParams] = None
     lfg: Optional[LfgParams] = None
     flowcap: Optional[FlowCapParams] = None
+    expected_inflow_composition: Optional[Dict[str, float]] = None
 
 
 class Flow(BaseModel):

@@ -101,8 +101,9 @@
       <div class="details-body">
         <p class="muted" style="margin:0 0 0.75rem;font-size:0.88rem">
           Each row is one material category. Inflow split percentages must sum to 100%.
-          For Normal/LogNormal fill Mean &amp; Std Dev. For Weibull fill Shape &amp; Scale.
-          For Fixed fill Mean only.
+          For Normal/FoldedNormal/LogNormal fill Mean &amp; Std Dev. For Weibull fill Shape &amp; Scale.
+          For Fixed fill Mean only. FoldedNormal behaves like Normal but eliminates the small
+          non-physical outflow that Normal produces at age 0 when Std Dev is not small relative to Mean.
         </p>
         <div style="overflow-x:auto">
         <table id="edit-dsm-cat-table" style="width:100%;margin-bottom:0.5rem;font-size:0.88rem">
@@ -126,7 +127,7 @@
               <td><input type="number" name="dsm_cat_{{ loop.index0 }}_inflow_split"   value="{{ (cat.inflow_split * 100) | round(4) }}"   step="any" min="0" max="100" style="width:70px"></td>
               <td>
                 <select name="dsm_cat_{{ loop.index0 }}_lifetime_type" style="width:110px" onchange="syncDsmRow(this.closest('tr'))">
-                  {% for d in ["Normal","LogNormal","Weibull","Fixed"] %}
+                  {% for d in ["Normal","FoldedNormal","LogNormal","Weibull","Fixed"] %}
                   <option value="{{ d }}" {% if cat.lifetime_type == d %}selected{% endif %}>{{ d }}</option>
                   {% endfor %}
                 </select>
@@ -142,7 +143,7 @@
             <tr>
               <td><input type="text"   name="dsm_cat_0_name"           value="Default" style="width:120px"></td>
               <td><input type="number" name="dsm_cat_0_inflow_split"   value="100"    step="any" min="0" max="100" style="width:70px"></td>
-              <td><select name="dsm_cat_0_lifetime_type" style="width:110px" onchange="syncDsmRow(this.closest('tr'))"><option>Normal</option><option>LogNormal</option><option>Weibull</option><option>Fixed</option></select></td>
+              <td><select name="dsm_cat_0_lifetime_type" style="width:110px" onchange="syncDsmRow(this.closest('tr'))"><option>Normal</option><option>FoldedNormal</option><option>LogNormal</option><option>Weibull</option><option>Fixed</option></select></td>
               <td><input type="number" name="dsm_cat_0_lifetime_mean"  value="20.0"   step="any" min="0" style="width:75px"></td>
               <td><input type="number" name="dsm_cat_0_lifetime_std"   value="5.0"    step="any" min="0" style="width:75px"></td>
               <td><input type="number" name="dsm_cat_0_lifetime_shape" placeholder="—" step="any" min="0" style="width:70px"></td>
@@ -169,7 +170,7 @@
       <div class="details-body">
         <p class="muted" style="margin:0 0 0.75rem;font-size:0.88rem">
           <strong>Device lifetime</strong> — whole-device end-of-life outflow (same as standard DSM).
-          Inflow split percentages must sum to 100%. For Normal/LogNormal fill Mean &amp; Std Dev.
+          Inflow split percentages must sum to 100%. For Normal/FoldedNormal/LogNormal fill Mean &amp; Std Dev.
           For Weibull fill Shape &amp; Scale. For Fixed fill Mean only.
         </p>
         <div style="overflow-x:auto">
@@ -189,7 +190,7 @@
               <td><input type="number" name="dsmc_cat_{{ cat_idx }}_inflow_split"   value="{{ (cat.inflow_split * 100) | round(4) }}"   step="any" min="0" max="100" style="width:70px"></td>
               <td>
                 <select name="dsmc_cat_{{ cat_idx }}_lifetime_type" style="width:110px" onchange="syncDsmcRow(this.closest('tr'))">
-                  {% for d in ["Normal","LogNormal","Weibull","Fixed"] %}
+                  {% for d in ["Normal","FoldedNormal","LogNormal","Weibull","Fixed"] %}
                   <option value="{{ d }}" {% if cat.lifetime_type == d %}selected{% endif %}>{{ d }}</option>
                   {% endfor %}
                 </select>
@@ -217,7 +218,7 @@
             <tr>
               <td><input type="text"   name="dsmc_cat_0_name"           value="Default" style="width:120px"></td>
               <td><input type="number" name="dsmc_cat_0_inflow_split"   value="100"    step="any" min="0" max="100" style="width:70px"></td>
-              <td><select name="dsmc_cat_0_lifetime_type" style="width:110px" onchange="syncDsmcRow(this.closest('tr'))"><option>Normal</option><option>LogNormal</option><option>Weibull</option><option>Fixed</option></select></td>
+              <td><select name="dsmc_cat_0_lifetime_type" style="width:110px" onchange="syncDsmcRow(this.closest('tr'))"><option>Normal</option><option>FoldedNormal</option><option>LogNormal</option><option>Weibull</option><option>Fixed</option></select></td>
               <td><input type="number" name="dsmc_cat_0_lifetime_mean"  value="5.0"   step="any" min="0" style="width:75px"></td>
               <td><input type="number" name="dsmc_cat_0_lifetime_std"   value="1.5"    step="any" min="0" style="width:75px"></td>
               <td><input type="number" name="dsmc_cat_0_lifetime_shape" placeholder="—" step="any" min="0" style="width:70px"></td>
@@ -452,7 +453,7 @@ function addDsmCat() {
     <td><input type="text"   name="dsm_cat_${i}_name"           placeholder="Category name" style="width:120px"></td>
     <td><input type="number" name="dsm_cat_${i}_inflow_split"   value="0" step="any" min="0" max="100" style="width:70px"></td>
     <td><select name="dsm_cat_${i}_lifetime_type" style="width:110px" onchange="syncDsmRow(this.closest('tr'))">
-      <option>Normal</option><option>LogNormal</option><option>Weibull</option><option>Fixed</option>
+      <option>Normal</option><option>FoldedNormal</option><option>LogNormal</option><option>Weibull</option><option>Fixed</option>
     </select></td>
     <td><input type="number" name="dsm_cat_${i}_lifetime_mean"  placeholder="—" step="any"  min="0" style="width:75px"></td>
     <td><input type="number" name="dsm_cat_${i}_lifetime_std"   placeholder="—" step="any"  min="0" style="width:75px"></td>
@@ -478,10 +479,11 @@ function reindexDsmCats() {
 // grey out (disable) the rest. Disabled inputs are not submitted, so the
 // engine receives only the parameters that matter for that distribution.
 const DSM_FIELDS_BY_TYPE = {
-  Normal:    { mean: true,  std: true,  shape: false, scale: false },
-  LogNormal: { mean: true,  std: true,  shape: false, scale: false },
-  Fixed:     { mean: true,  std: false, shape: false, scale: false },
-  Weibull:   { mean: false, std: false, shape: true,  scale: true  },
+  Normal:       { mean: true,  std: true,  shape: false, scale: false },
+  FoldedNormal: { mean: true,  std: true,  shape: false, scale: false },
+  LogNormal:    { mean: true,  std: true,  shape: false, scale: false },
+  Fixed:        { mean: true,  std: false, shape: false, scale: false },
+  Weibull:      { mean: false, std: false, shape: true,  scale: true  },
 };
 function syncDsmRow(tr) {
   if (!tr) return;
@@ -603,7 +605,7 @@ function addDsmcCat() {
     <td><input type="text"   name="dsmc_cat_${i}_name"           placeholder="Category name" style="width:120px"></td>
     <td><input type="number" name="dsmc_cat_${i}_inflow_split"   value="0" step="any" min="0" max="100" style="width:70px"></td>
     <td><select name="dsmc_cat_${i}_lifetime_type" style="width:110px" onchange="syncDsmcRow(this.closest('tr'))">
-      <option>Normal</option><option>LogNormal</option><option>Weibull</option><option>Fixed</option>
+      <option>Normal</option><option>FoldedNormal</option><option>LogNormal</option><option>Weibull</option><option>Fixed</option>
     </select></td>
     <td><input type="number" name="dsmc_cat_${i}_lifetime_mean"  placeholder="—" step="any" min="0" style="width:75px"></td>
     <td><input type="number" name="dsmc_cat_${i}_lifetime_std"   placeholder="—" step="any" min="0" style="width:75px"></td>

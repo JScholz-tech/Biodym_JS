@@ -33,7 +33,13 @@
     <tbody>
       {% for p in tc_processes %}
       {% set outgoing = cfg.flows | selectattr("from_process", "equalto", p.id) | list %}
-      {% set defined  = cfg.transfer_coefficients | selectattr("process_id", "equalto", p.id) | list %}
+      {% set all_entries = cfg.transfer_coefficients | selectattr("process_id", "equalto", p.id) | list %}
+      {# Count only entries that carry actual data (non-empty time_series for dynamic, non-empty values for static) #}
+      {% if p.tc_config.value == "Dynamic" %}
+        {% set defined = all_entries | selectattr("time_series") | list %}
+      {% else %}
+        {% set defined = all_entries | selectattr("values") | list %}
+      {% endif %}
       <tr>
         <td><strong>P{{ p.id }} — {{ p.name }}</strong></td>
         <td><span class="tag">{{ p.logic.value }}</span></td>
@@ -57,8 +63,12 @@
         </td>
         <td>{{ outgoing | length }}</td>
         <td>
-          {% if defined | length == outgoing | length %}
+          {% if outgoing | length == 0 %}
+          <span class="muted">—</span>
+          {% elif defined | length == outgoing | length %}
           <span style="color:var(--primary)">✓ {{ defined | length }}</span>
+          {% elif all_entries | length == outgoing | length %}
+          <span style="color:orange" title="TC entries exist but have no data rows — open and re-save with values">⚠ {{ defined | length }} / {{ outgoing | length }} (empty)</span>
           {% else %}
           <span style="color:var(--danger)">{{ defined | length }} / {{ outgoing | length }}</span>
           {% endif %}

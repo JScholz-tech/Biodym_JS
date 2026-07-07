@@ -552,12 +552,15 @@ def _model_health(cfg) -> list[dict]:
                     f"P{p.id} {p.name}: DSM inflow split sums to {s * 100:.1f}% (should be 100%)."
                 )
 
-    # TC-eligible processes with outgoing flows but no TCs
+    # TC-eligible processes with outgoing flows but no TCs (or only empty TC stubs)
     _tc_elig = {ProcessLogic.splitter, ProcessLogic.transformer, ProcessLogic.dsm, ProcessLogic.dsm_component}
-    tc_pids = {tc.process_id for tc in cfg.transfer_coefficients}
+    tc_pids_with_data = {
+        tc.process_id for tc in cfg.transfer_coefficients
+        if tc.time_series or tc.values  # has actual data, not just an empty stub
+    }
     for p in cfg.processes:
         if p.logic in _tc_elig and p.tc_config != TCConfig.no_tc:
-            if any(f.from_process == p.id for f in cfg.flows) and p.id not in tc_pids:
+            if any(f.from_process == p.id for f in cfg.flows) and p.id not in tc_pids_with_data:
                 warn(
                     f"P{p.id} {p.name}: outgoing flows but no transfer coefficients defined."
                 )
@@ -1465,6 +1468,42 @@ async def tc_edit_form(request: Request, name: str, pid: int):
                 )
         is_splitter = process.logic in (ProcessLogic.splitter, ProcessLogic.dsm, ProcessLogic.dsm_component)
         is_transformer = process.logic == ProcessLogic.transformer
+
+        # Hierarchy consistency data (Transformer only)
+        parent_to_children: dict = {}
+        inflow_composition: dict = {}
+        if is_transformer and cfg.element_hierarchy:
+            parent_to_children = {
+                rule.parent: list(rule.children)
+                for rule in cfg.element_hierarchy
+            }
+            # Prefer user-saved composition override; fall back to auto-detection.
+            if process.expected_inflow_composition:
+                inflow_composition = process.expected_inflow_composition
+            else:
+                inflow_fids = [f.id for f in cfg.flows if f.to_process == pid]
+                comp_map = {fc.flow_id: fc.values for fc in cfg.flow_compositions}
+                for fid in inflow_fids:
+                    cvals = comp_map.get(fid, {})
+                    if any(v > 0 for k, v in cvals.items() if k != "material"):
+                        inflow_composition = cvals
+                        break
+                if not inflow_composition:
+                    for fc in cfg.flow_compositions:
+                        if any(v > 0 for k, v in fc.values.items() if k != "material"):
+                            inflow_composition = fc.values
+                            break
+
+        # Matrix context for the hierarchy composition check panel
+        import json as _json
+        hier_json = [
+            {"parent": r.parent, "children": list(r.children)}
+            for r in cfg.element_hierarchy
+        ] if cfg.element_hierarchy else []
+        paths_json = _json.dumps(_rules_to_paths(cfg.element_hierarchy)) if cfg.element_hierarchy else "[]"
+        comp_values_json = _json.dumps(
+            {e: round(inflow_composition.get(e, 0.0) * 100, 4) for e in cfg.model.elements}
+        )
         return templates.TemplateResponse(
             request,
             "tc_edit_dynamic.html",
@@ -1476,6 +1515,11 @@ async def tc_edit_form(request: Request, name: str, pid: int):
                 is_splitter=is_splitter,
                 is_transformer=is_transformer,
                 tc_refs=tc_refs,
+                parent_to_children=parent_to_children,
+                inflow_composition=inflow_composition,
+                hier_json=hier_json,
+                paths_json=paths_json,
+                comp_values_json=comp_values_json,
             ),
         )
     else:
@@ -1630,6 +1674,20 @@ async def tc_save(request: Request, name: str, pid: int):
                 ),
                 status_code=422,
             )
+
+        # Parse and save expected inflow composition (Transformer only)
+        if process.logic == ProcessLogic.transformer:
+            check_comp: dict = {}
+            for key in form.keys():
+                if key.startswith("check_comp_"):
+                    elem = key[len("check_comp_"):]
+                    try:
+                        pct = float(form.get(key, "") or 0)
+                        if pct != 0.0:
+                            check_comp[elem] = round(pct / 100, 6)
+                    except ValueError:
+                        pass
+            process.expected_inflow_composition = check_comp if check_comp else None
 
         storage.save_case_study(cfg)
         return RedirectResponse(f"/{name}/tcs", status_code=303)
@@ -2361,9 +2419,14 @@ async def import_excel(request: Request, name: str, file: UploadFile):
             for f in yaml_data["flows"]
         ]
 
-    cfg.transfer_coefficients = _parse_tcs_from_yaml(
-        yaml_data.get("transfer_coefficients", [])
-    )
+    imported_tcs = _parse_tcs_from_yaml(yaml_data.get("transfer_coefficients", []))
+    imported_keys = {(tc.process_id, tc.flow_id) for tc in imported_tcs}
+    # Preserve existing TCs for any (process, flow) pair not covered by the import.
+    preserved = [
+        tc for tc in cfg.transfer_coefficients
+        if (tc.process_id, tc.flow_id) not in imported_keys
+    ]
+    cfg.transfer_coefficients = preserved + imported_tcs
     cfg.bom_assembly = _parse_bom_from_yaml(yaml_data.get("bom_assembly", []))
     _apply_extra_yaml(yaml_data, cfg)
 

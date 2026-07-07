@@ -1,36 +1,17 @@
 schema_version: '1.0'
 name: T12_Monte_Carlo_Process
-description: '📘 Tutorial T12 — Monte Carlo on a process
-
-
-  Runs a Monte Carlo simulation that varies a single process''s transfer coefficients,
-  propagating that uncertainty to downstream stocks. Compare with T11, which varies
-  input flows as a group.
-
-
-  What it shows
-
-  • A Splitter sends its inflow to two sinks via transfer coefficients (TCs).
-
-  • The MC simulation samples those TCs from a Normal distribution each iteration.
-
-  • Because all of the splitter''s outgoing TCs are varied, they are renormalised
-  to sum to 1.0 — so the split shifts but total throughput is conserved.
-
-
-  Try it
-
-  • Open MC Parameters to see the two TC distributions (mean 0.3 / 0.7, std 0.05).
-
-  • Remember TCs are fractions (0–1), not percentages — enter 0.3, not 30.
-
-  • Increase the iteration count for a smoother distribution.
-
-
-  Look for
-
-  • The MC stock distribution for each sink: a spread around the baseline split, with
-  total inflow unchanged.'
+description: "\U0001F4D8 Tutorial T12 — Monte Carlo on a process\r\n\r\nRuns a Monte\
+  \ Carlo simulation that varies a single process's transfer coefficients, propagating\
+  \ that uncertainty to downstream stocks. Compare with T11, which varies input flows\
+  \ as a group.\r\n\r\nWhat it shows\r\n• A Splitter sends its inflow to two sinks\
+  \ via transfer coefficients (TCs).\r\n• The MC simulation samples those TCs from\
+  \ a Normal distribution each iteration.\r\n• Because all of the splitter's outgoing\
+  \ TCs are varied, they are renormalised to sum to 1.0 — so the split shifts but\
+  \ total throughput is conserved.\r\n\r\nTry it\r\n• Open MC Parameters to see the\
+  \ two TC distributions (mean 0.3 / 0.7, std 0.05).\r\n• Remember TCs are fractions\
+  \ (0–1), not percentages — enter 0.3, not 30.\r\n• Increase the iteration count\
+  \ for a smoother distribution.\r\n\r\nLook for\r\n• The MC stock distribution for\
+  \ each sink: a spread around the baseline split, with total inflow unchanged."
 model:
   start_year: 2025
   end_year: 2125
@@ -40,6 +21,7 @@ model:
   - DM
   - TC
   unit_of_measurement: Mg
+  sankey_title: ''
   hierarchy_level_names:
   - Product
   - Component
@@ -108,7 +90,9 @@ flows:
   from_process: 1
   to_process: 3
 transfer_coefficients:
-- process_id: 1
+- ref: ''
+  refs: []
+  process_id: 1
   flow_id: F_01_02
   tc_type: static
   values:
@@ -117,8 +101,9 @@ transfer_coefficients:
     DM: 0.0
     TC: 0.0
   time_series: []
-  ref: ''
-- process_id: 1
+- ref: ''
+  refs: []
+  process_id: 1
   flow_id: F_01_03
   tc_type: static
   values:
@@ -127,7 +112,6 @@ transfer_coefficients:
     DM: 0.0
     TC: 0.0
   time_series: []
-  ref: ''
 element_hierarchy:
 - parent: material
   children:
@@ -137,15 +121,18 @@ element_hierarchy:
   children:
   - TC
 flow_compositions:
-- flow_id: F_00_01
+- ref: ''
+  refs: []
+  flow_id: F_00_01
   values:
     material: 1.0
     WC: 0.5
     DM: 0.5
     TC: 0.0
-  ref: ''
 flow_data:
-- flow_id: F_00_01
+- ref: ''
+  refs: []
+  flow_id: F_00_01
   element: material
   values:
     '2025': 100.0
@@ -153,7 +140,9 @@ flow_data:
 bom_assembly: []
 scenarios: []
 mc_parameters:
-- parameter_id: TC_E1_01_02
+- ref: ''
+  refs: []
+  parameter_id: TC_E1_01_02
   enabled: true
   distribution: normal
   mean: 0.3
@@ -165,8 +154,9 @@ mc_parameters:
   start_year: null
   end_year: null
   flow_group: null
-  ref: ''
-- parameter_id: TC_E1_01_03
+- ref: ''
+  refs: []
+  parameter_id: TC_E1_01_03
   enabled: true
   distribution: normal
   mean: 0.7
@@ -178,6 +168,5 @@ mc_parameters:
   start_year: null
   end_year: null
   flow_group: null
-  ref: ''
 initial_stocks: []
 references: []
