@@ -678,6 +678,9 @@ def _run_single_mc_iteration(
     process_logic_map,
     tc_info_map,
     rng=None,
+    lfg_params=None,
+    bom_params=None,
+    flow_cap_params=None,
 ):
     """Runs a single iteration of the Monte Carlo simulation.
 
@@ -704,6 +707,9 @@ def _run_single_mc_iteration(
         A map from Process_IDs to their logic.
     tc_info_map : dict
         A map containing information about TC relationships.
+    lfg_params, bom_params, flow_cap_params : dict, optional
+        Module configuration dicts passed through to the solver unmodified
+        (not sampled), so these process logic types stay active during MC.
 
     Returns
     -------
@@ -822,6 +828,8 @@ def _run_single_mc_iteration(
                 print(f"   {param} = {value:.6f}")
 
     # --- 3e. Run Solver ---
+    # LFG/BOM/FlowCap params are passed through unmodified (not yet sampled),
+    # so that processes with these logic types stay active during MC runs.
     mfa_system_run, _, solver_info = solver.run_mfa_calculation(
         mfa_system_setup,
         updated_dsm_params,
@@ -831,6 +839,9 @@ def _run_single_mc_iteration(
         process_logic_map=process_logic_map,
         tc_updates=tc_updates,
         flow_updates=flow_updates if flow_updates else None,
+        lfg_params=lfg_params or {},
+        bom_params=bom_params or {},
+        flow_cap_params=flow_cap_params or {},
     )
 
     # --- 3f. Collect Results ---
@@ -1087,6 +1098,9 @@ def run_mc_simulation(
     config,
     process_logic_map,
     flow_tc_map,
+    lfg_params=None,
+    bom_params=None,
+    flow_cap_params=None,
 ):
     """Runs a Monte Carlo simulation by repeatedly sampling parameters.
 
@@ -1110,6 +1124,13 @@ def run_mc_simulation(
         A map from process ID to its logic ('Splitter'/'Transformer').
     flow_tc_map : dict
         A map from Flow_IDs to their TC_IDs.
+    lfg_params : dict, optional
+        Configuration dictionary for LFG processes. Not sampled, but required
+        so LFG processes stay active during MC iterations.
+    bom_params : dict, optional
+        Configuration dictionary for BOM_Assembler processes (same reason).
+    flow_cap_params : dict, optional
+        Configuration dictionary for FlowCap processes (same reason).
 
     Returns
     -------
@@ -1118,6 +1139,14 @@ def run_mc_simulation(
         None if no uncertainty parameters are defined.
     """
     # --- 1. Configuration ---
+    # Re-register FlowCap cap parameters on the base system: the solver
+    # deep-copies it each iteration, and register_cap_parameters is a no-op
+    # for keys that already exist (same pattern as the scenario engine).
+    if flow_cap_params:
+        from engine import flow_cap as _fc
+
+        _fc.register_cap_parameters(mfa_system_setup, flow_cap_params)
+
     n_iterations = getattr(config, "MC_ITERATIONS", 100)
     seed = _resolve_mc_seed(config)
     rng = np.random.default_rng(seed)
@@ -1233,6 +1262,9 @@ def run_mc_simulation(
                 process_logic_map,
                 tc_info_map,
                 rng=rng,
+                lfg_params=lfg_params,
+                bom_params=bom_params,
+                flow_cap_params=flow_cap_params,
             )
         except Exception as exc:
             # One bad sample must not kill the whole batch: record it, skip
