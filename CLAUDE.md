@@ -88,6 +88,51 @@ tools/                   — WIP/experimental, gitignored (local-only): marimo_d
 - Voilà dashboard: `01_BioDYM_Dashboard.ipynb` is the primary dashboard — commit standalone (no paired `.py`)
 - Marimo dashboard: `tools/marimo_dashboard.py` is WIP — commit standalone (no `.ipynb` counterpart)
 
+## Mathematical Notation Convention
+
+All equations in BioDYM documentation and code comments follow these rules.
+Full formula reference: `Writing project/Monographie/bioDYM_mathematical_formulas.md`
+
+### Position convention (Rule 3)
+In any physical quantity symbol, the **superscript** always identifies *what substance* (the element), and the **subscript** always identifies *where or which* (process, flow, pool, fraction, category). Time is always a function argument `(t)`, never a sub- or superscript.
+
+Example: `D_L^DM(t)` — subscript `L` = labile pool (which pool), superscript `DM` = dry matter (what element), `(t)` = time-varying.
+
+### Quantity notation
+- **Flows**: `F_f^e(t)` — subscript = flow ID `f`, superscript = element `e`; shorthand `F_f(t) := F_f^mat(t)`
+- **Stocks**: `S_p^e(t)` — subscript = process `p`, superscript = element `e`; shorthand `S_p(t) := S_p^mat(t)`
+- Rule applies to all physical quantities: `F`, `S`, `I`, `O`, `D`, `G`
+- `(t)` marks a time-varying quantity — omit for constants (e.g. `φ_f^e`, `k_L`, `α_L`)
+
+### Reserved symbols — do not reassign
+| Symbol | Reserved for |
+|--------|-------------|
+| `f` (subscript) | Flow identifier only — never a fraction prefix |
+| `φ_f^e` | Static parent-relative content fraction; `p(e)` = parent element of `e` |
+| `ψ` | UNFCCC correction factor (LFG only) — avoids collision with `φ` |
+| `α` | Dimensionless split fractions: `α_L` (FOMP labile), `α_i` (DSM category) |
+| `k` (subscripted) | First-order decay constants [yr⁻¹]: `k_L`, `k_R`, `k_j` |
+| `κ` | Weibull shape parameter — avoids collision with `k` |
+| `i` | General numbering index — DSM lifetime categories, process outflows (TC routing, MC normalisation), neighbouring processes in mass balance sums; local context defines what is counted |
+| `j` | LFG waste fraction index |
+| `c` | DSM_Component component type index |
+
+### Element superscript abbreviations
+`mat` (material), `WC` (water content), `DM` (dry matter), `TC` (total carbon), `TOC`, `TIC`, `Ash`
+
+### Known exception
+LFG gas outputs `G_CH4(t)` and `G_CO2(t)` embed the chemical species in the subscript. Element TC is implied by the unit [Mg C yr⁻¹] — no superscript applied here.
+
+### Code↔paper bridge
+Each engine module must contain a notation table in its module or function docstring:
+```python
+# Mathematical notation (see bioDYM_mathematical_formulas.md §<N>):
+#   Paper symbol    Code variable
+#   α_L          ←→  f_labile
+#   k_L          ←→  k_labile
+#   r_TC(t)      ←→  cc_dm_series
+```
+
 ## Common pitfalls
 - `plot_flow_composition` is in `plotting.composition`, not `plotting` — import separately
 - `w.HTML(...)` (ipywidgets) for widget layouts in Voilà only; `IPython.display.HTML` for standalone display
