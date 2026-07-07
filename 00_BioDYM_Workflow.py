@@ -719,6 +719,9 @@ if mc_enabled:
             config_obj,
             process_logic_map=process_logic_map,
             flow_tc_map=flow_tc_map,
+            lfg_params=lfg_params,
+            bom_params=bom_params,
+            flow_cap_params=flow_cap_params,
         )
 
         if mc_results is not None and not mc_results.empty:

@@ -342,6 +342,85 @@ def test_enforce_physical_bounds_leaves_other_params_alone():
 
 
 # --------------------------------------------------------------------------
+# Module params (LFG / BOM / FlowCap) must stay active during MC iterations
+# --------------------------------------------------------------------------
+
+def _t09_parts_with_mc_param():
+    """T09_FlowCap with one injected flow uncertainty (the tutorial has none)."""
+    yaml_path = os.path.join(CASE_STUDIES_DIR, "T09_FlowCap", "config.yaml")
+    parts = build_case_study_yaml(yaml_path)
+    parts["config_obj"].MC_ITERATIONS = 2
+    parts["all_excel_data"]["4_1_Uncertainty_Parameters"] = pd.DataFrame(
+        [{
+            "MC_Parameter_ID": "F_00_01",
+            "MC_Parameter_Selection": "x",
+            "Distribution_Type": "normal",
+            "Mean": 1.0,
+            "StdDev": 0.05,
+            "Min": 0.8,
+            "Max": 1.2,
+            "Mode": None,
+            "MC_Operation": "multiply",
+        }]
+    )
+    return parts
+
+
+def test_mc_keeps_flowcap_process_active():
+    # Without flow_cap_params the FlowCap process gets no logic applied at
+    # all during MC iterations (outflows stay 0), which shows up as a large
+    # per-process mass balance error.
+    parts = _t09_parts_with_mc_param()
+
+    results = run_mc_simulation(
+        parts["mfa_system"],
+        parts["all_excel_data"],
+        parts["dsm_params"],
+        parts["fomp_params"],
+        parts["config_obj"],
+        parts["process_logic_map"],
+        parts["flow_tc_map"],
+        lfg_params=parts["lfg_params"],
+        bom_params=parts["bom_params"],
+        flow_cap_params=parts["flow_cap_params"],
+    )
+
+    assert len(results) == 2
+    assert (results["mb_error_material"] < 1e-6).all()
+
+
+def test_mc_forwards_module_params_to_solver(monkeypatch):
+    from engine import mc_simulation
+
+    parts = _t09_parts_with_mc_param()
+    captured = {}
+    original = mc_simulation.solver.run_mfa_calculation
+
+    def spy(*args, **kwargs):
+        captured.update(kwargs)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(mc_simulation.solver, "run_mfa_calculation", spy)
+
+    run_mc_simulation(
+        parts["mfa_system"],
+        parts["all_excel_data"],
+        parts["dsm_params"],
+        parts["fomp_params"],
+        parts["config_obj"],
+        parts["process_logic_map"],
+        parts["flow_tc_map"],
+        lfg_params=parts["lfg_params"],
+        bom_params=parts["bom_params"],
+        flow_cap_params=parts["flow_cap_params"],
+    )
+
+    assert captured["lfg_params"] == parts["lfg_params"]
+    assert captured["bom_params"] == parts["bom_params"]
+    assert captured["flow_cap_params"] == parts["flow_cap_params"]
+
+
+# --------------------------------------------------------------------------
 # Process-ID validation in the solver
 # --------------------------------------------------------------------------
 
