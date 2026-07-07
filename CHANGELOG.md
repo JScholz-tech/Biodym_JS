@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.2] - 2026-07-07
+
+### Added
+- SystemDefiner: reference manager rolled out across all parameter editors —
+  reusable multi-select widget (shows titles) on transfer coefficients
+  (static + dynamic), flow compositions, initial stock, FOMP/DSM, scenarios,
+  Monte Carlo, flow data, LFG, FlowCap, and BOM_Assembler; standalone
+  assumptions list with custom (non-Zotero) entries
+- SystemDefiner: DSM_Component process logic for spare-part renewal, with
+  per-category component replacement rates
+- SystemDefiner: FoldedNormal DSM distribution option, dynamic TC status
+  indicator, `expected_inflow_composition`
+- SystemDefiner: MC seed and solver settings exposed in the editor and dashboard
+- SystemDefiner: "Compact IDs" button to renumber process-ID gaps
+- SystemDefiner: FlowCap cap made addressable in the Scenario Manager and
+  Monte Carlo editors
+- Reporting: parameter overview export for SystemDefiner-defined systems
+- Plotting: interactive Monte Carlo box plot
+- Engine: per-node element hierarchy composition validation
+- Docs: mathematical notation convention, getting-started guide, notation
+  tables, FOMP ignored-parameter warnings
+- Tests: golden regression net covering tutorials T01-T15; unit tests for
+  five previously-untested engine modules
+- Tests: golden regression now also pins scenario-engine and Monte Carlo
+  outputs (not just the baseline MFA solve), with a config-hash drift guard
+  that fails fast if a tutorial's `config.yaml` changes without regenerating
+  its reference
+
+### Changed
+- SystemDefiner: composition fractions are now stored parent-relative rather
+  than absolute
+- SystemDefiner: LFG entries hidden from the scenario/MC parameter dropdown
+  (not applicable there)
+- Engine: TC/CC fallback and element-index lookups consolidated
+- FOMP: hierarchy-consistent carbon outflow composition
+
+### Fixed
+- Monte Carlo: LFG/BOM_Assembler/FlowCap module parameters are now forwarded
+  into MC iterations (processes no longer go silently inactive during MC runs)
+- Monte Carlo: reproducible runs via a seeded numpy Generator (`MC_Seed`);
+  runs survive failed solver iterations, with a new `SOLVER_STRICT`
+  non-convergence mode
+- Dashboard: "no MC params defined" is now distinguished from "all iterations
+  failed"
+- Solver: process-ID parameters are validated; unphysical MC draws rejected
+- Engine: robustness hardening; per-year hierarchical element fractions
+  (previously locked to the first year)
+- LFG: MCF/OX/phi now apply to the CH4 pathway only; `stable_stock` split by unit
+- DSM: initial-stock decay follows the category lifetime distributions; shared
+  spare flows accumulate correctly across components; suppressed a spurious
+  divide-by-zero warning in the outflow composition calc
+- Scenario: Weibull Shape/Scale now supported in the DSM branch of
+  `apply_scenario`; NaN scenario names from empty Excel cells are skipped
+- SystemDefiner: the 'material' first element is protected from edits
+
+---
+
 ## [1.2.1] - 2026-06-25
 
 ### Added
