@@ -1998,30 +1998,12 @@ def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
             ]
         )
 
-    # ── LFG site parameters ────────────────────────────────────────────────────
-    for proc in cfg.processes:
-        if proc.logic != ProcessLogic.lfg or not proc.lfg:
-            continue
-        pid, pn = proc.id, proc.name
-        for pkey, plabel, phint in [
-            ("MCF", "MCF", "0–1"),
-            ("DOCf", "DOCf", "0–1"),
-            ("F_CH4", "F CH4", "0–1"),
-            ("OX", "Oxidation", "0–1"),
-            ("phi", "φ (phi)", "0–1"),
-        ]:
-            params.append(
-                {
-                    "name": f"P{pid}_{pkey}",
-                    "label": f"P{pid} {pn} — LFG {plabel}",
-                    "group": "LFG",
-                    "type": "Flow",
-                    "hint": phint,
-                    "step": "0.01",
-                    "min": "0",
-                    "max": "1",
-                }
-            )
+    # ── LFG site parameters: intentionally NOT offered ─────────────────────────
+    # The engine cannot apply LFG parameter modifications yet: apply_scenario
+    # has no LFG branch and the MC engine has no apply_lfg_parameter_updates(),
+    # so entries like "P{id}_MCF" would be selectable but silently ignored.
+    # Re-add an "LFG" group here once both engine paths exist (Finding B in
+    # 260706_Report_SystemDefiner_ScenarioMC_ParameterCoverage.md).
 
     # ── FlowCap capacity caps ──────────────────────────────────────────────────
     # The cap series is registered in ParameterDict under cap_tc_id, so both
