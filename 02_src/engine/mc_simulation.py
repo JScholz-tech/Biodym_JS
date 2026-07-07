@@ -1195,6 +1195,11 @@ def run_mc_simulation(
     # malformed entry would otherwise be sampled but silently never applied.
     unclassified = []
     for _name in uncertainty_params:
+        # Names registered directly in ParameterDict (FlowCap caps like
+        # "TC_Cap_02", flow-content fractions like "WC_F_01_02") are applied
+        # via the tc_updates path even though they match no TC/F_/P## pattern.
+        if _name in mfa_system_setup.ParameterDict:
+            continue
         if _name.startswith("TC_"):
             if _parse_tc_group_key(_name) is None:
                 unclassified.append(f"{_name} (unparseable TC name)")

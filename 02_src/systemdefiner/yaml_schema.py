@@ -597,6 +597,14 @@ def model_to_yaml(excel_data: dict, source_file: str = "") -> dict:
                 block["overflow_flow_id"] = fid
             else:  # Capped_Output (default)
                 block["capped_flow_id"] = fid
+                # Cap_TC_ID (ParameterDict key for scenario/MC cap switching)
+                # sits on the Capped_Output rows — mirror the engine loader,
+                # which otherwise loses it on Excel→YAML round-trips.
+                raw_tc = row.get("Cap_TC_ID")
+                if pd.notna(raw_tc):
+                    raw_tc = str(raw_tc).strip()
+                    if raw_tc and raw_tc.lower() not in ("nan", "n.a.", "n/a"):
+                        block["cap_tc_id"] = raw_tc
                 if cap_col is not None and pd.notna(row.get(cap_col)):
                     try:
                         cap = float(str(row[cap_col]).replace(",", "."))

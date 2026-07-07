@@ -159,6 +159,141 @@ class TestProcesses:
         r = client.get(f"/{n}/processes/999/edit")
         assert r.status_code == 404
 
+    def _flowcap_form(self, name="Cap", **extra):
+        data = {
+            "name": name,
+            "logic": "FlowCap",
+            "stock": "No_Stock",
+            "flowcap_capped_flow_id": "F_01_02",
+            "flowcap_overflow_flow_id": "F_01_03",
+            "flowcap_year_0": "2025",
+            "flowcap_cap_0": "100",
+        }
+        data.update(extra)
+        return data
+
+    def test_flowcap_save_auto_derives_cap_tc_id(self, client):
+        from systemdefiner import storage
+        n = self._study(client)
+        client.post(f"/{n}/processes/new", data=self._flowcap_form())
+        cfg = storage.load_case_study(n)
+        proc = next(p for p in cfg.processes if p.name == "Cap")
+        assert proc.flowcap.cap_tc_id == f"TC_Cap_{proc.id:02d}"
+
+    def test_flowcap_save_preserves_custom_cap_tc_id(self, client):
+        from systemdefiner import storage
+        n = self._study(client)
+        client.post(f"/{n}/processes/new", data=self._flowcap_form())
+        cfg = storage.load_case_study(n)
+        pid = next(p.id for p in cfg.processes if p.name == "Cap")
+        client.post(
+            f"/{n}/processes/{pid}/edit",
+            data=self._flowcap_form(flowcap_cap_tc_id="TC_Cap_Custom"),
+        )
+        cfg = storage.load_case_study(n)
+        proc = next(p for p in cfg.processes if p.id == pid)
+        assert proc.flowcap.cap_tc_id == "TC_Cap_Custom"
+
+    def test_flowcap_resave_keeps_cap_tc_id(self, client):
+        # Re-saving via the form (which pre-fills the field) must not wipe the ID
+        from systemdefiner import storage
+        n = self._study(client)
+        client.post(f"/{n}/processes/new", data=self._flowcap_form())
+        cfg = storage.load_case_study(n)
+        pid = next(p.id for p in cfg.processes if p.name == "Cap")
+        expected = f"TC_Cap_{pid:02d}"
+        r = client.get(f"/{n}/processes/{pid}/edit")
+        assert expected.encode() in r.content  # field is pre-filled
+        client.post(f"/{n}/processes/{pid}/edit", data=self._flowcap_form())
+        cfg = storage.load_case_study(n)
+        proc = next(p for p in cfg.processes if p.id == pid)
+        assert proc.flowcap.cap_tc_id == expected
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SCENARIO / MC PARAMETER CATALOG
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestParameterCatalog:
+    def _cfg_with_flowcap_and_is(self):
+        from systemdefiner.models.config_schema import (
+            CaseStudyConfig,
+            Flow,
+            FlowCapParams,
+            InitialStockEntry,
+            Process,
+            ProcessLogic,
+            StockConfig,
+        )
+
+        return CaseStudyConfig(
+            name="catalog_test",
+            processes=[
+                Process(id=0, name="Boundary", logic=ProcessLogic.input),
+                Process(
+                    id=1,
+                    name="Sorting",
+                    logic=ProcessLogic.flowcap,
+                    flowcap=FlowCapParams(
+                        capped_flow_id="F_01_02",
+                        overflow_flow_id="F_01_03",
+                        cap_series={2025: 100.0},
+                        cap_tc_id="TC_Cap_01",
+                    ),
+                ),
+                Process(
+                    id=2,
+                    name="Store",
+                    logic=ProcessLogic.splitter,
+                    stock=StockConfig.initial_stock_decay,
+                ),
+            ],
+            flows=[
+                Flow(id="F_00_01", name="In", from_process=0, to_process=1),
+                Flow(id="F_01_02", name="Capped", from_process=1, to_process=2),
+                Flow(id="F_01_03", name="Overflow", from_process=1, to_process=2),
+            ],
+            initial_stocks=[
+                InitialStockEntry(
+                    process_id=2,
+                    material_quantity=500.0,
+                    composition={"WC": 0.1, "DM": 0.9, "TC": 0.4},
+                )
+            ],
+        )
+
+    def test_catalog_offers_flowcap_cap(self):
+        from systemdefiner.main import _build_scenario_params
+
+        params = _build_scenario_params(self._cfg_with_flowcap_and_is())
+        cap = next((p for p in params if p["group"] == "FlowCap"), None)
+        assert cap is not None
+        assert cap["name"] == "TC_Cap_01"
+        assert cap["type"] == ""  # must bypass TC normalization
+        assert not cap.get("scenario_only")  # cap works in MC too
+
+    def test_catalog_flowcap_falls_back_to_derived_id(self):
+        from systemdefiner.main import _build_scenario_params
+
+        cfg = self._cfg_with_flowcap_and_is()
+        cfg.processes[1].flowcap.cap_tc_id = ""
+        params = _build_scenario_params(cfg)
+        cap = next(p for p in params if p["group"] == "FlowCap")
+        assert cap["name"] == "TC_Cap_01"
+
+    def test_catalog_offers_initial_stock_entries(self):
+        from systemdefiner.main import _build_scenario_params
+
+        params = _build_scenario_params(self._cfg_with_flowcap_and_is())
+        is_params = [p for p in params if p["group"] == "Initial Stock"]
+        names = {p["name"] for p in is_params}
+        assert "P02_IS_material_quantity[UoM]" in names
+        # E-index follows cfg.model.elements order: material=E1, WC=E2, DM=E3, TC=E4
+        assert "P02_IS_E2_[%](WC)" in names
+        assert "P02_IS_E4_[%](TC)" in names
+        # IS is scenario-engine-only — must be hidden on the MC page
+        assert all(p.get("scenario_only") for p in is_params)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # FLOWS

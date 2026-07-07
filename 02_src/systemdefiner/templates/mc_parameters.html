@@ -215,8 +215,11 @@ const DIST_REQUIRED = {
 const ALL_FIELDS = ['mean','std','min','mode','max'];
 
 // ── Parameter dropdown ─────────────────────────────────────────────────────────
+// scenario_only entries (e.g. initial stocks) are applied by the scenario
+// engine but not supported by the MC sampler — hide them on this page.
 const GROUPS = {};
-PARAMS.forEach(p => { if (!GROUPS[p.group]) GROUPS[p.group] = []; GROUPS[p.group].push(p); });
+PARAMS.filter(p => !p.scenario_only)
+      .forEach(p => { if (!GROUPS[p.group]) GROUPS[p.group] = []; GROUPS[p.group].push(p); });
 
 function buildSelectOptions(selected) {
   let html = '<option value="">— select —</option>';

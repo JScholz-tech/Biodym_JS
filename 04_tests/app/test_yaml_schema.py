@@ -227,3 +227,48 @@ class TestTransferCoefficients:
         tc = self._tc_df([{"Process_ID": 1, "Flow_ID": "F_01_02", "E2_TC_Value[%]": 0.5}])
         result = model_to_yaml({"2_2_static_TCs": tc})
         assert result["transfer_coefficients"] == []
+
+
+# ── FlowCap import (3_4_Definition_FlowCap) ───────────────────────────────────
+
+class TestFlowCapImport:
+    def _excel_data(self, cap_tc_id="TC_Cap_01"):
+        fc_rows = [
+            {"Process_ID": 1, "Output_flow_type": "Capped_Output",
+             "Flow_ID": "F_01_02", "Year": 2025, "Flow": 100.0,
+             "Cap_TC_ID": cap_tc_id},
+            {"Process_ID": 1, "Output_flow_type": "Overflow",
+             "Flow_ID": "F_01_03", "Year": None, "Flow": None,
+             "Cap_TC_ID": None},
+        ]
+        return {
+            "2_1_Definition_Processes": _proc_df(
+                [{"id": 1, "name": "Sorting", "logic": "FlowCap"}]
+            ),
+            "3_4_Definition_FlowCap": pd.DataFrame(fc_rows),
+        }
+
+    def _flowcap_block(self, result):
+        return next(
+            p["flowcap"] for p in result["processes"] if p.get("flowcap")
+        )
+
+    def test_cap_tc_id_imported(self):
+        result = model_to_yaml(self._excel_data())
+        fc = self._flowcap_block(result)
+        assert fc["cap_tc_id"] == "TC_Cap_01"
+        assert fc["capped_flow_id"] == "F_01_02"
+        assert fc["overflow_flow_id"] == "F_01_03"
+        assert fc["cap_series"] == {2025: 100.0}
+
+    def test_missing_cap_tc_id_column_stays_blank(self):
+        data = self._excel_data()
+        data["3_4_Definition_FlowCap"] = data["3_4_Definition_FlowCap"].drop(
+            columns=["Cap_TC_ID"]
+        )
+        result = model_to_yaml(data)
+        assert self._flowcap_block(result)["cap_tc_id"] == ""
+
+    def test_placeholder_cap_tc_id_ignored(self):
+        result = model_to_yaml(self._excel_data(cap_tc_id="N.A."))
+        assert self._flowcap_block(result)["cap_tc_id"] == ""

@@ -1339,10 +1339,36 @@ def apply_scenario(
 
             internal_param_name = param_mapping.get(param_name_clean, None)
             if internal_param_name is None:
+                # Generic patterns for any element name (TC, Ash_content, …):
+                # "IS_E{n}_[%]({elem})" or "IS_{elem}[%]" → "Initial_Stock_{elem}[%]"
+                import re as _re
+
+                m = _re.match(r"IS_E\d+_\[%\]\((.+)\)$", param_name_clean) or _re.match(
+                    r"IS_(.+)\[%\]$", param_name_clean
+                )
+                if m:
+                    internal_param_name = f"Initial_Stock_{m.group(1)}[%]"
+            if internal_param_name is None:
                 print(
                     f"       WARNING: Unknown Initial Stock parameter '{param_name_clean}'. Skipping."
                 )
                 continue
+
+            # Legacy TC/CC naming: the config may store the carbon fraction
+            # under either element name — try the sibling before giving up.
+            if (
+                internal_param_name
+                not in initial_stock_configs[process_id]["initial_stock_values"]
+            ):
+                for _a, _b in (("CC", "TC"), ("TC", "CC")):
+                    _alt = internal_param_name.replace(f"_{_a}[", f"_{_b}[")
+                    if (
+                        _alt != internal_param_name
+                        and _alt
+                        in initial_stock_configs[process_id]["initial_stock_values"]
+                    ):
+                        internal_param_name = _alt
+                        break
 
             if (
                 internal_param_name

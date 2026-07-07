@@ -840,7 +840,7 @@ async def process_new(request: Request, name: str):
         dsm=_parse_dsm_component(form) if logic == ProcessLogic.dsm_component
             else _parse_dsm(form) if logic == ProcessLogic.dsm else None,
         lfg=_parse_lfg(form) if logic == ProcessLogic.lfg else None,
-        flowcap=_parse_flowcap(form) if logic == ProcessLogic.flowcap else None,
+        flowcap=_parse_flowcap(form, new_id) if logic == ProcessLogic.flowcap else None,
     )
     cfg.processes.append(process)
     storage.save_case_study(cfg)
@@ -896,7 +896,7 @@ async def process_edit_save(request: Request, name: str, pid: int):
         else None
     )
     process.lfg = _parse_lfg(form) if logic == ProcessLogic.lfg else None
-    process.flowcap = _parse_flowcap(form) if logic == ProcessLogic.flowcap else None
+    process.flowcap = _parse_flowcap(form, pid) if logic == ProcessLogic.flowcap else None
 
     # If the process no longer carries an initial stock, drop any orphaned entry
     # so it can't linger in the config (and silently feed the engine).
@@ -1148,7 +1148,7 @@ def _parse_lfg(form) -> LfgParams:
     )
 
 
-def _parse_flowcap(form) -> Optional[FlowCapParams]:
+def _parse_flowcap(form, process_id: int) -> Optional[FlowCapParams]:
     capped = form.get("flowcap_capped_flow_id", "") or ""
     if not capped:
         return None
@@ -1169,10 +1169,17 @@ def _parse_flowcap(form) -> Optional[FlowCapParams]:
         idx += 1
         if idx > 200:
             break
+    # ParameterDict key under which the engine registers the cap series, so
+    # the Scenario Manager and MC can switch the cap. Auto-derive the
+    # canonical name when the form leaves it blank; keep hand-authored IDs.
+    cap_tc_id = (form.get("flowcap_cap_tc_id", "") or "").strip()
+    if not cap_tc_id:
+        cap_tc_id = f"TC_Cap_{process_id:02d}"
     return FlowCapParams(
         capped_flow_id=capped,
         overflow_flow_id=form.get("flowcap_overflow_flow_id", "") or "",
         cap_series=cap_series,
+        cap_tc_id=cap_tc_id,
         refs=[c.strip() for c in form.getlist("flowcap_refs") if c.strip()],
     )
 
@@ -1970,10 +1977,10 @@ def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
                 },
                 {
                     "name": f"P{pid:02d}_Inflow_fraction_f (Recalcitrant pool)",
-                    "label": f"P{pid:02d} {pn} — Inflow frac recalcitrant",
+                    "label": f"P{pid:02d} {pn} — Inflow frac recalcitrant (no effect: engine uses 1 − labile)",
                     "group": "FOMP",
                     "type": "FOMP",
-                    "hint": "fraction 0–1",
+                    "hint": "fraction 0–1 (inert — vary the labile fraction instead)",
                     "step": "0.001",
                     "min": "0",
                     "max": "1",
@@ -2013,6 +2020,64 @@ def _build_scenario_params(cfg: "CaseStudyConfig") -> list[dict]:
                     "step": "0.01",
                     "min": "0",
                     "max": "1",
+                }
+            )
+
+    # ── FlowCap capacity caps ──────────────────────────────────────────────────
+    # The cap series is registered in ParameterDict under cap_tc_id, so both
+    # the scenario engine (generic ParameterDict branch) and MC (tc_updates
+    # path) can modify it. The name is intentionally NOT typed "TC": it must
+    # bypass TC normalization, which it does because it has no process-pair.
+    for proc in cfg.processes:
+        if proc.logic != ProcessLogic.flowcap or not proc.flowcap:
+            continue
+        cap_id = proc.flowcap.cap_tc_id or f"TC_Cap_{proc.id:02d}"
+        params.append(
+            {
+                "name": cap_id,
+                "label": f"P{proc.id:02d} {proc.name} — capacity cap",
+                "group": "FlowCap",
+                "type": "",
+                "hint": f"{unit}/yr cap",
+                "step": "any",
+                "min": "0",
+                "max": "",
+            }
+        )
+
+    # ── Initial stocks ─────────────────────────────────────────────────────────
+    # Applied by apply_scenario's "IS" branch. The MC engine has no IS support,
+    # so these are hidden on the MC Parameters page via scenario_only.
+    for entry in cfg.initial_stocks:
+        pid = entry.process_id
+        pn = proc_names.get(pid, f"P{pid}")
+        params.append(
+            {
+                "name": f"P{pid:02d}_IS_material_quantity[UoM]",
+                "label": f"P{pid:02d} {pn} — initial stock quantity",
+                "group": "Initial Stock",
+                "type": "IS",
+                "hint": unit,
+                "step": "any",
+                "min": "0",
+                "max": "",
+                "scenario_only": True,
+            }
+        )
+        for e_idx, elem in enumerate(cfg.model.elements):
+            if e_idx == 0 or elem not in (entry.composition or {}):
+                continue
+            params.append(
+                {
+                    "name": f"P{pid:02d}_IS_E{e_idx + 1}_[%]({elem})",
+                    "label": f"P{pid:02d} {pn} — initial stock {elem} fraction",
+                    "group": "Initial Stock",
+                    "type": "IS",
+                    "hint": f"fraction 0–1  ({elem})",
+                    "step": "0.001",
+                    "min": "0",
+                    "max": "1",
+                    "scenario_only": True,
                 }
             )
 
