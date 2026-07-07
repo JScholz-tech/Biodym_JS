@@ -276,3 +276,70 @@ def test_process_logic_map_strips_and_canonicalizes():
     assert result[3] == "BOM_Assembler"
     assert result[4] == "Exotic_Logic"
     assert result[5] is raw[5]
+
+
+# --------------------------------------------------------------------------
+# apply_scenario — Weibull lifetime Shape/Scale (DSM)
+# --------------------------------------------------------------------------
+
+def _weibull_dsm_params():
+    return {
+        6: {
+            "lifetimes": {"Mean": [50.0], "StdDev": [15.0]},
+            "inflow_split": [1.0],
+            "output_splits": [[1.0]],
+        }
+    }
+
+
+def _fake_mfa_system():
+    from types import SimpleNamespace
+
+    return SimpleNamespace(FlowDict={}, Elements=["material"])
+
+
+def _weibull_mod(base, operation, value):
+    return {
+        "Parameter_Name": f"P06_DSM_Lifetime_{base}_Cat_1",
+        "Parameter_Type": "DSM",
+        "Operation": operation,
+        "New_Value": value,
+    }
+
+
+def test_apply_scenario_sets_weibull_shape_and_scale():
+    from system_setup import apply_scenario
+
+    scenario_defs = {
+        "S": [_weibull_mod("Shape", "replace", 3.0),
+              _weibull_mod("Scale", "replace", 20.0)]
+    }
+    _, dsm, _, _ = apply_scenario(
+        _fake_mfa_system(), scenario_defs, "S", dsm_params=_weibull_dsm_params()
+    )
+    assert dsm[6]["lifetimes"]["Shape"] == [3.0]
+    assert dsm[6]["lifetimes"]["Scale"] == [20.0]
+
+
+def test_apply_scenario_multiplies_existing_weibull_scale():
+    from system_setup import apply_scenario
+
+    params = _weibull_dsm_params()
+    params[6]["lifetimes"]["Shape"] = [3.0]
+    params[6]["lifetimes"]["Scale"] = [20.0]
+    scenario_defs = {"S": [_weibull_mod("Scale", "multiply", 1.5)]}
+    _, dsm, _, _ = apply_scenario(
+        _fake_mfa_system(), scenario_defs, "S", dsm_params=params
+    )
+    assert dsm[6]["lifetimes"]["Scale"] == [30.0]
+    assert params[6]["lifetimes"]["Scale"] == [20.0]  # original untouched
+
+
+def test_apply_scenario_weibull_multiply_without_baseline_is_skipped():
+    from system_setup import apply_scenario
+
+    scenario_defs = {"S": [_weibull_mod("Shape", "multiply", 1.5)]}
+    _, dsm, _, _ = apply_scenario(
+        _fake_mfa_system(), scenario_defs, "S", dsm_params=_weibull_dsm_params()
+    )
+    assert dsm[6]["lifetimes"]["Shape"] == [None]  # created but not modified
