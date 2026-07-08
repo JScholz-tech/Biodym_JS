@@ -208,9 +208,13 @@ def config_file_hash(yaml_path):
     followed by regenerating the reference fails loudly and immediately
     (rather than surfacing later as a numeric mismatch on main — see the
     T04 FoldedNormal staleness incident, af2b5f9 / c15c547).
+
+    Reads in text mode with universal newlines so the digest is stable
+    across CRLF (Windows working copy) and LF (Linux CI checkout) — the
+    file content is otherwise identical.
     """
-    with open(yaml_path, "rb") as f:
-        return hashlib.sha256(f.read()).hexdigest()
+    with open(yaml_path, "r", newline=None, encoding="utf-8") as f:
+        return hashlib.sha256(f.read().encode("utf-8")).hexdigest()
 
 
 def collect_full_results(yaml_path):
