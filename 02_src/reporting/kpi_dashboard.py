@@ -114,6 +114,15 @@ def calculate_system_overview(mfa_results, process_logic_map, kpi_df):
     elements = mfa_results.Elements
     unit = mfa_results.Unit or "Mg"
 
+    # Boundary processes are labeled "Input"/"Output" (see calculate_system_kpis).
+    # Their stock reflects net cumulative input/output already captured by
+    # Total_Input/Total_Output above, so summing it into the system-wide stock
+    # metrics below would double-count it and can cancel out the real
+    # (non-boundary) process stocks that the residence-time calc cares about.
+    boundary_processes = {
+        pid for pid, logic in process_logic_map.items() if logic in ("Input", "Output")
+    }
+
     overview_data = []
 
     for element_idx, element_name in enumerate(elements):
@@ -139,8 +148,13 @@ def calculate_system_overview(mfa_results, process_logic_map, kpi_df):
         throughput_peak = all_flows.sum(axis=0).max()
         throughput_peak_year = years[all_flows.sum(axis=0).argmax()]
 
-        # Calculate stock metrics
-        stock_keys = [k for k in mfa_results.StockDict.keys() if k.startswith("S_")]
+        # Calculate stock metrics (excluding boundary-process stocks, see above)
+        stock_keys = [
+            k
+            for k in mfa_results.StockDict.keys()
+            if k.startswith("S_")
+            and int(k.split("_")[1]) not in boundary_processes
+        ]
         if stock_keys:
             all_stocks = np.array(
                 [mfa_results.StockDict[k].Values[:, element_idx] for k in stock_keys]
@@ -192,79 +206,36 @@ def calculate_system_overview(mfa_results, process_logic_map, kpi_df):
         overview_data.append(
             {
                 "Element": element_name,
-                "Metric_Category": "Cumulative_Totals",
+                "Unit": unit,
+                # Cumulative totals over the entire simulation period
                 "Total_Material_Handled": cumulative_throughput,
                 "Total_Input": cumulative_input,
                 "Total_Output": cumulative_output,
                 "Net_Stock_Accumulation": cumulative_stock_change,
-                "Unit": unit,
-            }
-        )
-
-        overview_data.append(
-            {
-                "Element": element_name,
-                "Metric_Category": "Annual_Rates_First_Year",
+                # Annual rates, first vs. last simulated year (unit/a)
+                "Year_First": first_year["Year"],
                 "Input_First": first_year["Total Input"],
                 "Output_First": first_year["Total Output"],
                 "Throughput_First": throughput_first,
-                "Year": first_year["Year"],
-                "Unit": f"{unit}/a",
-            }
-        )
-
-        overview_data.append(
-            {
-                "Element": element_name,
-                "Metric_Category": "Annual_Rates_Last_Year",
+                "Year_Last": last_year["Year"],
                 "Input_Last": last_year["Total Input"],
                 "Output_Last": last_year["Total Output"],
                 "Throughput_Last": throughput_last,
-                "Year": last_year["Year"],
-                "Unit": f"{unit}/a",
-            }
-        )
-
-        overview_data.append(
-            {
-                "Element": element_name,
-                "Metric_Category": "Peak_Values",
+                # Peaks across the simulation (unit/a for throughput, unit for stock)
                 "Throughput_Peak": throughput_peak,
                 "Throughput_Peak_Year": throughput_peak_year,
                 "Stock_Peak": peak_stock,
                 "Stock_Peak_Year": peak_stock_year,
-                "Unit": f"{unit}/a",
-            }
-        )
-
-        overview_data.append(
-            {
-                "Element": element_name,
-                "Metric_Category": "Averages",
+                # Simulation-period averages
                 "Throughput_Average": throughput_avg,
                 "Stock_Average": avg_stock,
                 "Residence_Time_Years": residence_time,
-                "Unit": f"{unit}/a",
-            }
-        )
-
-        overview_data.append(
-            {
-                "Element": element_name,
-                "Metric_Category": "Growth_Rates",
+                # Growth first -> last year (%)
                 "Input_Growth_Percent": input_growth,
                 "Output_Growth_Percent": output_growth,
                 "Throughput_Growth_Percent": throughput_growth,
-                "Unit": "%",
-            }
-        )
-
-        overview_data.append(
-            {
-                "Element": element_name,
-                "Metric_Category": "Current_Stock",
-                "Stock_Level": current_stock,
-                "Unit": unit,
+                # Current (end-of-period) system stock
+                "Current_Stock": current_stock,
             }
         )
 
@@ -382,85 +353,61 @@ def generate_kpi_dashboard(mfa_results, process_logic_map, output_path):
         print(f"🌍 ELEMENT: {element_name.upper()}")
         print(f"{'=' * 70}")
 
-        # Cumulative Totals (THE KEY METRIC YOU REQUESTED!)
-        cumulative_row = element_overview[
-            element_overview["Metric_Category"] == "Cumulative_Totals"
-        ].iloc[0]
+        # One wide row per element now — no more Metric_Category filtering.
+        row = element_overview.iloc[0]
+
         print(
             f"\n📦 CUMULATIVE TOTALS (Entire Period: {element_kpis['Year'].iloc[0]}-{element_kpis['Year'].iloc[-1]})"
         )
         print(
-            f"  ┌─ Total Material Handled:    {cumulative_row['Total_Material_Handled']:>15,.0f} {unit}"
+            f"  ┌─ Total Material Handled:    {row['Total_Material_Handled']:>15,.0f} {unit}"
         )
         print(
-            f"  ├─ Total Input (from system): {cumulative_row['Total_Input']:>15,.0f} {unit}"
+            f"  ├─ Total Input (from system): {row['Total_Input']:>15,.0f} {unit}"
         )
         print(
-            f"  ├─ Total Output (to system):  {cumulative_row['Total_Output']:>15,.0f} {unit}"
+            f"  ├─ Total Output (to system):  {row['Total_Output']:>15,.0f} {unit}"
         )
         print(
-            f"  └─ Net Stock Accumulation:    {cumulative_row['Net_Stock_Accumulation']:>15,.0f} {unit}"
+            f"  └─ Net Stock Accumulation:    {row['Net_Stock_Accumulation']:>15,.0f} {unit}"
         )
 
-        # Annual rates
-        first_row = element_overview[
-            element_overview["Metric_Category"] == "Annual_Rates_First_Year"
-        ].iloc[0]
-        last_row = element_overview[
-            element_overview["Metric_Category"] == "Annual_Rates_Last_Year"
-        ].iloc[0]
         print("\n📊 ANNUAL RATES")
         print(
-            f"  First Year ({int(first_row['Year'])}):  Input={first_row['Input_First']:>10,.0f}  Output={first_row['Output_First']:>10,.0f}  Throughput={first_row['Throughput_First']:>10,.0f} {unit}/a"
+            f"  First Year ({int(row['Year_First'])}):  Input={row['Input_First']:>10,.0f}  Output={row['Output_First']:>10,.0f}  Throughput={row['Throughput_First']:>10,.0f} {unit}/a"
         )
         print(
-            f"  Last Year  ({int(last_row['Year'])}):  Input={last_row['Input_Last']:>10,.0f}  Output={last_row['Output_Last']:>10,.0f}  Throughput={last_row['Throughput_Last']:>10,.0f} {unit}/a"
+            f"  Last Year  ({int(row['Year_Last'])}):  Input={row['Input_Last']:>10,.0f}  Output={row['Output_Last']:>10,.0f}  Throughput={row['Throughput_Last']:>10,.0f} {unit}/a"
         )
 
-        # Peak values
-        peak_row = element_overview[
-            element_overview["Metric_Category"] == "Peak_Values"
-        ].iloc[0]
         print("\n📈 PEAK VALUES")
         print(
-            f"  ┌─ Peak Throughput: {peak_row['Throughput_Peak']:>15,.0f} {unit}/a (Year {int(peak_row['Throughput_Peak_Year'])})"
+            f"  ┌─ Peak Throughput: {row['Throughput_Peak']:>15,.0f} {unit}/a (Year {int(row['Throughput_Peak_Year'])})"
         )
         print(
-            f"  └─ Peak Stock:      {peak_row['Stock_Peak']:>15,.0f} {unit}   (Year {int(peak_row['Stock_Peak_Year'])})"
+            f"  └─ Peak Stock:      {row['Stock_Peak']:>15,.0f} {unit}   (Year {int(row['Stock_Peak_Year'])})"
         )
 
-        # Averages
-        avg_row = element_overview[
-            element_overview["Metric_Category"] == "Averages"
-        ].iloc[0]
         print("\n📉 AVERAGES")
         print(
-            f"  ┌─ Average Annual Throughput: {avg_row['Throughput_Average']:>15,.0f} {unit}/a"
+            f"  ┌─ Average Annual Throughput: {row['Throughput_Average']:>15,.0f} {unit}/a"
         )
         print(
-            f"  ├─ Average Stock Level:       {avg_row['Stock_Average']:>15,.0f} {unit}"
+            f"  ├─ Average Stock Level:       {row['Stock_Average']:>15,.0f} {unit}"
         )
         print(
-            f"  └─ Average Residence Time:    {avg_row['Residence_Time_Years']:>15,.1f} years"
+            f"  └─ Average Residence Time:    {row['Residence_Time_Years']:>15,.1f} years"
         )
 
-        # Growth rates
-        growth_row = element_overview[
-            element_overview["Metric_Category"] == "Growth_Rates"
-        ].iloc[0]
         print("\n📈 GROWTH RATES (First → Last Year)")
-        print(f"  ┌─ Input Growth:      {growth_row['Input_Growth_Percent']:>8,.1f}%")
-        print(f"  ├─ Output Growth:     {growth_row['Output_Growth_Percent']:>8,.1f}%")
+        print(f"  ┌─ Input Growth:      {row['Input_Growth_Percent']:>8,.1f}%")
+        print(f"  ├─ Output Growth:     {row['Output_Growth_Percent']:>8,.1f}%")
         print(
-            f"  └─ Throughput Growth: {growth_row['Throughput_Growth_Percent']:>8,.1f}%"
+            f"  └─ Throughput Growth: {row['Throughput_Growth_Percent']:>8,.1f}%"
         )
 
-        # Current stock
-        current_row = element_overview[
-            element_overview["Metric_Category"] == "Current_Stock"
-        ].iloc[0]
         print("\n📦 CURRENT STOCK (End of Period)")
-        print(f"  └─ Total Stock: {current_row['Stock_Level']:>15,.0f} {unit}")
+        print(f"  └─ Total Stock: {row['Current_Stock']:>15,.0f} {unit}")
 
     # Display stock analysis summary
     if not stock_analysis_df.empty:
@@ -487,7 +434,7 @@ def generate_kpi_dashboard(mfa_results, process_logic_map, output_path):
     # --- Export to Excel (Multi-sheet) ---
     try:
         output_dir = os.path.dirname(output_path)
-        if not os.path.exists(output_dir):
+        if output_dir and not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
         with pd.ExcelWriter(output_path, engine="openpyxl") as writer:

@@ -3,13 +3,25 @@
 Functions for exporting flow composition data.
 """
 
-import pandas as pd
 import os
+
+import pandas as pd
+
+from engine.element_utils import build_element_children_map
 
 
 def export_flow_composition(mfa_system_results, output_path):
     """
     Exports the composition of each flow to an Excel file.
+
+    Element-agnostic: works with whatever elements the system tracks, not
+    a fixed WC/DM/CC set. Elements with tracked children are exported as
+    "Remaining X" (X minus the sum of its children), mirroring the
+    hierarchy handling in ``plotting.composition.plot_flow_composition`` —
+    this telescopes to exactly 100% of material regardless of how many
+    hierarchy levels are tracked (bioDYM_mathematical_formulas.md §2.6),
+    unlike summing every element flat (which double-counts parent/child
+    pairs such as DM and TC).
 
     Parameters
     ----------
@@ -20,50 +32,43 @@ def export_flow_composition(mfa_system_results, output_path):
     """
     flows = mfa_system_results.FlowDict
     years = mfa_system_results.IndexTable.Classification["Time"].Items
-    elements = mfa_system_results.Elements
+    elements = list(mfa_system_results.Elements)
+
+    if "material" not in elements:
+        raise ValueError(f"'material' element not found in system elements: {elements}")
+    material_idx = elements.index("material")
+
+    element_hierarchy = getattr(mfa_system_results, "_element_hierarchy", {})
+    children_map = build_element_children_map(element_hierarchy, elements)
+
+    # (column label, element name, child element names to subtract)
+    columns = []
+    for e in elements:
+        if e == "material":
+            continue
+        children = children_map.get(e, [])
+        label = f"Remaining {e}" if children else e
+        columns.append((label, e, children))
 
     data = []
-
     for i, year in enumerate(years):
         for flow_name, flow in flows.items():
             values = flow.Values[i, :]
+            total_mass = values[material_idx]
 
-            # Handle new element structure safely
-            wc_mass = values[elements.index("WC")] if "WC" in elements else 0
-            dm_mass = values[elements.index("DM")] if "DM" in elements else 0
-            cc_mass = values[elements.index("CC")] if "CC" in elements else 0
-            non_carbon_dm_mass = dm_mass - cc_mass
-            total_mass = wc_mass + dm_mass
-
-            if total_mass > 0:
-                wc_perc = wc_mass / total_mass * 100
-                cc_perc = cc_mass / total_mass * 100
-                non_carbon_dm_perc = non_carbon_dm_mass / total_mass * 100
-            else:
-                wc_perc = 0
-                cc_perc = 0
-                non_carbon_dm_perc = 0
-
-            data.append(
-                {
-                    "Year": year,
-                    "Flow Name": flow_name,
-                    "Water Content (Mass)": wc_mass,
-                    "Dry Matter (Mass)": dm_mass,
-                    "Carbon Content (Mass)": cc_mass,
-                    "Non-Carbon Dry Matter (Mass)": non_carbon_dm_mass,
-                    "Total Mass": total_mass,
-                    "Water Content (%)": wc_perc,
-                    "Carbon Content (%)": cc_perc,
-                    "Non-Carbon Dry Matter (%)": non_carbon_dm_perc,
-                }
-            )
+            row = {"Year": year, "Flow Name": flow_name, "Total Mass": total_mass}
+            for label, elem, children in columns:
+                mass = values[elements.index(elem)]
+                for child in children:
+                    mass -= values[elements.index(child)]
+                row[f"{label} (Mass)"] = mass
+                row[f"{label} (%)"] = mass / total_mass * 100 if total_mass > 0 else 0
+            data.append(row)
 
     df = pd.DataFrame(data)
 
-    # Create the output directory if it doesn't exist
     output_dir = os.path.dirname(output_path)
-    if not os.path.exists(output_dir):
+    if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
     df.to_excel(output_path, index=False, sheet_name="Flow Composition")

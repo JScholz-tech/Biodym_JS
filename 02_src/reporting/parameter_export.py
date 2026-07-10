@@ -289,12 +289,13 @@ def _reverse_flow_tc_map(flow_tc_map):
     return reverse
 
 
-def _build_transfer_coefficients(tc_params, flow_tc_map, time_vector):
+def _build_transfer_coefficients(tc_params, flow_tc_map, time_vector, flow_route_map=None):
     reverse = _reverse_flow_tc_map(flow_tc_map)
     rows, series = [], {}
     for name, param in sorted((tc_params or {}).items()):
         values = getattr(param, "Values", param)
         flow_name, element = reverse.get(name, ("", ""))
+        route = (flow_route_map or {}).get(flow_name, "")
         is_dynamic = isinstance(values, np.ndarray) and values.ndim >= 1
         if is_dynamic:
             symbol = "TC_i(t)" if element in ("", "material") else f"TC_i^{element}(t)"
@@ -306,7 +307,8 @@ def _build_transfer_coefficients(tc_params, flow_tc_map, time_vector):
             symbol = "TC_i" if element in ("", "material") else f"TC_i^{element}"
             value = _scalar(values)
         rows.append(_row(
-            symbol=symbol, code=name, flow=flow_name, value=value, unit="-",
+            symbol=symbol, code=name, process=route, flow=flow_name, value=value,
+            unit="-",
             description=("Element-specific transfer coefficient (Transformer)"
                          if element not in ("", "material")
                          else "Transfer coefficient")
@@ -393,6 +395,13 @@ def _build_dsm(dsm_params):
     return pd.DataFrame(rows, columns=_COLUMNS)
 
 
+# Parameter keys whose value is a flow ID (not a numeric value) — routed to
+# the "Flow" column instead of "Value" so that column stays numeric-only and
+# the flow reference is where _build_dsm's output_flow_ids already puts it.
+_FOMP_FLOW_KEYS = {"outflow_id", "outflow_id_2"}
+_LFG_FLOW_KEYS = {"outflow_ch4_id", "outflow_co2_id", "outflow_leachate_id"}
+
+
 def _build_fomp(fomp_params):
     rows = []
     for pid, params in sorted((fomp_params or {}).items()):
@@ -401,9 +410,12 @@ def _build_fomp(fomp_params):
                 continue
             symbol, unit, ref, desc = _FOMP_KEY_MAP.get(
                 key, ("", "-", "§3", ""))
-            rows.append(_row(symbol=symbol, code=key, process=pid,
-                             value=_scalar(value), unit=unit,
-                             description=desc, ref=ref))
+            is_flow_ref = key in _FOMP_FLOW_KEYS
+            rows.append(_row(
+                symbol=symbol, code=key, process=pid,
+                flow=value if is_flow_ref else "",
+                value="" if is_flow_ref else _scalar(value),
+                unit=unit, description=desc, ref=ref))
     return pd.DataFrame(rows, columns=_COLUMNS)
 
 
@@ -414,9 +426,12 @@ def _build_lfg(lfg_params):
             if key == "fractions" or value is None:
                 continue
             symbol, unit, ref, desc = _LFG_SITE_MAP.get(key, ("", "-", "§4", ""))
-            rows.append(_row(symbol=symbol, code=key, process=pid,
-                             value=_scalar(value), unit=unit,
-                             description=desc, ref=ref))
+            is_flow_ref = key in _LFG_FLOW_KEYS
+            rows.append(_row(
+                symbol=symbol, code=key, process=pid,
+                flow=value if is_flow_ref else "",
+                value="" if is_flow_ref else _scalar(value),
+                unit=unit, description=desc, ref=ref))
         for frac in (params or {}).get("fractions", []):
             frac_name = frac.get("name", "?")
             for key, value in frac.items():
@@ -584,8 +599,12 @@ def export_parameter_overview(
 
     time_vector = list(mfa_system.IndexTable.Classification["Time"].Items)
 
+    flow_route_map = {
+        name: f"P{flow.P_Start} -> P{flow.P_End}"
+        for name, flow in getattr(mfa_system, "FlowDict", {}).items()
+    }
     tc_df, tc_series_df = _build_transfer_coefficients(
-        tc_params, flow_tc_map, time_vector)
+        tc_params, flow_tc_map, time_vector, flow_route_map)
 
     sheets = [
         ("1_Configuration", _build_configuration(config_obj), False),
