@@ -118,12 +118,14 @@ def validate_mc_parameters(mc_params_df, mfa_system, uncertainty_params=None):
 
         process_name_map = {p.ID: p.Name for p in mfa_system.ProcessList}
 
-        for (elem_prefix, process_id), group in tc_groups.items():
+        for (elem_prefix, process_id, window), group in tc_groups.items():
             if len(group) < 2:
                 continue
 
             proc_name = process_name_map.get(process_id, f"ID {process_id}")
             elem_label = f" [{elem_prefix}]" if elem_prefix else ""
+            if window != (None, None):
+                elem_label += f" [years {window[0] or '…'}–{window[1] or '…'}]"
 
             # Check if all TCs in this group have min/max bounds
             bounds = {}
@@ -244,11 +246,22 @@ def validate_mc_parameters(mc_params_df, mfa_system, uncertainty_params=None):
                         f"TC parameters are always sampled as absolute values (implicit 'set'). "
                         f"Remove the Operation field or set it to 'set'."
                     )
-                if has_window and pname not in dynamic_tc_names:
+                # A windowed TC may be keyed as TC_x::N; check the real name.
+                base_tc = defn.get("tc_id", pname)
+                if has_window and base_tc not in dynamic_tc_names:
                     warnings.append(
-                        f"   WARNING: '{pname}' — start_year/end_year specified, but this TC "
+                        f"   WARNING: '{base_tc}' — start_year/end_year specified, but this TC "
                         f"does not appear to be a dynamic (time-series) TC. "
                         f"Year windowing only applies to dynamic TCs; the window will be ignored."
+                    )
+                # Absurdly large std on a fraction is almost certainly a
+                # data-entry error (e.g. a percent value entered as 5 not 0.05).
+                std = defn.get("std")
+                if std is not None and std > 1.0:
+                    warnings.append(
+                        f"   WARNING: '{base_tc}' — StdDev={std:g} is very large for a "
+                        f"transfer coefficient (fractions live in [0, 1]). "
+                        f"Did you mean {std / 100:g}? Draws will mostly fall outside [0, 1]."
                     )
 
             else:
@@ -264,6 +277,34 @@ def validate_mc_parameters(mc_params_df, mfa_system, uncertainty_params=None):
                         f"   ERROR: '{pname}' — start_year/end_year is not applicable to "
                         f"DSM/FOMP parameters (they are time-invariant constants). "
                         f"Remove the year columns for this entry."
+                    )
+
+    # --- Overlapping-window check for multi-window TCs ---
+    # The same TC may appear in several rows, one per year window. Overlapping
+    # windows are allowed (later insertion-order entry wins in the overlap), but
+    # they are usually a mistake, so warn.
+    if uncertainty_params:
+        windows_by_tc: dict = {}
+        for pname, defn in uncertainty_params.items():
+            if not pname.startswith("TC_"):
+                continue
+            base_tc = defn.get("tc_id", pname)
+            sy = defn.get("start_year")
+            ey = defn.get("end_year")
+            if sy is None and ey is None:
+                continue
+            lo = sy if sy is not None else -(10**9)
+            hi = ey if ey is not None else (10**9)
+            windows_by_tc.setdefault(base_tc, []).append((lo, hi, sy, ey))
+
+        for base_tc, wins in windows_by_tc.items():
+            wins.sort()
+            for a, b in zip(wins, wins[1:]):
+                if a[1] >= b[0]:  # a.hi overlaps b.lo
+                    warnings.append(
+                        f"   WARNING: '{base_tc}' has overlapping year windows "
+                        f"({a[2] or '…'}–{a[3] or '…'} and {b[2] or '…'}–{b[3] or '…'}). "
+                        f"In the overlap the later-defined window wins."
                     )
 
     return validated_params, warnings
@@ -479,9 +520,12 @@ def _group_tc_params(uncertainty_params):
     for tc_name, defn in uncertainty_params.items():
         if not tc_name.startswith("TC_"):
             continue
-        key = _parse_tc_group_key(tc_name)
-        if key is not None:
-            tc_groups.setdefault(key, {})[tc_name] = defn
+        base_key = _parse_tc_group_key(tc_name)
+        if base_key is not None:
+            # Include the year window in the key: TCs only need to sum to 1.0
+            # together when they cover the same years (see normalize_tc_updates).
+            window = (defn.get("start_year"), defn.get("end_year"))
+            tc_groups.setdefault((*base_key, window), {})[tc_name] = defn
     return tc_groups
 
 
@@ -518,16 +562,22 @@ def normalize_tc_updates(
     dict
         The same ``tc_updates`` dictionary with normalized TC values.
     """
-    # Group TC entries from tc_updates by (element_prefix, process_id)
+    # Group TC entries from tc_updates by (element_prefix, process_id, window).
+    # The year window is part of the key because two TCs are only mass-balance
+    # siblings (must sum to 1.0) when they apply to the *same* years. Without
+    # this, staggered windows of the same process would be normalized together.
     tc_groups = {}
     for tc_name, value in tc_updates.items():
         if not tc_name.startswith("TC_"):
             continue
-        key = _parse_tc_group_key(tc_name)
-        if key is not None:
-            tc_groups.setdefault(key, {})[tc_name] = value
+        base_key = _parse_tc_group_key(tc_name)
+        if base_key is None:
+            continue
+        defn = uncertainty_params.get(tc_name, {}) if uncertainty_params else {}
+        window = (defn.get("start_year"), defn.get("end_year"))
+        tc_groups.setdefault((*base_key, window), {})[tc_name] = value
 
-    for (elem_prefix, process_id), group in tc_groups.items():
+    for (elem_prefix, process_id, window), group in tc_groups.items():
         if len(group) < 2:
             continue  # Single TC — nothing to normalize
 
@@ -768,8 +818,11 @@ def _run_single_mc_iteration(
 
     # --- 3c. Propagate Splitter Uncertainty ---
     for param_name, sample_value in sampled_params.items():
-        if param_name in tc_info_map:
-            info = tc_info_map[param_name]
+        # Resolve the real TC name: windowed TCs carry a ::N-suffixed key but
+        # tc_info_map is keyed by the base TC id.
+        base_name = uncertainty_params.get(param_name, {}).get("tc_id", param_name)
+        if base_name in tc_info_map:
+            info = tc_info_map[base_name]
             process_id = info["process_id"]
             logic = process_logic_map.get(process_id)
 
@@ -796,6 +849,9 @@ def _run_single_mc_iteration(
                 "value": tc_updates[param_name],
                 "start_year": start_y,
                 "end_year": end_y,
+                # Real TC name for the solver's ParameterDict lookup (the dict
+                # key itself may be ::N-suffixed for multi-window TCs).
+                "tc_id": defn.get("tc_id", param_name),
             }
 
     # Log sampled values for the first 3 iterations only (to verify without flooding)
@@ -850,7 +906,10 @@ def _run_single_mc_iteration(
         "converged": bool(solver_info.get("converged", True)),
     }
     for param, value in tc_updates.items():
-        iteration_results[f"{param}_sample"] = value
+        # Windowed TCs are stored as dicts; record the scalar sample only.
+        iteration_results[f"{param}_sample"] = (
+            value["value"] if isinstance(value, dict) else value
+        )
 
     for stock in mfa_system_run.StockDict.values():
         for i_elem, element_name in enumerate(mfa_system_run.Elements):

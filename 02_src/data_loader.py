@@ -1929,6 +1929,20 @@ def load_uncertainty_definitions(excel_data, debug_mode=False):
                 _seen_names[param_name] = count + 1
                 if count > 0:
                     param_name = f"{param_name}::{count}"
+            elif param_name.startswith("TC_") and (
+                "start_year" in definition or "end_year" in definition
+            ):
+                # Windowed TC: the same TC ID may appear in several rows, one per
+                # year window (e.g. a split that changes over time). Disambiguate
+                # the dict key with ::N so later windows are not overwritten, and
+                # keep the real TC name in tc_id so the solver can resolve it.
+                # (Duplicate TC rows WITHOUT a window remain a misconfiguration —
+                # last one wins, as before.)
+                definition["tc_id"] = param_name
+                count = _seen_names.get(param_name, 0)
+                _seen_names[param_name] = count + 1
+                if count > 0:
+                    param_name = f"{param_name}::{count}"
             uncertainty_params[param_name] = definition
 
     if debug_mode:
@@ -2120,6 +2134,7 @@ def load_uncertainty_definitions_from_yaml(yaml_path: str) -> dict:
     mc_list = data.get("mc_parameters", [])
 
     uncertainty_params: dict = {}
+    _seen_names: dict = {}  # tracks how many times each F_/windowed-TC id appeared
     for p in mc_list:
         if not p.get("enabled", True):
             continue
@@ -2150,6 +2165,20 @@ def load_uncertainty_definitions_from_yaml(yaml_path: str) -> dict:
 
         if pid.startswith("F_"):
             defn["flow_id"] = pid
+            count = _seen_names.get(pid, 0)
+            _seen_names[pid] = count + 1
+            if count > 0:
+                pid = f"{pid}::{count}"
+        elif pid.startswith("TC_") and (
+            "start_year" in defn or "end_year" in defn
+        ):
+            # Windowed TC: allow the same TC id across multiple rows (one per
+            # year window) without collision. Keep the real name in tc_id.
+            defn["tc_id"] = pid
+            count = _seen_names.get(pid, 0)
+            _seen_names[pid] = count + 1
+            if count > 0:
+                pid = f"{pid}::{count}"
 
         if len(defn) > 1:
             uncertainty_params[pid] = defn

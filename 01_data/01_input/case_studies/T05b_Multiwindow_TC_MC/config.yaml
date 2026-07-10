@@ -1,0 +1,296 @@
+schema_version: '1.0'
+name: T05b_Multiwindow_TC_MC
+description: "\U0001F4D8 Tutorial T05b — Multi-window Monte Carlo on a dynamic TC\r\
+  \n\r\nBuilds on T05 (Dynamic transfer coefficients): here the same dynamic transfer\
+  \ coefficient is given Monte Carlo uncertainty over several distinct year windows,\
+  \ so a time-varying split can carry different uncertainty in different periods.\r\
+  \n\r\nWhat it shows\r\n• The same TC id (e.g. the DM split at the incineration process)\
+  \ appears in more than one Monte Carlo row, each pinned to its own start/end year\
+  \ window.\r\n• Within each window the sampled values are re-normalised so the outgoing\
+  \ split still sums to 1.0; windows are sampled independently of one another.\r\n\
+  • Outside the windows the dynamic TC keeps its defined trajectory untouched.\r\n\
+  \r\nTry it\r\n• Open the MC Parameters page: note two windows (2030–2050 and 2070–2090)\
+  \ for each of the two DM transfer coefficients of Process 3.\r\n• Keep operation\
+  \ = set (TC uncertainty is always absolute) and each window's two means summing\
+  \ to ~1.0.\r\n\r\nLook for\r\n• MC spread on the downstream flows appears only inside\
+  \ the two windows.\r\n• The setup report lists the windowed TCs separately (no silent\
+  \ overwrite)."
+model:
+  start_year: 2025
+  end_year: 2125
+  elements:
+  - material
+  - WC
+  - DM
+  - TC
+  unit_of_measurement: Mg
+  sankey_title: ''
+  hierarchy_level_names:
+  - Product
+  - Component
+  - Material
+  - Element
+  input_file: ''
+  output_file: ''
+  run_dsm_calculation: true
+  run_fomp_calculation: false
+  run_monte_carlo: true
+  mc_iterations: 500
+  mc_seed: '42'
+  solver_strict: false
+  solver_max_iterations: 30
+  run_scenario_analysis: false
+  selected_scenarios:
+  - ''
+  - ''
+  - ''
+  - ''
+processes:
+- id: 0
+  name: Process 0
+  logic: Input
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+  expected_inflow_composition: null
+- id: 1
+  name: Process 1 (Sorting)
+  logic: Splitter
+  stock: No_Stock
+  tc_config: Dynamic
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+  expected_inflow_composition: null
+- id: 2
+  name: Process 2
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+  expected_inflow_composition: null
+- id: 3
+  name: Process 3 (Incineration)
+  logic: Transformer
+  stock: No_Stock
+  tc_config: Dynamic
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+  expected_inflow_composition: null
+- id: 4
+  name: Process 4
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+  expected_inflow_composition: null
+- id: 5
+  name: Process 5
+  logic: Output
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+  expected_inflow_composition: null
+flows:
+- id: F_00_01
+  name: Flow 1
+  from_process: 0
+  to_process: 1
+- id: F_01_02
+  name: Flow 2
+  from_process: 1
+  to_process: 2
+- id: F_01_03
+  name: Flow 3
+  from_process: 1
+  to_process: 3
+- id: F_03_04
+  name: Flow 4
+  from_process: 3
+  to_process: 4
+- id: F_03_05
+  name: Flow 5
+  from_process: 3
+  to_process: 5
+transfer_coefficients:
+- ref: ''
+  refs: []
+  process_id: 1
+  flow_id: F_01_02
+  tc_type: dynamic
+  values: {}
+  time_series:
+  - year: 2025
+    values:
+      material: 0.6
+  - year: 2050
+    values:
+      material: 0.5
+  - year: 2075
+    values:
+      material: 0.2
+- ref: ''
+  refs: []
+  process_id: 1
+  flow_id: F_01_03
+  tc_type: dynamic
+  values: {}
+  time_series:
+  - year: 2025
+    values:
+      material: 0.4
+  - year: 2050
+    values:
+      material: 0.5
+  - year: 2075
+    values:
+      material: 0.8
+- ref: ''
+  refs: []
+  process_id: 3
+  flow_id: F_03_04
+  tc_type: dynamic
+  values: {}
+  time_series:
+  - year: 2025
+    values:
+      WC: 1.0
+      DM: 0.2
+      TC: 0.5
+  - year: 2040
+    values:
+      WC: 1.0
+      DM: 0.3
+      TC: 0.4
+  - year: 2080
+    values:
+      WC: 1.0
+      DM: 0.4
+      TC: 0.3
+- ref: ''
+  refs: []
+  process_id: 3
+  flow_id: F_03_05
+  tc_type: dynamic
+  values: {}
+  time_series:
+  - year: 2025
+    values:
+      WC: 0.0
+      DM: 0.8
+      TC: 0.5
+  - year: 2040
+    values:
+      WC: 0.0
+      DM: 0.7
+      TC: 0.6
+  - year: 2080
+    values:
+      WC: 0.0
+      DM: 0.6
+      TC: 0.7
+element_hierarchy:
+- parent: material
+  children:
+  - DM
+  - WC
+- parent: DM
+  children:
+  - TC
+flow_compositions:
+- ref: ''
+  refs: []
+  flow_id: F_00_01
+  values:
+    material: 1.0
+    WC: 0.3
+    DM: 0.7
+    TC: 0.35
+flow_data:
+- ref: ''
+  refs: []
+  flow_id: F_00_01
+  element: material
+  values:
+    '2025': 100.0
+    '2030': 200.0
+    '2045': 300.0
+    '2055': 400.0
+    '2065': 500.0
+    '2075': 600.0
+bom_assembly: []
+scenarios: []
+mc_parameters:
+- ref: ''
+  refs: []
+  parameter_id: TC_E3_03_04
+  enabled: true
+  distribution: normal
+  mean: 0.3
+  std: 0.05
+  min: null
+  max: null
+  mode: null
+  operation: set
+  start_year: 2030
+  end_year: 2050
+  flow_group: null
+- ref: ''
+  refs: []
+  parameter_id: TC_E3_03_05
+  enabled: true
+  distribution: normal
+  mean: 0.7
+  std: 0.05
+  min: null
+  max: null
+  mode: null
+  operation: set
+  start_year: 2030
+  end_year: 2050
+  flow_group: null
+- ref: ''
+  refs: []
+  parameter_id: TC_E3_03_04
+  enabled: true
+  distribution: normal
+  mean: 0.45
+  std: 0.05
+  min: null
+  max: null
+  mode: null
+  operation: set
+  start_year: 2070
+  end_year: 2090
+  flow_group: null
+- ref: ''
+  refs: []
+  parameter_id: TC_E3_03_05
+  enabled: true
+  distribution: normal
+  mean: 0.55
+  std: 0.05
+  min: null
+  max: null
+  mode: null
+  operation: set
+  start_year: 2070
+  end_year: 2090
+  flow_group: null
+initial_stocks: []
+references: []

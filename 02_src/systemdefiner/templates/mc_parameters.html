@@ -24,6 +24,13 @@
     value is a multiplier near <code>1.0</code> (e.g. <code>1.1</code> for +10 %), while <em>set</em>
     replaces the flow with an absolute amount in the model's unit.
   </p>
+  <p class="muted" style="margin:0.5rem 0 0;font-size:0.85rem">
+    <strong>Dynamic TCs &amp; time windows.</strong> A <span class="tag">TC_…</span> is always sampled
+    as an absolute value (operation is locked to <em>set</em>). For a time-varying TC you may add the
+    <strong>same TC id in several rows</strong>, each with its own <em>Start&nbsp;Yr</em>/<em>End&nbsp;Yr</em>
+    window — only those years are varied, the rest of the trajectory is untouched. Keep <em>Std&nbsp;Dev</em>
+    a fraction too (e.g. <code>0.05</code>, not <code>5</code>), and give windows that don't overlap.
+  </p>
 </div>
 
 <div class="card">
@@ -68,7 +75,7 @@
                      style="width:100%;display:none;font-family:monospace;font-size:0.88rem"
                      placeholder="e.g. TC_05_06  or  P04_decay_k1"
                      value="{{ p.parameter_id }}"
-                     oninput="this.closest('td').querySelector('.param-hidden').value=this.value">
+                     oninput="onParamCustom(this)">
             </td>
             <td>
               <select name="mc_{{ i }}_distribution" class="dist-sel" style="width:100%"
@@ -105,7 +112,7 @@
                      step="any" placeholder="—" style="width:82px">
             </td>
             <td>
-              <select name="mc_{{ i }}_operation" style="width:100%">
+              <select name="mc_{{ i }}_operation" class="op-sel" style="width:100%">
                 {% for op in operations %}
                 <option value="{{ op }}" {% if op == p.operation %}selected{% endif %}>{{ op }}</option>
                 {% endfor %}
@@ -244,6 +251,34 @@ function onParamSelect(sel) {
   } else {
     custom.style.display = 'none'; hidden.value = sel.value;
   }
+  applyOperationLock(tr);
+}
+
+// TC uncertainty is always absolute ('set'); multiply/add are only valid for
+// F_ flows (the engine rejects them for TCs). Lock the operation dropdown to
+// 'set' for TC_ parameters so an invalid choice can't be saved — a disabled
+// <select> submits nothing and the server defaults the operation to 'set'.
+function applyOperationLock(tr) {
+  const hidden = tr.querySelector('.param-hidden');
+  const op     = tr.querySelector('.op-sel');
+  if (!hidden || !op) return;
+  const isTC = (hidden.value || '').trim().startsWith('TC_');
+  if (isTC) {
+    op.value = 'set';
+    op.disabled = true;
+    op.style.opacity = '0.5';
+    op.title = "TC transfer coefficients are always sampled as absolute values ('set').";
+  } else {
+    op.disabled = false;
+    op.style.opacity = '1';
+    op.title = '';
+  }
+}
+
+function onParamCustom(inp) {
+  const tr = inp.closest('tr');
+  tr.querySelector('.param-hidden').value = inp.value;
+  applyOperationLock(tr);
 }
 
 // ── Distribution → show/hide/dim fields ───────────────────────────────────────
@@ -288,6 +323,8 @@ document.querySelectorAll('#mc-body tr').forEach(tr => {
   if (isCustom) { sel.value = '__custom__'; custom.style.display = 'block'; }
   // Init distribution field visibility
   applyDist(tr);
+  // Lock operation to 'set' for TC parameters
+  applyOperationLock(tr);
 });
 
 // ── Add / remove rows ──────────────────────────────────────────────────────────
@@ -320,7 +357,7 @@ function addRow() {
       <input type="text" class="param-custom"
              style="width:100%;display:none;font-family:monospace;font-size:0.88rem"
              placeholder="e.g. TC_05_06"
-             oninput="this.closest('td').querySelector('.param-hidden').value=this.value">
+             oninput="onParamCustom(this)">
     </td>
     <td>
       <select name="mc_${i}_distribution" class="dist-sel" style="width:100%"
@@ -331,7 +368,7 @@ function addRow() {
     ${numCell('f-min',   `mc_${i}_min`)}
     ${numCell('f-mode',  `mc_${i}_mode`)}
     ${numCell('f-max',   `mc_${i}_max`)}
-    <td><select name="mc_${i}_operation" style="width:100%">${opOptions('replace')}</select></td>
+    <td><select name="mc_${i}_operation" class="op-sel" style="width:100%">${opOptions('set')}</select></td>
     <td><input type="number" name="mc_${i}_start_year" step="1" min="1900" max="2300"
                placeholder="—" style="width:74px"></td>
     <td><input type="number" name="mc_${i}_end_year"   step="1" min="1900" max="2300"
@@ -343,6 +380,7 @@ function addRow() {
     <td><button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)">✕</button></td>`;
   tbody.appendChild(tr);
   applyDist(tr);
+  applyOperationLock(tr);
 }
 
 function removeRow(btn) {

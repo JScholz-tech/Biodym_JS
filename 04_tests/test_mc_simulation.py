@@ -14,6 +14,7 @@ from engine.mc_simulation import (
     apply_fomp_parameter_updates,
     normalize_tc_updates,
     run_mc_simulation,
+    validate_mc_parameters,
 )
 from golden_utils import build_case_study_yaml
 
@@ -49,8 +50,24 @@ def test_group_tc_params_by_process():
         "F_00_01": {"distribution": "normal"},  # not a TC — ignored
     }
     groups = _group_tc_params(params)
-    assert set(groups) == {(None, 5), ("E2", 11)}
-    assert set(groups[(None, 5)]) == {"TC_05_06", "TC_05_07"}
+    # Keys are (elem_prefix, process_id, window); unwindowed TCs share (None, None)
+    assert set(groups) == {(None, 5, (None, None)), ("E2", 11, (None, None))}
+    assert set(groups[(None, 5, (None, None))]) == {"TC_05_06", "TC_05_07"}
+
+
+def test_group_tc_params_separates_windows():
+    # Same TC id in two windows must land in two distinct groups.
+    params = {
+        "TC_05_06": {"distribution": "normal", "start_year": 2025, "end_year": 2030,
+                     "tc_id": "TC_05_06"},
+        "TC_05_06::1": {"distribution": "normal", "start_year": 2040, "end_year": 2050,
+                        "tc_id": "TC_05_06"},
+    }
+    groups = _group_tc_params(params)
+    assert set(groups) == {
+        (None, 5, (2025, 2030)),
+        (None, 5, (2040, 2050)),
+    }
 
 
 # --------------------------------------------------------------------------
@@ -147,6 +164,67 @@ def test_normalize_tc_updates_incomplete_group_skipped():
     normalize_tc_updates(tc_updates, system)
     assert tc_updates["TC_05_06"] == 0.9
     assert tc_updates["TC_05_07"] == 0.3
+
+
+def test_normalize_tc_updates_windows_normalized_independently():
+    # Two windows of the same splitter must each sum to 1.0 on their own —
+    # they must not be pooled and normalized across windows.
+    system = _fake_system_with_outflows(5, n_outgoing=2)
+    tc_updates = {
+        "TC_05_06": 0.9, "TC_05_07": 0.3,        # window A (2025–2030)
+        "TC_05_06::1": 0.4, "TC_05_07::1": 0.4,  # window B (2040–2050)
+    }
+    uparams = {
+        "TC_05_06": {"start_year": 2025, "end_year": 2030, "tc_id": "TC_05_06"},
+        "TC_05_07": {"start_year": 2025, "end_year": 2030, "tc_id": "TC_05_07"},
+        "TC_05_06::1": {"start_year": 2040, "end_year": 2050, "tc_id": "TC_05_06"},
+        "TC_05_07::1": {"start_year": 2040, "end_year": 2050, "tc_id": "TC_05_07"},
+    }
+    normalize_tc_updates(tc_updates, system, uncertainty_params=uparams)
+    assert tc_updates["TC_05_06"] == pytest.approx(0.75)     # 0.9 / 1.2
+    assert tc_updates["TC_05_07"] == pytest.approx(0.25)     # 0.3 / 1.2
+    assert tc_updates["TC_05_06::1"] == pytest.approx(0.5)   # 0.4 / 0.8
+    assert tc_updates["TC_05_07::1"] == pytest.approx(0.5)   # 0.4 / 0.8
+
+
+# --------------------------------------------------------------------------
+# Loader disambiguation — multiple windows of one TC must all survive
+# --------------------------------------------------------------------------
+
+def test_excel_loader_disambiguates_windowed_tc():
+    from data_loader import load_uncertainty_definitions
+
+    df = pd.DataFrame([
+        {"MC_Parameter_ID": "TC_E3_03_04", "MC_Parameter_Selection": "x",
+         "Distribution_Type": "normal", "Mean": 0.4, "StdDev": 0.05,
+         "MC_Start_Year": 2060, "MC_End_Year": 2080},
+        {"MC_Parameter_ID": "TC_E3_03_04", "MC_Parameter_Selection": "x",
+         "Distribution_Type": "normal", "Mean": 0.2, "StdDev": 0.05,
+         "MC_Start_Year": 2020, "MC_End_Year": 2030},
+    ])
+    params = load_uncertainty_definitions({"4_1_Uncertainty_Parameters": df})
+    # Both windows survive (previously the second silently overwrote the first)
+    assert set(params) == {"TC_E3_03_04", "TC_E3_03_04::1"}
+    assert params["TC_E3_03_04"]["start_year"] == 2060
+    assert params["TC_E3_03_04"]["tc_id"] == "TC_E3_03_04"
+    assert params["TC_E3_03_04::1"]["start_year"] == 2020
+    assert params["TC_E3_03_04::1"]["tc_id"] == "TC_E3_03_04"
+
+
+def test_excel_loader_keeps_unwindowed_duplicate_tc_last_wins():
+    # A duplicate TC id WITHOUT a window stays a misconfiguration (last wins),
+    # not silently disambiguated.
+    from data_loader import load_uncertainty_definitions
+
+    df = pd.DataFrame([
+        {"MC_Parameter_ID": "TC_05_06", "MC_Parameter_Selection": "x",
+         "Distribution_Type": "normal", "Mean": 0.4, "StdDev": 0.05},
+        {"MC_Parameter_ID": "TC_05_06", "MC_Parameter_Selection": "x",
+         "Distribution_Type": "normal", "Mean": 0.2, "StdDev": 0.05},
+    ])
+    params = load_uncertainty_definitions({"4_1_Uncertainty_Parameters": df})
+    assert set(params) == {"TC_05_06"}
+    assert params["TC_05_06"]["mean"] == pytest.approx(0.2)
 
 
 # --------------------------------------------------------------------------
@@ -477,3 +555,102 @@ def test_non_dict_params_raise_type_error():
             flow_tc_map=parts["flow_tc_map"],
             process_logic_map=parts["process_logic_map"],
         )
+
+
+# --------------------------------------------------------------------------
+# Multi-window dynamic TC — the two windows must both reach the Values array
+# --------------------------------------------------------------------------
+
+def test_solver_applies_multiple_tc_windows():
+    import numpy as np
+
+    from engine import solver
+
+    yaml_path = os.path.join(CASE_STUDIES_DIR, "T05_Dynamic_TCs", "config.yaml")
+    parts = build_case_study_yaml(yaml_path)
+    mfa = parts["mfa_system"]
+
+    # Any dynamic (time-series) TC will do.
+    dyn_tc = next(
+        name
+        for name, p in mfa.ParameterDict.items()
+        if name.startswith("TC_")
+        and isinstance(getattr(p, "Values", None), np.ndarray)
+        and len(p.Values) > 1
+    )
+
+    years = np.array(mfa.IndexTable.Classification["Time"].Items)
+    tc_updates = {
+        dyn_tc: {
+            "value": 0.123, "start_year": 2030, "end_year": 2040, "tc_id": dyn_tc,
+        },
+        f"{dyn_tc}::1": {
+            "value": 0.456, "start_year": 2060, "end_year": 2080, "tc_id": dyn_tc,
+        },
+    }
+
+    result, _, _ = solver.run_mfa_calculation(
+        mfa,
+        parts["dsm_params"],
+        parts["fomp_params"],
+        parts["config_obj"],
+        flow_tc_map=parts["flow_tc_map"],
+        process_logic_map=parts["process_logic_map"],
+        tc_updates=tc_updates,
+    )
+
+    vals = result.ParameterDict[dyn_tc].Values
+    assert np.allclose(vals[(years >= 2030) & (years <= 2040)], 0.123)
+    assert np.allclose(vals[(years >= 2060) & (years <= 2080)], 0.456)
+
+
+# --------------------------------------------------------------------------
+# validate_mc_parameters — new advisory warnings
+# --------------------------------------------------------------------------
+
+def _bare_system():
+    return SimpleNamespace(FlowDict={}, ProcessList=[], ParameterDict={})
+
+
+def test_validate_warns_on_large_tc_std():
+    df = pd.DataFrame({"MC_Parameter_ID": ["TC_E3_03_04"]})
+    uparams = {
+        "TC_E3_03_04": {
+            "distribution": "normal", "mean": 0.2, "std": 5.0,
+            "start_year": 2030, "end_year": 2040, "tc_id": "TC_E3_03_04",
+        }
+    }
+    _, warnings = validate_mc_parameters(df, _bare_system(), uparams)
+    assert any("StdDev=5" in w and "very large" in w for w in warnings)
+
+
+def test_validate_warns_on_overlapping_windows():
+    df = pd.DataFrame({"MC_Parameter_ID": ["TC_E3_03_04"]})
+    uparams = {
+        "TC_E3_03_04": {
+            "distribution": "normal", "start_year": 2030, "end_year": 2050,
+            "tc_id": "TC_E3_03_04",
+        },
+        "TC_E3_03_04::1": {
+            "distribution": "normal", "start_year": 2040, "end_year": 2060,
+            "tc_id": "TC_E3_03_04",
+        },
+    }
+    _, warnings = validate_mc_parameters(df, _bare_system(), uparams)
+    assert any("overlapping year windows" in w for w in warnings)
+
+
+def test_validate_no_overlap_warning_for_disjoint_windows():
+    df = pd.DataFrame({"MC_Parameter_ID": ["TC_E3_03_04"]})
+    uparams = {
+        "TC_E3_03_04": {
+            "distribution": "normal", "start_year": 2020, "end_year": 2030,
+            "tc_id": "TC_E3_03_04",
+        },
+        "TC_E3_03_04::1": {
+            "distribution": "normal", "start_year": 2040, "end_year": 2050,
+            "tc_id": "TC_E3_03_04",
+        },
+    }
+    _, warnings = validate_mc_parameters(df, _bare_system(), uparams)
+    assert not any("overlapping year windows" in w for w in warnings)

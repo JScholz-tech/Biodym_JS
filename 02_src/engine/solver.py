@@ -797,10 +797,20 @@ def run_mfa_calculation(
         time_items_tc = mfa_system.IndexTable.Classification["Time"].Items
         time_arr_tc = np.array(time_items_tc)
         for param_name, new_value in tc_updates.items():
-            if param_name not in mfa_system.ParameterDict:
-                continue
             if isinstance(new_value, dict):
-                # Year-windowed dynamic-TC update
+                # Year-windowed dynamic-TC update. The dict key may carry a ::N
+                # suffix so several windows of the same TC can coexist, so the
+                # real parameter name comes from tc_id. Multiple ::N entries
+                # write into different year masks of the *same* Values array;
+                # on overlap, later insertion-order entries win (documented).
+                target = new_value.get("tc_id", param_name)
+                if target not in mfa_system.ParameterDict:
+                    continue
+                param_values = mfa_system.ParameterDict[target].Values
+                if not isinstance(param_values, np.ndarray):
+                    # A window only makes sense on a dynamic (time-series) TC;
+                    # a scalar/static TC has no years to mask, so skip it.
+                    continue
                 val = new_value["value"]
                 start_y = new_value.get("start_year")
                 end_y = new_value.get("end_year")
@@ -809,8 +819,10 @@ def run_mfa_calculation(
                     mask &= time_arr_tc >= start_y
                 if end_y is not None:
                     mask &= time_arr_tc <= end_y
-                mfa_system.ParameterDict[param_name].Values[mask] = val
+                param_values[mask] = val
             else:
+                if param_name not in mfa_system.ParameterDict:
+                    continue
                 mfa_system.ParameterDict[param_name].Values = new_value
 
     if flow_updates:
