@@ -796,7 +796,9 @@ def _build_composition_sunburst_figure(
     )
     fig.update_layout(
         title=f"Flow composition — {scope_label} ({year})",
+        height=750,  # larger canvas; width follows the container (100% in Voilà)
         margin=dict(t=60, l=10, r=10, b=10),
+        font=dict(size=14),
     )
     return fig
 
