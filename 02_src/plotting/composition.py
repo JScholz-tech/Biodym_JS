@@ -14,7 +14,7 @@ Date: 2025-11-04
 
 import numpy as np
 import plotly.graph_objects as go
-from ipywidgets import IntSlider, Button, HBox, Layout, HTML
+from ipywidgets import IntSlider, Button, HBox, Layout, HTML, Dropdown
 from IPython.display import display
 from typing import Optional, Dict, List, Tuple
 
@@ -808,33 +808,40 @@ def plot_flow_composition_sunburst(
     color_manager: Optional[ElementColorManager] = None,
     enable_export: bool = True,
 ):
-    """Display the flow composition as a hierarchical sunburst.
+    """Display the flow composition as an interactive hierarchical sunburst.
 
     A supplementary view to :func:`plot_flow_composition` (stacked bars): the
     element hierarchy is shown as concentric rings — the total-mass element at
     the centre, its top-level elements in the first ring, their sub-elements
     further out — with a lighter "Remaining X" wedge for any untracked residual.
 
+    A **Flow** dropdown (``All flows`` or a single flow) and a **Year** slider
+    update the figure live. Rendering uses an ``ipywidgets`` ``FigureWidget``
+    driven by ``display()`` (the same mechanism as :func:`plot_flow_composition`)
+    so it works in both classic notebooks and Voilà — ``fig.show()`` is *not*
+    used, as it can clash with a sibling ``FigureWidget`` in the same output.
+
     Parameters
     ----------
     mfa_system_results : odym.MFAsystem
         The solved MFA system.
     flow_id : str, optional
-        Restrict to a single flow. If None (default), aggregates the mass of
-        all flows.
+        Initial flow selection. If None (default), starts on ``All flows``
+        (mass aggregated across every flow).
     year : int, optional
-        The year to display. Defaults to the last year in the model horizon;
-        an out-of-range year snaps to the nearest available one.
+        Initial year. Defaults to the last year in the model horizon; an
+        out-of-range value snaps to the nearest available year.
     color_manager : ElementColorManager, optional
         Reuse an existing color manager so element colors match other plots.
     enable_export : bool, optional
-        If True (default), also show a button to export the figure to
+        If True (default), also show a button to export the current view to
         publication-quality PNG/PDF.
 
-    Notes
-    -----
-    Follows the module convention: renders via ``fig.show()`` and returns the
-    figure (handy for tests / further tweaking).
+    Returns
+    -------
+    None
+        Renders via ``display()`` (matching the module convention). Use
+        ``_build_composition_sunburst_figure`` for a returned static figure.
 
     Examples
     --------
@@ -842,27 +849,75 @@ def plot_flow_composition_sunburst(
     >>> plot_flow_composition_sunburst(mfa_results, year=2050)
     >>> plot_flow_composition_sunburst(mfa_results, flow_id="F_01_02")
     """
-    fig = _build_composition_sunburst_figure(
-        mfa_system_results,
-        flow_id=flow_id,
-        year=year,
-        color_manager=color_manager,
+    flows = mfa_system_results.FlowDict
+    flow_descriptions = getattr(mfa_system_results, "_flow_descriptions", {})
+    years = list(mfa_system_results.IndexTable.Classification["Time"].Items)
+
+    # ── Controls ──────────────────────────────────────────────────────────
+    _ALL = "__all__"  # sentinel dropdown value for "aggregate all flows"
+    flow_options = [("All flows", _ALL)] + [
+        (f"{flow_descriptions.get(fid, fid)} ({fid})", fid) for fid in flows
+    ]
+    default_flow = flow_id if (flow_id in flows) else _ALL
+    flow_dd = Dropdown(
+        options=flow_options,
+        value=default_flow,
+        description="Flow:",
+        style={"description_width": "50px"},
+        layout=Layout(width="360px"),
+    )
+    default_year = year if (year in years) else years[-1]
+    year_slider = IntSlider(
+        min=years[0],
+        max=years[-1],
+        step=1,
+        value=default_year,
+        description="Year:",
+        style={"description_width": "50px"},
+        layout=Layout(width="360px"),
     )
 
-    if enable_export:
-        # Guarded so a missing kaleido/ipywidgets never blocks the plot itself.
-        try:
-            resolved_year = (
-                year
-                if year is not None
-                else mfa_system_results.IndexTable.Classification["Time"].Items[-1]
-            )
+    # ── Figure (FigureWidget so it renders in Voilà like the bar chart) ──────
+    init_flow = None if default_flow == _ALL else default_flow
+    fig = go.FigureWidget(
+        _build_composition_sunburst_figure(
+            mfa_system_results,
+            flow_id=init_flow,
+            year=default_year,
+            color_manager=color_manager,
+        )
+    )
 
+    def _update(_change=None):
+        sel_flow = None if flow_dd.value == _ALL else flow_dd.value
+        new_fig = _build_composition_sunburst_figure(
+            mfa_system_results,
+            flow_id=sel_flow,
+            year=year_slider.value,
+            color_manager=color_manager,
+        )
+        src = new_fig.data[0]
+        with fig.batch_update():
+            trace = fig.data[0]
+            trace.ids = src.ids
+            trace.labels = src.labels
+            trace.parents = src.parents
+            trace.values = src.values
+            trace.marker.colors = src.marker.colors
+            fig.layout.title.text = new_fig.layout.title.text
+
+    flow_dd.observe(_update, names="value")
+    year_slider.observe(_update, names="value")
+
+    # ── Optional export button (guarded — never blocks rendering) ────────────
+    controls = [flow_dd, year_slider]
+    if enable_export:
+        try:
             def _export(_btn):
                 try:
                     paths = export_figure(
                         fig,
-                        f"composition_sunburst_{resolved_year}",
+                        f"composition_sunburst_{year_slider.value}",
                         formats=["png", "pdf"],
                         quality="publication",
                         size="large",
@@ -874,13 +929,13 @@ def plot_flow_composition_sunburst(
             export_btn = Button(
                 description="📥 Export Figure",
                 button_style="success",
-                tooltip="Export sunburst to PNG and PDF",
+                tooltip="Export current sunburst view to PNG and PDF",
                 layout=Layout(width="150px"),
             )
             export_btn.on_click(_export)
-            display(export_btn)
+            controls.append(export_btn)
         except Exception:  # pragma: no cover - never block rendering
             pass
 
-    fig.show()
-    return fig
+    display(HBox(controls, layout=Layout(margin="10px 0")))
+    display(fig)
