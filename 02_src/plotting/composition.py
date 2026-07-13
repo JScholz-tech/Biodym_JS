@@ -24,7 +24,10 @@ from .themes import (
 )
 from .dynamic_colors import ElementColorManager
 from .export_publication import export_figure
-from engine.element_utils import validate_element_hierarchy
+from engine.element_utils import (
+    validate_element_hierarchy,
+    build_element_children_map,
+)
 
 # Border color used to flag a "Remaining X" bar segment where children
 # exceed their parent (ρ_f^e(t) < -tolerance, §2.6) — distinct from the
@@ -657,3 +660,227 @@ def validate_flow_compositions(
         print("=" * 80)
 
     return {"over_100": over_100, "under_100": under_100, "valid_count": valid_count}
+
+
+def _lighten_hex(hex_color: str, factor: float = 0.4) -> str:
+    """Blend a #rrggbb color toward white (same 0.4 rule as the bar chart's
+    "Remaining X" segments). Falls back to a neutral grey on bad input."""
+    s = str(hex_color).lstrip("#")
+    if len(s) != 6:
+        return "#cccccc"
+    try:
+        r, g, b = (int(s[i : i + 2], 16) for i in (0, 2, 4))
+    except ValueError:
+        return "#cccccc"
+    r = int(r + (255 - r) * factor)
+    g = int(g + (255 - g) * factor)
+    b = int(b + (255 - b) * factor)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _build_composition_sunburst_figure(
+    mfa_system_results,
+    flow_id: Optional[str] = None,
+    year: Optional[int] = None,
+    color_manager: Optional[ElementColorManager] = None,
+) -> go.Figure:
+    """Build (but do not display) the composition sunburst figure.
+
+    Nesting follows the element hierarchy ch(e) (root = the total-mass element,
+    element 0 — conventionally "material"). Each branching node adds a lighter
+    "Remaining X" wedge for the untracked residual so its children sum exactly
+    to it, keeping ``branchvalues="total"`` consistent (mirrors the stacked-bar
+    ``plot_flow_composition``). If a node's children exceed it (a hierarchy
+    violation), the node is expanded to fit rather than raising.
+    """
+    elements = list(mfa_system_results.Elements)
+    if not elements:
+        raise ValueError("MFA system has no elements to plot.")
+    root = elements[0]  # total-mass element (conserved), typically "material"
+
+    years = list(mfa_system_results.IndexTable.Classification["Time"].Items)
+    if year is None:
+        year = years[-1]
+    if year in years:
+        year_idx = years.index(year)
+    else:  # snap to the nearest available year
+        year_idx = int(np.argmin([abs(y - year) for y in years]))
+        year = years[year_idx]
+
+    flows = mfa_system_results.FlowDict
+    flow_descriptions = getattr(mfa_system_results, "_flow_descriptions", {})
+
+    if flow_id is not None:
+        if flow_id not in flows:
+            raise KeyError(f"Flow '{flow_id}' not found in the MFA system.")
+        selected = {flow_id: flows[flow_id]}
+        scope_label = flow_descriptions.get(flow_id, flow_id)
+    else:
+        selected = flows
+        scope_label = "All flows"
+
+    # Mass per element at the chosen year, summed across the selected flows.
+    mass_of = {e: 0.0 for e in elements}
+    for f in selected.values():
+        vals = f.Values[year_idx, :]
+        for i, e in enumerate(elements):
+            mass_of[e] += float(vals[i])
+
+    # ch(e); fall back to a flat "material → everything else" if no hierarchy.
+    element_hierarchy = getattr(mfa_system_results, "_element_hierarchy", {})
+    children_map = build_element_children_map(element_hierarchy, elements)
+    if not children_map:
+        children_map = {root: [e for e in elements if e != root]}
+
+    if color_manager is None:
+        color_manager = ElementColorManager([e.lower() for e in elements])
+
+    ids: List[str] = []
+    labels: List[str] = []
+    parents: List[str] = []
+    values: List[float] = []
+    colors: List[str] = []
+    eps = max(max(mass_of.get(root, 0.0), 0.0) * 1e-6, 1e-9)
+
+    def add_node(elem: str, parent_id: str) -> float:
+        """Append this element's wedge (and its subtree); return its effective
+        total (= own mass, or the children's sum if they exceed it)."""
+        node_id = f"{parent_id}/{elem}" if parent_id else elem
+        idx = len(ids)
+        mass = max(mass_of.get(elem, 0.0), 0.0)
+        ids.append(node_id)
+        labels.append(elem)
+        parents.append(parent_id)
+        values.append(mass)
+        colors.append(color_manager.get_element_color(elem))
+
+        kids = children_map.get(elem, [])
+        if kids:
+            child_sum = 0.0
+            for c in kids:
+                child_sum += add_node(c, node_id)
+            if child_sum > values[idx]:
+                # Hierarchy violation: grow the parent so children fit (a red
+                # "Remaining" would be misleading; the bar chart flags these).
+                values[idx] = child_sum
+            else:
+                remainder = values[idx] - child_sum
+                if remainder > eps:
+                    ids.append(f"{node_id}/__remaining__")
+                    labels.append(f"Remaining {elem}")
+                    parents.append(node_id)
+                    values.append(remainder)
+                    colors.append(
+                        _lighten_hex(color_manager.get_element_color(elem))
+                    )
+        return values[idx]
+
+    add_node(root, "")
+
+    unit = getattr(mfa_system_results, "Unit", "Mg")
+    fig = go.Figure(
+        go.Sunburst(
+            ids=ids,
+            labels=labels,
+            parents=parents,
+            values=values,
+            branchvalues="total",
+            marker=dict(colors=colors),
+            hovertemplate=(
+                "<b>%{label}</b><br>"
+                f"%{{value:.4g}} {unit}<br>"
+                f"%{{percentRoot:.1%}} of {root}<extra></extra>"
+            ),
+            insidetextorientation="radial",
+        )
+    )
+    fig.update_layout(
+        title=f"Flow composition — {scope_label} ({year})",
+        margin=dict(t=60, l=10, r=10, b=10),
+    )
+    return fig
+
+
+def plot_flow_composition_sunburst(
+    mfa_system_results,
+    flow_id: Optional[str] = None,
+    year: Optional[int] = None,
+    color_manager: Optional[ElementColorManager] = None,
+    enable_export: bool = True,
+):
+    """Display the flow composition as a hierarchical sunburst.
+
+    A supplementary view to :func:`plot_flow_composition` (stacked bars): the
+    element hierarchy is shown as concentric rings — the total-mass element at
+    the centre, its top-level elements in the first ring, their sub-elements
+    further out — with a lighter "Remaining X" wedge for any untracked residual.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system.
+    flow_id : str, optional
+        Restrict to a single flow. If None (default), aggregates the mass of
+        all flows.
+    year : int, optional
+        The year to display. Defaults to the last year in the model horizon;
+        an out-of-range year snaps to the nearest available one.
+    color_manager : ElementColorManager, optional
+        Reuse an existing color manager so element colors match other plots.
+    enable_export : bool, optional
+        If True (default), also show a button to export the figure to
+        publication-quality PNG/PDF.
+
+    Notes
+    -----
+    Follows the module convention: renders via ``fig.show()`` and returns the
+    figure (handy for tests / further tweaking).
+
+    Examples
+    --------
+    >>> plot_flow_composition_sunburst(mfa_results)                 # all flows, last year
+    >>> plot_flow_composition_sunburst(mfa_results, year=2050)
+    >>> plot_flow_composition_sunburst(mfa_results, flow_id="F_01_02")
+    """
+    fig = _build_composition_sunburst_figure(
+        mfa_system_results,
+        flow_id=flow_id,
+        year=year,
+        color_manager=color_manager,
+    )
+
+    if enable_export:
+        # Guarded so a missing kaleido/ipywidgets never blocks the plot itself.
+        try:
+            resolved_year = (
+                year
+                if year is not None
+                else mfa_system_results.IndexTable.Classification["Time"].Items[-1]
+            )
+
+            def _export(_btn):
+                try:
+                    paths = export_figure(
+                        fig,
+                        f"composition_sunburst_{resolved_year}",
+                        formats=["png", "pdf"],
+                        quality="publication",
+                        size="large",
+                    )
+                    print(f"✅ Exported: {', '.join(paths)}")
+                except Exception as e:  # pragma: no cover - export env dependent
+                    print(f"❌ Export failed: {e}")
+
+            export_btn = Button(
+                description="📥 Export Figure",
+                button_style="success",
+                tooltip="Export sunburst to PNG and PDF",
+                layout=Layout(width="150px"),
+            )
+            export_btn.on_click(_export)
+            display(export_btn)
+        except Exception:  # pragma: no cover - never block rendering
+            pass
+
+    fig.show()
+    return fig
