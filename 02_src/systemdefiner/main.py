@@ -2514,9 +2514,10 @@ def _rules_to_paths(rules: list) -> list[list[str]]:
             cur = child_to_parent.get(cur)
         return path
 
-    # Pad all paths to exactly 4 cells
-    paths = [get_path(leaf) + ["", "", "", ""] for leaf in sorted(leaves)]
-    paths = [p[:4] for p in paths]
+    # Pad all paths to the deepest path present (hierarchy depth is not capped).
+    raw_paths = [get_path(leaf) for leaf in sorted(leaves)]
+    depth = max((len(p) for p in raw_paths), default=0)
+    paths = [p + [""] * (depth - len(p)) for p in raw_paths]
     paths.sort()
     return paths
 
@@ -2566,9 +2567,20 @@ async def elements_save(request: Request, name: str):
         cfg.model.elements = elements
 
     # ── Level names ──────────────────────────────────────────────────────────
-    cfg.model.hierarchy_level_names = [
-        (form.get(f"level_name_{i}") or f"Level {i + 1}").strip() for i in range(4)
-    ]
+    # Hierarchy depth is user-extensible: collect however many level_name_{i}
+    # fields the editor submitted (tolerant of gaps), not a fixed 4.
+    level_indices = sorted(
+        {
+            int(m.group(1))
+            for key in form.keys()
+            if (m := re.fullmatch(r"level_name_(\d+)", key))
+        }
+    )
+    level_names = [(form.get(f"level_name_{i}") or "").strip() for i in level_indices]
+    level_names = [n for n in level_names if n]
+    if level_names:
+        cfg.model.hierarchy_level_names = level_names
+    n_levels = len(cfg.model.hierarchy_level_names)
 
     # ── Path rows → hierarchy rules ──────────────────────────────────────────
     # Collect row indices tolerantly: the client may leave gaps in the
@@ -2583,7 +2595,11 @@ async def elements_save(request: Request, name: str):
         }
     )
     for pidx in path_indices:
-        cells = [(form.get(f"path_{pidx}_l{level}") or "").strip() for level in range(1, 5)]
+        # Read as many level columns as the hierarchy has (l1..l{n_levels}).
+        cells = [
+            (form.get(f"path_{pidx}_l{level}") or "").strip()
+            for level in range(1, n_levels + 1)
+        ]
         # Collect consecutive non-empty pairs as parent→child
         for i in range(len(cells) - 1):
             if cells[i] and cells[i + 1]:

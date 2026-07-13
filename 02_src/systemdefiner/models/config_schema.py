@@ -193,10 +193,25 @@ class ModelSettings(BaseModel):
     @field_validator("hierarchy_level_names", mode="before")
     @classmethod
     def pad_level_names(cls, v):
+        # Hierarchy depth is user-extensible: the number of levels ("columns"
+        # in the editor) is not capped. We only guarantee a sane minimum so the
+        # matrix editor always has at least a root + one child level to render.
+        MIN_LEVELS = 2
+        defaults = ["Product", "Component", "Material", "Element"]
         if not isinstance(v, list):
             v = []
-        defaults = ["Product", "Component", "Material", "Element"]
-        return (list(v) + defaults)[:4]
+        # Strip blanks but preserve user order and any additional levels.
+        names = [str(n).strip() for n in v if str(n).strip()]
+        if len(names) < MIN_LEVELS:
+            # Backfill from defaults, then generic "Level N" labels if needed.
+            for d in defaults:
+                if len(names) >= MIN_LEVELS:
+                    break
+                if d not in names:
+                    names.append(d)
+            while len(names) < MIN_LEVELS:
+                names.append(f"Level {len(names) + 1}")
+        return names
 
     input_file: str = ""
     output_file: str = ""
