@@ -734,8 +734,20 @@ function addCapRow() {
     <td><input type="number" name="flowcap_year_${i}" step="1" min="1900" max="2300" style="width:80px"></td>
     <td><input type="number" name="flowcap_cap_${i}"  step="any" min="0" style="width:120px"></td>
     <td><button type="button" class="btn btn-danger btn-sm"
-      onclick="this.closest('tr').remove()">✕</button></td>`;
+      onclick="this.closest('tr').remove(); reindexCapRows()">✕</button></td>`;
   tbody.appendChild(tr);
+}
+function reindexCapRows() {
+  // Renumber rows 0..N-1 after a removal, otherwise a middle-row delete leaves
+  // a gap (flowcap_year_0,1,3,…) and the server's save-scan stops at the gap,
+  // silently dropping every capacity point after it.
+  document.querySelectorAll('#edit-cap-body tr').forEach((tr, i) => {
+    const y = tr.querySelector('[name^="flowcap_year_"]');
+    const c = tr.querySelector('[name^="flowcap_cap_"]');
+    if (y) y.name = `flowcap_year_${i}`;
+    if (c) c.name = `flowcap_cap_${i}`;
+  });
+  capRowCount = document.querySelectorAll('#edit-cap-body tr').length;
 }
 </script>
 {% endblock %}

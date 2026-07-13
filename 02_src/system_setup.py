@@ -714,6 +714,28 @@ def _calculate_elemental_compositions(mfa_system, element_hierarchy=None):
             elem_name = elem_info["name"]
             hierarchy_map[elem_name] = elem_info
 
+    # Process elements parents-before-children. A hierarchical element is
+    # computed as parent × fraction, reading the parent's already-filled
+    # values, so the parent MUST be evaluated first. The element list order is
+    # arbitrary (e.g. "primary steel" may be listed before its parent "steel"),
+    # so order by hierarchy depth: material=0, top-level=1, grandchildren=2, …
+    # Without this, a child listed before its parent reads a still-zero parent
+    # and collapses to 0 (all its downstream flows then stay 0 too).
+    def _elem_depth(name):
+        depth, cur, seen = 0, name, set()
+        while cur and cur != "material" and cur not in seen:
+            seen.add(cur)
+            parent = (hierarchy_map.get(cur, {}) or {}).get("parent")
+            if not parent or parent == "material":
+                break
+            cur, depth = parent, depth + 1
+        return depth
+
+    ordered_elems = sorted(
+        ((i, e) for i, e in enumerate(elements) if e != "material"),
+        key=lambda ie: _elem_depth(ie[1]),
+    )
+
     for flow in mfa_system.FlowDict.values():
         material_values = flow.Values[:, mat_idx]
 
@@ -721,11 +743,8 @@ def _calculate_elemental_compositions(mfa_system, element_hierarchy=None):
         if not np.any(material_values != 0):
             continue
 
-        # Calculate each element's values dynamically
-        for elem_idx, element_name in enumerate(elements):
-            if element_name == "material":
-                continue  # Skip material (already populated from data)
-
+        # Calculate each element's values dynamically (parents before children)
+        for elem_idx, element_name in ordered_elems:
             # Get parameter for this element-flow combination
             param_name = f"{element_name}_{flow.Name}"
             param = mfa_system.ParameterDict.get(param_name)

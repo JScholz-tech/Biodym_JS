@@ -202,6 +202,11 @@ function addPathRow(cells) {
     onclick="removePathRow(this)">✕</button></td>`;
   tr.innerHTML = tds;
   tbody.appendChild(tr);
+  // Renumber immediately so row names stay contiguous (path_0..path_N-1).
+  // Without this, a prior removal leaves pathCount ahead of the DOM row
+  // count, so the next add creates a gap (e.g. path_4 with no path_3) and
+  // the server's contiguous save-scan truncates at the gap — dropping rows.
+  reindexPaths();
 }
 
 function removePathRow(btn) {

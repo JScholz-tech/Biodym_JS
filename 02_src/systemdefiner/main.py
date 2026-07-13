@@ -1107,24 +1107,25 @@ def _parse_dsm_component(form) -> DsmParams:
 
 def _parse_lfg(form) -> LfgParams:
     fractions: list[LfgFraction] = []
-    idx = 0
-    while True:
-        name_key = f"lfg_frac_{idx}_name"
-        if name_key not in form and idx > 0:
-            break
-        if name_key in form:
-            fractions.append(
-                LfgFraction(
-                    name=form.get(name_key, "") or "",
-                    k_j=float(form.get(f"lfg_frac_{idx}_k_j", 0.1) or 0.1),
-                    doc_j=float(form.get(f"lfg_frac_{idx}_doc_j", 0.5) or 0.5),
-                    f_input_j=float(form.get(f"lfg_frac_{idx}_f_input_j", 1.0) or 1.0),
-                    f_ash_j=float(form.get(f"lfg_frac_{idx}_f_ash_j", 0.05) or 0.05),
-                )
+    # Collect row indices tolerantly (a removal can leave gaps in the numbering);
+    # scanning until the first missing index would drop fractions past the gap.
+    frac_indices = sorted(
+        {
+            int(m.group(1))
+            for key in form.keys()
+            if (m := re.fullmatch(r"lfg_frac_(\d+)_name", key))
+        }
+    )
+    for idx in frac_indices:
+        fractions.append(
+            LfgFraction(
+                name=form.get(f"lfg_frac_{idx}_name", "") or "",
+                k_j=float(form.get(f"lfg_frac_{idx}_k_j", 0.1) or 0.1),
+                doc_j=float(form.get(f"lfg_frac_{idx}_doc_j", 0.5) or 0.5),
+                f_input_j=float(form.get(f"lfg_frac_{idx}_f_input_j", 1.0) or 1.0),
+                f_ash_j=float(form.get(f"lfg_frac_{idx}_f_ash_j", 0.05) or 0.05),
             )
-        idx += 1
-        if idx > 50:
-            break
+        )
 
     def _flt(key, default):
         v = (form.get(key) or "").strip()
@@ -1153,22 +1154,24 @@ def _parse_flowcap(form, process_id: int) -> Optional[FlowCapParams]:
     if not capped:
         return None
     cap_series: dict[int, float] = {}
-    idx = 0
-    while True:
-        year_key = f"flowcap_year_{idx}"
-        cap_key = f"flowcap_cap_{idx}"
-        if year_key not in form:
-            break
+    # Collect row indices tolerantly: a client-side row removal can leave gaps
+    # in the flowcap_year_{i} numbering, so never stop at the first missing
+    # index — that would silently drop every capacity point past the gap.
+    cap_indices = sorted(
+        {
+            int(m.group(1))
+            for key in form.keys()
+            if (m := re.fullmatch(r"flowcap_year_(\d+)", key))
+        }
+    )
+    for idx in cap_indices:
         try:
-            year = int(float(form[year_key]))
-            cap = float(form.get(cap_key, 0) or 0)
+            year = int(float(form[f"flowcap_year_{idx}"]))
+            cap = float(form.get(f"flowcap_cap_{idx}", 0) or 0)
             if year:
                 cap_series[year] = cap
         except (ValueError, TypeError):
             pass
-        idx += 1
-        if idx > 200:
-            break
     # ParameterDict key under which the engine registers the cap series, so
     # the Scenario Manager and MC can switch the cap. Auto-derive the
     # canonical name when the form leaves it blank; keep hand-authored IDs.
@@ -2568,19 +2571,23 @@ async def elements_save(request: Request, name: str):
     ]
 
     # ── Path rows → hierarchy rules ──────────────────────────────────────────
+    # Collect row indices tolerantly: the client may leave gaps in the
+    # path_{i}_* numbering (a removal followed by an add), so never stop at the
+    # first missing index — that would silently truncate every row past the gap.
     parent_to_children: dict[str, set] = _defaultdict(set)
-    idx = 0
-    while True:
-        if f"path_{idx}_l1" not in form:
-            break
-        cells = [(form.get(f"path_{idx}_l{level}") or "").strip() for level in range(1, 5)]
+    path_indices = sorted(
+        {
+            int(m.group(1))
+            for key in form.keys()
+            if (m := re.fullmatch(r"path_(\d+)_l1", key))
+        }
+    )
+    for pidx in path_indices:
+        cells = [(form.get(f"path_{pidx}_l{level}") or "").strip() for level in range(1, 5)]
         # Collect consecutive non-empty pairs as parent→child
         for i in range(len(cells) - 1):
             if cells[i] and cells[i + 1]:
                 parent_to_children[cells[i]].add(cells[i + 1])
-        idx += 1
-        if idx > 500:
-            break
 
     cfg.element_hierarchy = [
         ElementHierarchyRule(parent=p, children=sorted(ch))
@@ -3035,19 +3042,26 @@ async def post_flow_data(request: Request, name: str):
         if fid is None:
             break
         values: dict[int, float] = {}
-        i = 0
-        while True:
+        # Collect year-row indices tolerantly: a removed point can leave a gap in
+        # the fd_{j}_y_{i} numbering, so never stop at the first missing index.
+        year_indices = sorted(
+            {
+                int(m.group(1))
+                for key in form.keys()
+                if (m := re.fullmatch(rf"fd_{j}_y_(\d+)", key))
+            }
+        )
+        for i in year_indices:
             y_raw = form.get(f"fd_{j}_y_{i}")
             v_raw = form.get(f"fd_{j}_v_{i}")
             if y_raw is None:
-                break
+                continue
             try:
                 year = int(float(y_raw))
                 val = float(v_raw or 0)
                 values[year] = val
             except (ValueError, TypeError):
                 pass
-            i += 1
         refs = [c.strip() for c in form.getlist(f"fd_{j}_refs") if c.strip()]
         if values:
             new_entries.append(

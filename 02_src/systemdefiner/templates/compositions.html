@@ -8,6 +8,24 @@
 {% endblock %}
 
 {% block content %}
+<style>
+  .chip{display:inline-block;padding:1px 9px;border-radius:11px;font-size:0.76rem;font-weight:600;white-space:nowrap}
+  .chip.ok{background:rgba(44,110,73,0.14);color:#2c6e49}
+  .chip.bad{background:rgba(192,57,43,0.14);color:#c0392b}
+  .chip.muted{background:var(--bg);color:var(--muted);border:1px solid var(--border)}
+  .ov-row:hover{background:var(--bg)}
+  .ov-row td{padding:8px 12px;border-top:1px solid var(--border)}
+  .gap-line{font-size:0.78rem;margin-top:4px;white-space:nowrap}
+  .gap-line.ok{color:var(--primary,#2c6e49)}
+  .gap-line.bad{color:var(--danger,#c0392b)}
+  .gap-line.inactive{color:var(--muted);font-style:italic}
+  .comp-controls-bar{display:flex;gap:1rem;align-items:center;flex-wrap:wrap;
+    padding:0.5rem 0.75rem;margin-bottom:0.75rem;background:var(--bg);
+    border:1px solid var(--border);border-radius:6px;font-size:0.85rem}
+  .comp-controls-bar select{font-family:monospace}
+  .comp-card-head{display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap}
+</style>
+
 <h1>Flow Compositions</h1>
 
 {% if not rows %}
@@ -17,33 +35,59 @@
 </div>
 {% else %}
 
-<div class="card" style="margin-bottom:1.25rem">
+<div class="card" style="margin-bottom:1rem">
   <p class="muted" style="margin:0">
-    Element fractions for each <strong>input flow</strong> as <strong>%</strong> of total flow mass.
-    The layout mirrors the hierarchy defined in
-    <a href="/{{ cfg.name }}/elements">Elements &amp; Hierarchy</a>.
-    {% if cfg.element_hierarchy %}
-    The <strong>gap</strong> shown below each parent cell is
-    <em>parent % − sum(children %)</em> — should be 0 % when consistent.
-    {% endif %}
+    Element fractions for each <strong>input flow</strong>, laid out along the hierarchy from
+    <a href="/{{ cfg.name }}/elements">Elements &amp; Hierarchy</a>. Values are
+    <strong>% of the parent element</strong> — so each active branch should sum to 100&nbsp;%.
+    Empty branches (parent&nbsp;=&nbsp;0&nbsp;%) are inactive and need no values.
+    Click a flow in the overview to edit it.
   </p>
 </div>
 
 <form method="post" action="/{{ cfg.name }}/compositions" id="comp-form">
 
+  {# ── Overview ─────────────────────────────────────────────────────────── #}
+  <div class="card" style="margin-bottom:1.25rem">
+    <div style="display:flex;align-items:baseline;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.5rem">
+      <h2 style="margin:0;font-size:1.05rem">Overview</h2>
+      <span id="ov-summary" style="margin-left:auto;display:flex;gap:0.4rem"></span>
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:6px 12px;font-size:0.76rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted)">Flow</th>
+            <th style="text-align:left;padding:6px 12px;font-size:0.76rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted)">Name</th>
+            <th style="text-align:left;padding:6px 12px;font-size:0.76rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted)">Status</th>
+            <th style="text-align:left;padding:6px 12px;font-size:0.76rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted)">Composition</th>
+            <th style="width:36px"></th>
+          </tr>
+        </thead>
+        <tbody id="ov-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  {# ── Per-flow cards (collapsed until opened from the overview) ─────────── #}
   {% for row in rows %}
   {% set safe_fid = row.flow.id | replace('.','_') | replace('-','_') | replace('/','_') %}
-  <div class="card" style="margin-bottom:1.25rem">
-    <div style="display:flex;align-items:baseline;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap">
+  <div class="card comp-card" id="card_{{ safe_fid }}" data-fid="{{ row.flow.id }}"
+       style="margin-bottom:1.25rem;display:none">
+    <div class="comp-card-head">
       <h3 style="margin:0;font-size:1rem">
         <strong>{{ row.flow.id }}</strong>
         <span class="muted" style="font-weight:400"> — {{ row.flow.name }}</span>
       </h3>
+      <span id="badge_{{ safe_fid }}"></span>
       <span style="margin-left:auto;font-size:0.83rem;color:var(--muted);display:flex;align-items:center;gap:0.35rem">
         Sources:
         {{ ref_multiselect("refs_" ~ row.flow.id, flow_refs.get(row.flow.id, []), cfg.references) }}
       </span>
+      <button type="button" class="btn btn-secondary btn-sm"
+              onclick="toggleCard('{{ row.flow.id }}')">Collapse ▲</button>
     </div>
+    <div id="controls_{{ safe_fid }}"></div>
     <div id="matrix_{{ safe_fid }}" style="overflow-x:auto"></div>
   </div>
   {% endfor %}
@@ -56,46 +100,105 @@
 {% endif %}
 
 <script>
+// ── Server state ────────────────────────────────────────────────────────────────
 const ELEMENTS    = {{ cfg.model.elements | tojson }};
 const HIERARCHY   = {{ hier_json | tojson }};
 const LEVEL_NAMES = {{ cfg.model.hierarchy_level_names | tojson }};
 const INIT_PATHS  = {{ paths_json | safe }};
-const FLOW_COMPS  = {{ flow_comps_json | safe }};  // parent-relative % (fraction of parent × 100) from server
+const FLOW_COMPS  = {{ flow_comps_json | safe }};  // % (fraction × 100), keyed by flow id
 const FLOW_LIST   = {{ flow_list_json | safe }};
+const EPS = 0.01;
 
-// ── Structure maps ────────────────────────────────────────────────────────────
-const PARENT_CHILDREN = {};
-HIERARCHY.forEach(r => { PARENT_CHILDREN[r.parent] = r.children; });
+// ── Structure maps ──────────────────────────────────────────────────────────────
+const PARENT_CHILDREN = {}; HIERARCHY.forEach(r => { PARENT_CHILDREN[r.parent] = r.children; });
+const CHILD_PARENT    = {}; HIERARCHY.forEach(r => { r.children.forEach(c => { CHILD_PARENT[c] = r.parent; }); });
+const ROOT_ELEM  = HIERARCHY.length ? ELEMENTS[0] : null;
+const TOP_LEVELS = ROOT_ELEM ? (PARENT_CHILDREN[ROOT_ELEM] || []) : [];
 
-const CHILD_PARENT = {};
-HIERARCHY.forEach(r => { r.children.forEach(c => { CHILD_PARENT[c] = r.parent; }); });
+function isParent(e) { return Object.prototype.hasOwnProperty.call(PARENT_CHILDREN, e); }
+function safeId(fid) { return fid.replace(/[.\-\/]/g, '_'); }
 
-// Root element (top of hierarchy = first in list)
-const ROOT_ELEM = HIERARCHY.length > 0 ? ELEMENTS[0] : null;
+const SORTED_PATHS = [...INIT_PATHS].sort((a, b) => {
+  for (let i = 0; i < 4; i++) { if (a[i] < b[i]) return -1; if (a[i] > b[i]) return 1; }
+  return 0;
+});
+// A path's top-level branch is column 1 (column 0 is the root).
+function pathTop(p) { return p[1] || p[0]; }
 
-// Topological order of parents (BFS from root, top-down)
-const TOP_DOWN_PARENTS = (function () {
-  if (!ROOT_ELEM) return [];
-  const order = [], queue = [ROOT_ELEM], visited = new Set();
-  while (queue.length) {
-    const curr = queue.shift();
-    if (visited.has(curr)) continue;
-    visited.add(curr);
-    if (PARENT_CHILDREN[curr]) { order.push(curr); PARENT_CHILDREN[curr].forEach(c => queue.push(c)); }
-  }
-  return order;
-})();
+// ── LIVE = single source of truth (% values). Display & save both read this. ────
+const LIVE = {};
+FLOW_LIST.forEach(f => {
+  const stored = FLOW_COMPS[f.id] || {};
+  LIVE[f.id] = {};
+  ELEMENTS.forEach(e => { LIVE[f.id][e] = stored[e] || 0; });
+  if (ROOT_ELEM) LIVE[f.id][ROOT_ELEM] = 100;  // root is always 100 % of itself
+});
+function pct(fid, e) { return (LIVE[fid] && LIVE[fid][e]) || 0; }
 
-// ── Span computation (identical to elements.html preview) ─────────────────────
+// Per-flow "show all elements" flag (false = compact, hide inactive branches).
+const COMPACT = {}; FLOW_LIST.forEach(f => { COMPACT[f.id] = true; });
+
+// ── Status / health ─────────────────────────────────────────────────────────────
+// A branch is checked ONLY when its parent carries mass (>0 %). An inactive
+// branch (parent = 0 %) is fine with empty children — no false "gap" warning.
+function branchIssues(fid) {
+  const issues = [];
+  const topSum = TOP_LEVELS.reduce((s, c) => s + pct(fid, c), 0);
+  if (TOP_LEVELS.length && Math.abs(100 - topSum) > EPS) issues.push(ROOT_ELEM);
+  ELEMENTS.forEach(e => {
+    if (e === ROOT_ELEM || !isParent(e)) return;
+    if (pct(fid, e) <= EPS) return;  // inactive branch
+    const cs = (PARENT_CHILDREN[e] || []).reduce((s, c) => s + pct(fid, c), 0);
+    if (Math.abs(100 - cs) > EPS) issues.push(e);
+  });
+  return issues;
+}
+function flowStatus(fid) {
+  const anyMass = ELEMENTS.some(e => e !== ROOT_ELEM && pct(fid, e) > EPS);
+  if (!anyMass) return { state: 'empty', issues: [], summary: '—' };
+  const issues = branchIssues(fid);
+  const parts = TOP_LEVELS.filter(t => pct(fid, t) > EPS)
+    .map(t => `${+pct(fid, t).toFixed(1)}% ${t}`);
+  return { state: issues.length ? 'issue' : 'balanced', issues, summary: parts.join(', ') || '—' };
+}
+function statusChip(st) {
+  if (st.state === 'balanced') return `<span class="chip ok">✓ balanced</span>`;
+  if (st.state === 'empty')    return `<span class="chip muted">○ empty</span>`;
+  const n = st.issues.length;
+  return `<span class="chip bad">✗ ${n} issue${n === 1 ? '' : 's'}</span>`;
+}
+
+// ── Overview ─────────────────────────────────────────────────────────────────────
+function renderOverview() {
+  const body = document.getElementById('ov-body');
+  let ok = 0, bad = 0, empty = 0;
+  body.innerHTML = FLOW_LIST.map(f => {
+    const st = flowStatus(f.id);
+    if (st.state === 'balanced') ok++; else if (st.state === 'issue') bad++; else empty++;
+    return `<tr class="ov-row" style="cursor:pointer" onclick="expandCard('${f.id}')">
+        <td><code>${f.id}</code></td>
+        <td>${f.name || ''}</td>
+        <td>${statusChip(st)}</td>
+        <td class="muted" style="font-size:0.85rem">${st.summary}</td>
+        <td style="text-align:center;color:var(--muted)">✎</td>
+      </tr>`;
+  }).join('');
+  document.getElementById('ov-summary').innerHTML =
+    `<span class="chip ok">✓ ${ok} balanced</span>` +
+    `<span class="chip bad">✗ ${bad} issue${bad === 1 ? '' : 's'}</span>` +
+    `<span class="chip muted">○ ${empty} empty</span>`;
+}
+
+// ── Span computation (grouped matrix, same as elements preview) ──────────────────
 function computeSpans(paths) {
   const N = paths.length, L = 4;
-  const spans = Array.from({length: N}, () => Array(L).fill(1));
+  const spans = Array.from({ length: N }, () => Array(L).fill(1));
   for (let row = 1; row < N; row++) {
     for (let col = 0; col < L; col++) {
       const val = paths[row][col];
       if (!val) continue;
-      const sameVal    = val === paths[row-1][col];
-      const leftMerged = (col === 0) || (spans[row][col-1] === 0);
+      const sameVal = val === paths[row - 1][col];
+      const leftMerged = (col === 0) || (spans[row][col - 1] === 0);
       if (sameVal && leftMerged) {
         spans[row][col] = 0;
         for (let r = row - 1; r >= 0; r--) { if (spans[r][col] > 0) { spans[r][col]++; break; } }
@@ -105,90 +208,43 @@ function computeSpans(paths) {
   return spans;
 }
 
-const SORTED_PATHS = [...INIT_PATHS].sort((a, b) => {
-  for (let i = 0; i < 4; i++) { if (a[i] < b[i]) return -1; if (a[i] > b[i]) return 1; }
-  return 0;
-});
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function safeId(fid) { return fid.replace(/[.\-\/]/g, '_'); }
-
-function getPct(fid, elem) {
-  const inp = document.getElementById(`ci_${safeId(fid)}_${elem}`);
-  return inp ? (parseFloat(inp.value) || 0) : 0;
-}
-
-// ── Return stored parent-relative % for display ───────────────────────────────
-// YAML stores fractions as fraction-of-parent (same convention as Excel import).
-// Root is always 100 %. All other values are already relative to their parent.
-function toParentRel(fid) {
-  const stored = FLOW_COMPS[fid] || {};
-  const rel = {};
-  ELEMENTS.forEach(e => { rel[e] = stored[e] || 0; });
-  if (ROOT_ELEM) rel[ROOT_ELEM] = 100;
-  return rel;
-}
-
-// ── Convert current parent-relative inputs → parent-relative fractions (0–1) for save
-// Storage format: fraction of parent (same as Excel import convention).
-// Top-level elements have parent = material, so their fraction == absolute fraction.
-function toAbsFractions(fid) {
+// ── Build one flow's matrix (compact hides inactive top-level branches) ──────────
+function buildMatrix(fid) {
   const safe = safeId(fid);
-  const abs = {};
-  ELEMENTS.forEach(e => {
-    const inp = document.getElementById(`ci_${safe}_${e}`);
-    abs[e] = inp ? (parseFloat(inp.value) || 0) / 100 : 0;
-  });
-  if (ROOT_ELEM) abs[ROOT_ELEM] = 1.0;
-  return abs;
-}
+  const thSt = 'padding:6px 12px;border:1px solid var(--border);background:var(--bg);' +
+    'text-align:left;font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em';
+  const tdSt = 'padding:10px 12px;border:1px solid var(--border);vertical-align:top;min-width:140px';
+  const tdDash = 'padding:10px 12px;border:1px solid var(--border);vertical-align:middle;text-align:center;color:var(--muted);min-width:100px';
 
-// ── Gap: at each parent level, children should sum to exactly 100 % ───────────
-function updateGaps(fid) {
-  ELEMENTS.forEach(e => {
-    if (!PARENT_CHILDREN[e]) return;
-    const gapEl = document.getElementById(`gap_${safeId(fid)}_${e}`);
-    if (!gapEl) return;
-    const childSum = (PARENT_CHILDREN[e] || []).reduce((s, c) => s + getPct(fid, c), 0);
-    const gap  = 100 - childSum;   // how much is left to reach 100 % of this parent
-    const ok   = Math.abs(gap) < 0.01;
-    const col  = gap < -0.01 ? 'var(--danger)' : ok ? 'var(--primary)' : '#e07b20';
-    const sign = gap > 0.005 ? '+' : '';
-    gapEl.innerHTML =
-      `<div style="font-size:0.78rem;color:${col};margin-top:4px;white-space:nowrap">` +
-      `${ok ? '✓' : '✗'}&thinsp;gap: ${sign}${gap.toFixed(2)}&thinsp;%</div>`;
-  });
-}
+  const inputHtml = (elem) => {
+    const isRoot = (elem === ROOT_ELEM);
+    const ro = isRoot ? 'readonly tabindex="-1"' : '';
+    const roStyle = isRoot ? 'background:var(--bg);color:var(--muted);border-style:dashed;cursor:default;' : '';
+    return `<input type="number" id="ci_${safe}_${elem}" data-flow="${fid}" data-elem="${elem}"` +
+      ` value="${pct(fid, elem).toFixed(2)}" step="any" min="0" max="100"` +
+      ` style="width:84px;${roStyle}" ${ro}` +
+      ` oninput="onCompInput('${fid}','${elem}',this.value)"> ` +
+      `<span style="font-size:0.85rem;color:var(--muted)">%</span>`;
+  };
 
-// ── Build the composition matrix HTML for one flow ────────────────────────────
-function buildFlowMatrix(flow) {
-  const fid  = flow.id, safe = safeId(fid);
-  const relV = toParentRel(fid);   // parent-relative % values for display
-
-  const thSt   = 'padding:6px 12px;border:1px solid var(--border);background:var(--bg);' +
-                 'text-align:left;font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em';
-  const tdSt   = 'padding:10px 12px;border:1px solid var(--border);vertical-align:top;min-width:140px';
-  const tdDash = 'padding:10px 12px;border:1px solid var(--border);vertical-align:middle;' +
-                 'text-align:center;color:var(--muted);min-width:100px';
-
-  const coveredElems = new Set(SORTED_PATHS.flat().filter(Boolean));
-
+  // No hierarchy: flat list of every element.
   if (!SORTED_PATHS.length) {
-    // No hierarchy: flat 2-column table, values are absolute %
     let html = `<table style="border-collapse:collapse"><thead><tr>` +
       `<th style="${thSt}">Element</th><th style="${thSt}">Value</th></tr></thead><tbody>`;
     ELEMENTS.forEach(e => {
-      html += `<tr><td style="${tdSt}">${e}</td><td style="${tdSt}">` +
-        `<input type="number" id="ci_${safe}_${e}" name="comp_${fid}_${e}" class="comp-pct"` +
-        ` value="${(relV[e] || 0).toFixed(2)}" step="any" min="0" max="100" style="width:88px"` +
-        ` oninput="updateGaps('${fid}')"> %</td></tr>`;
+      html += `<tr><td style="${tdSt}">${e}</td><td style="${tdSt}">${inputHtml(e)}</td></tr>`;
     });
     return html + '</tbody></table>';
   }
 
-  const spans = computeSpans(SORTED_PATHS);
-  const N = SORTED_PATHS.length;
+  let paths = SORTED_PATHS;
+  if (COMPACT[fid]) paths = SORTED_PATHS.filter(p => pct(fid, pathTop(p)) > EPS);
+  if (!paths.length) {
+    return `<p class="muted" style="margin:0.5rem 0">No materials set yet — use ` +
+      `<strong>Set pure material</strong> above, or tick <strong>show all elements</strong>.</p>`;
+  }
 
+  const spans = computeSpans(paths), N = paths.length;
   let html = `<table style="border-collapse:collapse"><thead><tr>`;
   LEVEL_NAMES.forEach(n => { html += `<th style="${thSt}">${n}</th>`; });
   html += '</tr></thead><tbody>';
@@ -197,67 +253,130 @@ function buildFlowMatrix(flow) {
     html += '<tr>';
     for (let col = 0; col < 4; col++) {
       if (spans[row][col] === 0) continue;
-      const elem = SORTED_PATHS[row][col], rs = spans[row][col];
-
+      const elem = paths[row][col], rs = spans[row][col];
       if (!elem) { html += `<td rowspan="${rs}" style="${tdDash}">—</td>`; continue; }
-
-      const isParent = Object.prototype.hasOwnProperty.call(PARENT_CHILDREN, elem);
-      const isRoot   = (elem === ROOT_ELEM);
-      const val      = (relV[elem] !== undefined ? relV[elem] : 0).toFixed(2);
-
-      // Root cell: always 100 %, read-only
-      const roAttr  = isRoot ? 'readonly tabindex="-1"' : '';
-      const roStyle = isRoot ? 'background:var(--bg);color:var(--muted);border-style:dashed;cursor:default;' : '';
-      // Parent (non-root): label in muted colour, still editable
-      const lblCol  = isParent ? 'var(--muted)' : 'var(--text)';
-
+      const parent = isParent(elem);
+      const lblCol = parent ? 'var(--muted)' : 'var(--text)';
       html += `<td rowspan="${rs}" style="${tdSt}">`;
       html += `<div style="font-size:0.8rem;font-weight:600;color:${lblCol};margin-bottom:5px">${elem}</div>`;
-      html += `<input type="number" id="ci_${safe}_${elem}" name="comp_${fid}_${elem}"` +
-              ` class="comp-pct" data-flow="${fid}" data-elem="${elem}"` +
-              ` value="${val}" step="any" min="0" max="100"` +
-              ` style="width:88px;${roStyle}" ${roAttr}` +
-              ` oninput="updateGaps('${fid}')">` +
-              ` <span style="font-size:0.85rem;color:var(--muted)">%</span>`;
-      if (isParent) html += `<div id="gap_${safe}_${elem}"></div>`;
+      html += inputHtml(elem);
+      if (parent) html += `<div id="gap_${safe}_${elem}"></div>`;
       html += '</td>';
     }
     html += '</tr>';
   }
 
-  // Fallback rows for elements not in any hierarchy path
-  const uncovered = ELEMENTS.filter(e => !coveredElems.has(e));
+  // Elements not covered by any hierarchy path (show if active, or when "show all").
+  const covered = new Set(SORTED_PATHS.flat().filter(Boolean));
+  const uncovered = ELEMENTS.filter(e => !covered.has(e) && (!COMPACT[fid] || pct(fid, e) > EPS));
   if (uncovered.length) {
-    html += `<tr><td colspan="4" style="${tdSt};color:var(--muted);font-size:0.8rem;font-style:italic">` +
-            `Other elements (not in hierarchy)</td></tr>`;
+    html += `<tr><td colspan="4" style="${tdSt};color:var(--muted);font-size:0.8rem;font-style:italic">Other elements (not in hierarchy)</td></tr>`;
     uncovered.forEach(e => {
-      html += `<tr><td colspan="3" style="${tdSt};color:var(--muted)">${e}</td><td style="${tdSt}">` +
-              `<input type="number" id="ci_${safe}_${e}" name="comp_${fid}_${e}"` +
-              ` class="comp-pct" data-flow="${fid}" data-elem="${e}"` +
-              ` value="${(relV[e] || 0).toFixed(2)}" step="any" min="0" max="100" style="width:88px"` +
-              ` oninput="updateGaps('${fid}')"> %</td></tr>`;
+      html += `<tr><td colspan="3" style="${tdSt};color:var(--muted)">${e}</td><td style="${tdSt}">${inputHtml(e)}</td></tr>`;
     });
   }
   return html + '</tbody></table>';
 }
 
-// ── Submit: convert parent-relative display values → parent-relative fractions (0–1) ─
+// ── Controls bar (quick-set + show-all toggle + material total) ──────────────────
+function controlsHtml(fid) {
+  const safe = safeId(fid);
+  const opts = TOP_LEVELS.map(t => `<option value="${t}">${t}</option>`).join('');
+  if (!opts) return '';
+  return `<div class="comp-controls-bar">
+      <label>Set pure material:
+        <select id="qs_${safe}">${opts}</select></label>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="applyQuickSet('${fid}')">Apply 100 %</button>
+      <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer">
+        <input type="checkbox" ${COMPACT[fid] ? '' : 'checked'} onchange="toggleCompact('${fid}')">
+        show all elements</label>
+      <span id="total_${safe}" style="margin-left:auto"></span>
+    </div>`;
+}
+
+// ── Gap / total refresh (no rebuild — just update the little indicators) ─────────
+function updateIndicators(fid) {
+  const safe = safeId(fid);
+  ELEMENTS.forEach(e => {
+    if (e === ROOT_ELEM || !isParent(e)) return;
+    const el = document.getElementById(`gap_${safe}_${e}`);
+    if (!el) return;
+    if (pct(fid, e) <= EPS) { el.innerHTML = `<div class="gap-line inactive">· inactive ·</div>`; return; }
+    const cs = (PARENT_CHILDREN[e] || []).reduce((s, c) => s + pct(fid, c), 0);
+    const gap = 100 - cs, ok = Math.abs(gap) < EPS;
+    el.innerHTML = `<div class="gap-line ${ok ? 'ok' : 'bad'}">${ok ? '✓ balanced'
+      : '✗ gap ' + (gap > 0 ? '+' : '') + gap.toFixed(2) + ' %'}</div>`;
+  });
+  const tot = document.getElementById(`total_${safe}`);
+  if (tot && TOP_LEVELS.length) {
+    const topSum = TOP_LEVELS.reduce((s, c) => s + pct(fid, c), 0);
+    const ok = Math.abs(100 - topSum) < EPS;
+    tot.innerHTML = `<span class="chip ${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'} materials total ${+topSum.toFixed(2)} %</span>`;
+  }
+  const badge = document.getElementById(`badge_${safe}`);
+  if (badge) badge.innerHTML = statusChip(flowStatus(fid));
+}
+
+// ── Render / rebuild a card body ─────────────────────────────────────────────────
+function renderCard(fid) {
+  const safe = safeId(fid);
+  const ctl = document.getElementById(`controls_${safe}`);
+  const mtx = document.getElementById(`matrix_${safe}`);
+  if (!ctl || !mtx) return;
+  ctl.innerHTML = controlsHtml(fid);
+  mtx.innerHTML = buildMatrix(fid);
+  updateIndicators(fid);
+}
+
+// ── Event handlers ───────────────────────────────────────────────────────────────
+function onCompInput(fid, elem, raw) {
+  LIVE[fid][elem] = parseFloat(raw) || 0;
+  updateIndicators(fid);
+  renderOverview();
+}
+function applyQuickSet(fid) {
+  const mat = document.getElementById(`qs_${safeId(fid)}`).value;
+  ELEMENTS.forEach(e => { LIVE[fid][e] = 0; });
+  LIVE[fid][ROOT_ELEM] = 100;
+  LIVE[fid][mat] = 100;
+  const kids = PARENT_CHILDREN[mat] || [];
+  if (kids.length) LIVE[fid][kids[0]] = 100;  // default the primary sub-material to 100 %
+  renderCard(fid);
+  renderOverview();
+}
+function toggleCompact(fid) { COMPACT[fid] = !COMPACT[fid]; renderCard(fid); }
+function toggleCard(fid) {
+  const c = document.getElementById(`card_${safeId(fid)}`);
+  const open = c.style.display !== 'none';
+  if (open) { c.style.display = 'none'; return; }
+  c.style.display = '';
+  renderCard(fid);
+  c.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function expandCard(fid) {
+  const c = document.getElementById(`card_${safeId(fid)}`);
+  if (c.style.display === 'none') { c.style.display = ''; renderCard(fid); }
+  c.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── Submit: emit hidden comp_ fields from LIVE (complete & authoritative) ─────────
+// Visible inputs carry no name, so nothing else is submitted — collapsing or hiding
+// a branch can never drop a value, and stale elements are never re-introduced.
 document.getElementById('comp-form').addEventListener('submit', function () {
-  FLOW_LIST.forEach(flow => {
-    const abs  = toAbsFractions(flow.id);
-    const safe = safeId(flow.id);
+  let hid = document.getElementById('comp-hidden');
+  if (!hid) { hid = document.createElement('div'); hid.id = 'comp-hidden'; this.appendChild(hid); }
+  let html = '';
+  FLOW_LIST.forEach(f => {
     ELEMENTS.forEach(e => {
-      const inp = document.getElementById(`ci_${safe}_${e}`);
-      if (inp) inp.value = (abs[e] || 0).toFixed(6);
+      let frac = (LIVE[f.id][e] || 0) / 100;
+      if (e === ROOT_ELEM) frac = 1.0;
+      html += `<input type="hidden" name="comp_${f.id}_${e}" value="${frac.toFixed(6)}">`;
     });
   });
+  hid.innerHTML = html;
 });
 
-// ── Render and init ────────────────────────────────────────────────────────────
-FLOW_LIST.forEach(flow => {
-  const cont = document.getElementById(`matrix_${safeId(flow.id)}`);
-  if (cont) cont.innerHTML = buildFlowMatrix(flow);
-  updateGaps(flow.id);
-});
+// ── Init ─────────────────────────────────────────────────────────────────────────
+renderOverview();
 </script>
 {% endblock %}
