@@ -1,0 +1,225 @@
+schema_version: '1.0'
+name: T16_Complex_Flow_Composition
+description: |-
+  💻 Tutorial T16 — Complex Flow Composition (6-level hierarchy)
+
+  A demo case study that exercises the extensible composition hierarchy
+  (six levels: Device → Module → Component → Material → Substance → Element)
+  and the sunburst composition view.
+
+  What it shows
+  • Two input flows from the system boundary — end-of-life Laptops and
+    Smartphones entering an e-waste collection process.
+  • Each device is broken down 6 levels deep, e.g.
+    Laptop → Mainboard → Electronics → Metals → Precious_Metals → Gold,
+    and Laptop → Battery → Cells → Active_Material → Lithium_Compound → Lithium.
+  • The two flows share the same tree but differ in their top-level module
+    split (a smartphone is more display + battery, a laptop more enclosure).
+
+  Try it
+  • Open "Elements & Hierarchy" to see / extend the 6 named levels.
+  • Open "Flow Compositions" to edit the parent-relative fractions.
+  • Run the analysis, then use the Composition tab's sunburst: switch the
+    Flow dropdown between Laptop and Smartphone and watch the rings change.
+model:
+  start_year: 2025
+  end_year: 2125
+  elements:
+  - material
+  - Enclosure
+  - Display
+  - Mainboard
+  - Battery
+  - Polymer_Housing
+  - Glass_Panel
+  - Backlight
+  - PCB_Laminate
+  - Electronics
+  - Cells
+  - Metals
+  - Encapsulant
+  - Active_Material
+  - Base_Metals
+  - Precious_Metals
+  - Lithium_Compound
+  - Copper
+  - Tin
+  - Gold
+  - Silver
+  - Lithium
+  unit_of_measurement: Mg
+  sankey_title: ''
+  hierarchy_level_names:
+  - Device
+  - Module
+  - Component
+  - Material
+  - Substance
+  - Element
+  input_file: ''
+  output_file: ''
+  run_dsm_calculation: false
+  run_fomp_calculation: false
+  run_monte_carlo: false
+  mc_iterations: 1000
+  mc_seed: '42'
+  solver_strict: false
+  solver_max_iterations: 30
+  run_scenario_analysis: false
+  selected_scenarios:
+  - ''
+  - ''
+  - ''
+  - ''
+processes:
+- id: 0
+  name: Environment (boundary)
+  logic: Input
+  stock: Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+  expected_inflow_composition: null
+- id: 1
+  name: E-waste Collection
+  logic: Output
+  stock: No_Stock
+  tc_config: No TC
+  fomp: null
+  dsm: null
+  lfg: null
+  flowcap: null
+  expected_inflow_composition: null
+flows:
+- id: F_00_01
+  name: Laptop inflow
+  from_process: 0
+  to_process: 1
+- id: F_00_02
+  name: Smartphone inflow
+  from_process: 0
+  to_process: 1
+transfer_coefficients: []
+element_hierarchy:
+- parent: material
+  children:
+  - Enclosure
+  - Display
+  - Mainboard
+  - Battery
+- parent: Enclosure
+  children:
+  - Polymer_Housing
+- parent: Display
+  children:
+  - Glass_Panel
+  - Backlight
+- parent: Mainboard
+  children:
+  - PCB_Laminate
+  - Electronics
+- parent: Electronics
+  children:
+  - Metals
+  - Encapsulant
+- parent: Metals
+  children:
+  - Base_Metals
+  - Precious_Metals
+- parent: Base_Metals
+  children:
+  - Copper
+  - Tin
+- parent: Precious_Metals
+  children:
+  - Gold
+  - Silver
+- parent: Battery
+  children:
+  - Cells
+- parent: Cells
+  children:
+  - Active_Material
+- parent: Active_Material
+  children:
+  - Lithium_Compound
+- parent: Lithium_Compound
+  children:
+  - Lithium
+flow_compositions:
+- ref: ''
+  refs: []
+  flow_id: F_00_01
+  values:
+    material: 1.0
+    Enclosure: 0.30
+    Display: 0.20
+    Mainboard: 0.30
+    Battery: 0.20
+    Polymer_Housing: 1.0
+    Glass_Panel: 0.60
+    Backlight: 0.40
+    PCB_Laminate: 0.50
+    Electronics: 0.50
+    Metals: 0.70
+    Encapsulant: 0.30
+    Base_Metals: 0.85
+    Precious_Metals: 0.15
+    Copper: 0.70
+    Tin: 0.30
+    Gold: 0.50
+    Silver: 0.50
+    Cells: 1.0
+    Active_Material: 1.0
+    Lithium_Compound: 1.0
+    Lithium: 1.0
+- ref: ''
+  refs: []
+  flow_id: F_00_02
+  values:
+    material: 1.0
+    Enclosure: 0.15
+    Display: 0.35
+    Mainboard: 0.20
+    Battery: 0.30
+    Polymer_Housing: 1.0
+    Glass_Panel: 0.60
+    Backlight: 0.40
+    PCB_Laminate: 0.50
+    Electronics: 0.50
+    Metals: 0.70
+    Encapsulant: 0.30
+    Base_Metals: 0.85
+    Precious_Metals: 0.15
+    Copper: 0.70
+    Tin: 0.30
+    Gold: 0.50
+    Silver: 0.50
+    Cells: 1.0
+    Active_Material: 1.0
+    Lithium_Compound: 1.0
+    Lithium: 1.0
+flow_data:
+- ref: ''
+  refs: []
+  flow_id: F_00_01
+  element: material
+  values:
+    '2025': 5000.0
+    '2125': 9000.0
+- ref: ''
+  refs: []
+  flow_id: F_00_02
+  element: material
+  values:
+    '2025': 8000.0
+    '2125': 20000.0
+bom_assembly: []
+scenarios:
+- name: Scenario 1
+  modifications: []
+mc_parameters: []
+initial_stocks: []
+references: []
