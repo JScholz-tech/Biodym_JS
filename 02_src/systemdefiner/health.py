@@ -4,6 +4,7 @@ Moved verbatim from ``main.py``.
 """
 from __future__ import annotations
 
+from systemdefiner.consistency import check_config_consistency
 from systemdefiner.models.config_schema import (
     ProcessLogic,
     StockConfig,
@@ -257,5 +258,9 @@ def _model_health(cfg) -> list[dict]:
     for nm in cfg.model.selected_scenarios:
         if nm and nm not in defined:
             warn(f"Selected scenario '{nm}' is not defined in the Scenario Manager.")
+
+    # Cross-reference invariants (dangling scenario/MC names, stale element
+    # keys, TC ownership, ID drift, …) — shared with the test suite.
+    issues.extend(check_config_consistency(cfg))
 
     return issues
