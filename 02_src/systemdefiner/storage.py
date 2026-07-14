@@ -117,7 +117,11 @@ def load_case_study(name: str) -> CaseStudyConfig:
         raise CaseStudyNotFound(name)
     with _lock_for(name):
         raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    raw.setdefault("name", name)
+    # The folder name is authoritative. A hand-copied study can carry a stale
+    # internal `name:` (e.g. heatpumps_1 containing "name: tracer") — honoring
+    # it would make save_case_study silently write every edit to the OTHER
+    # study's folder.
+    raw["name"] = name
     return CaseStudyConfig.model_validate(raw)
 
 

@@ -865,3 +865,42 @@ class TestHardening:
         tc = next(t for t in cfg.transfer_coefficients if t.flow_id == "my_idx_1")
         assert tc.time_series[0].year == 2025
         assert tc.time_series[0].values == {"material": 1.0}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Round trip over the real case studies: save-time normalization must not
+# introduce new consistency errors and must be idempotent
+# ══════════════════════════════════════════════════════════════════════════════
+
+from pathlib import Path as _Path
+
+_REAL_STUDIES = _Path(__file__).parents[2] / "01_data" / "01_input" / "case_studies"
+
+
+@pytest.mark.skipif(not _REAL_STUDIES.is_dir(), reason="case_studies dir missing")
+def test_tracked_studies_round_trip(isolated_case_studies):
+    checked = 0
+    for folder in sorted(_REAL_STUDIES.iterdir()):
+        src = folder / "config.yaml"
+        if not src.exists():
+            continue
+        dst = isolated_case_studies / folder.name
+        dst.mkdir(parents=True, exist_ok=True)
+        (dst / "config.yaml").write_text(
+            src.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        cfg = storage.load_case_study(folder.name)
+        errors_before = set(_errors(cfg))
+        storage.save_case_study(cfg)  # applies normalization
+        cfg2 = storage.load_case_study(folder.name)
+        errors_after = set(_errors(cfg2))
+        assert errors_after <= errors_before, (
+            f"{folder.name}: save-time normalization introduced new errors: "
+            f"{sorted(errors_after - errors_before)}"
+        )
+        storage.save_case_study(cfg2)
+        assert storage.load_case_study(folder.name) == cfg2, (
+            f"{folder.name}: save/load is not idempotent"
+        )
+        checked += 1
+    assert checked >= 16  # at least the tutorial studies

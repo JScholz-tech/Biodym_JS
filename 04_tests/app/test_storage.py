@@ -171,3 +171,19 @@ class TestSaveNormalization:
         storage.save_case_study(cfg)
         loaded = storage.load_case_study("norm2")
         assert [e.process_id for e in loaded.bom_assembly] == [1]
+
+    def test_folder_name_overrides_stale_internal_name(self, isolated_case_studies):
+        # A hand-copied study can carry another study's `name:` inside its
+        # YAML. The folder must win — otherwise every save writes the edits
+        # to the OTHER study's folder (found live in heatpumps_1, which
+        # carried "name: tracer").
+        folder = isolated_case_studies / "copied_study"
+        folder.mkdir(parents=True)
+        (folder / "config.yaml").write_text(
+            "name: somewhere_else\nprocesses: []\nflows: []\n", encoding="utf-8"
+        )
+        cfg = storage.load_case_study("copied_study")
+        assert cfg.name == "copied_study"
+        storage.save_case_study(cfg)
+        assert (folder / "config.yaml").exists()
+        assert not (isolated_case_studies / "somewhere_else").exists()
