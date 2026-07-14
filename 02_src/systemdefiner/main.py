@@ -1387,9 +1387,14 @@ async def flow_edit_save(request: Request, name: str, fid: str):
     if not flow:
         raise HTTPException(404)
 
+    old_from, old_to = flow.from_process, flow.to_process
+    new_from = int(form.get("from_process", flow.from_process))
+    new_to = int(form.get("to_process", flow.to_process))
+
     # Flow ID is editable; a change cascades to all references.
     new_id = _g(form, "id") or fid
-    if new_id != fid:
+    id_edited_by_user = new_id != fid
+    if id_edited_by_user:
         if not re.fullmatch(r"[A-Za-z0-9_\-]+", new_id):
             return templates.TemplateResponse(
                 request,
@@ -1414,8 +1419,28 @@ async def flow_edit_save(request: Request, name: str, fid: str):
         flow.id = new_id
 
     flow.name = form.get("name", flow.name)
-    flow.from_process = int(form.get("from_process", flow.from_process))
-    flow.to_process = int(form.get("to_process", flow.to_process))
+    flow.from_process = new_from
+    flow.to_process = new_to
+
+    # Auto-sync the auto-generated ``F_<from>_<to>`` ID when the endpoints
+    # change, so the ID can never silently drift from the actual source/target.
+    # The solver builds the flow graph from from_process/to_process — the ID is
+    # only a label — so a stale ID (e.g. F_09_17 wired 12→17) disguises the real
+    # topology and can hide duplicate edges. Only re-derive when the user did
+    # NOT type a custom ID this save AND the current ID is still the convention
+    # ID for the *old* endpoints (``F_<old_from>_<old_to>`` with an optional
+    # ``_N`` duplicate suffix). Deliberately custom IDs are left untouched.
+    # Collision-safe: a second flow between the same processes becomes
+    # ``F_<from>_<to>_2``, which surfaces genuine duplicate edges instead of
+    # hiding them.
+    if not id_edited_by_user and (new_from != old_from or new_to != old_to):
+        old_base = f"F_{old_from:02d}_{old_to:02d}"
+        if flow.id == old_base or re.fullmatch(re.escape(old_base) + r"_\d+", flow.id):
+            synced = _next_flow_id(cfg, new_from, new_to)
+            if synced != flow.id:
+                _rename_flow_id(cfg, flow.id, synced)
+                flow.id = synced
+
     storage.save_case_study(cfg)
     return RedirectResponse(f"/{name}/flows", status_code=303)
 

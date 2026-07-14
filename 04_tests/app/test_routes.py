@@ -359,6 +359,36 @@ class TestFlows:
         r = client.get(f"/{n}/flows/F_99_99/edit")
         assert r.status_code == 404
 
+    def test_edit_flow_autosyncs_id_when_endpoints_change(self, client):
+        # Editing endpoints of an auto-generated F_<from>_<to> flow must
+        # re-derive the ID so it can never drift from its source/target.
+        n = self._study(client)
+        client.post(f"/{n}/processes/new", data={"name": "P3", "logic": "Output", "stock": "No_Stock"})
+        client.post(f"/{n}/flows/new", data={"id": "F_00_01", "name": "f", "from_process": 0, "to_process": 1})
+        client.post(f"/{n}/flows/F_00_01/edit", data={"name": "f", "from_process": 0, "to_process": 2})
+        html = client.get(f"/{n}/flows").content
+        assert b"F_00_02" in html and b"F_00_01" not in html
+
+    def test_edit_flow_autosync_suffixes_on_collision(self, client):
+        # A second edge into the same process pair surfaces as F_..._2 instead
+        # of silently becoming a hidden duplicate.
+        n = self._study(client)
+        client.post(f"/{n}/processes/new", data={"name": "P3", "logic": "Output", "stock": "No_Stock"})
+        client.post(f"/{n}/flows/new", data={"id": "F_00_02", "name": "a", "from_process": 0, "to_process": 2})
+        client.post(f"/{n}/flows/new", data={"id": "F_00_01", "name": "b", "from_process": 0, "to_process": 1})
+        client.post(f"/{n}/flows/F_00_01/edit", data={"name": "b", "from_process": 0, "to_process": 2})
+        html = client.get(f"/{n}/flows").content
+        assert b"F_00_02_2" in html and b"F_00_01" not in html
+
+    def test_edit_flow_preserves_custom_id(self, client):
+        # Deliberately custom (non-convention) IDs are never auto-renamed.
+        n = self._study(client)
+        client.post(f"/{n}/processes/new", data={"name": "P3", "logic": "Output", "stock": "No_Stock"})
+        client.post(f"/{n}/flows/new", data={"id": "MyFlow", "name": "c", "from_process": 0, "to_process": 1})
+        client.post(f"/{n}/flows/MyFlow/edit", data={"name": "c", "from_process": 0, "to_process": 2})
+        html = client.get(f"/{n}/flows").content
+        assert b"MyFlow" in html
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TRANSFER COEFFICIENTS
