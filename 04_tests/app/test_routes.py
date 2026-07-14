@@ -336,21 +336,21 @@ class TestFlows:
     def test_create_flow(self, client):
         n = self._study(client)
         r = client.post(f"/{n}/flows/new",
-                        data={"id": "F_01_02", "name": "My flow", "from_process": 0, "to_process": 1},
+                        data={"id": "F_00_01", "name": "My flow", "from_process": 0, "to_process": 1},
                         follow_redirects=True)
         assert r.status_code == 200
         assert b"My flow" in r.content
 
     def test_edit_flow(self, client):
         n = self._study(client)
-        client.post(f"/{n}/flows/new", data={"id": "F_01_02", "name": "Old", "from_process": 0, "to_process": 1})
-        r = client.get(f"/{n}/flows/F_01_02/edit")
+        client.post(f"/{n}/flows/new", data={"id": "F_00_01", "name": "Old", "from_process": 0, "to_process": 1})
+        r = client.get(f"/{n}/flows/F_00_01/edit")
         assert r.status_code == 200
 
     def test_delete_flow(self, client):
         n = self._study(client)
-        client.post(f"/{n}/flows/new", data={"id": "F_01_02", "name": "Gone", "from_process": 0, "to_process": 1})
-        client.post(f"/{n}/flows/F_01_02/delete")
+        client.post(f"/{n}/flows/new", data={"id": "F_00_01", "name": "Gone", "from_process": 0, "to_process": 1})
+        client.post(f"/{n}/flows/F_00_01/delete")
         r = client.get(f"/{n}/flows")
         assert b"Gone" not in r.content
 
@@ -399,7 +399,7 @@ class TestTransferCoefficients:
         client.post("/new", data={"name": name, "start_year": 2025, "end_year": 2125, "elements": "material, WC"})
         client.post(f"/{name}/processes/new", data={"name": "P1", "logic": "Splitter", "stock": "No_Stock"})
         client.post(f"/{name}/processes/new", data={"name": "P2", "logic": "Output", "stock": "No_Stock"})
-        client.post(f"/{name}/flows/new", data={"id": "F_01_02", "name": "f", "from_process": 0, "to_process": 1})
+        client.post(f"/{name}/flows/new", data={"id": "F_00_01", "name": "f", "from_process": 0, "to_process": 1})
         return name
 
     def test_tc_overview_loads(self, client):
@@ -413,7 +413,7 @@ class TestTransferCoefficients:
     def test_tc_save_valid(self, client):
         n = self._study_with_flow(client)
         r = client.post(f"/{n}/tcs/0",
-                        data={"tc_F_01_02_material": "1.0", "tc_F_01_02_WC": "1.0"},
+                        data={"tc_F_00_01_material": "1.0", "tc_F_00_01_WC": "1.0"},
                         follow_redirects=True)
         assert r.status_code == 200
 

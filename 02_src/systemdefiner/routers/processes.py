@@ -143,6 +143,23 @@ async def process_edit_save(request: Request, name: str, pid: int):
     ):
         cfg.initial_stocks = [s for s in cfg.initial_stocks if s.process_id != pid]
 
+    # Same for the BOM entry when the logic leaves BOM_Assembler — otherwise it
+    # keeps exporting rows and re-attaches to whatever process later holds this
+    # ID.
+    if process.logic != ProcessLogic.bom_assembler:
+        cfg.bom_assembly = [e for e in cfg.bom_assembly if e.process_id != pid]
+
+    # When the logic leaves Input, flow data / compositions on its outgoing
+    # flows become unreachable in the editors but would still prescribe the
+    # flows in the engine — drop them. Process 0 stays exempt: the composition
+    # editor always treats it as the system boundary.
+    if process.logic != ProcessLogic.input and pid != 0:
+        outgoing = {f.id for f in cfg.flows if f.from_process == pid}
+        cfg.flow_data = [fd for fd in cfg.flow_data if fd.flow_id not in outgoing]
+        cfg.flow_compositions = [
+            fc for fc in cfg.flow_compositions if fc.flow_id not in outgoing
+        ]
+
     storage.save_case_study(cfg)
     return RedirectResponse(f"/{name}/processes", status_code=303)
 

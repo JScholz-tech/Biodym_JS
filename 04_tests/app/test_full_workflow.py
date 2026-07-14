@@ -13,14 +13,14 @@ Simulates the user journey across all 6 dashboard sections:
 
 Study topology:
   P1 Atmosphere (Input)
-     ↓ F_01_02 Straw Supply
+     ↓ F_00_01 Straw Supply
   P2 Field (Splitter)
-     ↓ F_02_03 To Soil        TC material=0.40
-     ↓ F_02_04 To Construction TC material=0.60
+     ↓ F_01_02 To Soil        TC material=0.40
+     ↓ F_01_03 To Construction TC material=0.60
   P3 Soil_Inc (FOMP)
-     ↓ F_03_01 CO2 to Atmosphere
+     ↓ F_02_00 CO2 to Atmosphere
   P4 Construction (DSM)
-     ↓ F_04_01 EoL to Atmosphere
+     ↓ F_03_00 EoL to Atmosphere
 """
 from __future__ import annotations
 
@@ -96,7 +96,7 @@ def _create_processes(client) -> None:
           fomp_f_labile=0.3,
           fomp_k_labile=15.95,
           fomp_k_recalcitrant=0.05,
-          fomp_outflow_id="F_03_01")
+          fomp_outflow_id="F_02_00")
 
     # P4: long-lived construction use (DSM)
     _post(client, f"/{STUDY}/processes/new",
@@ -114,13 +114,13 @@ def _create_processes(client) -> None:
 
 def _create_flows(client) -> None:
     # Process IDs are 0-based: Atmosphere=0, Field=1, Soil_Inc=2, Construction=3.
-    # (Flow IDs are kept as fixed labels; only from/to use the real process ids.)
+    # Convention flow IDs must match their endpoints (F_<from>_<to>).
     pairs = [
-        ("F_01_02", "Straw Supply",         0, 1),
-        ("F_02_03", "To Soil",              1, 2),
-        ("F_02_04", "To Construction",      1, 3),
-        ("F_03_01", "CO2 to Atmosphere",    2, 0),
-        ("F_04_01", "EoL to Atmosphere",    3, 0),
+        ("F_00_01", "Straw Supply",         0, 1),
+        ("F_01_02", "To Soil",              1, 2),
+        ("F_01_03", "To Construction",      1, 3),
+        ("F_02_00", "CO2 to Atmosphere",    2, 0),
+        ("F_03_00", "EoL to Atmosphere",    3, 0),
     ]
     for fid, fname, frm, to in pairs:
         _post(client, f"/{STUDY}/flows/new",
@@ -133,31 +133,31 @@ def _save_static_tcs(client) -> None:
     # process before saving, so sending one element at a time would overwrite.
     data = {}
     for elem in ("material", "WC", "DM", "TC"):
-        data[f"tc_F_02_03_{elem}"] = "0.4"
-        data[f"tc_F_02_04_{elem}"] = "0.6"
+        data[f"tc_F_01_02_{elem}"] = "0.4"
+        data[f"tc_F_01_03_{elem}"] = "0.6"
     _post(client, f"/{STUDY}/tcs/1", **data)  # Field is process id 1 (0-based)
 
 
 def _save_flow_compositions(client) -> None:
-    # Only F_01_02 comes from an Input process (P1) — that's what the route shows
+    # Only F_00_01 comes from an Input process (P1) — that's what the route shows
     _post(
         client,
         f"/{STUDY}/compositions",
         **{
-            "comp_F_01_02_material": "1.0",
-            "comp_F_01_02_WC":       "0.20",
-            "comp_F_01_02_DM":       "0.80",
-            "comp_F_01_02_TC":       "0.45",
+            "comp_F_00_01_material": "1.0",
+            "comp_F_00_01_WC":       "0.20",
+            "comp_F_00_01_DM":       "0.80",
+            "comp_F_00_01_TC":       "0.45",
         },
     )
 
 
 def _save_flow_data(client) -> None:
-    # F_01_02: annual straw supply (two anchor points — engine interpolates)
+    # F_00_01: annual straw supply (two anchor points — engine interpolates)
     _post(
         client,
         f"/{STUDY}/flow_data",
-        fd_0_id="F_01_02",
+        fd_0_id="F_00_01",
         fd_0_y_0=2025,
         fd_0_v_0=1000.0,
         fd_0_y_1=2125,
@@ -173,11 +173,11 @@ def _create_scenario(client) -> None:
     # Create the scenario entry
     _post(client, f"/{STUDY}/scenarios/new", scenario_name="Baseline_DI")
 
-    # Save one modification: TC for F_02_03 material fraction
+    # Save one modification: TC for F_01_02 material fraction
     _post(
         client,
         f"/{STUDY}/scenarios/Baseline_DI",
-        mod_0_parameter_name="TC_02_03",
+        mod_0_parameter_name="TC_E1_01_02",
         mod_0_parameter_type="TC",
         mod_0_operation="replace",
         mod_0_new_value=0.35,
@@ -185,11 +185,11 @@ def _create_scenario(client) -> None:
 
 
 def _save_mc_parameters(client) -> None:
-    # One uncertain parameter: Splitter TC material fraction for F_02_03
+    # One uncertain parameter: Splitter TC material fraction for F_01_02
     _post(
         client,
         f"/{STUDY}/mc_parameters",
-        mc_0_parameter_id="TC_02_03",
+        mc_0_parameter_id="TC_E1_01_02",
         mc_0_enabled="on",
         mc_0_distribution="normal",
         mc_0_mean=0.40,
@@ -280,7 +280,7 @@ class TestFullWorkflow:
         # ── §3 Flows ──────────────────────────────────────────────────────────
         assert len(cfg.flows) == 5
         flow_ids = {f.id for f in cfg.flows}
-        assert {"F_01_02", "F_02_03", "F_02_04", "F_03_01", "F_04_01"} == flow_ids
+        assert {"F_00_01", "F_01_02", "F_01_03", "F_02_00", "F_03_00"} == flow_ids
 
         # ── §3 Splitter TCs ───────────────────────────────────────────────────
         # P2 (Field, Splitter): material must be the splitting element
@@ -289,28 +289,28 @@ class TestFullWorkflow:
         assert len(splitter_tcs) == 2, "Splitter must have exactly 2 outgoing TCs"
 
         tc_map = {tc.flow_id: tc for tc in splitter_tcs}
-        assert "F_02_03" in tc_map
-        assert "F_02_04" in tc_map
+        assert "F_01_02" in tc_map
+        assert "F_01_03" in tc_map
 
         # Material fractions must be present and sum to 1.0
-        mat_03 = tc_map["F_02_03"].values.get("material", None)
-        mat_04 = tc_map["F_02_04"].values.get("material", None)
-        assert mat_03 is not None, "Splitter TC F_02_03 missing 'material' key"
-        assert mat_04 is not None, "Splitter TC F_02_04 missing 'material' key"
+        mat_03 = tc_map["F_01_02"].values.get("material", None)
+        mat_04 = tc_map["F_01_03"].values.get("material", None)
+        assert mat_03 is not None, "Splitter TC F_01_02 missing 'material' key"
+        assert mat_04 is not None, "Splitter TC F_01_03 missing 'material' key"
         assert mat_03 + mat_04 == pytest.approx(1.0, abs=1e-6)
 
         # ── §3 Flow compositions ──────────────────────────────────────────────
         comp_map = {fc.flow_id: fc for fc in cfg.flow_compositions}
-        assert "F_01_02" in comp_map, "Flow composition for input flow F_01_02 missing"
-        comp = comp_map["F_01_02"]
+        assert "F_00_01" in comp_map, "Flow composition for input flow F_00_01 missing"
+        comp = comp_map["F_00_01"]
         assert comp.values.get("WC", 0) == pytest.approx(0.20)
         assert comp.values.get("DM", 0) == pytest.approx(0.80)
         assert comp.values.get("TC", 0) == pytest.approx(0.45)
 
         # ── §3 Flow data ──────────────────────────────────────────────────────
         fd_map = {fd.flow_id: fd for fd in cfg.flow_data}
-        assert "F_01_02" in fd_map, "Flow data for F_01_02 missing"
-        fd = fd_map["F_01_02"]
+        assert "F_00_01" in fd_map, "Flow data for F_00_01 missing"
+        fd = fd_map["F_00_01"]
         assert 2025 in fd.values
         assert fd.values[2025] == pytest.approx(1000.0)
 
@@ -320,13 +320,13 @@ class TestFullWorkflow:
         assert scenario.name == "Baseline_DI"
         assert len(scenario.modifications) == 1
         mod = scenario.modifications[0]
-        assert mod.parameter_name == "TC_02_03"
+        assert mod.parameter_name == "TC_E1_01_02"
         assert mod.new_value == pytest.approx(0.35)
 
         # ── §5 MC parameters ─────────────────────────────────────────────────
         assert len(cfg.mc_parameters) == 1
         mc = cfg.mc_parameters[0]
-        assert mc.parameter_id == "TC_02_03"
+        assert mc.parameter_id == "TC_E1_01_02"
         assert mc.distribution == "normal"
         assert mc.mean == pytest.approx(0.40)
         assert mc.std == pytest.approx(0.05)

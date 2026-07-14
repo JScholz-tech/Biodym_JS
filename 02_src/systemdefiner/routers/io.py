@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 
 from systemdefiner import storage
+from systemdefiner.cascades import _purge_flow_references
 from systemdefiner.deps import _ctx, templates
 from systemdefiner.forms import (
     _apply_extra_yaml,
@@ -31,6 +32,57 @@ from systemdefiner.models.config_schema import (
 )
 
 router = APIRouter()
+
+
+def _duplicate_id_errors(cfg) -> list[str]:
+    """Duplicate process IDs / flow IDs / element names in an imported config —
+    downstream sheets key on these, so duplicates silently collide (last or
+    first wins depending on the consumer)."""
+    msgs: list[str] = []
+    seen: set = set()
+    for p in cfg.processes:
+        if p.id in seen:
+            msgs.append(f"duplicate process ID P{p.id}")
+        seen.add(p.id)
+    seen = set()
+    for f in cfg.flows:
+        if f.id in seen:
+            msgs.append(f"duplicate flow ID '{f.id}'")
+        seen.add(f.id)
+    seen = set()
+    for e in cfg.model.elements:
+        if e in seen:
+            msgs.append(f"duplicate element name '{e}'")
+        seen.add(e)
+    return msgs
+
+
+def _purge_stale_refs_after_import(cfg) -> None:
+    """After a partial (Excel) import replaced processes/flows, drop preserved
+    entries that now point at flows or processes that no longer exist —
+    otherwise dangling TCs export junk ``TC_E*_00_00`` parameters."""
+    valid_fids = {f.id for f in cfg.flows}
+    stale_fids = set()
+    for tc in cfg.transfer_coefficients:
+        if tc.flow_id not in valid_fids:
+            stale_fids.add(tc.flow_id)
+    for fc in cfg.flow_compositions:
+        if fc.flow_id not in valid_fids:
+            stale_fids.add(fc.flow_id)
+    for fd in cfg.flow_data:
+        if fd.flow_id not in valid_fids:
+            stale_fids.add(fd.flow_id)
+    for e in cfg.bom_assembly:
+        for bf in e.flows:
+            if bf.flow_id not in valid_fids:
+                stale_fids.add(bf.flow_id)
+    _purge_flow_references(cfg, stale_fids)
+    valid_pids = {p.id for p in cfg.processes}
+    cfg.transfer_coefficients = [
+        tc for tc in cfg.transfer_coefficients if tc.process_id in valid_pids
+    ]
+    cfg.bom_assembly = [e for e in cfg.bom_assembly if e.process_id in valid_pids]
+    cfg.initial_stocks = [s for s in cfg.initial_stocks if s.process_id in valid_pids]
 
 
 @router.get("/{name}/export")
@@ -101,6 +153,13 @@ async def import_excel(request: Request, name: str, file: UploadFile):
             imported = CaseStudyConfig.model_validate(raw)
             # Keep the current case study name; everything else is replaced
             imported.name = name
+            if dups := _duplicate_id_errors(imported):
+                return templates.TemplateResponse(
+                    request,
+                    "import.html",
+                    _ctx(cfg=cfg, error=f"YAML import failed: {'; '.join(dups)}."),
+                    status_code=422,
+                )
             storage.save_case_study(imported)
         except Exception as exc:
             return templates.TemplateResponse(
@@ -193,8 +252,24 @@ async def import_excel(request: Request, name: str, file: UploadFile):
         if (tc.process_id, tc.flow_id) not in imported_keys
     ]
     cfg.transfer_coefficients = preserved + imported_tcs
-    cfg.bom_assembly = _parse_bom_from_yaml(yaml_data.get("bom_assembly", []))
+    # Replace BOM entries only when the workbook actually carries the BOM sheet
+    # (model_to_yaml always emits the key, so key presence can't distinguish
+    # "no sheet" from "empty sheet") — importing a workbook without BOM data
+    # must not wipe existing BOM config.
+    if "3_3_Definition_BOM_Assembly" in sheets:
+        cfg.bom_assembly = _parse_bom_from_yaml(yaml_data.get("bom_assembly", []))
     _apply_extra_yaml(yaml_data, cfg)
+
+    if dups := _duplicate_id_errors(cfg):
+        return templates.TemplateResponse(
+            request,
+            "import.html",
+            _ctx(cfg=cfg, error=f"Import failed: {'; '.join(dups)}."),
+            status_code=422,
+        )
+    # The import replaced processes/flows wholesale — drop preserved entries
+    # that now dangle.
+    _purge_stale_refs_after_import(cfg)
 
     storage.save_case_study(cfg)
     return RedirectResponse(f"/{name}", status_code=303)

@@ -20,6 +20,7 @@ from systemdefiner.cascades import (
     _purge_flow_references,
     _rename_flow_id,
 )
+from systemdefiner.consistency import FLOW_ID_CONVENTION
 from systemdefiner.deps import _ctx, templates
 from systemdefiner.forms import _g
 from systemdefiner.models.config_schema import (
@@ -30,6 +31,36 @@ from systemdefiner.models.config_schema import (
 )
 
 router = APIRouter()
+
+
+def _convention_mismatch(fid: str, from_p: int, to_p: int) -> str | None:
+    """Reject convention-shaped IDs (``F_<a>_<b>[_N]``) that name endpoints
+    other than the flow's real ones — such IDs disguise the topology and can
+    hide duplicate edges."""
+    m = FLOW_ID_CONVENTION.fullmatch(fid)
+    if m and (int(m.group(1)) != from_p or int(m.group(2)) != to_p):
+        return (
+            f"Flow ID '{fid}' names P{int(m.group(1))}→P{int(m.group(2))} but the "
+            f"flow is wired P{from_p}→P{to_p}. Leave the ID blank to auto-generate "
+            f"it, or choose a name that doesn't look like F_<from>_<to>."
+        )
+    return None
+
+
+def _drop_stranded_flow_entries(cfg, flow_id: str) -> None:
+    """Remove flow_data / composition entries for a flow whose source is no
+    longer an Input process — the editors can't reach them anymore, but the
+    engine would still apply them (phantom prescribed values)."""
+    fl = next((f for f in cfg.flows if f.id == flow_id), None)
+    if fl is None:
+        return
+    input_pids = {p.id for p in cfg.processes if p.logic == ProcessLogic.input} | {0}
+    if fl.from_process in input_pids:
+        return
+    cfg.flow_data = [fd for fd in cfg.flow_data if fd.flow_id != flow_id]
+    cfg.flow_compositions = [
+        fc for fc in cfg.flow_compositions if fc.flow_id != flow_id
+    ]
 
 
 @router.get("/{name}/flows")
@@ -53,6 +84,13 @@ async def flow_new(request: Request, name: str):
             request,
             "flows.html",
             _ctx(cfg=cfg, flow_error=f"Flow ID '{requested}' already exists."),
+            status_code=400,
+        )
+    if requested and (msg := _convention_mismatch(requested, from_p, to_p)):
+        return templates.TemplateResponse(
+            request,
+            "flows.html",
+            _ctx(cfg=cfg, flow_error=msg),
             status_code=400,
         )
     flow_id = requested or _next_flow_id(cfg, from_p, to_p)
@@ -120,6 +158,13 @@ async def flow_edit_save(request: Request, name: str, fid: str):
                 ),
                 status_code=400,
             )
+        if msg := _convention_mismatch(new_id, new_from, new_to):
+            return templates.TemplateResponse(
+                request,
+                "flow_edit.html",
+                _ctx(cfg=cfg, flow=flow, flow_error=msg),
+                status_code=400,
+            )
         _rename_flow_id(cfg, fid, new_id)
         flow.id = new_id
 
@@ -145,6 +190,21 @@ async def flow_edit_save(request: Request, name: str, fid: str):
             if synced != flow.id:
                 _rename_flow_id(cfg, flow.id, synced)
                 flow.id = synced
+
+    # TC ownership follows the flow's source. Without this, the TC keeps its
+    # old process_id, the new source's TC page shows the flow as TC-less, and
+    # a later edit there leaves two TC rows exporting the same derived name —
+    # the loader keeps the first (stale) value with only a console warning.
+    if new_from != old_from:
+        for tc in cfg.transfer_coefficients:
+            if tc.flow_id == flow.id and tc.process_id == old_from:
+                tc.process_id = new_from
+
+    # If the rewire moved the flow off an Input process, its flow data and
+    # composition become unreachable in the editors — drop them rather than
+    # letting them silently prescribe an internal flow.
+    if new_from != old_from:
+        _drop_stranded_flow_entries(cfg, flow.id)
 
     storage.save_case_study(cfg)
     return RedirectResponse(f"/{name}/flows", status_code=303)
