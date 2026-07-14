@@ -366,20 +366,30 @@ def plot_total_mass_balance_error(
     if color_manager is None:
         color_manager = ElementColorManager(element_items)
 
-    # Manually calculate the balance matrix to ensure correctness
-    total_inflows = np.zeros((num_years, num_processes, num_elements))
-    total_outflows = np.zeros((num_years, num_processes, num_elements))
+    # Manually calculate the balance matrix to ensure correctness.
+    # All three arrays are indexed by process ID (matching flow.P_Start/P_End
+    # and the dS_<ID> stock keys), NOT by ProcessList position. A study whose
+    # process list is not in ascending-ID order (e.g. P12 defined before P11)
+    # would otherwise line up a process's flows with a different process's
+    # stock and report a phantom imbalance. Size to cover the highest process
+    # ID so a gap in the ID sequence never truncates a flow.
+    id_capacity = max(
+        num_processes,
+        max((p.ID for p in mfa_system_results.ProcessList), default=-1) + 1,
+    )
+    total_inflows = np.zeros((num_years, id_capacity, num_elements))
+    total_outflows = np.zeros((num_years, id_capacity, num_elements))
 
     for flow in mfa_system_results.FlowDict.values():
-        if flow.P_Start < num_processes and flow.P_End < num_processes:
+        if flow.P_Start < id_capacity and flow.P_End < id_capacity:
             total_inflows[:, flow.P_End, :] += flow.Values
             total_outflows[:, flow.P_Start, :] += flow.Values
 
-    total_ds = np.zeros((num_years, num_processes, num_elements))
-    for p_idx, p in enumerate(mfa_system_results.ProcessList):
+    total_ds = np.zeros((num_years, id_capacity, num_elements))
+    for p in mfa_system_results.ProcessList:
         ds_stock = mfa_system_results.StockDict.get(f"dS_{p.ID}")
         if ds_stock is not None:
-            total_ds[:, p_idx, :] = ds_stock.Values
+            total_ds[:, p.ID, :] = ds_stock.Values
 
     manual_balance_matrix = total_inflows - total_outflows - total_ds
 
@@ -388,12 +398,12 @@ def plot_total_mass_balance_error(
     total_errors = {element: [] for element in element_items}
     process_labels = []
 
-    for p_idx, p in enumerate(mfa_system_results.ProcessList):
+    for p in mfa_system_results.ProcessList:
         # Check if this is an Input or Output process (system boundary)
         # Average over time and elements to detect pattern
-        avg_inflow = np.mean(total_inflows[:, p_idx, :])
-        avg_outflow = np.mean(total_outflows[:, p_idx, :])
-        avg_ds = np.mean(total_ds[:, p_idx, :])
+        avg_inflow = np.mean(total_inflows[:, p.ID, :])
+        avg_outflow = np.mean(total_outflows[:, p.ID, :])
+        avg_ds = np.mean(total_ds[:, p.ID, :])
 
         is_input_process = (
             (avg_inflow == 0) and (avg_outflow > 0) and (abs(avg_ds) < 1e-10)
@@ -417,7 +427,7 @@ def plot_total_mass_balance_error(
                 total_error_for_element = 0  # Set to zero for system boundaries
             else:
                 total_error_for_element = np.sum(
-                    np.abs(manual_balance_matrix[:, p_idx, e_idx])
+                    np.abs(manual_balance_matrix[:, p.ID, e_idx])
                 )
             total_errors[element].append(total_error_for_element)
 
