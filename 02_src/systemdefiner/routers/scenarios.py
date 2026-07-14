@@ -48,6 +48,10 @@ async def scenario_new(request: Request, name: str):
     scenario_name = (form.get("scenario_name") or "").strip()
     if not scenario_name:
         raise HTTPException(400, "Scenario name is required")
+    # The name becomes a URL path segment (/{name}/scenarios/{sname}) — a
+    # slash would make the scenario unreachable and undeletable.
+    if "/" in scenario_name or "\\" in scenario_name:
+        raise HTTPException(400, "Scenario name must not contain slashes")
     cfg = storage.load_case_study(name)
     if any(s.name == scenario_name for s in cfg.scenarios):
         raise HTTPException(400, f"Scenario '{scenario_name}' already exists")

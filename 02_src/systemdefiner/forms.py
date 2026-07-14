@@ -203,8 +203,17 @@ def _parse_fomp(form) -> FompParams:
 
 def _parse_dsm(form) -> DsmParams:
     categories: list[DsmCategory] = []
-    i = 0
-    while f"dsm_cat_{i}_lifetime_type" in form:
+    # Collect row indices tolerantly (a removal can leave gaps in the
+    # numbering); scanning until the first missing index would drop every
+    # category past the gap.
+    cat_indices = sorted(
+        {
+            int(m.group(1))
+            for key in form.keys()
+            if (m := re.fullmatch(r"dsm_cat_(\d+)_lifetime_type", key))
+        }
+    )
+    for i in cat_indices:
 
         def _flt(key, default=None):
             v = form.get(key, "").strip()
@@ -225,7 +234,6 @@ def _parse_dsm(form) -> DsmParams:
                 lifetime_scale=_flt(f"dsm_cat_{i}_lifetime_scale"),
             )
         )
-        i += 1
     if not categories:
         categories = [DsmCategory()]
     return DsmParams(
@@ -246,19 +254,32 @@ def _parse_dsm_component(form) -> DsmParams:
         try: return float(v) if v else default
         except ValueError: return default
 
-    # Read component element names first (needed to build per-category lifetime dicts)
-    _comp_elems: list[str] = []
-    _j = 0
-    while f"dsm_comp_{_j}_element" in form:
-        _comp_elems.append(_s(f"dsm_comp_{_j}_element"))
-        _j += 1
+    # Row indices are collected tolerantly (client-side removals can leave
+    # gaps); the per-category lifetime override keys reuse the component's
+    # actual DOM index, so keep (index, element) pairs.
+    comp_indices = sorted(
+        {
+            int(m.group(1))
+            for key in form.keys()
+            if (m := re.fullmatch(r"dsm_comp_(\d+)_element", key))
+        }
+    )
+    _comp_elems: list[tuple[int, str]] = [
+        (j, _s(f"dsm_comp_{j}_element")) for j in comp_indices
+    ]
 
     # Device lifetime categories (with optional per-component lifetime overrides)
     cats: list[DsmCategory] = []
-    i = 0
-    while f"dsmc_cat_{i}_name" in form:
+    cat_indices = sorted(
+        {
+            int(m.group(1))
+            for key in form.keys()
+            if (m := re.fullmatch(r"dsmc_cat_(\d+)_name", key))
+        }
+    )
+    for i in cat_indices:
         comp_lts: dict[str, float] = {}
-        for j, elem in enumerate(_comp_elems):
+        for j, elem in _comp_elems:
             val = _f(f"dsmc_cat_{i}_comp_lt_{j}")
             if val is not None and val > 0 and elem:
                 comp_lts[elem] = val
@@ -272,15 +293,12 @@ def _parse_dsm_component(form) -> DsmParams:
             lifetime_scale=_f(f"dsmc_cat_{i}_lifetime_scale"),
             component_lifetimes=comp_lts,
         ))
-        i += 1
     if not cats:
         cats = [DsmCategory(name="Default", inflow_split=1.0, lifetime_type="Normal")]
 
     # Component renewal rows
     components: list[DsmComponentItem] = []
-    i = 0
-    while f"dsm_comp_{i}_element" in form:
-        elem = _s(f"dsm_comp_{i}_element")
+    for i, elem in _comp_elems:
         mean_lt = _f(f"dsm_comp_{i}_mean_lifetime")
         outflow = _s(f"dsm_comp_{i}_sparepart_outflow")
         inflow  = _s(f"dsm_comp_{i}_sparepart_inflow")
@@ -291,7 +309,6 @@ def _parse_dsm_component(form) -> DsmParams:
                 sparepart_outflow=outflow,
                 sparepart_inflow=inflow,
             ))
-        i += 1
 
     refs = [v for v in form.getlist("dsm_refs") if v]
     return DsmParams(categories=cats, components=components, refs=refs)

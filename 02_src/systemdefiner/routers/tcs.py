@@ -164,32 +164,42 @@ async def tc_save(request: Request, name: str, pid: int):
         # Value fields: tc_{flow_id}_idx_{idx}_{elem}
         import re as _re
 
+        # Parsing is anchored on the actual outgoing-flow IDs and the known
+        # element names (a generic `tc_(.+?)_idx_…` regex mis-buckets flow IDs
+        # that themselves contain `_idx_` or `_year_`).
+        elem_set = set(elements)
+
         # First collect all year values keyed by (flow_id, idx)
         year_map: dict[tuple[str, str], int] = {}
-        for key in form.keys():
-            m = _re.match(r"^tc_(.+?)_year_(\d+)$", key)
-            if not m:
-                continue
-            fid, idx = m.group(1), m.group(2)
-            raw = form.get(key, "")
-            try:
-                year_map[(fid, idx)] = int(float(raw))
-            except (ValueError, TypeError):
-                pass
+        for flow in outgoing_flows:
+            pat = _re.compile(_re.escape(f"tc_{flow.id}_year_") + r"(\d+)$")
+            for key in form.keys():
+                m = pat.fullmatch(key)
+                if not m:
+                    continue
+                raw = form.get(key, "")
+                try:
+                    year_map[(flow.id, m.group(1))] = int(float(raw))
+                except (ValueError, TypeError):
+                    pass
 
         # Then collect element values keyed by (flow_id, idx, elem)
         val_data: dict[tuple[str, str], dict[str, float]] = {}
-        for key in form.keys():
-            m = _re.match(r"^tc_(.+?)_idx_(\d+)_(.+)$", key)
-            if not m:
-                continue
-            fid, idx, elem = m.group(1), m.group(2), m.group(3)
-            raw = form.get(key, "")
-            try:
-                val = float(raw) if raw else 0.0
-            except ValueError:
-                val = 0.0
-            val_data.setdefault((fid, idx), {})[elem] = val
+        for flow in outgoing_flows:
+            pat = _re.compile(_re.escape(f"tc_{flow.id}_idx_") + r"(\d+)_(.+)$")
+            for key in form.keys():
+                m = pat.fullmatch(key)
+                if not m:
+                    continue
+                idx, elem = m.group(1), m.group(2)
+                if elem not in elem_set:
+                    continue
+                raw = form.get(key, "")
+                try:
+                    val = float(raw) if raw else 0.0
+                except ValueError:
+                    val = 0.0
+                val_data.setdefault((flow.id, idx), {})[elem] = val
 
         # Build time series per flow
         for flow in outgoing_flows:

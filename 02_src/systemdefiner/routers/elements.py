@@ -96,7 +96,12 @@ def _rules_to_paths(rules: list) -> list[list[str]]:
     def get_path(elem: str) -> list[str]:
         path: list[str] = []
         cur: str | None = elem
-        while cur:
+        seen: set[str] = set()
+        while cur and cur not in seen:
+            # `seen` guards against a cyclic hierarchy (e.g. A→B and B→A),
+            # which would otherwise hang every page that renders the matrix;
+            # the consistency checker reports the cycle itself.
+            seen.add(cur)
             path.insert(0, cur)
             cur = child_to_parent.get(cur)
         return path

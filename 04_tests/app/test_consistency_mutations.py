@@ -785,3 +785,83 @@ class TestElementEdits:
         # element-key errors are gone; only the now-dangling scenario/MC names
         # remain flagged (nothing can guess what they should point at)
         assert all("unknown element" not in m for m in _errors(cfg))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Hardening (Finding 12)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestHardening:
+    def test_dsm_category_rows_survive_index_gaps(self, client):
+        client.post("/new", data={"name": "gap_dsm", "elements": "material"})
+        # rows 0 and 2 submitted, row 1 missing (client-side removal without
+        # reindex) — the old sequential parser dropped everything past the gap
+        client.post(
+            "/gap_dsm/processes/new",
+            data={
+                "name": "Store", "logic": "DSM", "stock": "Stock",
+                "dsm_cat_0_name": "Short", "dsm_cat_0_inflow_split": "40",
+                "dsm_cat_0_lifetime_type": "Normal", "dsm_cat_0_lifetime_mean": "5",
+                "dsm_cat_2_name": "Long", "dsm_cat_2_inflow_split": "60",
+                "dsm_cat_2_lifetime_type": "Normal", "dsm_cat_2_lifetime_mean": "50",
+            },
+        )
+        cfg = storage.load_case_study("gap_dsm")
+        cats = cfg.processes[0].dsm.categories
+        assert [c.name for c in cats] == ["Short", "Long"]
+
+    def test_hierarchy_cycle_does_not_hang_pages(self, client):
+        cfg = CaseStudyConfig(
+            name="cycle_test",
+            model={"elements": ["material", "A", "B"]},
+            element_hierarchy=[
+                {"parent": "A", "children": ["B"]},
+                {"parent": "B", "children": ["A"]},
+            ],
+        )
+        storage.save_case_study(cfg)
+        r = client.get("/cycle_test/elements")
+        assert r.status_code == 200  # previously an infinite loop
+        errs = _errors(storage.load_case_study("cycle_test"))
+        assert any("cycle" in m for m in errs)
+
+    def test_scenario_name_with_slash_rejected(self, client):
+        client.post("/new", data={"name": "slash_test", "elements": "material"})
+        r = client.post(
+            "/slash_test/scenarios/new", data={"scenario_name": "A/B"}
+        )
+        assert r.status_code == 400
+        assert storage.load_case_study("slash_test").scenarios == []
+
+    def test_dynamic_tc_save_with_pathological_flow_id(self, client):
+        # A custom flow ID containing "_idx_" used to mis-bucket the generic
+        # regex parser. Field keys are now anchored on the real flow IDs.
+        cfg = CaseStudyConfig(
+            name="weird_fid",
+            model={"elements": ["material", "WC"]},
+            processes=[
+                Process(id=0, name="Source", logic=ProcessLogic.input),
+                Process(
+                    id=1, name="Sorter", logic=ProcessLogic.splitter,
+                    tc_config=TCConfig.dynamic,
+                ),
+                Process(id=2, name="Sink", logic=ProcessLogic.output),
+            ],
+            flows=[
+                Flow(id="F_00_01", name="in", from_process=0, to_process=1),
+                Flow(id="my_idx_1", name="odd", from_process=1, to_process=2),
+            ],
+        )
+        storage.save_case_study(cfg)
+        client.post(
+            "/weird_fid/tcs/1",
+            data={
+                "tc_my_idx_1_year_0": "2025",
+                "tc_my_idx_1_idx_0_material": "1.0",
+            },
+        )
+        cfg = storage.load_case_study("weird_fid")
+        tc = next(t for t in cfg.transfer_coefficients if t.flow_id == "my_idx_1")
+        assert tc.time_series[0].year == 2025
+        assert tc.time_series[0].values == {"material": 1.0}
