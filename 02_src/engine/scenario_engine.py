@@ -407,26 +407,46 @@ def check_mass_balance(mfa_system_results, label: str = "System") -> pd.DataFram
     num_elements = len(element_items)
     num_years = len(mfa_system_results.IndexTable.Classification["Time"].Items)
 
-    # Build inflow/outflow/dS matrices
-    total_inflows = np.zeros((num_years, num_processes, num_elements))
-    total_outflows = np.zeros((num_years, num_processes, num_elements))
+    # Build inflow/outflow/dS matrices. All three arrays are indexed by process
+    # ID (matching flow.P_Start/P_End and the dS_<ID> stock keys), NOT by
+    # ProcessList position — a study whose process list is not in ascending-ID
+    # order would otherwise line up a process's flows with a different
+    # process's stock. Size to cover the highest process ID so an ID gap never
+    # silently drops a flow from the balance (same fix as
+    # plotting/validation.py).
+    id_capacity = max(
+        num_processes,
+        max((p.ID for p in mfa_system_results.ProcessList), default=-1) + 1,
+        max(
+            (
+                max(f.P_Start, f.P_End) + 1
+                for f in mfa_system_results.FlowDict.values()
+            ),
+            default=0,
+        ),
+    )
+    total_inflows = np.zeros((num_years, id_capacity, num_elements))
+    total_outflows = np.zeros((num_years, id_capacity, num_elements))
 
     for flow in mfa_system_results.FlowDict.values():
-        if flow.P_Start < num_processes and flow.P_End < num_processes:
-            total_inflows[:, flow.P_End, :] += flow.Values
-            total_outflows[:, flow.P_Start, :] += flow.Values
+        total_inflows[:, flow.P_End, :] += flow.Values
+        total_outflows[:, flow.P_Start, :] += flow.Values
 
-    total_ds = np.zeros((num_years, num_processes, num_elements))
-    for p_idx, p in enumerate(mfa_system_results.ProcessList):
+    total_ds = np.zeros((num_years, id_capacity, num_elements))
+    for p in mfa_system_results.ProcessList:
         ds_stock = mfa_system_results.StockDict.get(f"dS_{p.ID}")
         if ds_stock is not None:
-            total_ds[:, p_idx, :] = ds_stock.Values
+            total_ds[:, p.ID, :] = ds_stock.Values
 
     balance_matrix = total_inflows - total_outflows - total_ds
 
-    # Identify boundary processes to exclude
-    boundary_mask = np.zeros(num_processes, dtype=bool)
-    for p_idx in range(num_processes):
+    # Identify boundary processes (and ID gaps, which have no data) to exclude
+    boundary_mask = np.zeros(id_capacity, dtype=bool)
+    existing_ids = {p.ID for p in mfa_system_results.ProcessList}
+    for p_idx in range(id_capacity):
+        if p_idx not in existing_ids:
+            boundary_mask[p_idx] = True
+            continue
         avg_in = np.mean(total_inflows[:, p_idx, :])
         avg_out = np.mean(total_outflows[:, p_idx, :])
         avg_ds = np.mean(total_ds[:, p_idx, :])
