@@ -26,6 +26,7 @@ from systemdefiner.models.config_schema import (
     FlowComposition,
     FlowDataEntry,
     FompParams,
+    InitialStockEntry,
     McParameter,
     Process,
     ProcessLogic,
@@ -637,3 +638,150 @@ class TestImportMerge:
         # the stored study is untouched
         cfg = storage.load_case_study("import_merge")
         assert len(cfg.processes) == 4
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Element rename / reorder / delete cascade (Finding 4)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def _element_study(name="elem_test") -> CaseStudyConfig:
+    """Elements material, WC, DM, TC with hierarchy and element-keyed data
+    everywhere the schema allows."""
+    return CaseStudyConfig(
+        name=name,
+        model={"elements": ["material", "WC", "DM", "TC"]},
+        processes=[
+            Process(id=0, name="Source", logic=ProcessLogic.input),
+            Process(
+                id=1,
+                name="Reactor",
+                logic=ProcessLogic.transformer,
+                tc_config=TCConfig.static,
+                expected_inflow_composition={"WC": 0.2, "DM": 0.8, "TC": 0.4},
+            ),
+            Process(
+                id=2,
+                name="Store",
+                logic=ProcessLogic.dsm,
+                stock=StockConfig.initial_stock_decay,
+            ),
+        ],
+        flows=[
+            Flow(id="F_00_01", name="in", from_process=0, to_process=1),
+            Flow(id="F_01_02", name="mid", from_process=1, to_process=2),
+        ],
+        transfer_coefficients=[
+            TransferCoefficient(
+                process_id=1,
+                flow_id="F_01_02",
+                tc_type="static",
+                values={"WC": 1.0, "DM": 1.0, "TC": 1.0},
+            ),
+        ],
+        flow_compositions=[
+            FlowComposition(
+                flow_id="F_00_01",
+                values={"material": 1.0, "WC": 0.2, "DM": 0.8, "TC": 0.4},
+            )
+        ],
+        flow_data=[FlowDataEntry(flow_id="F_00_01", element="material", values={2025: 10.0})],
+        initial_stocks=[
+            InitialStockEntry(
+                process_id=2, material_quantity=100.0, composition={"DM": 0.9, "TC": 0.4}
+            )
+        ],
+        element_hierarchy=[
+            {"parent": "material", "children": ["WC", "DM"]},
+            {"parent": "DM", "children": ["TC"]},
+        ],
+        scenarios=[
+            ScenarioDefinition(
+                name="S1",
+                modifications=[
+                    ScenarioModification(parameter_name="TC_E4_01_02", new_value=0.5)
+                ],
+            )
+        ],
+        mc_parameters=[
+            McParameter(
+                parameter_id="P02_IS_E4_[%](TC)", distribution="normal", mean=0.4, std=0.05
+            )
+        ],
+    )
+
+
+def _post_elements(client, name, rows, paths):
+    """rows: list of (orig, new); paths: list of cell-lists."""
+    data = {}
+    for i, (orig, new) in enumerate(rows):
+        data[f"element_{i}"] = new
+        data[f"element_{i}_orig"] = orig
+    for i, lvl in enumerate(["Product", "Component", "Material", "Element"]):
+        data[f"level_name_{i}"] = lvl
+    for pi, cells in enumerate(paths):
+        for li, cell in enumerate(cells, 1):
+            data[f"path_{pi}_l{li}"] = cell
+    return client.post(f"/{name}/elements", data=data)
+
+
+class TestElementEdits:
+    def test_rename_cascades_to_all_keyed_values(self, client):
+        storage.save_case_study(_element_study())
+        _post_elements(
+            client,
+            "elem_test",
+            rows=[("material", "material"), ("WC", "WC"), ("DM", "DM"), ("TC", "Carbon")],
+            paths=[["material", "WC"], ["material", "DM", "TC"]],
+        )
+        cfg = storage.load_case_study("elem_test")
+        assert cfg.model.elements == ["material", "WC", "DM", "Carbon"]
+        tc = cfg.transfer_coefficients[0]
+        assert "Carbon" in tc.values and "TC" not in tc.values
+        comp = cfg.flow_compositions[0]
+        assert "Carbon" in comp.values and "TC" not in comp.values
+        ist = cfg.initial_stocks[0]
+        assert "Carbon" in ist.composition and "TC" not in ist.composition
+        reactor = next(p for p in cfg.processes if p.name == "Reactor")
+        assert "Carbon" in reactor.expected_inflow_composition
+        # hierarchy cells submitted with the stale name were mapped
+        dm_rule = next(r for r in cfg.element_hierarchy if r.parent == "DM")
+        assert dm_rule.children == ["Carbon"]
+        # IS-style MC name follows both position and embedded element name
+        assert _mc_names(cfg) == ["P02_IS_E4_[%](Carbon)"]
+        assert _errors(cfg) == []
+
+    def test_reorder_remaps_positional_parameter_names(self, client):
+        storage.save_case_study(_element_study())
+        # move TC from position 4 to position 2
+        _post_elements(
+            client,
+            "elem_test",
+            rows=[("material", "material"), ("TC", "TC"), ("WC", "WC"), ("DM", "DM")],
+            paths=[["material", "WC"], ["material", "DM", "TC"]],
+        )
+        cfg = storage.load_case_study("elem_test")
+        assert cfg.model.elements == ["material", "TC", "WC", "DM"]
+        assert _scenario_names(cfg) == ["TC_E2_01_02"]
+        assert _mc_names(cfg) == ["P02_IS_E2_[%](TC)"]
+        assert _errors(cfg) == []
+
+    def test_delete_drops_keys_everywhere(self, client):
+        storage.save_case_study(_element_study())
+        # remove TC entirely (row not submitted)
+        _post_elements(
+            client,
+            "elem_test",
+            rows=[("material", "material"), ("WC", "WC"), ("DM", "DM")],
+            paths=[["material", "WC"], ["material", "DM", "TC"]],
+        )
+        cfg = storage.load_case_study("elem_test")
+        assert cfg.model.elements == ["material", "WC", "DM"]
+        assert "TC" not in cfg.transfer_coefficients[0].values
+        assert "TC" not in cfg.flow_compositions[0].values
+        assert "TC" not in cfg.initial_stocks[0].composition
+        # the hierarchy row ending in the removed element lost that cell
+        assert all("TC" not in r.children and r.parent != "TC" for r in cfg.element_hierarchy)
+        # element-key errors are gone; only the now-dangling scenario/MC names
+        # remain flagged (nothing can guess what they should point at)
+        assert all("unknown element" not in m for m in _errors(cfg))

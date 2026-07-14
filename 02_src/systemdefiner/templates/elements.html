@@ -26,6 +26,7 @@
          the engine requires it to be named "material", so it is locked. #}
       <div class="elem-row" style="display:flex;align-items:center;gap:0.5rem">
         <span class="muted" style="user-select:none;font-size:1.1rem;padding:0 4px">🔒</span>
+        <input type="hidden" name="element_0_orig" value="material">
         <input type="text" name="element_0" value="material" readonly
                style="flex:1;font-family:monospace;background:var(--bg);color:var(--muted)"
                title="The first element is the total mass balance and hierarchy root — its name is fixed to 'material'.">
@@ -34,6 +35,9 @@
       {% else %}
       <div class="elem-row" style="display:flex;align-items:center;gap:0.5rem">
         <span class="muted" style="user-select:none;font-size:1.1rem;padding:0 4px">⠿</span>
+        {# The original (server-side) name travels with the row so a rename can
+           be cascaded to every element-keyed value in the config on save. #}
+        <input type="hidden" name="element_{{ loop.index0 }}_orig" value="{{ elem }}">
         <input type="text" name="element_{{ loop.index0 }}"
                value="{{ elem }}" style="flex:1;font-family:monospace"
                oninput="onElemChange()">
@@ -209,7 +213,9 @@ function syncPathColumns() {
 // ── Element list management ────────────────────────────────────────────────────
 function rebuildElemIndices() {
   document.querySelectorAll('#elem-list .elem-row').forEach((row, i) => {
-    row.querySelector('input').name = `element_${i}`;
+    const hidden = row.querySelector('input[type="hidden"]');
+    if (hidden) hidden.name = `element_${i}_orig`;
+    row.querySelector('input[type="text"]').name = `element_${i}`;
   });
   onElemChange();
 }
@@ -230,6 +236,7 @@ function addElem() {
   div.style.cssText = 'display:flex;align-items:center;gap:0.5rem';
   div.innerHTML = `
     <span class="muted" style="user-select:none;font-size:1.1rem;padding:0 4px">⠿</span>
+    <input type="hidden" name="element_${idx}_orig" value="">
     <input type="text" name="element_${idx}" value="${name}"
            style="flex:1;font-family:monospace" oninput="onElemChange()">
     <button type="button" class="btn btn-secondary btn-sm" onclick="moveElem(this,-1)">↑</button>
