@@ -28,7 +28,18 @@ tools/                   — WIP/experimental, gitignored (local-only): marimo_d
   data_loader.py       — load_*_parameters() functions + yaml_to_excel_dataframes() (YAML-only mode)
   system_setup.py      — define_model_scope / initialize_mfa_system / load_and_define_processes / define_flows_and_parameters
   systemdefiner/       — bioDYM SystemDefiner FastAPI web app (`uv run python -m systemdefiner`, port 8001)
-    main.py            — routes; storage.py — case-study persistence (01_data/01_input/case_studies/)
+    main.py            — app factory + router includes ONLY (routes live in routers/); include order is
+                         pinned by 04_tests/app/test_route_inventory.py — update it when adding routes
+    routers/           — one APIRouter per domain: studies, processes, flows (+flow_data), tcs, elements,
+                         scenarios (+mc_parameters), references, compositions (+bom/initial_stock), io
+    consistency.py     — check_config_consistency() (cross-ref invariants, merged into health report) +
+                         iter_flow_pointers() registry — NEW flow-ID pointer fields in config_schema.py
+                         MUST be registered there; cascades and validator iterate it
+    cascades.py        — _rename_flow_id / _purge_flow_references / _delete_process_cascade /
+                         _compact_process_ids — route every ID change through these
+    forms.py           — form parsing; health.py — _model_health; scenario_params.py — parameter catalog
+    storage.py         — case-study persistence; save normalizes (processes sorted by ID, orphan BOM/IS
+                         pruned); folder name overrides the YAML-internal name on load
     yaml_schema.py     — model_to_yaml() etc. — YAML config schema (SystemDefiner dependency; moved from tools/)
   analysis/
     cuf.py             — CUF (Carbon Utilization Factor) post-processing
