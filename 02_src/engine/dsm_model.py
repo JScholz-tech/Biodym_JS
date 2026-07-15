@@ -6,7 +6,7 @@ This file contains the specific calculation logic for processes that are
 modeled as dynamic stocks, where outflows are determined by the age
 structure of the stock and a lifetime distribution.
 
-Mathematical notation (see bioDYM_mathematical_formulas.md §5-6):
+Mathematical notation (see bioDYM_mathematical_formulas.md §3.2-3.3):
     Paper symbol      Code variable
     α_i           ←→  inflow_split[i]      (category inflow split)
     μ_i, σ_i      ←→  lifetimes["Mean"/"StdDev"][i]

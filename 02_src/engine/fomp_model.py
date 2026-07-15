@@ -5,7 +5,7 @@ Enhanced First-Order Model Process (FOMP) Module for the BioDYM Engine.
 This file contains the calculation logic for a two-pool soil carbon decay model,
 based on a more precise analytical solution for first-order decay.
 
-Mathematical notation (see bioDYM_mathematical_formulas.md §3):
+Mathematical notation (see bioDYM_mathematical_formulas.md §3.4):
     Paper symbol      Code variable
     α_L           ←→  f_labile        (labile inflow fraction; recalcitrant = 1-α_L)
     k_L           ←→  k_labile        (labile decay constant)

@@ -11,15 +11,15 @@ the bioDYM SystemDefiner, whose YAML configs are otherwise hard to skim.
 
 Mathematical notation (see bioDYM_mathematical_formulas.md):
     Paper symbol    Code variable / source
-    TC_i(t)      <->  mfa_system.ParameterDict[...].Values (per outflow)   §1.2-1.3
-    φ_f^e        <->  Flow_E{n}_Fraction[%] (1_1_Definition_Flows)          §2.2
-    α_L          <->  fomp "Inflow_fraction_f (Labile pool)"                §3.1
-    k_L, k_R     <->  fomp "decay_k1/k2 (...)"                              §3.3
-    k_j, DOC_j   <->  lfg fractions "k_j", "DOC_j"                          §4.1
-    w_j          <->  lfg fractions "f_input_j"                             §4.1
-    ψ            <->  lfg "phi"                                             §4.4
-    α_i, μ_i, σ_i <-> dsm inflow_split / lifetimes Mean / StdDev            §5.1-5.5
-    κ, λ         <->  dsm lifetimes Shape / Scale (Weibull)                 §5.5-5.6
+    TC_i(t)      <->  mfa_system.ParameterDict[...].Values (per outflow)   §2.2-2.3
+    φ_f^e        <->  Flow_E{n}_Fraction[%] (1_1_Definition_Flows)          §1.2
+    α_L          <->  fomp "Inflow_fraction_f (Labile pool)"                §3.4.1
+    k_L, k_R     <->  fomp "decay_k1/k2 (...)"                              §3.4.3
+    k_j, DOC_j   <->  lfg fractions "k_j", "DOC_j"                          §3.5.1
+    w_j          <->  lfg fractions "f_input_j"                             §3.5.1
+    ψ            <->  lfg "phi"                                             §3.5.4
+    α_i, μ_i, σ_i <-> dsm inflow_split / lifetimes Mean / StdDev            §3.2.1-3.2.5
+    κ, λ         <->  dsm lifetimes Shape / Scale (Weibull)                 §3.2.5-3.2.6
 """
 
 from datetime import datetime
@@ -35,100 +35,100 @@ _COLUMNS = ["Symbol", "Code variable", "Process", "Flow", "Value",
 # FOMP Excel-key -> (symbol, unit, ref, description)
 _FOMP_KEY_MAP = {
     "Inflow_fraction_f (Labile pool)": (
-        "α_L", "-", "§3.1", "Labile inflow fraction"),
+        "α_L", "-", "§3.4.1", "Labile inflow fraction"),
     "decay_k1 (Labile pool)": (
-        "k_L", "yr⁻¹", "§3.3", "Labile pool decay constant"),
+        "k_L", "yr⁻¹", "§3.4.3", "Labile pool decay constant"),
     "decay_k2 (Recalcitrant pool)": (
-        "k_R", "yr⁻¹", "§3.3", "Recalcitrant pool decay constant"),
+        "k_R", "yr⁻¹", "§3.4.3", "Recalcitrant pool decay constant"),
     "Inflow_fraction_f (Recalcitrant pool)": (
-        "1-α_L", "-", "§3.1",
+        "1-α_L", "-", "§3.4.1",
         "IGNORED by the engine - derived as 1-α_L (see memory: FOMP "
         "recalcitrant fraction)"),
     "outflow_id": (
-        "F_carbon", "-", "§3.5", "Flow ID receiving the carbon outflow"),
+        "F_carbon", "-", "§3.4.5", "Flow ID receiving the carbon outflow"),
     "outflow_id_2": (
-        "F_env", "-", "§3.5",
+        "F_env", "-", "§3.4.5",
         "Flow ID receiving the environmental outflow (optional; merged into "
         "the carbon flow if absent)"),
 }
 
 # LFG site-parameter key -> (symbol, unit, ref, description)
 _LFG_SITE_MAP = {
-    "MCF": ("MCF", "-", "§4.4", "Methane correction factor"),
-    "DOCf": ("DOC_f", "-", "§4.1", "Decomposable fraction of DOC"),
-    "F_CH4": ("F_CH4", "-", "§4.4", "CH4 volume fraction in landfill gas"),
-    "OX": ("OX", "-", "§4.4", "Oxidation factor (cover soil)"),
-    "phi": ("ψ", "-", "§4.4", "UNFCCC model correction factor"),
-    "outflow_ch4_id": ("G_CH4", "-", "§4.4", "Flow ID receiving CH4-carbon"),
-    "outflow_co2_id": ("G_CO2", "-", "§4.4", "Flow ID receiving CO2-carbon"),
+    "MCF": ("MCF", "-", "§3.5.4", "Methane correction factor"),
+    "DOCf": ("DOC_f", "-", "§3.5.1", "Decomposable fraction of DOC"),
+    "F_CH4": ("F_CH4", "-", "§3.5.4", "CH4 volume fraction in landfill gas"),
+    "OX": ("OX", "-", "§3.5.4", "Oxidation factor (cover soil)"),
+    "phi": ("ψ", "-", "§3.5.4", "UNFCCC model correction factor"),
+    "outflow_ch4_id": ("G_CH4", "-", "§3.5.4", "Flow ID receiving CH4-carbon"),
+    "outflow_co2_id": ("G_CO2", "-", "§3.5.4", "Flow ID receiving CO2-carbon"),
     "outflow_leachate_id": (
-        "F_leachate", "-", "§4.5", "Flow ID receiving leachate water"),
+        "F_leachate", "-", "§3.5.5", "Flow ID receiving leachate water"),
 }
 
 # LFG per-fraction key -> (symbol, unit, ref, description)
 _LFG_FRACTION_MAP = {
-    "k_j": ("k_j", "yr⁻¹", "§4.3", "First-order decay rate of fraction j"),
-    "DOC_j": ("DOC_j", "-", "§4.1", "Degradable organic carbon fraction"),
-    "f_input_j": ("w_j", "-", "§4.1", "Mass fraction of waste category j"),
-    "f_ash_j": ("f_ash,j", "-", "§4.2", "Ash fraction of waste category j"),
+    "k_j": ("k_j", "yr⁻¹", "§3.5.3", "First-order decay rate of fraction j"),
+    "DOC_j": ("DOC_j", "-", "§3.5.1", "Degradable organic carbon fraction"),
+    "f_input_j": ("w_j", "-", "§3.5.1", "Mass fraction of waste category j"),
+    "f_ash_j": ("f_ash,j", "-", "§3.5.2", "Ash fraction of waste category j"),
 }
 
 # Initial-stock parameter-type -> (symbol, unit, ref, description)
 _INITIAL_STOCK_MAP = {
     "Basic_Material_Quantity[UoM]": (
-        "S_0", "Mg", "§6", "Total initial stock at simulation start"),
+        "S_0", "Mg", "§3.3.1", "Total initial stock at simulation start"),
     "Cohort_Age_Distribution_Type": (
-        "-", "-", "§6.2", "Age distribution of the initial stock (Method B)"),
+        "-", "-", "§3.3.1", "Age distribution of the initial stock (Method B)"),
     "Cohort_Mean_Age[years]": (
-        "μ_age", "yr", "§6.2", "Mean age of initial stock items"),
+        "μ_age", "yr", "§3.3.1", "Mean age of initial stock items"),
     "Cohort_StdDev_Age[years]": (
-        "σ_age", "yr", "§6.2", "StdDev of initial stock item ages"),
+        "σ_age", "yr", "§3.3.1", "StdDev of initial stock item ages"),
     "Cohort_Max_Age[years]": (
-        "A_max", "yr", "§6.2", "Maximum age of initial stock items"),
+        "A_max", "yr", "§3.3.1", "Maximum age of initial stock items"),
     "Cohort_Decay_Constant[years]": (
-        "λ_age", "yr", "§6.2", "Exponential age-distribution scale"),
+        "λ_age", "yr", "§3.3.1", "Exponential age-distribution scale"),
 }
 
 # Known configuration attributes -> (symbol, ref, description)
 _CONFIG_MAP = {
     "START_YEAR": ("t = 0", "§0.2", "First simulation year"),
     "END_YEAR": ("t = T", "§0.2", "Last simulation year"),
-    "RUN_DSM_CALCULATION": ("-", "§5", "DSM module switch"),
-    "RUN_FOMP_CALCULATION": ("-", "§3", "FOMP module switch"),
-    "RUN_LFG_CALCULATION": ("-", "§4", "LFG module switch"),
-    "RUN_MONTE_CARLO": ("-", "§8", "Monte Carlo switch"),
-    "MC_ITERATIONS": ("n", "§8", "Number of Monte Carlo iterations"),
-    "MC_SEED": ("-", "§8", "Random seed for reproducible MC sampling"),
-    "SOLVER_MAX_ITERATIONS": ("-", "§1.4", "Fixed-point iteration cap"),
-    "SOLVER_STRICT": ("-", "§1.4", "Raise instead of warn on non-convergence"),
-    "MASS_BALANCE_TOLERANCE": ("ε_rel", "§1.5", "Mass balance tolerance"),
+    "RUN_DSM_CALCULATION": ("-", "§3.2", "DSM module switch"),
+    "RUN_FOMP_CALCULATION": ("-", "§3.4", "FOMP module switch"),
+    "RUN_LFG_CALCULATION": ("-", "§3.5", "LFG module switch"),
+    "RUN_MONTE_CARLO": ("-", "§5.2", "Monte Carlo switch"),
+    "MC_ITERATIONS": ("n", "§5.2", "Number of Monte Carlo iterations"),
+    "MC_SEED": ("-", "§5.2", "Random seed for reproducible MC sampling"),
+    "SOLVER_MAX_ITERATIONS": ("-", "§4.1", "Fixed-point iteration cap"),
+    "SOLVER_STRICT": ("-", "§4.1", "Raise instead of warn on non-convergence"),
+    "MASS_BALANCE_TOLERANCE": ("ε_rel", "§6.1", "Mass balance tolerance"),
 }
 
 _SYMBOL_LEGEND = [
     ("F_f^e(t)", "Mass flow of element e in flow f", "Mg yr⁻¹", "§0.2"),
     ("S_p^e(t)", "Stock of element e in process p", "Mg", "§0.2"),
-    ("φ_f^e", "Static content fraction (element per parent element)", "-", "§2.2"),
-    ("TC_i(t)", "Transfer coefficient of outflow i", "-", "§1.2-1.3"),
-    ("α_L", "FOMP labile inflow fraction", "-", "§3.1"),
-    ("k_L, k_R", "FOMP labile / recalcitrant decay constants", "yr⁻¹", "§3.3"),
-    ("r_TC(t)", "Carbon-to-dry-matter ratio of FOMP inflow", "-", "§3.4"),
-    ("k_j", "LFG decay rate of waste fraction j", "yr⁻¹", "§4.3"),
-    ("DOC_j", "Degradable organic carbon fraction of category j", "-", "§4.1"),
-    ("DOC_f", "Decomposable fraction of DOC", "-", "§4.1"),
-    ("w_j", "Mass fraction of waste category j (code: f_input_j)", "-", "§4.1"),
-    ("f_ash,j", "Ash fraction of waste category j", "-", "§4.2"),
-    ("MCF", "Methane correction factor", "-", "§4.4"),
-    ("F_CH4", "CH4 volume fraction in landfill gas", "-", "§4.4"),
-    ("OX", "Oxidation factor (cover soil)", "-", "§4.4"),
-    ("ψ", "UNFCCC model correction factor (code: phi)", "-", "§4.4"),
-    ("α_i", "DSM inflow split fraction of lifetime category i", "-", "§5.2"),
-    ("μ_i, σ_i", "Mean / StdDev of DSM lifetime distribution", "yr", "§5.5"),
-    ("κ, λ", "Weibull shape / scale (DSM lifetime)", "-, yr", "§5.5-5.6"),
-    ("μ_c", "Mean lifetime of DSM component c", "yr", "§7"),
-    ("S_0", "Initial stock at simulation start", "Mg", "§6"),
-    ("A_max", "Maximum age of initial stock items", "yr", "§6.2"),
-    ("μ_age, σ_age", "Mean / StdDev of initial stock age distribution", "yr", "§6.2"),
-    ("λ_age", "Exponential age-distribution scale", "yr", "§6.2"),
+    ("φ_f^e", "Static content fraction (element per parent element)", "-", "§1.2"),
+    ("TC_i(t)", "Transfer coefficient of outflow i", "-", "§2.2-2.3"),
+    ("α_L", "FOMP labile inflow fraction", "-", "§3.4.1"),
+    ("k_L, k_R", "FOMP labile / recalcitrant decay constants", "yr⁻¹", "§3.4.3"),
+    ("r_TC(t)", "Carbon-to-dry-matter ratio of FOMP inflow", "-", "§3.4.4"),
+    ("k_j", "LFG decay rate of waste fraction j", "yr⁻¹", "§3.5.3"),
+    ("DOC_j", "Degradable organic carbon fraction of category j", "-", "§3.5.1"),
+    ("DOC_f", "Decomposable fraction of DOC", "-", "§3.5.1"),
+    ("w_j", "Mass fraction of waste category j (code: f_input_j)", "-", "§3.5.1"),
+    ("f_ash,j", "Ash fraction of waste category j", "-", "§3.5.2"),
+    ("MCF", "Methane correction factor", "-", "§3.5.4"),
+    ("F_CH4", "CH4 volume fraction in landfill gas", "-", "§3.5.4"),
+    ("OX", "Oxidation factor (cover soil)", "-", "§3.5.4"),
+    ("ψ", "UNFCCC model correction factor (code: phi)", "-", "§3.5.4"),
+    ("α_i", "DSM inflow split fraction of lifetime category i", "-", "§3.2.2"),
+    ("μ_i, σ_i", "Mean / StdDev of DSM lifetime distribution", "yr", "§3.2.5"),
+    ("κ, λ", "Weibull shape / scale (DSM lifetime)", "-, yr", "§3.2.5-3.2.6"),
+    ("μ_c", "Mean lifetime of DSM component c", "yr", "§3.3.2"),
+    ("S_0", "Initial stock at simulation start", "Mg", "§3.3.1"),
+    ("A_max", "Maximum age of initial stock items", "yr", "§3.3.1"),
+    ("μ_age, σ_age", "Mean / StdDev of initial stock age distribution", "yr", "§3.3.1"),
+    ("λ_age", "Exponential age-distribution scale", "yr", "§3.3.1"),
 ]
 
 
@@ -229,9 +229,9 @@ def _build_initial_stock(all_excel_data):
         for _, srow in is_df.iterrows():
             ptype = str(srow.get("IS_Parameter_type", ""))
             symbol, unit, ref, desc = _INITIAL_STOCK_MAP.get(
-                ptype, ("", "", "§6", ""))
+                ptype, ("", "", "§3.3.1", ""))
             if ptype.startswith("Basic_E") and "Fraction" in ptype:
-                symbol, unit, ref = "φ_p^e", "-", "§2.2"
+                symbol, unit, ref = "φ_p^e", "-", "§1.2"
                 desc = "Element composition of the initial stock"
             rows.append(_row(
                 symbol=symbol, code=ptype,
@@ -273,7 +273,7 @@ def _build_flow_composition(all_excel_data, elements):
                 value=_scalar(value), unit="-",
                 description=f"Content fraction of {elem} "
                             "(relative to its parent element)",
-                ref="§2.2"))
+                ref="§1.2"))
     return pd.DataFrame(rows, columns=_COLUMNS)
 
 
@@ -314,7 +314,7 @@ def _build_transfer_coefficients(tc_params, flow_tc_map, time_vector, flow_route
                          else "Transfer coefficient")
                         + (" - full series in sheet TC_Time_Series"
                            if is_dynamic else ""),
-            ref="§1.2-1.3"))
+            ref="§2.2-2.3"))
 
     tc_df = pd.DataFrame(rows, columns=_COLUMNS)
 
@@ -346,44 +346,44 @@ def _build_dsm(dsm_params):
             rows.append(_row(
                 symbol=f"α_{i + 1}", code="inflow_split", process=pid,
                 value=_at(splits), unit="-",
-                description=f"Inflow split to category '{cat}'", ref="§5.2"))
+                description=f"Inflow split to category '{cat}'", ref="§3.2.2"))
             rows.append(_row(
                 symbol="-", code="Lifetime_Type", process=pid, value=lt_type,
                 description=f"Lifetime distribution of category '{cat}'",
-                ref="§5.5"))
+                ref="§3.2.5"))
             if _at(means) not in ("", 0.0):
                 rows.append(_row(
                     symbol=f"μ_{i + 1}", code="Lifetime_Mean", process=pid,
                     value=_at(means), unit="yr",
-                    description=f"Mean lifetime, category '{cat}'", ref="§5.5"))
+                    description=f"Mean lifetime, category '{cat}'", ref="§3.2.5"))
             if _at(stds) not in ("", 0.0):
                 rows.append(_row(
                     symbol=f"σ_{i + 1}", code="Lifetime_StdDev", process=pid,
                     value=_at(stds), unit="yr",
                     description=f"Lifetime StdDev, category '{cat}'",
-                    ref="§5.5"))
+                    ref="§3.2.5"))
             if _at(shapes) not in ("", None):
                 rows.append(_row(
                     symbol="κ", code="Lifetime_Shape", process=pid,
                     value=_at(shapes), unit="-",
                     description=f"Weibull shape, category '{cat}'",
-                    ref="§5.5-5.6"))
+                    ref="§3.2.5-3.2.6"))
             if _at(scales) not in ("", None):
                 rows.append(_row(
                     symbol="λ", code="Lifetime_Scale", process=pid,
                     value=_at(scales), unit="yr",
                     description=f"Weibull scale, category '{cat}'",
-                    ref="§5.5-5.6"))
+                    ref="§3.2.5-3.2.6"))
 
         if params.get("stock_configuration"):
             rows.append(_row(
                 symbol="-", code="stock_configuration", process=pid,
                 value=params["stock_configuration"],
-                description="Initial-stock handling method", ref="§6"))
+                description="Initial-stock handling method", ref="§3.3.1"))
         for fid in params.get("output_flow_ids", []):
             rows.append(_row(
                 symbol="TC_i", code="output_flow_ids", process=pid, flow=fid,
-                description="DSM outflow routing target", ref="§5.4"))
+                description="DSM outflow routing target", ref="§3.2.4"))
         for comp in params.get("components", []):
             rows.append(_row(
                 symbol="μ_c", code="mean_lifetime", process=pid,
@@ -391,7 +391,7 @@ def _build_dsm(dsm_params):
                 description=f"Component '{comp.get('element', '?')}' - "
                             f"spare flows {comp.get('sparepart_inflow', '?')} / "
                             f"{comp.get('sparepart_outflow', '?')}",
-                ref="§7"))
+                ref="§3.3.2"))
     return pd.DataFrame(rows, columns=_COLUMNS)
 
 
@@ -409,7 +409,7 @@ def _build_fomp(fomp_params):
             if value is None:
                 continue
             symbol, unit, ref, desc = _FOMP_KEY_MAP.get(
-                key, ("", "-", "§3", ""))
+                key, ("", "-", "§3.4", ""))
             is_flow_ref = key in _FOMP_FLOW_KEYS
             rows.append(_row(
                 symbol=symbol, code=key, process=pid,
@@ -425,7 +425,7 @@ def _build_lfg(lfg_params):
         for key, value in (params or {}).items():
             if key == "fractions" or value is None:
                 continue
-            symbol, unit, ref, desc = _LFG_SITE_MAP.get(key, ("", "-", "§4", ""))
+            symbol, unit, ref, desc = _LFG_SITE_MAP.get(key, ("", "-", "§3.5", ""))
             is_flow_ref = key in _LFG_FLOW_KEYS
             rows.append(_row(
                 symbol=symbol, code=key, process=pid,
@@ -438,7 +438,7 @@ def _build_lfg(lfg_params):
                 if key == "name" or value is None:
                     continue
                 symbol, unit, ref, desc = _LFG_FRACTION_MAP.get(
-                    key, ("", "-", "§4", ""))
+                    key, ("", "-", "§3.5", ""))
                 rows.append(_row(
                     symbol=symbol, code=key, process=pid,
                     value=_scalar(value), unit=unit,
@@ -501,7 +501,7 @@ def _build_uncertainty(uncertainty_params):
             "Start_Year": detail.pop("start_year", ""),
             "End_Year": detail.pop("end_year", ""),
             "Other": ", ".join(f"{k}={v}" for k, v in detail.items()),
-            "Ref.": "§8.1",
+            "Ref.": "§5.2.1",
         })
     return pd.DataFrame(rows)
 

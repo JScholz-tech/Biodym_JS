@@ -30,7 +30,7 @@ from engine.element_utils import (
 )
 
 # Border color used to flag a "Remaining X" bar segment where children
-# exceed their parent (ρ_f^e(t) < -tolerance, §2.6) — distinct from the
+# exceed their parent (ρ_f^e(t) < -tolerance, §6.2) — distinct from the
 # BIOYM_COLORS palette since that has no dedicated warning/danger color.
 _HIERARCHY_VIOLATION_COLOR = "#D62728"
 
@@ -40,7 +40,7 @@ def _summarize_pct_entries(entries):
 
     Used to present "children vs. parent" percentages as one grouped range
     instead of one line per flow/year — see bioDYM_mathematical_formulas.md
-    §2.6. Returns (0, None, None) for an empty list.
+    §6.2. Returns (0, None, None) for an empty list.
     """
     if not entries:
         return 0, None, None
@@ -101,7 +101,7 @@ def plot_flow_composition(
     This ensures WC + Remaining_DM + CC = 100% of material, providing complete visibility
     of both hierarchy levels while maintaining accurate composition validation.
 
-    **Validation (see bioDYM_mathematical_formulas.md §2.6):** every branching
+    **Validation (see bioDYM_mathematical_formulas.md §6.2):** every branching
     node of the element hierarchy is validated independently via
     ``engine.element_utils.validate_element_hierarchy()`` — not only the
     top-level "sum to 100% of material" check. A "Remaining X" segment gets a
@@ -109,7 +109,7 @@ def plot_flow_composition(
     (ρ_f^X(t) < -tolerance); the warnings panel lists every such node
     violation for the selected year. Children under-accounting for their
     parent are reported informationally, not as errors (a genuine untracked
-    remainder is expected — see §2.2's "undefined elements default to 0"
+    remainder is expected — see §1.2's "undefined elements default to 0"
     note), matching how "material" itself was always treated.
 
     Examples
@@ -240,11 +240,11 @@ def plot_flow_composition(
     # Apply initial layout to figure
     fig.update_layout(initial_layout)
 
-    # Per-node composition validation (§2.6), computed once for all
+    # Per-node composition validation (§6.2), computed once for all
     # flows/years — not recomputed on every slider tick. Every branching
     # node of the element hierarchy is checked independently (not only
     # "material"), which is what the old aggregate "sum to 100%" check
-    # could never do (see the docstring Notes above and §2.6 for the proof).
+    # could never do (see the docstring Notes above and §6.2 for the proof).
     all_violations = (
         validate_element_hierarchy(mfa_system_results, tolerance=composition_tolerance)
         if show_validation_warnings
@@ -311,14 +311,14 @@ def plot_flow_composition(
                     element_percentages[display_elem].append(percentage)
 
         # Composition validation for the selected year: query the
-        # precomputed per-node violations (§2.6) rather than recomputing
+        # precomputed per-node violations (§6.2) rather than recomputing
         # an aggregate that could never detect anything below "material".
         # Two different things are being checked here, kept visually and
         # textually separate so they can't be mistaken for one another:
         #   - "over" (children exceed parent) is a real hierarchy-consistency
         #     bug — listed individually so the offending flow is easy to find.
         #   - "under" (children fall short of parent) is expected whenever
-        #     only some of an element's children are tracked (§2.2) — grouped
+        #     only some of an element's children are tracked (§1.2) — grouped
         #     into one count + range per node instead of one line per flow,
         #     so it reads as "for your information", not as a wall of errors.
         flagged_flows_by_node: Dict[str, set] = {}
@@ -375,7 +375,7 @@ def plot_flow_composition(
                 )
 
                 # Flag individual bar segments where this node's children
-                # exceed it (ρ_f^e(t) < -tolerance, §2.6) with a red border,
+                # exceed it (ρ_f^e(t) < -tolerance, §6.2) with a red border,
                 # instead of only reporting it in the text warnings panel.
                 if display_elem.startswith("remaining_"):
                     flagged_flows = flagged_flows_by_node.get(parent_elem, set())
@@ -527,11 +527,11 @@ def validate_flow_compositions(
     Validate all flow compositions across all years.
 
     Thin wrapper around ``engine.element_utils.validate_element_hierarchy()``
-    (see bioDYM_mathematical_formulas.md §2.6). The returned ``over_100`` /
+    (see bioDYM_mathematical_formulas.md §6.2). The returned ``over_100`` /
     ``under_100`` lists are the "material" node's slice — numerically
     identical to what this function always computed, since summing every
     "Remaining X" segment telescopes exactly to the top-level
-    Σ_{e∈E_top} F_f^e(t) regardless of deeper-node correctness (§2.6). That
+    Σ_{e∈E_top} F_f^e(t) regardless of deeper-node correctness (§6.2). That
     telescoping is also why this function's aggregate check could never
     detect a violation below the top level (e.g. TOC+TIC exceeding TC): the
     verbose report below now surfaces those separately, since they are
@@ -585,7 +585,7 @@ def validate_flow_compositions(
     #     sub-element itself) is always a real data error — listed
     #     individually (capped) so the offending flow can be found.
     #   - "below" (children add up to LESS) is expected whenever only some
-    #     of an element's children are tracked (§2.2) — grouped into one
+    #     of an element's children are tracked (§1.2) — grouped into one
     #     count + percentage range per relationship, not one line per flow,
     #     so it reads as an FYI rather than a wall of warnings.
     if verbose:

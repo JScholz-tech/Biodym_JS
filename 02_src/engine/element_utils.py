@@ -5,7 +5,7 @@ Element Utilities Module for the BioDYM Engine.
 This module contains utility functions for handling element calculations,
 particularly for hierarchical element relationships.
 
-Mathematical notation (see bioDYM_mathematical_formulas.md §2.1, §2.4, §2.6):
+Mathematical notation (see bioDYM_mathematical_formulas.md §1.1, §2.3, §6.2):
     Paper symbol      Code variable
     φ_e (=e/p(e))  ←→  fraction_vector   (per-year child/parent ratio)
     p(e)           ←→  element_hierarchy[·]["parent"]
@@ -180,7 +180,7 @@ def build_element_children_map(element_hierarchy, elements):
 
     This is the inverse of the parent function p(e) already used by
     `recalculate_hierarchical_elements`: ch(e) := {e' : p(e') = e}
-    (see bioDYM_mathematical_formulas.md §2.6). Both ``parent=None`` and
+    (see bioDYM_mathematical_formulas.md §6.2). Both ``parent=None`` and
     ``parent="material"`` are treated as "child of mat" (top-level),
     matching the convention used throughout this module.
 
@@ -219,7 +219,7 @@ def validate_element_hierarchy(mfa_system, tolerance=1.0):
     Generalizes the single top-level check performed once during setup
     (system_setup._calculate_elemental_compositions) to every node in the
     element hierarchy, not only children of "material". See
-    bioDYM_mathematical_formulas.md §2.6 for the underlying formalism and
+    bioDYM_mathematical_formulas.md §6.2 for the underlying formalism and
     for a proof that the previous aggregate "sum to 100%" check used by
     `plotting.composition` could never detect a violation below the top
     level (it telescopes to the top-level sum regardless of deeper-node

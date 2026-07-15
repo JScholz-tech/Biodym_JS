@@ -12,7 +12,7 @@ Key differences from FOMP:
 - Leachate output (water consumed as reactant in anaerobic decomposition)
 - Site-level correction factors: MCF, DOCf, F_CH4, OX
 
-Mathematical notation (see bioDYM_mathematical_formulas.md §4):
+Mathematical notation (see bioDYM_mathematical_formulas.md §3.5):
     Paper symbol      Code variable
     k_j           ←→  k_j          (fraction decay rate)
     DOC_j         ←→  DOC_j        (degradable organic carbon fraction)
