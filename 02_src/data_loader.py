@@ -2360,6 +2360,28 @@ def load_dsm_from_yaml(yaml_path: str) -> dict:
             "parameter_based": False,
             "stock_configuration": stock_config,
         }
+
+        # Component entries (DSM_Component logic) — same structure as the
+        # 3_1_DSM_Components sheet merge in load_dsm_parameters().
+        cat_lt_by_elem: dict = {}
+        for cat in cats:
+            cat_name = str(cat.get("name", "Default"))
+            for elem, lt in (cat.get("component_lifetimes") or {}).items():
+                if lt is not None:
+                    cat_lt_by_elem.setdefault(str(elem), {})[cat_name] = float(lt)
+        components = []
+        for comp in dsm.get("components") or []:
+            entry = {
+                "element": str(comp.get("element", "")),
+                "mean_lifetime": float(comp.get("mean_lifetime") or 0.0),
+                "sparepart_outflow": str(comp.get("sparepart_outflow") or ""),
+                "sparepart_inflow": str(comp.get("sparepart_inflow") or ""),
+            }
+            if cat_lt_by_elem.get(entry["element"]):
+                entry["lifetime_per_category"] = cat_lt_by_elem[entry["element"]]
+            components.append(entry)
+        if components:
+            dsm_params[pid]["components"] = components
     print(f"   ✓ Loaded {len(dsm_params)} DSM process config(s) from YAML.")
     return dsm_params
 
