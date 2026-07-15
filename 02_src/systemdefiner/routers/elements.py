@@ -77,21 +77,41 @@ def _apply_element_edits(cfg, rename_map: dict, removed: set, e_map: dict) -> No
 
 
 def _rules_to_paths(rules: list) -> list[list[str]]:
-    """Convert ElementHierarchyRule list to path-rows for the matrix editor."""
-    parent_to_children: dict[str, list] = {}
-    child_to_parent: dict[str, str] = {}
+    """Convert ElementHierarchyRule list to path-rows for the matrix editor.
+
+    Lossless by construction: every stored parent→child edge appears as a
+    pair of adjacent cells in at least one row, so a render→save round trip
+    can never destroy edges. This matters for *damaged* hierarchies — a child
+    with several parents used to be rendered under only one of them (dict
+    last-wins), silently re-rooting its subtree into a deep chain on the next
+    save and dropping the other parent's edge entirely (observed live on
+    T16: repeated saves compounded one bad edge into a 10-level chain and
+    grew the level columns to match). The consistency checker still reports
+    multi-parent/cycle defects — but the editor now shows them instead of
+    mangling them.
+    """
+    # Ordered, de-duplicated edge list. Duplicate parent rules are merged
+    # (the old dict assignment silently dropped all but the last rule).
+    edges: list[tuple[str, str]] = []
+    seen_edges: set[tuple[str, str]] = set()
     for rule in rules:
-        parent_to_children[rule.parent] = list(rule.children)
         for child in rule.children:
-            child_to_parent[child] = rule.parent
+            e = (rule.parent, child)
+            if e not in seen_edges:
+                seen_edges.add(e)
+                edges.append(e)
 
-    all_elems: set[str] = set(parent_to_children.keys())
-    for rule in rules:
-        all_elems.update(rule.children)
+    parents = {p for p, _ in edges}
+    all_elems = parents | {c for _, c in edges}
 
-    leaves = [e for e in all_elems if e not in parent_to_children]
+    # Primary parent per child: first occurrence wins (deterministic).
+    primary_parent: dict[str, str] = {}
+    for p, c in edges:
+        primary_parent.setdefault(c, p)
+
+    leaves = [e for e in all_elems if e not in parents]
     if not leaves and all_elems:
-        leaves = list(all_elems)
+        leaves = sorted(all_elems)
 
     def get_path(elem: str) -> list[str]:
         path: list[str] = []
@@ -103,11 +123,24 @@ def _rules_to_paths(rules: list) -> list[list[str]]:
             # the consistency checker reports the cycle itself.
             seen.add(cur)
             path.insert(0, cur)
-            cur = child_to_parent.get(cur)
+            cur = primary_parent.get(cur)
         return path
 
-    # Pad all paths to the deepest path present (hierarchy depth is not capped).
     raw_paths = [get_path(leaf) for leaf in sorted(leaves)]
+
+    # Edge-coverage completion: any edge not already expressed by adjacent
+    # cells (i.e. a child's non-primary parent) gets its own row ending in
+    # that child, so the save round trip preserves it.
+    covered = {
+        (row[i], row[i + 1]) for row in raw_paths for i in range(len(row) - 1)
+    }
+    for p, c in edges:
+        if (p, c) not in covered:
+            row = get_path(p) + [c]
+            raw_paths.append(row)
+            covered.update((row[i], row[i + 1]) for i in range(len(row) - 1))
+
+    # Pad all paths to the deepest path present (hierarchy depth is not capped).
     depth = max((len(p) for p in raw_paths), default=0)
     paths = [p + [""] * (depth - len(p)) for p in raw_paths]
     paths.sort()

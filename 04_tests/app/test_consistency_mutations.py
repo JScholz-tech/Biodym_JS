@@ -868,6 +868,119 @@ class TestHardening:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Hierarchy editor render→save round trip (T16 save-loop corruption)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def _edges(cfg) -> set:
+    return {(r.parent, c) for r in cfg.element_hierarchy for c in r.children}
+
+
+def _elements_form_payload(cfg) -> dict:
+    """Exactly what the browser submits after opening /elements untouched:
+    element rows with _orig, level names (grown to max path depth like the
+    template's init() does), and one path_{i}_l{j} field per rendered cell."""
+    from systemdefiner.routers.elements import _rules_to_paths
+
+    data = {}
+    for i, elem in enumerate(cfg.model.elements):
+        data[f"element_{i}"] = elem
+        data[f"element_{i}_orig"] = elem
+    paths = _rules_to_paths(cfg.element_hierarchy)
+    max_depth = max((len(p) for p in paths), default=0)
+    level_names = list(cfg.model.hierarchy_level_names)
+    while len(level_names) < max_depth:
+        level_names.append(f"Level {len(level_names) + 1}")
+    for i, name in enumerate(level_names):
+        data[f"level_name_{i}"] = name
+    n_cols = max(len(level_names), 1)
+    for pi, p in enumerate(paths):
+        cells = list(p) + [""] * (n_cols - len(p))
+        for li, cell in enumerate(cells, 1):
+            data[f"path_{pi}_l{li}"] = cell
+    return data
+
+
+class TestHierarchyRoundTrip:
+    """A plain open→Save on the elements page must never change the stored
+    hierarchy — even a *damaged* one. A child with two parents used to be
+    rendered under only its last parent; saving then destroyed the other
+    edge and re-rooted the subtree, compounding into deep chains and
+    auto-added level columns on every save (observed live on T16)."""
+
+    def _study(self, name, hierarchy, elements, levels=None) -> CaseStudyConfig:
+        cfg = CaseStudyConfig(
+            name=name,
+            model={
+                "elements": elements,
+                "hierarchy_level_names": levels or ["Product", "Component"],
+            },
+            element_hierarchy=hierarchy,
+        )
+        storage.save_case_study(cfg)
+        return storage.load_case_study(name)
+
+    def _save_n(self, client, name, n=3):
+        for _ in range(n):
+            cfg = storage.load_case_study(name)
+            client.post(f"/{name}/elements", data=_elements_form_payload(cfg))
+        return storage.load_case_study(name)
+
+    def test_clean_tree_round_trip_is_stable(self, client):
+        cfg = self._study(
+            "hier_clean",
+            [
+                {"parent": "material", "children": ["A", "B"]},
+                {"parent": "A", "children": ["C", "D"]},
+                {"parent": "C", "children": ["E"]},
+            ],
+            ["material", "A", "B", "C", "D", "E"],
+            levels=["L1", "L2", "L3", "L4"],
+        )
+        before = _edges(cfg)
+        after = self._save_n(client, "hier_clean")
+        assert _edges(after) == before
+        assert after.model.hierarchy_level_names == ["L1", "L2", "L3", "L4"]
+
+    def test_multi_parent_edge_survives_saves(self, client):
+        # C has two parents (A and B) — a damaged state the checker flags.
+        # Every save must preserve BOTH edges, not silently re-root C.
+        cfg = self._study(
+            "hier_multi",
+            [
+                {"parent": "material", "children": ["A", "B"]},
+                {"parent": "A", "children": ["C"]},
+                {"parent": "B", "children": ["C"]},
+                {"parent": "C", "children": ["D"]},
+            ],
+            ["material", "A", "B", "C", "D"],
+            levels=["L1", "L2", "L3", "L4"],
+        )
+        before = _edges(cfg)
+        after = self._save_n(client, "hier_multi")
+        assert _edges(after) == before
+        # no phantom level growth either
+        assert len(after.model.hierarchy_level_names) == 4
+        # the defect stays visible to the user
+        assert any("multiple parents" in m for m in _errors(after))
+
+    def test_duplicate_parent_rules_render_all_children(self, client):
+        # Two rules for the same parent (importable state) used to overwrite
+        # each other at render time, dropping edges on the next save.
+        cfg = self._study(
+            "hier_dup",
+            [
+                {"parent": "material", "children": ["A"]},
+                {"parent": "material", "children": ["B"]},
+            ],
+            ["material", "A", "B"],
+        )
+        before = _edges(cfg)
+        after = self._save_n(client, "hier_dup")
+        assert _edges(after) == before
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Round trip over the real case studies: save-time normalization must not
 # introduce new consistency errors and must be idempotent
 # ══════════════════════════════════════════════════════════════════════════════
