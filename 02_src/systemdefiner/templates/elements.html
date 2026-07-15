@@ -39,8 +39,8 @@
            be cascaded to every element-keyed value in the config on save. #}
         <input type="hidden" name="element_{{ loop.index0 }}_orig" value="{{ elem }}">
         <input type="text" name="element_{{ loop.index0 }}"
-               value="{{ elem }}" style="flex:1;font-family:monospace"
-               oninput="onElemChange()">
+               value="{{ elem }}" data-prev="{{ elem }}" style="flex:1;font-family:monospace"
+               oninput="onElemChange(this)">
         <button type="button" class="btn btn-secondary btn-sm" onclick="moveElem(this,-1)" title="Move up">↑</button>
         <button type="button" class="btn btn-secondary btn-sm" onclick="moveElem(this,1)"  title="Move down">↓</button>
         <button type="button" class="btn btn-danger btn-sm"   onclick="removeElem(this)"  title="Remove">✕</button>
@@ -103,6 +103,8 @@
 
     <button type="button" class="btn btn-secondary" style="margin-top:0.6rem"
             onclick="addPathRow(null)">+ Add Path Row</button>
+
+    <div id="incomplete-warning" style="margin-top:0.75rem"></div>
   </div>
 
   {# ── Matrix Preview ───────────────────────────────────────────────── #}
@@ -173,14 +175,23 @@ function removeLevel(btn) {
     alert(`At least ${MIN_LEVELS} levels are required.`);
     return;
   }
-  btn.closest('.level-field').remove();
+  const field = btn.closest('.level-field');
+  // Capture which column this is BEFORE removing it — syncPathColumns must
+  // drop this exact column from every row's data, not just truncate the
+  // last column (a level removed from the middle used to leave the wrong
+  // node's data in place while silently deleting the deepest level instead).
+  const removedIdx = [...document.querySelectorAll('#level-list .level-field')].indexOf(field);
+  field.remove();
   reindexLevels();
-  syncPathColumns();
+  syncPathColumns(removedIdx);
 }
 
 // Rebuild path-table headers and each row's selects to match the current
 // level count, preserving already-chosen values by column position.
-function syncPathColumns() {
+// removedIdx: the column index that was just removed (from removeLevel), so
+// that exact column's data is spliced out of every row. Omitted when growing
+// (addLevel always appends, so the natural array-index padding is correct).
+function syncPathColumns(removedIdx) {
   const L     = levelCount();
   const names = getLevelNames();
 
@@ -197,6 +208,9 @@ function syncPathColumns() {
 
   document.querySelectorAll('#path-body tr').forEach((tr) => {
     const existing = [...tr.querySelectorAll('select')].map(s => s.value);
+    if (typeof removedIdx === 'number' && removedIdx >= 0 && removedIdx < existing.length) {
+      existing.splice(removedIdx, 1);
+    }
     const tds       = [...tr.children];
     const deleteTd  = tds[tds.length - 1];
     tds.slice(0, tds.length - 1).forEach(td => td.remove());
@@ -220,7 +234,23 @@ function rebuildElemIndices() {
   onElemChange();
 }
 
-function onElemChange() {
+function onElemChange(input) {
+  // A rename in progress (this row's value no longer equal to its last-seen
+  // value) must be cascaded into any hierarchy-matrix cell currently holding
+  // the old name — otherwise rebuildPathDropdowns() below rebuilds each
+  // <select>'s options from the live element list, finds no option matching
+  // the stale selection, and the browser silently falls back to the blank
+  // "—" option, dropping that cell before the user ever reaches Save.
+  if (input) {
+    const prev = input.dataset.prev || '';
+    const cur  = input.value.trim();
+    if (prev && cur && prev !== cur) {
+      document.querySelectorAll('#path-body select').forEach(sel => {
+        if (sel.value === prev) sel.value = cur;
+      });
+    }
+    input.dataset.prev = cur;
+  }
   rebuildPathDropdowns();
   refreshPreview();
 }
@@ -237,8 +267,8 @@ function addElem() {
   div.innerHTML = `
     <span class="muted" style="user-select:none;font-size:1.1rem;padding:0 4px">⠿</span>
     <input type="hidden" name="element_${idx}_orig" value="">
-    <input type="text" name="element_${idx}" value="${name}"
-           style="flex:1;font-family:monospace" oninput="onElemChange()">
+    <input type="text" name="element_${idx}" value="${name}" data-prev="${name}"
+           style="flex:1;font-family:monospace" oninput="onElemChange(this)">
     <button type="button" class="btn btn-secondary btn-sm" onclick="moveElem(this,-1)">↑</button>
     <button type="button" class="btn btn-secondary btn-sm" onclick="moveElem(this,1)">↓</button>
     <button type="button" class="btn btn-danger btn-sm"   onclick="removeElem(this)">✕</button>`;
@@ -340,7 +370,34 @@ function getPaths() {
     .filter(p => p.some(Boolean));
 }
 
+// The backend only records a parent→child relationship between two
+// ADJACENT non-empty cells in a row — a row with a single filled cell and
+// no adjacent partner produces no edge at all, and silently disappears on
+// the next save/reload with no indication why. Surface that here instead of
+// letting it vanish invisibly.
+function checkIncompleteRows() {
+  const warnDiv = document.getElementById('incomplete-warning');
+  if (!warnDiv) return;
+  const values = [];
+  document.querySelectorAll('#path-body tr').forEach((tr) => {
+    const cells = [...tr.querySelectorAll('select')].map(s => s.value.trim());
+    if (!cells.some(Boolean)) return;  // fully blank row — nothing to warn about
+    const hasEdge = cells.some((c, i) => c && cells[i + 1]);
+    if (!hasEdge) values.push(cells.find(Boolean));
+  });
+  if (values.length) {
+    warnDiv.innerHTML = `<div class="alert alert-warn">
+      ⚠ ${values.length} row${values.length > 1 ? 's' : ''} — <strong>${values.join(', ')}</strong> —
+      ${values.length > 1 ? 'have' : 'has'} no adjacent parent or child selected and will NOT be
+      saved. Pick a parent in the column to the left, or a child in the column to the right.
+    </div>`;
+  } else {
+    warnDiv.innerHTML = '';
+  }
+}
+
 function refreshPreview() {
+  checkIncompleteRows();
   const paths = getPaths();
   const div   = document.getElementById('matrix-preview');
   if (!paths.length) {
