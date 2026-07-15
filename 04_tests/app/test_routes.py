@@ -336,21 +336,21 @@ class TestFlows:
     def test_create_flow(self, client):
         n = self._study(client)
         r = client.post(f"/{n}/flows/new",
-                        data={"id": "F_01_02", "name": "My flow", "from_process": 0, "to_process": 1},
+                        data={"id": "F_00_01", "name": "My flow", "from_process": 0, "to_process": 1},
                         follow_redirects=True)
         assert r.status_code == 200
         assert b"My flow" in r.content
 
     def test_edit_flow(self, client):
         n = self._study(client)
-        client.post(f"/{n}/flows/new", data={"id": "F_01_02", "name": "Old", "from_process": 0, "to_process": 1})
-        r = client.get(f"/{n}/flows/F_01_02/edit")
+        client.post(f"/{n}/flows/new", data={"id": "F_00_01", "name": "Old", "from_process": 0, "to_process": 1})
+        r = client.get(f"/{n}/flows/F_00_01/edit")
         assert r.status_code == 200
 
     def test_delete_flow(self, client):
         n = self._study(client)
-        client.post(f"/{n}/flows/new", data={"id": "F_01_02", "name": "Gone", "from_process": 0, "to_process": 1})
-        client.post(f"/{n}/flows/F_01_02/delete")
+        client.post(f"/{n}/flows/new", data={"id": "F_00_01", "name": "Gone", "from_process": 0, "to_process": 1})
+        client.post(f"/{n}/flows/F_00_01/delete")
         r = client.get(f"/{n}/flows")
         assert b"Gone" not in r.content
 
@@ -358,6 +358,36 @@ class TestFlows:
         n = self._study(client)
         r = client.get(f"/{n}/flows/F_99_99/edit")
         assert r.status_code == 404
+
+    def test_edit_flow_autosyncs_id_when_endpoints_change(self, client):
+        # Editing endpoints of an auto-generated F_<from>_<to> flow must
+        # re-derive the ID so it can never drift from its source/target.
+        n = self._study(client)
+        client.post(f"/{n}/processes/new", data={"name": "P3", "logic": "Output", "stock": "No_Stock"})
+        client.post(f"/{n}/flows/new", data={"id": "F_00_01", "name": "f", "from_process": 0, "to_process": 1})
+        client.post(f"/{n}/flows/F_00_01/edit", data={"name": "f", "from_process": 0, "to_process": 2})
+        html = client.get(f"/{n}/flows").content
+        assert b"F_00_02" in html and b"F_00_01" not in html
+
+    def test_edit_flow_autosync_suffixes_on_collision(self, client):
+        # A second edge into the same process pair surfaces as F_..._2 instead
+        # of silently becoming a hidden duplicate.
+        n = self._study(client)
+        client.post(f"/{n}/processes/new", data={"name": "P3", "logic": "Output", "stock": "No_Stock"})
+        client.post(f"/{n}/flows/new", data={"id": "F_00_02", "name": "a", "from_process": 0, "to_process": 2})
+        client.post(f"/{n}/flows/new", data={"id": "F_00_01", "name": "b", "from_process": 0, "to_process": 1})
+        client.post(f"/{n}/flows/F_00_01/edit", data={"name": "b", "from_process": 0, "to_process": 2})
+        html = client.get(f"/{n}/flows").content
+        assert b"F_00_02_2" in html and b"F_00_01" not in html
+
+    def test_edit_flow_preserves_custom_id(self, client):
+        # Deliberately custom (non-convention) IDs are never auto-renamed.
+        n = self._study(client)
+        client.post(f"/{n}/processes/new", data={"name": "P3", "logic": "Output", "stock": "No_Stock"})
+        client.post(f"/{n}/flows/new", data={"id": "MyFlow", "name": "c", "from_process": 0, "to_process": 1})
+        client.post(f"/{n}/flows/MyFlow/edit", data={"name": "c", "from_process": 0, "to_process": 2})
+        html = client.get(f"/{n}/flows").content
+        assert b"MyFlow" in html
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -369,7 +399,7 @@ class TestTransferCoefficients:
         client.post("/new", data={"name": name, "start_year": 2025, "end_year": 2125, "elements": "material, WC"})
         client.post(f"/{name}/processes/new", data={"name": "P1", "logic": "Splitter", "stock": "No_Stock"})
         client.post(f"/{name}/processes/new", data={"name": "P2", "logic": "Output", "stock": "No_Stock"})
-        client.post(f"/{name}/flows/new", data={"id": "F_01_02", "name": "f", "from_process": 0, "to_process": 1})
+        client.post(f"/{name}/flows/new", data={"id": "F_00_01", "name": "f", "from_process": 0, "to_process": 1})
         return name
 
     def test_tc_overview_loads(self, client):
@@ -383,7 +413,7 @@ class TestTransferCoefficients:
     def test_tc_save_valid(self, client):
         n = self._study_with_flow(client)
         r = client.post(f"/{n}/tcs/0",
-                        data={"tc_F_01_02_material": "1.0", "tc_F_01_02_WC": "1.0"},
+                        data={"tc_F_00_01_material": "1.0", "tc_F_00_01_WC": "1.0"},
                         follow_redirects=True)
         assert r.status_code == 200
 

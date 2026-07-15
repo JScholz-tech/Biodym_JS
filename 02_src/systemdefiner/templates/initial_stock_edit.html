@@ -119,8 +119,17 @@ const TOP_DOWN_PARENTS = (function () {
   return order;
 })();
 
+// Hierarchy depth ("columns") is dynamic — cover named levels and deepest path.
+const LEVELS = Math.max(
+  LEVEL_NAMES.length,
+  INIT_PATHS.reduce((m, p) => Math.max(m, p.length), 0)
+);
+const LEVEL_HDRS = Array.from({ length: LEVELS }, (_, i) => LEVEL_NAMES[i] || `Level ${i + 1}`);
 const SORTED_PATHS = [...INIT_PATHS].sort((a, b) => {
-  for (let i = 0; i < 4; i++) { if (a[i] < b[i]) return -1; if (a[i] > b[i]) return 1; }
+  for (let i = 0; i < LEVELS; i++) {
+    if ((a[i] || '') < (b[i] || '')) return -1;
+    if ((a[i] || '') > (b[i] || '')) return 1;
+  }
   return 0;
 });
 
@@ -130,7 +139,7 @@ function getPct(elem) {
 }
 
 function computeSpans(paths) {
-  const N = paths.length, L = 4;
+  const N = paths.length, L = LEVELS;
   const spans = Array.from({length: N}, () => Array(L).fill(1));
   for (let row = 1; row < N; row++) {
     for (let col = 0; col < L; col++) {
@@ -216,11 +225,11 @@ function buildMatrix() {
 
   const spans = computeSpans(SORTED_PATHS), N = SORTED_PATHS.length;
   let html = `<table style="border-collapse:collapse"><thead><tr>`;
-  LEVEL_NAMES.forEach(n => html += `<th style="${thSt}">${n}</th>`);
+  LEVEL_HDRS.forEach(n => html += `<th style="${thSt}">${n}</th>`);
   html += '</tr></thead><tbody>';
   for (let row = 0; row < N; row++) {
     html += '<tr>';
-    for (let col = 0; col < 4; col++) {
+    for (let col = 0; col < LEVELS; col++) {
       if (spans[row][col] === 0) continue;
       const elem = SORTED_PATHS[row][col], rs = spans[row][col];
       if (!elem) { html += `<td rowspan="${rs}" style="${tdDash}">—</td>`; continue; }
@@ -232,9 +241,9 @@ function buildMatrix() {
   const covered = new Set(SORTED_PATHS.flat().filter(Boolean));
   const uncovered = ELEMENTS.filter(e => !covered.has(e));
   if (uncovered.length) {
-    html += `<tr><td colspan="4" style="${tdSt};color:var(--muted);font-size:0.8rem;font-style:italic">Other elements (not in hierarchy)</td></tr>`;
+    html += `<tr><td colspan="${LEVELS}" style="${tdSt};color:var(--muted);font-size:0.8rem;font-style:italic">Other elements (not in hierarchy)</td></tr>`;
     uncovered.forEach(e => {
-      html += `<tr><td colspan="3" style="${tdSt};color:var(--muted)">${e}</td><td style="${tdSt}">${cell(e, e === ROOT_ELEM, false)}</td></tr>`;
+      html += `<tr><td colspan="${LEVELS - 1}" style="${tdSt};color:var(--muted)">${e}</td><td style="${tdSt}">${cell(e, e === ROOT_ELEM, false)}</td></tr>`;
     });
   }
   return html + '</tbody></table>';

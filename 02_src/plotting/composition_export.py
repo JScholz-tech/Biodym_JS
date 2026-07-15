@@ -19,7 +19,7 @@ def export_flow_composition(mfa_system_results, output_path):
     "Remaining X" (X minus the sum of its children), mirroring the
     hierarchy handling in ``plotting.composition.plot_flow_composition`` —
     this telescopes to exactly 100% of material regardless of how many
-    hierarchy levels are tracked (bioDYM_mathematical_formulas.md §2.6),
+    hierarchy levels are tracked (bioDYM_mathematical_formulas.md §6.2),
     unlike summing every element flat (which double-counts parent/child
     pairs such as DM and TC).
 

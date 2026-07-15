@@ -6,7 +6,7 @@ This file contains the core iterative solver that orchestrates the
 calculation of the entire MFA system. It calls the specific model
 functions (DSM, FOMP) in the correct sequence until the system converges.
 
-Mathematical notation (see bioDYM_mathematical_formulas.md §1):
+Mathematical notation (see bioDYM_mathematical_formulas.md §2.2-2.3, §3.1, §4.1):
     Paper symbol      Code variable
     F_f^e(t)      ←→  mfa_system.FlowDict[f].Values
     S_p^e(t)      ←→  mfa_system.StockDict["S_p"].Values

@@ -132,7 +132,11 @@ try:
     from engine import scenario_engine
     import plotting
     import ODYM_Classes as msc
-    from plotting.composition import plot_flow_composition, validate_flow_compositions
+    from plotting.composition import (
+        plot_flow_composition,
+        plot_flow_composition_sunburst,
+        validate_flow_compositions,
+    )
     from plotting.composition_export import export_flow_composition
     from plotting.sankey import export_sankey_batch
     from reporting import kpi_dashboard
@@ -437,6 +441,11 @@ except Exception as e:
 COMPOSITION_TOLERANCE = 1.0  # percentage points around 100%, shared by plot + report
 
 plot_flow_composition(mfa_results_baseline, composition_tolerance=COMPOSITION_TOLERANCE)
+
+# Supplementary hierarchical view: the same composition as concentric rings
+# (total-mass element at the centre → top-level elements → sub-elements),
+# aggregated over all flows at the final model year.
+plot_flow_composition_sunburst(mfa_results_baseline)
 
 print(format_step(Icons.VALIDATION, "2.5", "Composition validation report (all years)..."))
 composition_validation = validate_flow_compositions(

@@ -31,75 +31,105 @@
 
 <form method="post" action="/{{ cfg.name }}/flow_data" id="flow-form">
 
+{# Expand / collapse all — handy for studies with many input flows. #}
+<div style="display:flex;gap:0.5rem;margin-bottom:1rem">
+  <button type="button" class="btn btn-secondary btn-sm" onclick="setAllFlows(true)">Expand all</button>
+  <button type="button" class="btn btn-secondary btn-sm" onclick="setAllFlows(false)">Collapse all</button>
+</div>
+
 {% for flow in input_flows %}
 {% set j = loop.index0 %}
+{% set fd = flow_data_map.get(flow.id, {}) %}
 <input type="hidden" name="fd_{{ j }}_id" value="{{ flow.id }}">
 
-<div class="card" style="margin-bottom:1.5rem">
+<div class="card flow-card" style="margin-bottom:1rem;padding:0">
 
-  <div style="display:flex;align-items:baseline;gap:0.75rem;margin-bottom:1rem">
-    <h2 style="margin:0;font-size:1.1rem">{{ flow.name }}</h2>
+  <!-- Accordion header (click to expand/collapse) -->
+  <div class="flow-head" onclick="toggleFlow({{ j }})"
+       style="display:flex;align-items:center;gap:0.75rem;padding:0.85rem 1rem;cursor:pointer;user-select:none">
+    <span id="chev-{{ j }}" style="display:inline-block;transition:transform .15s;color:var(--muted)">▶</span>
+    <strong style="font-size:1.02rem">{{ flow.name }}</strong>
     <span class="tag">{{ flow.id }}</span>
     <span class="muted" style="font-size:0.83rem">P{{ flow.from_process }} → P{{ flow.to_process }}</span>
-    {% if cfg.references %}
-    <span style="margin-left:auto;font-size:0.83rem;color:var(--muted)">Sources:
-      {{ ref_multiselect("fd_" ~ j ~ "_refs", flow_data_refs.get(flow.id, []), cfg.references) }}</span>
-    {% endif %}
+    <span class="muted" style="margin-left:auto;font-size:0.8rem">
+      <span id="pts-{{ j }}">{{ fd | length }}</span>&nbsp;point<span id="ptss-{{ j }}">{% if fd | length != 1 %}s{% endif %}</span>
+    </span>
   </div>
 
-  <div style="display:grid;grid-template-columns:300px 1fr;gap:1.5rem;align-items:start">
+  <!-- Collapsible body -->
+  <div id="flowbody-{{ j }}" class="flow-body" style="display:none;padding:0 1rem 1.1rem">
 
-    <!-- Data entry table -->
-    <div>
-      <div style="overflow-x:auto">
-        <table style="width:100%;min-width:200px">
-          <thead>
-            <tr>
-              <th>Year</th>
-              <th>Value ({{ cfg.model.unit_of_measurement }}/yr)</th>
-              <th style="width:36px"></th>
-            </tr>
-          </thead>
-          <tbody id="body-{{ j }}"
-                 data-j="{{ j }}"
-                 data-flow-id="{{ flow.id }}"
-                 data-start="{{ cfg.model.start_year }}"
-                 data-end="{{ cfg.model.end_year }}">
-            {% set fd = flow_data_map.get(flow.id, {}) %}
-            {% for year in fd | sort %}
-            {% set i = loop.index0 %}
-            <tr>
-              <td>
-                <input type="number" name="fd_{{ j }}_y_{{ i }}"
-                       value="{{ year }}"
-                       min="{{ cfg.model.start_year }}" max="{{ cfg.model.end_year }}"
-                       style="width:100%">
-              </td>
-              <td>
-                <input type="number" step="any" name="fd_{{ j }}_v_{{ i }}"
-                       value="{{ fd[year] }}"
-                       min="0" style="width:100%">
-              </td>
-              <td>
-                <button type="button" class="btn btn-danger"
-                        onclick="removeRow(this)">×</button>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      <div style="margin-top:0.5rem">
-        <button type="button" class="btn btn-secondary btn-sm"
-                onclick="addRow({{ j }})">+ Add Point</button>
-      </div>
+    {% if cfg.references %}
+    <div style="margin-bottom:0.75rem;font-size:0.83rem;color:var(--muted)">Sources:
+      {{ ref_multiselect("fd_" ~ j ~ "_refs", flow_data_refs.get(flow.id, []), cfg.references) }}</div>
+    {% endif %}
+
+    <!-- CSV import -->
+    <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;margin-bottom:0.85rem">
+      <label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0">
+        ⬆ Import CSV
+        <input type="file" accept=".csv,text/csv,text/plain" style="display:none"
+               onchange="importCsv({{ j }}, this)">
+      </label>
+      <span class="muted" style="font-size:0.8rem">
+        Two columns <code>year,value</code> (a header row is auto-detected;
+        <code>;</code>/tab delimiters and comma decimals accepted). Replaces the points below.
+      </span>
     </div>
 
-    <!-- Live interpolation chart -->
-    <div style="min-height:200px">
-      <canvas id="chart-{{ j }}"></canvas>
-    </div>
+    <div style="display:grid;grid-template-columns:300px 1fr;gap:1.5rem;align-items:start">
 
+      <!-- Data entry table -->
+      <div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;min-width:200px">
+            <thead>
+              <tr>
+                <th>Year</th>
+                <th>Value ({{ cfg.model.unit_of_measurement }}/yr)</th>
+                <th style="width:36px"></th>
+              </tr>
+            </thead>
+            <tbody id="body-{{ j }}"
+                   data-j="{{ j }}"
+                   data-flow-id="{{ flow.id }}"
+                   data-start="{{ cfg.model.start_year }}"
+                   data-end="{{ cfg.model.end_year }}">
+              {% for year in fd | sort %}
+              {% set i = loop.index0 %}
+              <tr>
+                <td>
+                  <input type="number" name="fd_{{ j }}_y_{{ i }}"
+                         value="{{ year }}"
+                         min="{{ cfg.model.start_year }}" max="{{ cfg.model.end_year }}"
+                         style="width:100%">
+                </td>
+                <td>
+                  <input type="number" step="any" name="fd_{{ j }}_v_{{ i }}"
+                         value="{{ fd[year] }}"
+                         min="0" style="width:100%">
+                </td>
+                <td>
+                  <button type="button" class="btn btn-danger"
+                          onclick="removeRow(this)">×</button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top:0.5rem">
+          <button type="button" class="btn btn-secondary btn-sm"
+                  onclick="addRow({{ j }})">+ Add Point</button>
+        </div>
+      </div>
+
+      <!-- Live interpolation chart -->
+      <div style="min-height:200px">
+        <canvas id="chart-{{ j }}"></canvas>
+      </div>
+
+    </div>
   </div>
 </div>
 {% endfor %}
@@ -237,6 +267,7 @@ function buildChart(j) {
 
 // ── Refresh an existing chart ──────────────────────────────────────────────
 function refreshChart(j) {
+    updatePoints(j);
     const chart = charts[j];
     if (!chart) return;
     const tbody = document.getElementById('body-' + j);
@@ -284,11 +315,107 @@ function reindexRows(j) {
     });
 }
 
-// ── Init ───────────────────────────────────────────────────────────────────
+// ── Live point counter in the accordion header ─────────────────────────────
+function updatePoints(j) {
+    const tbody = document.getElementById('body-' + j);
+    if (!tbody) return;
+    const n = tbody.querySelectorAll('tr').length;
+    const cnt = document.getElementById('pts-' + j);
+    if (cnt) cnt.textContent = n;
+    const sfx = document.getElementById('ptss-' + j);
+    if (sfx) sfx.textContent = (n === 1) ? '' : 's';
+}
+
+// ── Accordion: charts are built lazily on first expand (fast with many flows) ─
+const built = {};  // j → true once its chart has been created
+
+function toggleFlow(j) { setFlow(j, document.getElementById('flowbody-' + j).style.display === 'none'); }
+
+function setFlow(j, open) {
+    const body = document.getElementById('flowbody-' + j);
+    const chev = document.getElementById('chev-' + j);
+    if (!body) return;
+    if (open) {
+        body.style.display = '';
+        if (chev) chev.style.transform = 'rotate(90deg)';
+        if (!built[j]) { buildChart(j); built[j] = true; }  // build only when first shown
+        else refreshChart(j);
+    } else {
+        body.style.display = 'none';
+        if (chev) chev.style.transform = '';
+    }
+}
+
+function setAllFlows(open) {
+    document.querySelectorAll('.flow-body').forEach(body => {
+        const j = parseInt(body.id.replace('flowbody-', ''));
+        if (!Number.isNaN(j)) setFlow(j, open);
+    });
+}
+
+// ── CSV import (client-side) ───────────────────────────────────────────────
+// Parse a "year,value" CSV into sparse points. Tolerates a header row,
+// ';'/tab delimiters, and European comma decimals (semicolon-delimited files).
+function parseCsv(text) {
+    const pts = [];
+    text.split(/\r?\n/).forEach(line => {
+        const raw = line.trim();
+        if (!raw) return;
+        let cols;
+        if (raw.includes(';'))       cols = raw.split(';');   // EU: ';' delim, ',' decimal
+        else if (raw.includes('\t')) cols = raw.split('\t');
+        else                         cols = raw.split(',');   // standard: ',' delim, '.' decimal
+        cols = cols.map(c => c.trim());
+        if (cols.length < 2) return;
+        const year = parseInt(cols[0], 10);
+        const val  = parseFloat(cols[1].replace(',', '.'));
+        if (Number.isNaN(year) || Number.isNaN(val)) return;  // skips header / blank rows
+        pts.push({ year, value: val });
+    });
+    return pts;
+}
+
+function setRows(j, points) {
+    const tbody = document.getElementById('body-' + j);
+    tbody.innerHTML = '';
+    points.sort((a, b) => a.year - b.year).forEach((p, i) => {
+        const start = parseInt(tbody.dataset.start);
+        const end   = parseInt(tbody.dataset.end);
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+            `<td><input type="number" name="fd_${j}_y_${i}" value="${p.year}" ` +
+            `min="${start}" max="${end}" style="width:100%"></td>` +
+            `<td><input type="number" step="any" name="fd_${j}_v_${i}" value="${p.value}" ` +
+            `min="0" style="width:100%"></td>` +
+            `<td><button type="button" class="btn btn-danger" onclick="removeRow(this)">×</button></td>`;
+        tbody.appendChild(tr);
+    });
+    refreshChart(j);
+}
+
+function importCsv(j, input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        const points = parseCsv(e.target.result);
+        if (!points.length) {
+            alert('No valid "year,value" rows found in that CSV.');
+        } else {
+            setRows(j, points);
+        }
+        input.value = '';  // allow re-importing the same file
+    };
+    reader.readAsText(file);
+}
+
+// ── Init: everything starts collapsed; open the first flow for convenience ──
 document.addEventListener('DOMContentLoaded', () => {
-    {% for flow in input_flows %}
-    buildChart({{ loop.index0 }});
-    {% endfor %}
+    const first = document.querySelector('.flow-body');
+    if (first) {
+        const j = parseInt(first.id.replace('flowbody-', ''));
+        if (!Number.isNaN(j)) setFlow(j, true);
+    }
 });
 </script>
 {% endblock %}

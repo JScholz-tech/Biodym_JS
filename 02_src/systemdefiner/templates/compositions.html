@@ -109,6 +109,14 @@ const FLOW_COMPS  = {{ flow_comps_json | safe }};  // % (fraction × 100), keyed
 const FLOW_LIST   = {{ flow_list_json | safe }};
 const EPS = 0.01;
 
+// Hierarchy depth ("columns") is dynamic. Cover both the named levels and the
+// deepest stored path so no column is dropped if the two ever disagree.
+const LEVELS = Math.max(
+  LEVEL_NAMES.length,
+  INIT_PATHS.reduce((m, p) => Math.max(m, p.length), 0)
+);
+const LEVEL_HDRS = Array.from({ length: LEVELS }, (_, i) => LEVEL_NAMES[i] || `Level ${i + 1}`);
+
 // ── Structure maps ──────────────────────────────────────────────────────────────
 const PARENT_CHILDREN = {}; HIERARCHY.forEach(r => { PARENT_CHILDREN[r.parent] = r.children; });
 const CHILD_PARENT    = {}; HIERARCHY.forEach(r => { r.children.forEach(c => { CHILD_PARENT[c] = r.parent; }); });
@@ -119,7 +127,10 @@ function isParent(e) { return Object.prototype.hasOwnProperty.call(PARENT_CHILDR
 function safeId(fid) { return fid.replace(/[.\-\/]/g, '_'); }
 
 const SORTED_PATHS = [...INIT_PATHS].sort((a, b) => {
-  for (let i = 0; i < 4; i++) { if (a[i] < b[i]) return -1; if (a[i] > b[i]) return 1; }
+  for (let i = 0; i < LEVELS; i++) {
+    if ((a[i] || '') < (b[i] || '')) return -1;
+    if ((a[i] || '') > (b[i] || '')) return 1;
+  }
   return 0;
 });
 // A path's top-level branch is column 1 (column 0 is the root).
@@ -191,7 +202,7 @@ function renderOverview() {
 
 // ── Span computation (grouped matrix, same as elements preview) ──────────────────
 function computeSpans(paths) {
-  const N = paths.length, L = 4;
+  const N = paths.length, L = LEVELS;
   const spans = Array.from({ length: N }, () => Array(L).fill(1));
   for (let row = 1; row < N; row++) {
     for (let col = 0; col < L; col++) {
@@ -246,12 +257,12 @@ function buildMatrix(fid) {
 
   const spans = computeSpans(paths), N = paths.length;
   let html = `<table style="border-collapse:collapse"><thead><tr>`;
-  LEVEL_NAMES.forEach(n => { html += `<th style="${thSt}">${n}</th>`; });
+  LEVEL_HDRS.forEach(n => { html += `<th style="${thSt}">${n}</th>`; });
   html += '</tr></thead><tbody>';
 
   for (let row = 0; row < N; row++) {
     html += '<tr>';
-    for (let col = 0; col < 4; col++) {
+    for (let col = 0; col < LEVELS; col++) {
       if (spans[row][col] === 0) continue;
       const elem = paths[row][col], rs = spans[row][col];
       if (!elem) { html += `<td rowspan="${rs}" style="${tdDash}">—</td>`; continue; }
@@ -270,9 +281,9 @@ function buildMatrix(fid) {
   const covered = new Set(SORTED_PATHS.flat().filter(Boolean));
   const uncovered = ELEMENTS.filter(e => !covered.has(e) && (!COMPACT[fid] || pct(fid, e) > EPS));
   if (uncovered.length) {
-    html += `<tr><td colspan="4" style="${tdSt};color:var(--muted);font-size:0.8rem;font-style:italic">Other elements (not in hierarchy)</td></tr>`;
+    html += `<tr><td colspan="${LEVELS}" style="${tdSt};color:var(--muted);font-size:0.8rem;font-style:italic">Other elements (not in hierarchy)</td></tr>`;
     uncovered.forEach(e => {
-      html += `<tr><td colspan="3" style="${tdSt};color:var(--muted)">${e}</td><td style="${tdSt}">${inputHtml(e)}</td></tr>`;
+      html += `<tr><td colspan="${LEVELS - 1}" style="${tdSt};color:var(--muted)">${e}</td><td style="${tdSt}">${inputHtml(e)}</td></tr>`;
     });
   }
   return html + '</tbody></table>';

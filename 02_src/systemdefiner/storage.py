@@ -5,7 +5,11 @@ from pathlib import Path
 
 import yaml
 
-from systemdefiner.models.config_schema import CaseStudyConfig, StockConfig
+from systemdefiner.models.config_schema import (
+    CaseStudyConfig,
+    ProcessLogic,
+    StockConfig,
+)
 
 _INITIAL_STOCK_CONFIGS = (
     StockConfig.initial_stock_cohort,
@@ -23,6 +27,13 @@ def _prune_orphan_initial_stocks(config: CaseStudyConfig) -> None:
     """
     valid = {p.id for p in config.processes if p.stock in _INITIAL_STOCK_CONFIGS}
     config.initial_stocks = [s for s in config.initial_stocks if s.process_id in valid]
+
+
+def _prune_orphan_bom(config: CaseStudyConfig) -> None:
+    """Drop BOM entries whose process is gone or no longer a BOM_Assembler —
+    same invariant-on-save pattern as the initial stocks."""
+    valid = {p.id for p in config.processes if p.logic == ProcessLogic.bom_assembler}
+    config.bom_assembly = [e for e in config.bom_assembly if e.process_id in valid]
 
 
 CASE_STUDIES_DIR = Path("01_data/01_input/case_studies")
@@ -106,12 +117,22 @@ def load_case_study(name: str) -> CaseStudyConfig:
         raise CaseStudyNotFound(name)
     with _lock_for(name):
         raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    raw.setdefault("name", name)
+    # The folder name is authoritative. A hand-copied study can carry a stale
+    # internal `name:` (e.g. heatpumps_1 containing "name: tracer") — honoring
+    # it would make save_case_study silently write every edit to the OTHER
+    # study's folder.
+    raw["name"] = name
     return CaseStudyConfig.model_validate(raw)
 
 
 def save_case_study(config: CaseStudyConfig) -> None:
     _prune_orphan_initial_stocks(config)
+    _prune_orphan_bom(config)
+    # Normalize: processes sorted by ID. Several consumers historically
+    # assumed list position == process ID; keeping the stored order canonical
+    # removes that bug class at the source (process_new appends gap-filling
+    # IDs at the end of the list).
+    config.processes.sort(key=lambda p: p.id)
     path = _config_path(config.name)
     path.parent.mkdir(parents=True, exist_ok=True)
     data = config.model_dump(mode="json")

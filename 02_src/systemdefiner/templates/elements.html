@@ -26,6 +26,7 @@
          the engine requires it to be named "material", so it is locked. #}
       <div class="elem-row" style="display:flex;align-items:center;gap:0.5rem">
         <span class="muted" style="user-select:none;font-size:1.1rem;padding:0 4px">🔒</span>
+        <input type="hidden" name="element_0_orig" value="material">
         <input type="text" name="element_0" value="material" readonly
                style="flex:1;font-family:monospace;background:var(--bg);color:var(--muted)"
                title="The first element is the total mass balance and hierarchy root — its name is fixed to 'material'.">
@@ -34,6 +35,9 @@
       {% else %}
       <div class="elem-row" style="display:flex;align-items:center;gap:0.5rem">
         <span class="muted" style="user-select:none;font-size:1.1rem;padding:0 4px">⠿</span>
+        {# The original (server-side) name travels with the row so a rename can
+           be cascaded to every element-keyed value in the config on save. #}
+        <input type="hidden" name="element_{{ loop.index0 }}_orig" value="{{ elem }}">
         <input type="text" name="element_{{ loop.index0 }}"
                value="{{ elem }}" style="flex:1;font-family:monospace"
                oninput="onElemChange()">
@@ -63,19 +67,24 @@
       The preview below shows the resulting grouped matrix.
     </p>
 
-    {# Level name editors #}
-    <div style="display:grid;grid-template-columns:repeat(4,1fr) 44px;gap:0.5rem;margin-bottom:0.75rem;max-width:720px">
-      {% for i in range(4) %}
-      <div class="field" style="margin-bottom:0">
-        <label style="font-size:0.78rem;margin-bottom:0.2rem">Level {{ i+1 }} Name</label>
-        <input type="text" name="level_name_{{ i }}" id="level-name-{{ i }}"
-               value="{{ cfg.model.hierarchy_level_names[i] }}"
-               oninput="updateHeaders()"
-               style="font-size:0.88rem">
+    {# Level name editors — the number of levels (hierarchy depth) is
+       user-extensible; add or remove level "columns" as needed. #}
+    <div id="level-list" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.5rem;align-items:flex-end">
+      {% for name in cfg.model.hierarchy_level_names %}
+      <div class="level-field field" style="margin-bottom:0;min-width:150px">
+        <label style="font-size:0.78rem;margin-bottom:0.2rem">Level {{ loop.index }} Name</label>
+        <div style="display:flex;gap:0.25rem;align-items:center">
+          <input type="text" class="level-name-input" name="level_name_{{ loop.index0 }}"
+                 value="{{ name }}" oninput="updateHeaders()"
+                 style="font-size:0.88rem;flex:1">
+          <button type="button" class="btn btn-danger btn-sm" onclick="removeLevel(this)"
+                  title="Remove this level">✕</button>
+        </div>
       </div>
       {% endfor %}
-      <div></div>{# spacer for delete column #}
     </div>
+    <button type="button" class="btn btn-secondary btn-sm" style="margin-bottom:0.75rem"
+            onclick="addLevel()">+ Add Level</button>
 
     {# Path rows #}
     <div style="overflow-x:auto">
@@ -120,16 +129,93 @@ function getElemNames() {
     .map(i => i.value.trim()).filter(Boolean);
 }
 
+// Hierarchy depth ("columns") is dynamic — read straight from the DOM.
+const MIN_LEVELS = 2;
+
 function getLevelNames() {
-  return [0,1,2,3].map(i =>
-    (document.getElementById(`level-name-${i}`)?.value || `Level ${i+1}`).trim()
-  );
+  return [...document.querySelectorAll('#level-list .level-name-input')]
+    .map(i => i.value.trim());
+}
+
+function levelCount() {
+  return document.querySelectorAll('#level-list .level-name-input').length;
+}
+
+function reindexLevels() {
+  document.querySelectorAll('#level-list .level-field').forEach((f, i) => {
+    f.querySelector('.level-name-input').name = `level_name_${i}`;
+    const lbl = f.querySelector('label');
+    if (lbl) lbl.textContent = `Level ${i + 1} Name`;
+  });
+}
+
+function addLevel() {
+  const list = document.getElementById('level-list');
+  const i    = list.querySelectorAll('.level-field').length;
+  const div  = document.createElement('div');
+  div.className   = 'level-field field';
+  div.style.cssText = 'margin-bottom:0;min-width:150px';
+  div.innerHTML = `
+    <label style="font-size:0.78rem;margin-bottom:0.2rem">Level ${i + 1} Name</label>
+    <div style="display:flex;gap:0.25rem;align-items:center">
+      <input type="text" class="level-name-input" name="level_name_${i}"
+             value="Level ${i + 1}" oninput="updateHeaders()" style="font-size:0.88rem;flex:1">
+      <button type="button" class="btn btn-danger btn-sm" onclick="removeLevel(this)"
+              title="Remove this level">✕</button>
+    </div>`;
+  list.appendChild(div);
+  reindexLevels();
+  syncPathColumns();
+}
+
+function removeLevel(btn) {
+  if (levelCount() <= MIN_LEVELS) {
+    alert(`At least ${MIN_LEVELS} levels are required.`);
+    return;
+  }
+  btn.closest('.level-field').remove();
+  reindexLevels();
+  syncPathColumns();
+}
+
+// Rebuild path-table headers and each row's selects to match the current
+// level count, preserving already-chosen values by column position.
+function syncPathColumns() {
+  const L     = levelCount();
+  const names = getLevelNames();
+
+  const head = document.getElementById('path-head');
+  head.querySelectorAll('.level-hdr').forEach(th => th.remove());
+  const spacer = head.querySelector('th:not(.level-hdr)');  // the delete-column spacer
+  for (let l = 0; l < L; l++) {
+    const th = document.createElement('th');
+    th.className = 'level-hdr';
+    th.style.minWidth = '130px';
+    th.textContent = names[l] || `Level ${l + 1}`;
+    head.insertBefore(th, spacer);
+  }
+
+  document.querySelectorAll('#path-body tr').forEach((tr) => {
+    const existing = [...tr.querySelectorAll('select')].map(s => s.value);
+    const tds       = [...tr.children];
+    const deleteTd  = tds[tds.length - 1];
+    tds.slice(0, tds.length - 1).forEach(td => td.remove());
+    for (let l = 0; l < L; l++) {
+      const td = document.createElement('td');
+      td.innerHTML = makeLevelSelect('', existing[l] || '');
+      tr.insertBefore(td, deleteTd);
+    }
+  });
+  reindexPaths();
+  refreshPreview();
 }
 
 // ── Element list management ────────────────────────────────────────────────────
 function rebuildElemIndices() {
   document.querySelectorAll('#elem-list .elem-row').forEach((row, i) => {
-    row.querySelector('input').name = `element_${i}`;
+    const hidden = row.querySelector('input[type="hidden"]');
+    if (hidden) hidden.name = `element_${i}_orig`;
+    row.querySelector('input[type="text"]').name = `element_${i}`;
   });
   onElemChange();
 }
@@ -150,6 +236,7 @@ function addElem() {
   div.style.cssText = 'display:flex;align-items:center;gap:0.5rem';
   div.innerHTML = `
     <span class="muted" style="user-select:none;font-size:1.1rem;padding:0 4px">⠿</span>
+    <input type="hidden" name="element_${idx}_orig" value="">
     <input type="text" name="element_${idx}" value="${name}"
            style="flex:1;font-family:monospace" oninput="onElemChange()">
     <button type="button" class="btn btn-secondary btn-sm" onclick="moveElem(this,-1)">↑</button>
@@ -190,12 +277,13 @@ function makeLevelSelect(name, selected) {
 }
 
 function addPathRow(cells) {
-  cells = cells || ['', '', '', ''];
+  cells = cells || [];
+  const L     = levelCount();
   const tbody = document.getElementById('path-body');
   const i     = pathCount++;
   const tr    = document.createElement('tr');
   let tds = '';
-  for (let l = 0; l < 4; l++) {
+  for (let l = 0; l < L; l++) {
     tds += `<td>${makeLevelSelect(`path_${i}_l${l+1}`, cells[l] || '')}</td>`;
   }
   tds += `<td><button type="button" class="btn btn-danger btn-sm"
@@ -248,10 +336,7 @@ function updateHeaders() {
 // ── Matrix preview ─────────────────────────────────────────────────────────────
 function getPaths() {
   return [...document.querySelectorAll('#path-body tr')]
-    .map(tr => {
-      const sels = tr.querySelectorAll('select');
-      return [0,1,2,3].map(l => (sels[l] ? sels[l].value.trim() : ''));
-    })
+    .map(tr => [...tr.querySelectorAll('select')].map(s => s.value.trim()))
     .filter(p => p.some(Boolean));
 }
 
@@ -265,7 +350,7 @@ function refreshPreview() {
 
   const levelNames = getLevelNames();
   const N      = paths.length;
-  const LEVELS = 4;
+  const LEVELS = levelCount();
 
   // Sort for stable grouping
   const sorted = [...paths].sort((a, b) => {
@@ -320,7 +405,11 @@ function refreshPreview() {
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 (function init() {
-  const paths = INIT_PATHS.length ? INIT_PATHS : [['', '', '', '']];
+  const paths = INIT_PATHS.length ? INIT_PATHS : [Array(levelCount()).fill('')];
+  // Guard against a stored hierarchy deeper than its named levels (e.g. an
+  // imported study): grow the level columns so no path cell is dropped.
+  const maxDepth = paths.reduce((m, p) => Math.max(m, p.length), 0);
+  while (levelCount() < maxDepth) addLevel();
   paths.forEach(p => addPathRow(p));
   refreshPreview();
 })();
