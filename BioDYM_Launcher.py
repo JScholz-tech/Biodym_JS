@@ -5,12 +5,16 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+import tomllib
+import urllib.error
+import urllib.request
 import webbrowser
 import ctypes
 from ctypes import wintypes
@@ -21,7 +25,8 @@ from tkinter import messagebox, ttk
 ROOT = Path(__file__).resolve().parent
 INSTALL_ID = hashlib.sha256(str(ROOT).casefold().encode()).hexdigest()[:12]
 LOCAL_DATA = Path(os.environ.get("LOCALAPPDATA", tempfile.gettempdir()))
-RUNTIME_DIR = LOCAL_DATA / "BioDYM Launcher" / INSTALL_ID
+STATE_ROOT = LOCAL_DATA / "BioDYM Launcher"
+RUNTIME_DIR = STATE_ROOT / INSTALL_ID
 LOG_DIR = RUNTIME_DIR / "logs"
 STATE_FILE = RUNTIME_DIR / "services.json"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -31,32 +36,75 @@ SERVICES = {
     "dashboard": {
         "label": "BioDYM Dashboard",
         "port": 8866,
-        "args": [
-            "-m",
-            "voila",
-            "01_BioDYM_Dashboard.ipynb",
-            "--port=8866",
-            "--no-browser",
-        ],
+        "markers": ("biodym", "voila"),
     },
     "systemdefiner": {
         "label": "SystemDefiner",
         "port": 8001,
-        "args": ["-m", "systemdefiner"],
+        "markers": ("biodym", "systemdefiner"),
     },
 }
+
+
+def read_version(root=ROOT):
+    try:
+        with open(root / "pyproject.toml", "rb") as handle:
+            return tomllib.load(handle)["project"]["version"]
+    except (OSError, KeyError, tomllib.TOMLDecodeError):
+        return "unknown"
+
+
+VERSION = read_version()
+
+
+def build_service_args(key, port):
+    if key == "dashboard":
+        return [
+            "-m",
+            "voila",
+            "01_BioDYM_Dashboard.ipynb",
+            f"--port={port}",
+            "--no-browser",
+        ]
+    if key == "systemdefiner":
+        return [
+            "-m",
+            "uvicorn",
+            "systemdefiner.main:app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+        ]
+    raise KeyError(key)
+
+
+def parse_listener_pid(netstat_output, port):
+    """Extract the listening PID for a local TCP port from Windows netstat."""
+    for line in netstat_output.splitlines():
+        columns = line.split()
+        if len(columns) < 5 or columns[0].upper() != "TCP":
+            continue
+        local, state, pid_text = columns[1], columns[3].upper(), columns[4]
+        if state != "LISTENING" or not local.endswith(f":{port}"):
+            continue
+        try:
+            return int(pid_text)
+        except ValueError:
+            continue
+    return None
 
 
 class Launcher(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("BioDYM Launcher")
-        self.geometry("540x365")
-        self.minsize(500, 345)
+        self.geometry("600x415")
+        self.minsize(550, 390)
         self.processes: dict[str, subprocess.Popen] = {}
         self.logs = {}
         self.cancel_events = {key: threading.Event() for key in SERVICES}
-        self.pids, self.process_tokens = self.load_owned_pids()
+        self.pids, self.process_tokens, self.active_ports = self.load_owned_pids()
         self.states = {key: tk.StringVar(value="Checking...") for key in SERVICES}
         self.summary = tk.StringVar(value="Checking the BioDYM installation...")
         self.start_buttons = {}
@@ -69,11 +117,21 @@ class Launcher(tk.Tk):
     def build_ui(self):
         frame = ttk.Frame(self, padding=22)
         frame.pack(fill="both", expand=True)
-        ttk.Label(frame, text="BioDYM", font=("Segoe UI", 22, "bold")).pack(anchor="w")
+        ttk.Label(
+            frame,
+            text=f"BioDYM {VERSION}",
+            font=("Segoe UI", 22, "bold"),
+        ).pack(anchor="w")
         ttk.Label(
             frame,
             text="Start BioDYM without a terminal. The tools open in your browser.",
         ).pack(anchor="w", pady=(2, 18))
+        ttk.Label(
+            frame,
+            text=f"Installation: {ROOT}",
+            foreground="#555555",
+            wraplength=540,
+        ).pack(anchor="w", pady=(0, 12))
         for key, service in SERVICES.items():
             card = ttk.LabelFrame(frame, text=service["label"], padding=12)
             card.pack(fill="x", pady=5)
@@ -157,9 +215,10 @@ class Launcher(tk.Tk):
         try:
             stored = json.loads(STATE_FILE.read_text(encoding="utf-8"))
         except (OSError, ValueError, TypeError):
-            return {}, {}
-        owned, tokens = {}, {}
-        for key, value in stored.items():
+            return {}, {}, {}
+        records = stored.get("services", stored) if isinstance(stored, dict) else {}
+        owned, tokens, ports = {}, {}, {}
+        for key, value in records.items():
             if key not in SERVICES or not isinstance(value, dict):
                 continue
             pid, expected = value.get("pid"), value.get("created")
@@ -167,16 +226,27 @@ class Launcher(tk.Tk):
                 continue
             if self.process_created(pid) == expected:
                 owned[key], tokens[key] = pid, expected
-        return owned, tokens
+                port = value.get("port", SERVICES[key]["port"])
+                ports[key] = port if isinstance(port, int) else SERVICES[key]["port"]
+        return owned, tokens, ports
 
     def save_owned_pids(self):
         try:
             RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
             temporary = STATE_FILE.with_suffix(".tmp")
-            payload = {
-                key: {"pid": pid, "created": self.process_tokens.get(key)}
+            services = {
+                key: {
+                    "pid": pid,
+                    "created": self.process_tokens.get(key),
+                    "port": self.active_ports.get(key, SERVICES[key]["port"]),
+                }
                 for key, pid in self.pids.items()
                 if self.process_tokens.get(key) is not None
+            }
+            payload = {
+                "install_root": str(ROOT),
+                "version": VERSION,
+                "services": services,
             }
             temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
             temporary.replace(STATE_FILE)
@@ -194,35 +264,118 @@ class Launcher(tk.Tk):
             self.pids.pop(key, None)
             self.process_tokens.pop(key, None)
             self.processes.pop(key, None)
+            self.active_ports.pop(key, None)
             log = self.logs.pop(key, None)
             if log:
                 log.close()
             self.save_owned_pids()
         return False
 
+    @staticmethod
+    def listener_pid(port):
+        try:
+            result = subprocess.run(
+                ["netstat", "-ano", "-p", "tcp"],
+                capture_output=True,
+                text=True,
+                creationflags=NO_WINDOW,
+                timeout=5,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return parse_listener_pid(result.stdout, port)
+
+    @staticmethod
+    def process_name(pid):
+        try:
+            result = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {int(pid)}", "/FO", "CSV", "/NH"],
+                capture_output=True,
+                text=True,
+                creationflags=NO_WINDOW,
+                timeout=5,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return ""
+        match = re.match(r'"([^"]+)"', result.stdout.strip())
+        return match.group(1).casefold() if match else ""
+
+    @staticmethod
+    def page_matches_service(key, port):
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}", timeout=3) as response:
+                content = response.read(250_000).decode("utf-8", errors="ignore").casefold()
+        except (OSError, urllib.error.URLError, TimeoutError):
+            return False
+        markers = SERVICES[key]["markers"]
+        return markers[0] in content and any(marker in content for marker in markers[1:])
+
+    def registered_instance(self, key, pid, token):
+        if not STATE_ROOT.exists():
+            return None
+        for path in STATE_ROOT.glob("*/services.json"):
+            try:
+                stored = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError, TypeError):
+                continue
+            records = stored.get("services", stored) if isinstance(stored, dict) else {}
+            record = records.get(key, {})
+            if record.get("pid") == pid and record.get("created") == token:
+                return {
+                    "root": stored.get("install_root", "an older BioDYM folder"),
+                    "version": stored.get("version", "unknown"),
+                }
+        return None
+
+    def identify_listener(self, key, port):
+        pid = self.listener_pid(port)
+        if not pid:
+            return None
+        token = self.process_created(pid)
+        registered = self.registered_instance(key, pid, token)
+        if registered:
+            return {"pid": pid, "token": token, "registered": True, **registered}
+        python_names = {"python.exe", "pythonw.exe", "uv.exe", "voila.exe"}
+        if self.process_name(pid) in python_names and self.page_matches_service(key, port):
+            return {
+                "pid": pid,
+                "token": token,
+                "registered": False,
+                "root": "another or older BioDYM installation",
+                "version": "unknown",
+            }
+        return None
+
+    def next_free_port(self, preferred):
+        for port in range(preferred + 1, preferred + 100):
+            if not self.port_open(port):
+                return port
+        return None
+
     def start(self, key):
         service = SERVICES[key]
-        port, label = service["port"], service["label"]
+        label = service["label"]
         if self.owned_running(key):
+            port = self.active_ports.get(key, service["port"])
             if self.port_open(port):
                 webbrowser.open(f"http://127.0.0.1:{port}")
                 self.summary.set(f"{label} is already running.")
             else:
                 self.summary.set(f"{label} is already starting.")
             return
+        port = service["port"]
         if self.port_open(port):
-            self.states[key].set("Port conflict")
-            messagebox.showerror(
-                f"Cannot start {label}",
-                f"Port {port} is already used by another application. Close that "
-                "application and try again.",
-            )
-            return
+            port = self.resolve_port_conflict(key, port)
+            if port is None:
+                self.refresh_service_states()
+                return
         self.cancel_events[key].clear()
         log = self.open_service_log(key)
         try:
             process = subprocess.Popen(
-                [sys.executable, *service["args"]],
+                [sys.executable, *build_service_args(key, port)],
                 cwd=ROOT,
                 stdout=log,
                 stderr=subprocess.STDOUT,
@@ -234,16 +387,67 @@ class Launcher(tk.Tk):
             return
         self.processes[key], self.logs[key], self.pids[key] = process, log, process.pid
         self.process_tokens[key] = self.process_created(process.pid)
+        self.active_ports[key] = port
         self.save_owned_pids()
         self.states[key].set("Starting...")
         self.start_buttons[key].state(["disabled"])
         self.stop_buttons[key].state(["!disabled"])
-        self.summary.set(f"Starting {label}; this may take a moment...")
+        port_note = f" on port {port}" if port != service["port"] else ""
+        self.summary.set(f"Starting {label}{port_note}; this may take a moment...")
         threading.Thread(
             target=self.wait_ready,
             args=(key, process.pid, self.cancel_events[key]),
             daemon=True,
         ).start()
+
+    def resolve_port_conflict(self, key, preferred_port):
+        service = SERVICES[key]
+        label = service["label"]
+        existing = self.identify_listener(key, preferred_port)
+        if existing:
+            location = existing["root"]
+            version = existing["version"]
+            answer = messagebox.askyesnocancel(
+                "Another BioDYM is already running",
+                f"An existing {label} is using port {preferred_port}.\n\n"
+                f"Version: {version}\nLocation: {location}\n\n"
+                "Yes: stop it and start this installation.\n"
+                "No: open the existing application.\n"
+                "Cancel: do nothing.",
+            )
+            if answer is None:
+                return None
+            if not answer:
+                webbrowser.open(f"http://127.0.0.1:{preferred_port}")
+                self.summary.set(f"Opened the existing {label}.")
+                return None
+            if not existing["token"] or self.process_created(existing["pid"]) != existing["token"]:
+                messagebox.showwarning(
+                    "Application changed",
+                    "The process using the port changed before it could be stopped. "
+                    "No process was terminated.",
+                )
+                return None
+            self.terminate_process_tree(existing["pid"])
+            for _ in range(50):
+                if not self.port_open(preferred_port):
+                    self.summary.set(f"Stopped the existing {label}.")
+                    return preferred_port
+                time.sleep(0.1)
+        alternative = self.next_free_port(preferred_port)
+        if not alternative:
+            messagebox.showerror(
+                f"Cannot start {label}",
+                "No available local port was found. Close an existing application and try again.",
+            )
+            return None
+        if messagebox.askyesno(
+            f"Port {preferred_port} is unavailable",
+            f"Another application is using port {preferred_port}.\n\n"
+            f"Start {label} safely on port {alternative} instead?",
+        ):
+            return alternative
+        return None
 
     def open_service_log(self, key):
         LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -258,7 +462,7 @@ class Launcher(tk.Tk):
         return log
 
     def wait_ready(self, key, pid, cancel_event):
-        service = SERVICES[key]
+        port = self.active_ports.get(key, SERVICES[key]["port"])
         for _ in range(120):
             if cancel_event.is_set() or self.pids.get(key) != pid:
                 return
@@ -266,7 +470,7 @@ class Launcher(tk.Tk):
             if process and process.poll() is not None:
                 self.after(0, lambda: self.start_failed(key, pid))
                 return
-            if self.port_open(service["port"]):
+            if self.port_open(port):
                 self.after(0, lambda: self.ready(key, pid))
                 return
             time.sleep(0.5)
@@ -276,10 +480,12 @@ class Launcher(tk.Tk):
         if self.pids.get(key) != pid or self.cancel_events[key].is_set():
             return
         service = SERVICES[key]
-        self.states[key].set("Running")
+        port = self.active_ports.get(key, service["port"])
+        state = "Running" if port == service["port"] else f"Running :{port}"
+        self.states[key].set(state)
         self.start_buttons[key].state(["!disabled"])
-        self.summary.set(f"{service['label']} is ready.")
-        webbrowser.open(f"http://127.0.0.1:{service['port']}")
+        self.summary.set(f"{service['label']} is ready on port {port}.")
+        webbrowser.open(f"http://127.0.0.1:{port}")
 
     def start_failed(self, key, pid, detail=None):
         if self.pids.get(key) != pid or self.cancel_events[key].is_set():
@@ -300,6 +506,7 @@ class Launcher(tk.Tk):
         self.processes.pop(key, None)
         self.pids.pop(key, None)
         self.process_tokens.pop(key, None)
+        self.active_ports.pop(key, None)
         log = self.logs.pop(key, None)
         if log:
             log.close()
@@ -308,7 +515,8 @@ class Launcher(tk.Tk):
     def stop(self, key):
         service = SERVICES[key]
         if not self.owned_running(key):
-            if self.port_open(service["port"]):
+            port = self.active_ports.get(key, service["port"])
+            if self.port_open(port):
                 messagebox.showwarning(
                     f"Cannot stop {service['label']}",
                     "This instance was not started by this BioDYM launcher and will not be terminated.",
@@ -355,9 +563,14 @@ class Launcher(tk.Tk):
     def refresh_service_states(self):
         for key, service in SERVICES.items():
             owned = self.owned_running(key)
-            port_used = self.port_open(service["port"])
+            active_port = self.active_ports.get(key, service["port"])
+            port_used = self.port_open(active_port)
             if owned and port_used:
-                state = "Running"
+                state = (
+                    "Running"
+                    if active_port == service["port"]
+                    else f"Running :{active_port}"
+                )
             elif owned:
                 state = "Starting..."
             elif port_used:

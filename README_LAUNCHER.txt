@@ -14,6 +14,15 @@ The launcher starts and stops the Dashboard and SystemDefiner. Closing the
 launcher lets you either stop both applications or leave them running. A later
 launcher session can reconnect to and stop applications that it started.
 
+If an older BioDYM is already running, the launcher identifies it and offers to
+stop it and start the current installation, or to open the existing one. It
+will only stop a process after confirming that it is BioDYM and asking you.
+If an unrelated application uses BioDYM's normal port, the launcher offers to
+start safely on the next available port instead.
+
+The launcher displays the current BioDYM version and installation folder so
+that different copies can be distinguished.
+
 If something does not start, choose Open logs in the launcher. Logs and process
 state are stored in your Windows Local AppData folder, not in the BioDYM folder.
 

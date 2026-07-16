@@ -19,6 +19,10 @@ The launcher must remain in the BioDYM folder. Use **Open logs** in the launcher
 if an application does not start. If Windows blocks VBScript, use
 `Start_BioDYM.cmd` instead.
 
+If an older BioDYM instance is still running, the launcher can identify and
+stop it after confirmation. Unrelated port conflicts are handled by offering
+the next available local port.
+
 1. **Install**: `uv sync` (or `conda env create -f environment.yml && conda activate biodym_env`)
 
 2. **Define your system**: `uv run python -m systemdefiner` → opens **bioDYM SystemDefiner** at http://localhost:8001
