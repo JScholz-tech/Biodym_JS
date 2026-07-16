@@ -2641,7 +2641,17 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
         values = tc.get("values", {})
         if not values:
             continue
-        fl = flow_map.get(fid, {})
+        fl = flow_map.get(fid)
+        if fl is None:
+            # A TC whose flow no longer exists must be skipped, not exported:
+            # the old 0→0 endpoint fallback gave every dangling TC the same
+            # junk TC_E*_00_00 name, and two of them crashed the dynamic-TC
+            # interpolation with duplicate year labels.
+            print(
+                f"⚠️ Warning: static TC for P{pid} references missing flow "
+                f"'{fid}' — skipped."
+            )
+            continue
         from_p = fl.get("from_process", 0)
         to_p = fl.get("to_process", 0)
         row = {"Process_ID": pid, "Flow_ID": fid}
@@ -2669,7 +2679,13 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
             continue
         pid = tc.get("process_id")
         fid = tc.get("flow_id", "")
-        fl = flow_map.get(fid, {})
+        fl = flow_map.get(fid)
+        if fl is None:
+            print(
+                f"⚠️ Warning: dynamic TC for P{pid} references missing flow "
+                f"'{fid}' — skipped."
+            )
+            continue
         from_p = fl.get("from_process", 0)
         to_p = fl.get("to_process", 0)
         for point in tc.get("time_series", []):
