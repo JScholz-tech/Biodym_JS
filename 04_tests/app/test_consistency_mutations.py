@@ -964,6 +964,20 @@ class TestHierarchyRoundTrip:
         # the defect stays visible to the user
         assert any("multiple parents" in m for m in _errors(after))
 
+    def test_elements_page_ships_rules_panel_and_validator(self, client):
+        # The live rule-feedback UI: rules panel, client-side validator, and
+        # the submit guard must all be present in the rendered page.
+        self._study(
+            "hier_ui",
+            [{"parent": "material", "children": ["A"]}],
+            ["material", "A"],
+        )
+        html = client.get("/hier_ui/elements").text
+        assert "Rules — what the hierarchy can and cannot express" in html
+        assert "function validateMatrix()" in html
+        assert "renderMatrixFeedback" in html
+        assert "addEventListener('submit'" in html
+
     def test_duplicate_parent_rules_render_all_children(self, client):
         # Two rules for the same parent (importable state) used to overwrite
         # each other at render time, dropping edges on the next save.

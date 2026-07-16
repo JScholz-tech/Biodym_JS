@@ -60,12 +60,42 @@
   {# ── Hierarchy Matrix ─────────────────────────────────────────────── #}
   <div class="card" style="margin-bottom:1.25rem">
     <h2 style="margin-top:0">Hierarchy Matrix</h2>
-    <p class="muted" style="margin-bottom:1rem">
+    <p class="muted" style="margin-bottom:0.5rem">
       Each row is a path from root to leaf — for example
       <code>material → DM → TC → TOC</code>.
       Consecutive non-empty cells define parent → child relationships.
       The preview below shows the resulting grouped matrix.
     </p>
+
+    <details style="margin-bottom:1rem">
+      <summary class="muted" style="cursor:pointer;font-size:0.88rem">
+        📖 Rules — what the hierarchy can and cannot express
+      </summary>
+      <div style="display:flex;gap:2rem;flex-wrap:wrap;margin-top:0.6rem;font-size:0.85rem">
+        <div style="flex:1;min-width:260px">
+          <strong>✅ You can</strong>
+          <ul style="margin:0.4rem 0 0 1.1rem;padding:0">
+            <li>Share prefixes across rows — <code>material → Casing → FE</code> and
+                <code>material → Casing → NE</code> give Casing two children.</li>
+            <li>Give a parent any number of children.</li>
+            <li>Leave trailing cells empty for shallower branches
+                (<code>material → HDD → —</code>).</li>
+            <li>Rename / reorder / delete elements above — all stored values follow.</li>
+          </ul>
+        </div>
+        <div style="flex:1;min-width:260px">
+          <strong>🚫 You cannot</strong>
+          <ul style="margin:0.4rem 0 0 1.1rem;padding:0">
+            <li>Give one element <em>two different parents</em>. The hierarchy is a tree:
+                each element is a sub-quantity of exactly one parent. If two components
+                both contain iron, use distinct names (<code>HDD_FE</code>, <code>Casing_FE</code>).</li>
+            <li>Create cycles — <code>material</code> is the root and can never be a child.</li>
+            <li>Leave a gap inside a row — an empty cell breaks the chain; nothing links across it.</li>
+            <li>Save a row with a single lonely cell — one cell alone defines no relationship.</li>
+          </ul>
+        </div>
+      </div>
+    </details>
 
     {# Level name editors — the number of levels (hierarchy depth) is
        user-extensible; add or remove level "columns" as needed. #}
@@ -370,34 +400,117 @@ function getPaths() {
     .filter(p => p.some(Boolean));
 }
 
-// The backend only records a parent→child relationship between two
-// ADJACENT non-empty cells in a row — a row with a single filled cell and
-// no adjacent partner produces no edge at all, and silently disappears on
-// the next save/reload with no indication why. Surface that here instead of
-// letting it vanish invisibly.
-function checkIncompleteRows() {
-  const warnDiv = document.getElementById('incomplete-warning');
-  if (!warnDiv) return;
-  const values = [];
-  document.querySelectorAll('#path-body tr').forEach((tr) => {
+// Live rule validation. The backend keeps whatever you save (losslessly) and
+// the health report flags defects — but the moment to tell the user they hit
+// a technical limit is HERE, while the row is still on screen.
+//
+// errors   = states the tree model cannot express (multi-parent, cycle,
+//            self-parent) — saving keeps them, but the model won't run
+//            meaningfully until resolved.
+// warnings = rows that save less than the user probably thinks (lonely
+//            single cells, gaps inside a row).
+function validateMatrix() {
+  const errors = [];
+  const warnings = [];
+  const rootElem = getElemNames()[0] || 'material';
+  const parentsOf = {};   // child -> Set(parents)
+  const childrenOf = {};  // parent -> Set(children), for cycle walk
+
+  document.querySelectorAll('#path-body tr').forEach((tr, ri) => {
     const cells = [...tr.querySelectorAll('select')].map(s => s.value.trim());
-    if (!cells.some(Boolean)) return;  // fully blank row — nothing to warn about
+    if (!cells.some(Boolean)) return;  // fully blank row — fine
+
+    // lonely single cell: defines no relationship at all
     const hasEdge = cells.some((c, i) => c && cells[i + 1]);
-    if (!hasEdge) values.push(cells.find(Boolean));
+    if (!hasEdge) {
+      warnings.push(`Row ${ri + 1}: “${cells.find(Boolean)}” has no adjacent ` +
+        `parent or child — this row defines no relationship and will not be saved.`);
+    }
+
+    // gaps: filled … empty … filled — nothing links across the hole
+    const filled = cells.map((c, i) => c ? i : -1).filter(i => i >= 0);
+    for (let k = 1; k < filled.length; k++) {
+      if (filled[k] - filled[k - 1] > 1) {
+        warnings.push(`Row ${ri + 1}: empty cell between “${cells[filled[k - 1]]}” and ` +
+          `“${cells[filled[k]]}” breaks the chain — no link is created across a gap.`);
+      }
+    }
+
+    // collect edges from adjacent pairs
+    cells.forEach((c, i) => {
+      const n = cells[i + 1];
+      if (!c || !n) return;
+      if (c === n) {
+        errors.push(`Row ${ri + 1}: “${c}” cannot be its own parent.`);
+        return;
+      }
+      (parentsOf[n] = parentsOf[n] || new Set()).add(c);
+      (childrenOf[c] = childrenOf[c] || new Set()).add(n);
+    });
   });
-  if (values.length) {
-    warnDiv.innerHTML = `<div class="alert alert-warn">
-      ⚠ ${values.length} row${values.length > 1 ? 's' : ''} — <strong>${values.join(', ')}</strong> —
-      ${values.length > 1 ? 'have' : 'has'} no adjacent parent or child selected and will NOT be
-      saved. Pick a parent in the column to the left, or a child in the column to the right.
-    </div>`;
-  } else {
-    warnDiv.innerHTML = '';
+
+  // multi-parent: the tree can express only ONE parent per element
+  for (const [child, ps] of Object.entries(parentsOf)) {
+    if (ps.size > 1) {
+      errors.push(`“${child}” is placed under ${ps.size} different parents ` +
+        `(${[...ps].join(', ')}). The hierarchy is a tree — each element is a ` +
+        `sub-quantity of exactly ONE parent. If several components contain ` +
+        `“${child}”, give each its own element (e.g. ${[...ps].map(p => p + '_' + child).join(', ')}).`);
+    }
   }
+
+  // root as child
+  if (parentsOf[rootElem]) {
+    errors.push(`“${rootElem}” is the root of the hierarchy — it can never be ` +
+      `a child (currently placed under: ${[...parentsOf[rootElem]].join(', ')}).`);
+  }
+
+  // cycles (DFS with recursion stack); skip pure root-as-child, reported above
+  const visited = new Set(), inStack = new Set();
+  const cycleHits = new Set();
+  function dfs(node, path) {
+    visited.add(node); inStack.add(node);
+    for (const ch of (childrenOf[node] || [])) {
+      if (inStack.has(ch)) {
+        const cyc = path.slice(path.indexOf(ch)).concat(ch);
+        if (!cyc.includes(rootElem)) cycleHits.add(cyc.join(' → '));
+      } else if (!visited.has(ch)) {
+        dfs(ch, path.concat(ch));
+      }
+    }
+    inStack.delete(node);
+  }
+  Object.keys(childrenOf).forEach(n => { if (!visited.has(n)) dfs(n, [n]); });
+  cycleHits.forEach(c =>
+    errors.push(`Cycle: ${c} — an element cannot be its own ancestor.`));
+
+  return { errors, warnings };
+}
+
+function renderMatrixFeedback() {
+  const div = document.getElementById('incomplete-warning');
+  if (!div) return { errors: [], warnings: [] };
+  const res = validateMatrix();
+  let html = '';
+  if (res.errors.length) {
+    html += `<div class="alert alert-err"><strong>🚫 Not expressible as a hierarchy ` +
+      `(${res.errors.length}):</strong><ul style="margin:0.4rem 0 0 1.2rem;padding:0">` +
+      res.errors.map(e => `<li>${e}</li>`).join('') +
+      `</ul><div style="margin-top:0.4rem;font-size:0.85rem">Saving keeps these rows ` +
+      `(nothing is destroyed), but they are flagged as errors in the study's health ` +
+      `report and the engine cannot use them.</div></div>`;
+  }
+  if (res.warnings.length) {
+    html += `<div class="alert alert-warn"><strong>⚠ Will save less than it looks ` +
+      `(${res.warnings.length}):</strong><ul style="margin:0.4rem 0 0 1.2rem;padding:0">` +
+      res.warnings.map(w => `<li>${w}</li>`).join('') + `</ul></div>`;
+  }
+  div.innerHTML = html;
+  return res;
 }
 
 function refreshPreview() {
-  checkIncompleteRows();
+  renderMatrixFeedback();
   const paths = getPaths();
   const div   = document.getElementById('matrix-preview');
   if (!paths.length) {
@@ -459,6 +572,22 @@ function refreshPreview() {
   html += '</tbody></table>';
   div.innerHTML = html;
 }
+
+// Ask before persisting rows the tree model cannot express — the save keeps
+// them (lossless) and the health report flags them, but the user should not
+// stumble into that state unknowingly.
+document.getElementById('elem-form').addEventListener('submit', (e) => {
+  const res = validateMatrix();
+  if (res.errors.length) {
+    const ok = confirm(
+      `The hierarchy has ${res.errors.length} rule violation(s):\n\n` +
+      res.errors.map(x => '• ' + x.replace(/“|”/g, '"')).join('\n') +
+      `\n\nSave anyway? (Nothing is destroyed, but the study's health report ` +
+      `will flag these as errors and the model cannot run meaningfully.)`
+    );
+    if (!ok) e.preventDefault();
+  }
+});
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 (function init() {
