@@ -1,6 +1,7 @@
 """Platform-neutral helpers shared by the BioDYM Windows launcher and tests."""
 
 from pathlib import Path
+from collections.abc import Mapping
 import tomllib
 
 
@@ -50,4 +51,25 @@ def parse_listener_pid(netstat_output: str, port: int) -> int | None:
     return None
 
 
-__all__ = ["build_service_args", "parse_listener_pid", "read_version"]
+def build_service_environment(
+    runtime_dir: Path, base_environment: Mapping[str, str]
+) -> tuple[dict[str, str], tuple[Path, ...]]:
+    """Return an isolated, writable Jupyter environment for Voilà."""
+    jupyter_root = runtime_dir / "jupyter"
+    directories = {
+        "JUPYTER_CONFIG_DIR": jupyter_root / "config",
+        "JUPYTER_DATA_DIR": jupyter_root / "data",
+        "JUPYTER_RUNTIME_DIR": jupyter_root / "runtime",
+        "IPYTHONDIR": jupyter_root / "ipython",
+    }
+    environment = dict(base_environment)
+    environment.update({name: str(path) for name, path in directories.items()})
+    return environment, tuple(directories.values())
+
+
+__all__ = [
+    "build_service_args",
+    "build_service_environment",
+    "parse_listener_pid",
+    "read_version",
+]

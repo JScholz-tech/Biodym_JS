@@ -21,7 +21,12 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from launcher_utils import build_service_args, parse_listener_pid, read_version
+from launcher_utils import (
+    build_service_args,
+    build_service_environment,
+    parse_listener_pid,
+    read_version,
+)
 
 ROOT = Path(__file__).resolve().parent
 INSTALL_ID = hashlib.sha256(str(ROOT).casefold().encode()).hexdigest()[:12]
@@ -344,9 +349,15 @@ class Launcher(tk.Tk):
         self.cancel_events[key].clear()
         log = self.open_service_log(key)
         try:
+            environment, runtime_directories = build_service_environment(
+                RUNTIME_DIR, os.environ
+            )
+            for directory in runtime_directories:
+                directory.mkdir(parents=True, exist_ok=True)
             process = subprocess.Popen(
                 [sys.executable, *build_service_args(key, port)],
                 cwd=ROOT,
+                env=environment,
                 stdout=log,
                 stderr=subprocess.STDOUT,
                 creationflags=NO_WINDOW | NEW_GROUP,
