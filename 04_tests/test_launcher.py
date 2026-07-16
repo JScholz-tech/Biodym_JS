@@ -1,6 +1,11 @@
-"""Regression tests for the Windows BioDYM launcher helpers."""
+"""Regression tests for the platform-neutral BioDYM launcher helpers."""
 
-from BioDYM_Launcher import build_service_args, parse_listener_pid, read_version
+from pathlib import Path
+
+from launcher_utils import build_service_args, parse_listener_pid, read_version
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_parse_listener_pid_ipv4():
@@ -31,4 +36,4 @@ def test_systemdefiner_command_uses_selected_port():
 
 
 def test_launcher_reads_project_version():
-    assert read_version() != "unknown"
+    assert read_version(ROOT) != "unknown"

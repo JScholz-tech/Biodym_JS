@@ -25,6 +25,9 @@ that different copies can be distinguished.
 
 If something does not start, choose Open logs in the launcher. Logs and process
 state are stored in your Windows Local AppData folder, not in the BioDYM folder.
+When uv is installed, the launcher checks and synchronizes the environment
+automatically after BioDYM is updated. An HTTP 500 dashboard error is reported
+in the launcher and its detailed notebook traceback is saved in dashboard.log.
 
 Important: do not copy a .venv folder between computers or folder locations.
 Run uv sync after placing BioDYM in its final location.

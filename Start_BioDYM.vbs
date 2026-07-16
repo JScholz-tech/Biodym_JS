@@ -11,21 +11,21 @@ If Not fso.FileExists(launcher) Then
     WScript.Quit 1
 End If
 pythonw = projectDir & "\.venv\Scripts\pythonw.exe"
-If fso.FileExists(pythonw) Then
+result = shell.Run("cmd /c where uv >nul 2>&1", 0, True)
+If result = 0 Then
+    ' uv run checks uv.lock and synchronizes an outdated environment before
+    ' starting the launcher.
+    command = "cmd /c uv run pythonw " & quote & launcher & quote
+ElseIf fso.FileExists(pythonw) Then
     command = quote & pythonw & quote & " " & quote & launcher & quote
 Else
-    result = shell.Run("cmd /c where uv >nul 2>&1", 0, True)
+    result = shell.Run("cmd /c where conda >nul 2>&1", 0, True)
     If result = 0 Then
-        command = "cmd /c uv run pythonw " & quote & launcher & quote
+        command = "cmd /c conda run -n biodym_env pythonw " & quote & launcher & quote
     Else
-        result = shell.Run("cmd /c where conda >nul 2>&1", 0, True)
-        If result = 0 Then
-            command = "cmd /c conda run -n biodym_env pythonw " & quote & launcher & quote
-        Else
-            MsgBox "No BioDYM environment was found." & vbCrLf & vbCrLf & _
-                "Install BioDYM with 'uv sync' or create the biodym_env Conda environment, then try again.", 16, "BioDYM Launcher"
-            WScript.Quit 1
-        End If
+        MsgBox "No BioDYM environment was found." & vbCrLf & vbCrLf & _
+            "Install BioDYM with 'uv sync' or create the biodym_env Conda environment, then try again.", 16, "BioDYM Launcher"
+        WScript.Quit 1
     End If
 End If
 On Error Resume Next

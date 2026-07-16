@@ -12,7 +12,6 @@ import sys
 import tempfile
 import threading
 import time
-import tomllib
 import urllib.error
 import urllib.request
 import webbrowser
@@ -21,6 +20,8 @@ from ctypes import wintypes
 from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, ttk
+
+from launcher_utils import build_service_args, parse_listener_pid, read_version
 
 ROOT = Path(__file__).resolve().parent
 INSTALL_ID = hashlib.sha256(str(ROOT).casefold().encode()).hexdigest()[:12]
@@ -46,53 +47,7 @@ SERVICES = {
 }
 
 
-def read_version(root=ROOT):
-    try:
-        with open(root / "pyproject.toml", "rb") as handle:
-            return tomllib.load(handle)["project"]["version"]
-    except (OSError, KeyError, tomllib.TOMLDecodeError):
-        return "unknown"
-
-
-VERSION = read_version()
-
-
-def build_service_args(key, port):
-    if key == "dashboard":
-        return [
-            "-m",
-            "voila",
-            "01_BioDYM_Dashboard.ipynb",
-            f"--port={port}",
-            "--no-browser",
-        ]
-    if key == "systemdefiner":
-        return [
-            "-m",
-            "uvicorn",
-            "systemdefiner.main:app",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-        ]
-    raise KeyError(key)
-
-
-def parse_listener_pid(netstat_output, port):
-    """Extract the listening PID for a local TCP port from Windows netstat."""
-    for line in netstat_output.splitlines():
-        columns = line.split()
-        if len(columns) < 5 or columns[0].upper() != "TCP":
-            continue
-        local, state, pid_text = columns[1], columns[3].upper(), columns[4]
-        if state != "LISTENING" or not local.endswith(f":{port}"):
-            continue
-        try:
-            return int(pid_text)
-        except ValueError:
-            continue
-    return None
+VERSION = read_version(ROOT)
 
 
 class Launcher(tk.Tk):
@@ -312,6 +267,16 @@ class Launcher(tk.Tk):
         markers = SERVICES[key]["markers"]
         return markers[0] in content and any(marker in content for marker in markers[1:])
 
+    @staticmethod
+    def http_status(port):
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}", timeout=3) as response:
+                return response.status
+        except urllib.error.HTTPError as exc:
+            return exc.code
+        except (OSError, urllib.error.URLError, TimeoutError):
+            return None
+
     def registered_instance(self, key, pid, token):
         if not STATE_ROOT.exists():
             return None
@@ -463,6 +428,7 @@ class Launcher(tk.Tk):
 
     def wait_ready(self, key, pid, cancel_event):
         port = self.active_ports.get(key, SERVICES[key]["port"])
+        server_errors = 0
         for _ in range(120):
             if cancel_event.is_set() or self.pids.get(key) != pid:
                 return
@@ -471,8 +437,20 @@ class Launcher(tk.Tk):
                 self.after(0, lambda: self.start_failed(key, pid))
                 return
             if self.port_open(port):
-                self.after(0, lambda: self.ready(key, pid))
-                return
+                status = self.http_status(port)
+                if status is not None and status < 400:
+                    self.after(0, lambda: self.ready(key, pid))
+                    return
+                if status is not None and status >= 500:
+                    server_errors += 1
+                    if server_errors >= 3:
+                        detail = (
+                            f"{SERVICES[key]['label']} returned HTTP {status} while "
+                            "loading. The notebook or application failed during "
+                            "startup."
+                        )
+                        self.after(0, lambda d=detail: self.start_failed(key, pid, d))
+                        return
             time.sleep(0.5)
         self.after(0, lambda: self.start_failed(key, pid, "Startup timed out."))
 

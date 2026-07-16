@@ -9,15 +9,15 @@ if not exist "BioDYM_Launcher.py" (
     exit /b 1
 )
 
-if exist ".venv\Scripts\pythonw.exe" (
-    start "" ".venv\Scripts\pythonw.exe" "BioDYM_Launcher.py"
-    exit /b 0
-)
-
 where uv >nul 2>&1
 if not errorlevel 1 (
     uv run pythonw "BioDYM_Launcher.py"
     exit /b
+)
+
+if exist ".venv\Scripts\pythonw.exe" (
+    start "" ".venv\Scripts\pythonw.exe" "BioDYM_Launcher.py"
+    exit /b 0
 )
 
 where conda >nul 2>&1
