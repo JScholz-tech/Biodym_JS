@@ -6,6 +6,8 @@
 # Python
 # -----------------------------------------------------------------------------
 __pycache__/
+.launcher_logs/
+BioDYM_Launcher_Windows.zip
 *.pyc
 *.pyo
 *.pyd

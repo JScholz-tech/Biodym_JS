@@ -9,6 +9,16 @@ BioDYM is a comprehensive Material Flow Analysis (MFA) tool designed for analyzi
 
 ## ⚡ Quick Start (5 minutes)
 
+### Windows launcher (no terminal needed)
+
+After BioDYM has been installed with `uv sync`, double-click
+**`Start_BioDYM.vbs`** in the BioDYM folder. The launcher can start or stop the
+BioDYM Dashboard and SystemDefiner and opens them in the default web browser.
+
+The launcher must remain in the BioDYM folder. Use **Open logs** in the launcher
+if an application does not start. If Windows blocks VBScript, use
+`Start_BioDYM.cmd` instead.
+
 1. **Install**: `uv sync` (or `conda env create -f environment.yml && conda activate biodym_env`)
 
 2. **Define your system**: `uv run python -m systemdefiner` → opens **bioDYM SystemDefiner** at http://localhost:8001
