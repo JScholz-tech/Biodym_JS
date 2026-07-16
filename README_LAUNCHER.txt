@@ -21,7 +21,9 @@ If an unrelated application uses BioDYM's normal port, the launcher offers to
 start safely on the next available port instead.
 
 The launcher displays the current BioDYM version and installation folder so
-that different copies can be distinguished.
+that different copies can be distinguished. Each service card permanently
+shows its active or default port, including alternative ports selected because
+another application is already running.
 
 If something does not start, choose Open logs in the launcher. Logs and process
 state are stored in your Windows Local AppData folder, not in the BioDYM folder.

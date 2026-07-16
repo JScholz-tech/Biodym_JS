@@ -61,6 +61,10 @@ class Launcher(tk.Tk):
         self.cancel_events = {key: threading.Event() for key in SERVICES}
         self.pids, self.process_tokens, self.active_ports = self.load_owned_pids()
         self.states = {key: tk.StringVar(value="Checking...") for key in SERVICES}
+        self.port_vars = {
+            key: tk.StringVar(value=f"Default port {service['port']}")
+            for key, service in SERVICES.items()
+        }
         self.summary = tk.StringVar(value="Checking the BioDYM installation...")
         self.start_buttons = {}
         self.stop_buttons = {}
@@ -91,6 +95,7 @@ class Launcher(tk.Tk):
             card = ttk.LabelFrame(frame, text=service["label"], padding=12)
             card.pack(fill="x", pady=5)
             ttk.Label(card, textvariable=self.states[key], width=14).pack(side="left")
+            ttk.Label(card, textvariable=self.port_vars[key], width=19).pack(side="left")
             start = ttk.Button(card, text="Start / Open", command=lambda k=key: self.start(k))
             start.pack(side="left", padx=5)
             stop = ttk.Button(card, text="Stop", command=lambda k=key: self.stop(k))
@@ -355,6 +360,7 @@ class Launcher(tk.Tk):
         self.active_ports[key] = port
         self.save_owned_pids()
         self.states[key].set("Starting...")
+        self.port_vars[key].set(f"Port {port}")
         self.start_buttons[key].state(["disabled"])
         self.stop_buttons[key].state(["!disabled"])
         port_note = f" on port {port}" if port != service["port"] else ""
@@ -459,8 +465,8 @@ class Launcher(tk.Tk):
             return
         service = SERVICES[key]
         port = self.active_ports.get(key, service["port"])
-        state = "Running" if port == service["port"] else f"Running :{port}"
-        self.states[key].set(state)
+        self.states[key].set("Running")
+        self.port_vars[key].set(f"Port {port}")
         self.start_buttons[key].state(["!disabled"])
         self.summary.set(f"{service['label']} is ready on port {port}.")
         webbrowser.open(f"http://127.0.0.1:{port}")
@@ -506,6 +512,7 @@ class Launcher(tk.Tk):
         self.terminate_process_tree(pid)
         self.forget_process(key)
         self.states[key].set("Stopped")
+        self.port_vars[key].set(f"Default port {service['port']}")
         self.summary.set(f"{service['label']} stopped.")
         self.refresh_service_states()
 
@@ -544,20 +551,22 @@ class Launcher(tk.Tk):
             active_port = self.active_ports.get(key, service["port"])
             port_used = self.port_open(active_port)
             if owned and port_used:
-                state = (
-                    "Running"
-                    if active_port == service["port"]
-                    else f"Running :{active_port}"
-                )
+                state = "Running"
+                port_text = f"Port {active_port}"
             elif owned:
                 state = "Starting..."
+                port_text = f"Port {active_port}"
             elif port_used:
                 state = "Port conflict"
+                port_text = f"Port {active_port} in use"
             elif self.states[key].get() != "Error":
                 state = "Stopped"
+                port_text = f"Default port {service['port']}"
             else:
                 state = "Error"
+                port_text = f"Port {active_port}"
             self.states[key].set(state)
+            self.port_vars[key].set(port_text)
             self.start_buttons[key].state(["disabled" if owned and not port_used else "!disabled"])
             self.stop_buttons[key].state(["!disabled" if owned else "disabled"])
 
