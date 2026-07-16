@@ -5,6 +5,7 @@ from pathlib import Path
 from launcher_utils import (
     build_service_args,
     build_service_environment,
+    find_unwritable_directories,
     parse_listener_pid,
     read_version,
 )
@@ -54,4 +55,16 @@ def test_service_environment_isolates_jupyter_files(tmp_path):
     assert environment["JUPYTER_CONFIG_DIR"] == str(tmp_path / "jupyter" / "config")
     assert environment["JUPYTER_RUNTIME_DIR"] == str(tmp_path / "jupyter" / "runtime")
     assert environment["IPYTHONDIR"] == str(tmp_path / "jupyter" / "ipython")
-    assert len(directories) == 4
+    assert environment["MPLCONFIGDIR"] == str(tmp_path / "matplotlib")
+    assert len(directories) == 5
+
+
+def test_writable_directory_probe(tmp_path):
+    writable = tmp_path / "writable"
+    not_a_directory = tmp_path / "blocked"
+    not_a_directory.write_text("file occupying directory path", encoding="utf-8")
+
+    assert find_unwritable_directories((writable,)) == ()
+    assert find_unwritable_directories((writable, not_a_directory)) == (
+        not_a_directory,
+    )

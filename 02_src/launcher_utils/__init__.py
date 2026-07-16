@@ -2,6 +2,8 @@
 
 from pathlib import Path
 from collections.abc import Mapping
+import os
+import tempfile
 import tomllib
 
 
@@ -61,15 +63,38 @@ def build_service_environment(
         "JUPYTER_DATA_DIR": jupyter_root / "data",
         "JUPYTER_RUNTIME_DIR": jupyter_root / "runtime",
         "IPYTHONDIR": jupyter_root / "ipython",
+        "MPLCONFIGDIR": runtime_dir / "matplotlib",
     }
     environment = dict(base_environment)
     environment.update({name: str(path) for name, path in directories.items()})
     return environment, tuple(directories.values())
 
 
+def find_unwritable_directories(paths: tuple[Path, ...]) -> tuple[Path, ...]:
+    """Return directories where BioDYM cannot create and remove a small file."""
+    failures = []
+    for path in paths:
+        test_path = None
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+            descriptor, name = tempfile.mkstemp(prefix=".biodym_write_test_", dir=path)
+            os.close(descriptor)
+            test_path = Path(name)
+            test_path.unlink()
+        except OSError:
+            failures.append(path)
+            if test_path and test_path.exists():
+                try:
+                    test_path.unlink()
+                except OSError:
+                    pass
+    return tuple(failures)
+
+
 __all__ = [
     "build_service_args",
     "build_service_environment",
+    "find_unwritable_directories",
     "parse_listener_pid",
     "read_version",
 ]

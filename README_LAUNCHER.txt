@@ -34,5 +34,9 @@ Jupyter security, signature, runtime, and IPython files are isolated in the
 launcher's Local AppData folder. This avoids failures caused by inaccessible or
 company-managed roaming-profile Jupyter files.
 
+The launcher also isolates Matplotlib's cache, checks that case studies and
+results can be saved, verifies that stopped processes actually exited, and
+prevents two launcher windows from controlling the same BioDYM installation.
+
 Important: do not copy a .venv folder between computers or folder locations.
 Run uv sync after placing BioDYM in its final location.

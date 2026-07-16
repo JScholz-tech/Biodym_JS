@@ -21,14 +21,22 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+# The Conda workflow installs dependencies but does not install BioDYM itself.
+# Add the source tree explicitly so the launcher also works without an editable
+# project installation.
+ROOT = Path(__file__).resolve().parent
+SOURCE_ROOT = ROOT / "02_src"
+if str(SOURCE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SOURCE_ROOT))
+
 from launcher_utils import (
     build_service_args,
     build_service_environment,
+    find_unwritable_directories,
     parse_listener_pid,
     read_version,
 )
 
-ROOT = Path(__file__).resolve().parent
 INSTALL_ID = hashlib.sha256(str(ROOT).casefold().encode()).hexdigest()[:12]
 LOCAL_DATA = Path(os.environ.get("LOCALAPPDATA", tempfile.gettempdir()))
 STATE_ROOT = LOCAL_DATA / "BioDYM Launcher"
@@ -37,6 +45,11 @@ LOG_DIR = RUNTIME_DIR / "logs"
 STATE_FILE = RUNTIME_DIR / "services.json"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 NEW_GROUP = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+INSTANCE_MUTEX_NAME = f"Local\\BioDYM_Launcher_{INSTALL_ID}"
+WRITABLE_DIRECTORIES = (
+    ROOT / "01_data" / "01_input" / "case_studies",
+    ROOT / "01_data" / "02_output",
+)
 
 SERVICES = {
     "dashboard": {
@@ -127,7 +140,17 @@ class Launcher(tk.Tk):
                 + ", ".join(missing),
             )
         else:
-            self.summary.set("Choose an application to start.")
+            unwritable = find_unwritable_directories(WRITABLE_DIRECTORIES)
+            if unwritable:
+                paths = "\n".join(f"• {path}" for path in unwritable)
+                self.summary.set("Warning: BioDYM cannot save studies or results here.")
+                messagebox.showwarning(
+                    "BioDYM folder is read-only",
+                    "BioDYM can start, but saving studies or results will fail in:\n\n"
+                    f"{paths}\n\nMove BioDYM to a writable folder or correct its permissions.",
+                )
+            else:
+                self.summary.set("Choose an application to start.")
         self.refresh_service_states()
 
     @staticmethod
@@ -410,12 +433,18 @@ class Launcher(tk.Tk):
                     "No process was terminated.",
                 )
                 return None
-            self.terminate_process_tree(existing["pid"])
-            for _ in range(50):
-                if not self.port_open(preferred_port):
-                    self.summary.set(f"Stopped the existing {label}.")
-                    return preferred_port
-                time.sleep(0.1)
+            if self.terminate_process_tree(existing["pid"]):
+                for _ in range(50):
+                    if not self.port_open(preferred_port):
+                        self.summary.set(f"Stopped the existing {label}.")
+                        return preferred_port
+                    time.sleep(0.1)
+            else:
+                messagebox.showwarning(
+                    f"Could not stop {label}",
+                    "Windows denied or could not complete process termination. "
+                    "The existing application was left running.",
+                )
         alternative = self.next_free_port(preferred_port)
         if not alternative:
             messagebox.showerror(
@@ -486,12 +515,19 @@ class Launcher(tk.Tk):
         if self.pids.get(key) != pid or self.cancel_events[key].is_set():
             return
         label = SERVICES[key]["label"]
-        if self.pid_running(pid):
-            self.terminate_process_tree(pid)
-        self.forget_process(key)
-        self.states[key].set("Error")
+        terminated = not self.pid_running(pid) or self.terminate_process_tree(pid)
+        if terminated:
+            self.forget_process(key)
+            self.stop_buttons[key].state(["disabled"])
+            state = "Error"
+        else:
+            state = "Stop failed"
+            detail = (
+                f"{detail + ' ' if detail else ''}Windows could not terminate "
+                "the failed process; it remains tracked by the launcher."
+            )
+        self.states[key].set(state)
         self.start_buttons[key].state(["!disabled"])
-        self.stop_buttons[key].state(["disabled"])
         messagebox.showerror(
             f"{label} did not start",
             f"{detail + ' ' if detail else ''}Open the logs for details:\n{LOG_DIR}",
@@ -517,15 +553,26 @@ class Launcher(tk.Tk):
                     "This instance was not started by this BioDYM launcher and will not be terminated.",
                 )
             self.refresh_service_states()
-            return
+            return True
         self.cancel_events[key].set()
         pid = self.pids[key]
-        self.terminate_process_tree(pid)
+        if not self.terminate_process_tree(pid):
+            self.states[key].set("Stop failed")
+            self.summary.set(f"Windows could not stop {service['label']}.")
+            messagebox.showerror(
+                f"Could not stop {service['label']}",
+                "Windows denied or could not complete process termination. "
+                "The process is still running and remains tracked. Try closing "
+                "it from Task Manager or restart Windows.",
+            )
+            self.refresh_service_states()
+            return False
         self.forget_process(key)
         self.states[key].set("Stopped")
         self.port_vars[key].set(f"Default port {service['port']}")
         self.summary.set(f"{service['label']} stopped.")
         self.refresh_service_states()
+        return True
 
     def terminate_process_tree(self, pid):
         subprocess.run(
@@ -547,21 +594,29 @@ class Launcher(tk.Tk):
                 creationflags=NO_WINDOW,
                 check=False,
             )
+            for _ in range(20):
+                if not self.pid_running(pid):
+                    break
+                time.sleep(0.1)
+        return not self.pid_running(pid)
 
     def start_all(self):
         for key in SERVICES:
             self.start(key)
 
     def stop_all(self):
-        for key in SERVICES:
-            self.stop(key)
+        results = [self.stop(key) for key in SERVICES]
+        return all(result is not False for result in results)
 
     def refresh_service_states(self):
         for key, service in SERVICES.items():
             owned = self.owned_running(key)
             active_port = self.active_ports.get(key, service["port"])
             port_used = self.port_open(active_port)
-            if owned and port_used:
+            if owned and self.states[key].get() == "Stop failed":
+                state = "Stop failed"
+                port_text = f"Port {active_port}"
+            elif owned and port_used:
                 state = "Running"
                 port_text = f"Port {active_port}"
             elif owned:
@@ -603,11 +658,46 @@ class Launcher(tk.Tk):
             if answer is None:
                 return
             if answer:
-                self.stop_all()
+                if not self.stop_all():
+                    return
         for log in self.logs.values():
             log.close()
         self.destroy()
 
 
+def acquire_instance_mutex():
+    """Acquire a Windows mutex and report whether this launcher already exists."""
+    try:
+        kernel32 = ctypes.windll.kernel32
+        kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
+        kernel32.CreateMutexW.restype = wintypes.HANDLE
+        kernel32.GetLastError.restype = wintypes.DWORD
+        handle = kernel32.CreateMutexW(None, False, INSTANCE_MUTEX_NAME)
+    except AttributeError:
+        return None, False
+    if not handle:
+        return None, False
+    return handle, kernel32.GetLastError() == 183
+
+
+def release_instance_mutex(handle):
+    if handle:
+        ctypes.windll.kernel32.CloseHandle(handle)
+
+
 if __name__ == "__main__":
-    Launcher().mainloop()
+    _mutex, _already_running = acquire_instance_mutex()
+    if _already_running:
+        _notice = tk.Tk()
+        _notice.withdraw()
+        messagebox.showinfo(
+            "BioDYM Launcher is already open",
+            "Use the existing launcher window for this BioDYM installation.",
+        )
+        _notice.destroy()
+        release_instance_mutex(_mutex)
+    else:
+        try:
+            Launcher().mainloop()
+        finally:
+            release_instance_mutex(_mutex)
