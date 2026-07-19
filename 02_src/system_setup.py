@@ -1489,12 +1489,44 @@ def apply_scenario(
             )
 
     print("\n    -> Recalculating elemental compositions for modified flows...")
+    # Content-fraction parameters are PARENT-relative (same semantics as the
+    # depth-ordered composition pass at setup): an element's fraction refers
+    # to its parent in the element hierarchy, not to material. Recalculate
+    # depth-ordered (parents before children) against the parent's value so
+    # nested trees stay consistent. For flat hierarchies (every element a
+    # child of material) this reduces exactly to the previous behaviour.
+    elements = mfa_system.Elements
+    element_hierarchy = getattr(mfa_system, "_element_hierarchy", {}) or {}
+    parent_of = {}
+    for info in element_hierarchy.values():
+        name, parent = info.get("name"), info.get("parent")
+        if name and parent:
+            parent_of[name] = parent
+
+    def _depth(element_name):
+        depth, parent = 0, parent_of.get(element_name)
+        while parent is not None and parent != "material":
+            depth += 1
+            parent = parent_of.get(parent)
+        return depth
+
+    ordered_elements = sorted(
+        ((i, el) for i, el in enumerate(elements[1:], 1)),
+        key=lambda item: _depth(item[1]),
+    )
+    elem_index = {el: i for i, el in enumerate(elements)}
+
     for flow in mfa_system.FlowDict.values():
-        for i_elem, element_name in enumerate(mfa_system.Elements[1:], 1):
+        for i_elem, element_name in ordered_elements:
             param_name = f"{element_name}_{flow.Name}"
             if param_name in mfa_system.ParameterDict:
                 content_value = mfa_system.ParameterDict[param_name].Values
-                flow.Values[:, i_elem] = flow.Values[:, 0] * content_value
+                parent = parent_of.get(element_name)
+                if parent and parent != "material" and parent in elem_index:
+                    base = flow.Values[:, elem_index[parent]]
+                else:
+                    base = flow.Values[:, 0]
+                flow.Values[:, i_elem] = base * content_value
 
     print("\n✅ Scenario modifications applied successfully.")
     return mfa_system, dsm_params, fomp_params, initial_stock_configs
