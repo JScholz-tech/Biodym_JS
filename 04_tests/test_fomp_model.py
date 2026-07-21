@@ -267,8 +267,9 @@ def test_fomp_multi_element_composition():
 # ---------------------------------------------------------------------------
 
 def test_fomp_carbon_flow_composition_follows_hierarchy():
-    """The carbon outflow's DM equals TC / r_TC (inflow ratio), WC = 0, and
-    the per-element total over carbon + environmental flows is conserved."""
+    """The carbon outflow is pure-carbon-mass (material = DM = TC), WC = 0;
+    the environmental outflow carries the non-carbon decayed DM plus the
+    water bypass; and the per-element total over both flows is conserved."""
     import numpy as np
     import ODYM_Classes as msc
     import system_setup
@@ -321,11 +322,15 @@ def test_fomp_carbon_flow_composition_follows_hierarchy():
     carbon = mfa_system.FlowDict["F_1_2"].Values
     env = mfa_system.FlowDict["F_1_3"].Values
 
-    # Hierarchy consistency on the carbon flow: DM = TC / 0.4, material = DM, WC = 0
-    np.testing.assert_allclose(carbon[:, 2], carbon[:, 3] / 0.4, rtol=1e-9)
+    # Pure-carbon-mass convention on the carbon flow: material = DM = TC, WC = 0
+    np.testing.assert_allclose(carbon[:, 2], carbon[:, 3], rtol=1e-9)
     np.testing.assert_allclose(carbon[:, 0], carbon[:, 2], rtol=1e-9)
     assert np.all(carbon[:, 1] == 0), "gas flow must carry no water"
-    assert np.all(carbon[:, 3] <= carbon[:, 2] + 1e-12), "TC cannot exceed DM"
+
+    # The environmental flow carries the non-carbon decayed DM (TC = 0 there)
+    # and must be nonzero — it is NOT starved by the carbon flow.
+    assert np.all(env[:, 3] == 0), "environmental flow must carry no carbon"
+    assert np.all(env[:, 2] > 0), "environmental flow must carry the non-carbon decayed DM"
 
     # Water bypass goes to the environmental flow
     np.testing.assert_allclose(env[:, 1], inflow[:, 1])

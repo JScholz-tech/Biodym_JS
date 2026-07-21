@@ -326,37 +326,29 @@ def calculate_fomp(mfa_system, fomp_params_config, input_flow_composition):
         )
 
     # Create multi-element carbon outflow vector.
-    # Flexible output composition: the emitted carbon is propagated UP the
-    # element hierarchy using the inflow TC/DM ratio r_TC(t) = cc_dm_series,
-    # so the carbon flow carries the dry matter it originated from
-    # (DM = TC / r_TC, material = DM, WC = 0) instead of the former
-    # pure-carbon convention material = DM = TC = C_mass which bypassed the
-    # hierarchy. The DM carried by the carbon flow is capped at the total
-    # decayed DM; the environmental flow receives the remainder, so the
-    # per-element TOTAL over both flows is unchanged.
+    # Pure-carbon-mass convention (matches the LFG module's gas outputs — see
+    # bioDYM_mathematical_formulas.md §3.4/§4): material = DM = TC =
+    # outflow_carbon_mass. This flow carries only the carbon that actually
+    # decayed to gas (CO2/CH4-C), not a diluted parcel of the original
+    # feedstock — using r_TC(t) to inflate it to TC/r_TC (as a prior version
+    # of this function did) mis-routes the ENTIRE decayed DM onto the carbon
+    # flow whenever r_TC is time-constant (the common case), starving the
+    # environmental flow of the non-carbon fraction it must receive.
     carbon_outflow_values = np.zeros_like(total_inflow_values)
     outflow_carbon_mass = fomp_results["outflow_carbon"]
     outflow_env_mass = fomp_results["outflow_environmental"]
-    total_dm_decay = outflow_carbon_mass + outflow_env_mass
 
-    with np.errstate(divide="ignore", invalid="ignore"):
-        dm_equivalent = np.where(
-            cc_dm_series > 0, outflow_carbon_mass / cc_dm_series, 0.0
-        )
-    dm_equivalent = np.minimum(dm_equivalent, total_dm_decay)
-
-    carbon_outflow_values[:, material_idx] = dm_equivalent
-    carbon_outflow_values[:, dm_idx] = dm_equivalent
+    carbon_outflow_values[:, material_idx] = outflow_carbon_mass
+    carbon_outflow_values[:, dm_idx] = outflow_carbon_mass
     carbon_outflow_values[:, cc_idx] = outflow_carbon_mass
 
     # Create multi-element environmental outflow vector.
-    # Part 1: decayed dry matter NOT carried by the carbon flow
-    #         (H, O, N, S volatilisation)
+    # Part 1: non-carbon fraction of the decayed dry matter
+    #         (H, O, N, S volatilisation — everything decayed that isn't carbon)
     # Part 2: water from the INITIAL INPUT (water bypass — not retained in the pool)
     environmental_outflow_values = np.zeros_like(total_inflow_values)
-    env_dm_mass = total_dm_decay - dm_equivalent
-    environmental_outflow_values[:, material_idx] += env_dm_mass
-    environmental_outflow_values[:, dm_idx] += env_dm_mass
+    environmental_outflow_values[:, material_idx] += outflow_env_mass
+    environmental_outflow_values[:, dm_idx] += outflow_env_mass
     input_water_mass = total_inflow_values[:, wc_idx]
     environmental_outflow_values[:, material_idx] += input_water_mass
     environmental_outflow_values[:, wc_idx] += input_water_mass
