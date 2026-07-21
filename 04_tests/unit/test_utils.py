@@ -73,6 +73,28 @@ class TestSampleParameters:
         # For a normal distribution, most values should be within 3 standard deviations
         assert abs(result["param2"] - 10.0) < 6.0
 
+    def test_sample_parameters_normal_std_zero_is_constant_draw(self):
+        """
+        A structural-zero normal (std=0) must return the mean deterministically,
+        both with and without min/max bounds — previously the bounded case
+        crashed with ZeroDivisionError in the truncated-normal bound formula.
+        """
+        uncertainty_defs = {
+            "unbounded": {"distribution": "normal", "mean": 0.3, "std": 0.0},
+            "bounded": {
+                "distribution": "normal",
+                "mean": 0.3,
+                "std": 0.0,
+                "min": 0.0,
+                "max": 1.0,
+            },
+        }
+
+        result = sample_parameters(uncertainty_defs)
+
+        assert result["unbounded"] == 0.3
+        assert result["bounded"] == 0.3
+
     def test_sample_parameters_triangular_distribution(self):
         """
         Tests that triangular distribution sampling works correctly.

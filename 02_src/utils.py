@@ -173,7 +173,12 @@ def sample_parameters(uncertainty_params, rng=None):
         max_val = param_def.get("max", None)
 
         if distribution == "normal":
-            if min_val is not None or max_val is not None:
+            if std == 0:
+                # A zero-width normal is a constant draw, not a distribution —
+                # truncnorm's bound formula divides by std and rng.normal
+                # rejects std<0, both wrong for the structural-zero case.
+                value = mean
+            elif min_val is not None or max_val is not None:
                 # Proper truncated normal — smooth distribution within bounds
                 a = (min_val - mean) / std if min_val is not None else -np.inf
                 b = (max_val - mean) / std if max_val is not None else np.inf
