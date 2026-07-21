@@ -2763,8 +2763,12 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
     # though there are zero rows (feature disabled in YAML-only mode).
     # ── 3_2_Definition_FOMP ────────────────────────────────────────────────────
     # Process_ID / Parameter_Name / Value rows (load_fomp_parameters legacy format).
-    # The engine model reads keys f_labile / k_labile / k_recalcitrant; outflow IDs
-    # map via output_carbon_id → outflow_id, output_environmental_id → outflow_id_2.
+    # calculate_fomp() (engine/fomp_model.py) reads the verbose parameter names
+    # below via fomp_excel_params.get(...) with silent fallback defaults — the
+    # short keys "f_labile"/"k_labile"/"k_recalcitrant" this function used to
+    # emit are NOT recognized there and silently produced default (0.7/0.5/0.025)
+    # decay parameters for every YAML-only FOMP study. Outflow IDs map via
+    # output_carbon_id → outflow_id, output_environmental_id → outflow_id_2.
     fomp_rows = []
     for p in processes:
         if p.get("logic") != "FOMP":
@@ -2775,9 +2779,9 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
         def _fr(pname, val):
             fomp_rows.append({"Process_ID": pid, "Parameter_Name": pname, "Value": val})
 
-        _fr("f_labile", fomp.get("f_labile", 0.5))
-        _fr("k_labile", fomp.get("k_labile", 1.0))
-        _fr("k_recalcitrant", fomp.get("k_recalcitrant", 0.01))
+        _fr("Inflow_fraction_f (Labile pool)", fomp.get("f_labile", 0.5))
+        _fr("decay_k1 (Labile pool)", fomp.get("k_labile", 1.0))
+        _fr("decay_k2 (Recalcitrant pool)", fomp.get("k_recalcitrant", 0.01))
         if fomp.get("outflow_id"):
             _fr("output_carbon_id", fomp["outflow_id"])
         if fomp.get("outflow_id_2"):
