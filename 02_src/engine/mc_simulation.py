@@ -9,6 +9,7 @@ parameters defined in an Excel file.
 import pandas as pd
 import numpy as np
 import copy
+import warnings
 
 from . import solver
 import data_loader
@@ -586,7 +587,20 @@ def normalize_tc_updates(
             1 for f in mfa_system.FlowDict.values() if f.P_Start == process_id
         )
         if len(group) < n_outgoing:
-            continue  # Not all flows covered — skip normalization
+            # Not all outgoing flows are covered by this group, so proportional
+            # normalization would silently redistribute mass across flows the
+            # MC run never touched — skip it, but surface the gap: this is a
+            # likely config error (an incomplete uncertainty-parameter group).
+            warnings.warn(
+                f"normalize_tc_updates: TC group for element '{elem_prefix}' "
+                f"process {process_id} (window {window}) covers {len(group)} "
+                f"of {n_outgoing} outgoing flows — skipping normalization. "
+                "Sampled values may not sum to 1.0, risking mass creation. "
+                "Add uncertainty parameters for the missing flow(s).",
+                UserWarning,
+                stacklevel=2,
+            )
+            continue
 
         # Check if bounds are available for all TCs in this group
         bounds = {}

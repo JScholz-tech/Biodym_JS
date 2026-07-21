@@ -158,10 +158,12 @@ def test_normalize_tc_updates_single_tc_untouched():
 
 
 def test_normalize_tc_updates_incomplete_group_skipped():
-    # 3 outgoing flows but only 2 TCs sampled — normalization must not run
+    # 3 outgoing flows but only 2 TCs sampled — normalization must not run,
+    # and the gap (mass-creation risk) must be surfaced, not silent.
     system = _fake_system_with_outflows(5, n_outgoing=3)
     tc_updates = {"TC_05_06": 0.9, "TC_05_07": 0.3}
-    normalize_tc_updates(tc_updates, system)
+    with pytest.warns(UserWarning, match="covers 2 of 3 outgoing flows"):
+        normalize_tc_updates(tc_updates, system)
     assert tc_updates["TC_05_06"] == 0.9
     assert tc_updates["TC_05_07"] == 0.3
 
