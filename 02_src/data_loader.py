@@ -2694,11 +2694,9 @@ def yaml_to_excel_dataframes(yaml_path: str) -> dict:
             row = {"Process_ID": pid, "Flow_ID": fid, "Year": year}
             for idx, elem in enumerate(elements):
                 n = idx + 1
-                tc_id = (
-                    f"TC_{from_p:02d}_{to_p:02d}"
-                    if elem == "material"
-                    else f"TC_E{n}_{from_p:02d}_{to_p:02d}"
-                )
+                # Same convention as 2_2_static_TCs above: every element,
+                # incl. material (E1), uses TC_E{n}_{from}_{to}.
+                tc_id = f"TC_E{n}_{from_p:02d}_{to_p:02d}"
                 val = values.get(elem)
                 row[f"E{n}_TC_ID"] = tc_id if val is not None else None
                 row[f"E{n}_TC_Value[%]"] = val

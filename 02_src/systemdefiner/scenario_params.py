@@ -76,9 +76,10 @@ def _build_scenario_params(cfg) -> list[dict]:
             stored_tc = _tc_lookup.get((proc.id, flow.id))
 
             if proc.logic == ProcessLogic.transformer:
-                # TC naming mirrors yaml_to_excel_dataframes: n = idx+1 (1-based)
-                # material (idx=0): TC_from_to (no E prefix)
-                # element idx≥1:   TC_E{idx+1}_from_to  (E2 for WC, E3 for DM, E4 for CC …)
+                # TC naming mirrors yaml_to_excel_dataframes: n = idx+1 (1-based),
+                # TC_E{n}_from_to for every element incl. material (E1) — same
+                # convention for static and dynamic TCs (see data_loader.py
+                # 2_2_static_TCs / 2_3_dynamic_TCs).
                 for e_idx, elem in enumerate(cfg.model.elements):
                     n = e_idx + 1
                     if e_idx == 0:
