@@ -76,7 +76,7 @@ def plot_interactive_mc_histogram(mc_results_df, mfa_system_results=None):
     elements = sorted(
         list(
             set(
-                col.split("_")[2]
+                "_".join(col.split("_")[2:])
                 for col in mc_results_df.columns
                 if col.startswith("S_")
                 and len(col.split("_")) >= 3
@@ -389,7 +389,7 @@ def plot_interactive_mc_paths(mc_results_df, mfa_system_results=None):
     elements = sorted(
         list(
             set(
-                col.split("_")[2]
+                "_".join(col.split("_")[2:])
                 for col in mc_results_df.columns
                 if col.startswith("S_")
                 and len(col.split("_")) >= 3
@@ -675,7 +675,7 @@ def plot_interactive_mc_multiple_histograms(mc_results_df, mfa_system_results=No
     elements = sorted(
         list(
             set(
-                col.split("_")[2]
+                "_".join(col.split("_")[2:])
                 for col in mc_results_df.columns
                 if col.startswith("S_")
                 and len(col.split("_")) >= 3
@@ -1039,7 +1039,7 @@ def plot_interactive_mc_boxplot(mc_results_df, mfa_system_results=None):
     )
     elements = sorted(
         set(
-            col.split("_")[2]
+            "_".join(col.split("_")[2:])
             for col in mc_results_df.columns
             if col.startswith("S_")
             and len(col.split("_")) >= 3
