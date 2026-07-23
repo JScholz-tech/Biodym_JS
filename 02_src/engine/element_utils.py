@@ -12,6 +12,7 @@ Mathematical notation (see bioDYM_mathematical_formulas.md §1.1, §2.3, §6.2):
     e^TC           ←→  get_carbon_element_name (TC new / CC legacy)
     ch(e)          ←→  build_element_children_map(...)[e]
     ρ_f^e(t)       ←→  per-node residual in validate_element_hierarchy()
+    exhaustive(e)  ←→  inferred node completeness in validate_exhaustive_hierarchy()
 """
 
 import numpy as np
@@ -305,5 +306,96 @@ def validate_element_hierarchy(mfa_system, tolerance=1.0):
 
         if node_over or node_under:
             violations[parent_name] = {"over": node_over, "under": node_under}
+
+    return violations
+
+
+def validate_exhaustive_hierarchy(mfa_system, tolerance=0.1):
+    """Flag flows where a parent drifts from a child set declared COMPLETE.
+
+    Complements `validate_element_hierarchy`, which reports every deviation of
+    Σ ch(e) from e. That check cannot be run unattended: a node whose children
+    are only a partially tracked subset (the canonical DM → {TC} with
+    Ash_content not modelled) under-accounts permanently and *legitimately*, so
+    it would raise a violation on nearly every flow of nearly every study.
+
+    Completeness is therefore not guessed here. It is read from
+    ``mfa_system._exhaustive_elements``, which `system_setup` derives from the
+    declared composition fractions (a parent whose children sum to 1.0 has been
+    stated to be fully accounted for by them). Inferring it from solved values
+    instead does not work: a flow that happens to be pure carbon shows TC == DM
+    exactly, which is indistinguishable from a genuinely complete node.
+
+    For each declared-exhaustive node e, every flow f and year t is checked:
+
+        ρ_f^e(t) = F_f^e(t) - Σ_{e' ∈ ch(e)} F_f^{e'}(t)
+
+    and reported when it strays beyond ``tolerance``.
+
+    The failure mode this catches is a hand-fitted **aggregate** (parent-level)
+    transfer coefficient that has gone stale relative to the composition now
+    reaching its process. Such a coefficient is invisible to every other check:
+    ODYM's `Consistency_Check` validates the material balance, and `material`
+    is itself derived as the sum of top-level elements, so it agrees with the
+    model by construction while the parent quietly stops equalling its parts.
+
+    Parameters
+    ----------
+    mfa_system : odym.MFAsystem
+        Must expose ``.Elements``, ``.FlowDict``, ``._element_hierarchy`` and
+        ``._exhaustive_elements``. Returns ``{}`` when completeness is unknown,
+        so the check stays silent rather than guessing.
+    tolerance : float, optional
+        Tolerance in percentage points. Default 0.1, which sits well clear of
+        solver round-off (observed ≤ 0.003 pp on converged systems) while
+        catching real drift.
+
+    Returns
+    -------
+    dict
+        ``{node_name: [(flow_label, year, pct), ...]}`` for declared-exhaustive
+        nodes that have deviating flows. Empty when consistent.
+    """
+    elements = list(mfa_system.Elements)
+    element_hierarchy = getattr(mfa_system, "_element_hierarchy", None)
+    exhaustive_nodes = getattr(mfa_system, "_exhaustive_elements", None)
+    if not element_hierarchy or not exhaustive_nodes:
+        return {}
+
+    children_map = build_element_children_map(element_hierarchy, elements)
+    if not children_map:
+        return {}
+
+    flow_descriptions = getattr(mfa_system, "_flow_descriptions", {})
+    years = list(mfa_system.IndexTable.Classification["Time"].Items)
+
+    violations = {}
+    for parent_name, child_names in children_map.items():
+        if parent_name not in elements or parent_name not in exhaustive_nodes:
+            continue  # partially tracked node — legitimate remainder, stay silent
+
+        parent_idx = elements.index(parent_name)
+        child_idx = [elements.index(c) for c in child_names]
+
+        deviating = []
+        for flow_id, flow in mfa_system.FlowDict.items():
+            values = flow.Values
+            parent_values = values[:, parent_idx]
+            children_sum = values[:, child_idx].sum(axis=1)
+
+            valid = np.abs(parent_values) > 1e-10
+            if not np.any(valid):
+                continue
+
+            flow_label = flow_descriptions.get(flow_id, flow_id)
+            for year_idx, year in enumerate(years):
+                if not valid[year_idx]:
+                    continue
+                pct = children_sum[year_idx] / parent_values[year_idx] * 100.0
+                if abs(pct - 100.0) > tolerance:
+                    deviating.append((flow_label, year, float(pct)))
+
+        if deviating:
+            violations[parent_name] = deviating
 
     return violations

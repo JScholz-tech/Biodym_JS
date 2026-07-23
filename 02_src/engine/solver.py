@@ -1024,4 +1024,40 @@ def run_mfa_calculation(
     except Exception as e:
         print(f"⚠️ Final validation warning: {e}")
 
+    # Element-hierarchy validation. Consistency_Check() above verifies the mass
+    # balance only, and "material" is itself derived as the sum of top-level
+    # elements — so it agrees with the model by construction and cannot reveal
+    # an intermediate parent that has stopped equalling its own children. That
+    # happens when a hand-fitted aggregate (parent-level) TC on a Transformer
+    # goes stale against the composition actually reaching the process: every
+    # other check still reports success while the parent-level tonnages quietly
+    # diverge from the component-level ones.
+    try:
+        hierarchy_violations = _element_utils.validate_exhaustive_hierarchy(mfa_system)
+    except Exception as e:
+        hierarchy_violations = {}
+        print(f"⚠️ Element-hierarchy validation skipped: {e}")
+
+    if hierarchy_violations:
+        detail_lines = []
+        for node, deviating in hierarchy_violations.items():
+            worst = max(deviating, key=lambda s: abs(s[2] - 100.0))
+            detail_lines.append(
+                f"  - '{node}': {len(deviating)} flow-year(s) inconsistent; worst "
+                f"'{worst[0]}' ({worst[1]}) children = {worst[2]:.2f}% of parent"
+            )
+        message = (
+            "Element-hierarchy inconsistency — a parent element does not equal the sum "
+            "of its children on some flows, while matching exactly on others:\n"
+            + "\n".join(detail_lines)
+            + "\n  Likely cause: an aggregate (parent-level) transfer coefficient fitted "
+            "to an inflow composition that has since changed. Recompute it from the "
+            "solved composition."
+        )
+        if getattr(config, "SOLVER_STRICT", False):
+            raise RuntimeError(message)
+        print(f"⚠️ {message}")
+    else:
+        print("✅ Element-hierarchy validation passed")
+
     return mfa_system, dsm_details, solver_info

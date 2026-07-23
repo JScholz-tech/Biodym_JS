@@ -17,13 +17,16 @@ documenting the blind spot rather than silently fixing it.
 from types import SimpleNamespace
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from engine.element_utils import (
     build_element_children_map,
     validate_element_hierarchy,
+    validate_exhaustive_hierarchy,
 )
 from plotting.composition import validate_flow_compositions
+from system_setup import _infer_exhaustive_elements
 
 # mat
 # +-- WC
@@ -164,3 +167,122 @@ def test_no_hierarchy_returns_empty():
     system = _make_system([100.0, 20.0, 80.0, 40.0, 25.0, 15.0])
     system._element_hierarchy = {}
     assert validate_element_hierarchy(system) == {}
+
+
+# --------------------------------------------------------------------------
+# validate_exhaustive_hierarchy — the solver-facing check
+#
+# validate_element_hierarchy() above reports EVERY deviation, which makes it
+# unsafe to run unattended: a partially tracked node (DM -> {TC} with
+# Ash_content not modelled) under-accounts permanently and legitimately.
+# validate_exhaustive_hierarchy() therefore only inspects nodes that the input
+# data declared complete, so the solver can run it on every study.
+# --------------------------------------------------------------------------
+
+def _exhaustive(system, nodes):
+    system._exhaustive_elements = set(nodes)
+    return system
+
+
+def test_exhaustive_check_flags_parent_that_stopped_equalling_its_children():
+    # TOC+TIC = 78 vs TC = 80 -> 97.5%. TC is declared exhaustive, so the
+    # shortfall is a real inconsistency (the signature of an aggregate
+    # parent-level TC fitted to a composition that has since changed).
+    system = _exhaustive(_make_system([100.0, 20.0, 80.0, 80.0, 48.0, 30.0]), ["TC"])
+
+    violations = validate_exhaustive_hierarchy(system, tolerance=0.1)
+    assert "TC" in violations
+    flow_label, year, pct = violations["TC"][0]
+    assert flow_label == "F_01_02"
+    assert year == 2025
+    assert pct == pytest.approx(97.5)
+
+
+def test_exhaustive_check_stays_silent_on_partially_tracked_nodes():
+    # Same 97.5% shortfall at TC, but TC is NOT declared exhaustive -- this is
+    # the canonical untracked-remainder case and must not be reported, or every
+    # study using the standard DM -> {TC} hierarchy would emit false positives.
+    system = _exhaustive(_make_system([100.0, 20.0, 80.0, 80.0, 48.0, 30.0]), ["material"])
+    assert validate_exhaustive_hierarchy(system, tolerance=0.1) == {}
+
+
+def test_exhaustive_check_flags_over_allocation_too():
+    # TOC+TIC = 100 vs TC = 80 -> 125%.
+    system = _exhaustive(_make_system([100.0, 20.0, 80.0, 80.0, 50.0, 50.0]), ["TC"])
+    violations = validate_exhaustive_hierarchy(system, tolerance=0.1)
+    assert violations["TC"][0][2] == pytest.approx(125.0)
+
+
+def test_exhaustive_check_passes_when_children_account_exactly():
+    system = _exhaustive(
+        _make_system([100.0, 20.0, 80.0, 80.0, 50.0, 30.0]), ["material", "DM", "TC"]
+    )
+    assert validate_exhaustive_hierarchy(system, tolerance=0.1) == {}
+
+
+def test_exhaustive_check_silent_without_a_declaration():
+    # No _exhaustive_elements at all -> completeness unknown -> stay silent
+    # rather than guess. Guessing from solved values is unsound: a pure-carbon
+    # flow shows TC == DM exactly and is indistinguishable from a complete node.
+    system = _make_system([100.0, 20.0, 80.0, 80.0, 48.0, 30.0])
+    assert validate_exhaustive_hierarchy(system) == {}
+
+
+def test_exhaustive_check_tolerance_absorbs_solver_round_off():
+    # 79.96/80 -> 99.95%, inside the 0.1pp default (converged systems were
+    # measured at <= 0.003pp round-off).
+    system = _exhaustive(_make_system([100.0, 20.0, 80.0, 80.0, 49.96, 30.0]), ["TC"])
+    assert validate_exhaustive_hierarchy(system, tolerance=0.1) == {}
+
+
+# --------------------------------------------------------------------------
+# system_setup._infer_exhaustive_elements — where completeness is DECLARED
+#
+# Composition fractions are parent-relative, so a parent whose children sum to
+# 1.0 on any declared flow has been stated to be fully accounted for by them.
+# This is read from the input data rather than inferred from results.
+# --------------------------------------------------------------------------
+
+def _flows_sheet(**fracs):
+    """One flow row; kwargs are element names -> declared fraction."""
+    row = {"Flow_ID": "F_00_01"}
+    for elem, value in fracs.items():
+        row[f"Flow_E{ELEMENTS.index(elem) + 1}_Fraction[%]"] = value
+    return pd.DataFrame([row])
+
+
+def test_infer_marks_node_exhaustive_when_children_sum_to_one():
+    # TOC 0.6 + TIC 0.4 = 1.0 -> TC is completely accounted for by its children.
+    sheet = _flows_sheet(material=1.0, WC=0.2, DM=0.8, TC=0.35, TOC=0.6, TIC=0.4)
+    result = _infer_exhaustive_elements(
+        {"1_1_Definition_Flows": sheet}, ELEMENT_HIERARCHY, ELEMENTS
+    )
+    assert "TC" in result
+    # WC+DM = 1.0 as well, so material is exhaustive too.
+    assert "material" in result
+    # DM's only tracked child is TC at 0.35 -> partial, must NOT be claimed.
+    assert "DM" not in result
+
+
+def test_infer_leaves_partial_node_out():
+    # The canonical case: DM -> {TC} at 30%, Ash_content untracked.
+    sheet = _flows_sheet(material=1.0, WC=0.7, DM=0.3, TC=0.30, TOC=0.5, TIC=0.5)
+    result = _infer_exhaustive_elements(
+        {"1_1_Definition_Flows": sheet}, ELEMENT_HIERARCHY, ELEMENTS
+    )
+    assert "DM" not in result
+
+
+def test_infer_returns_empty_without_composition_data():
+    assert _infer_exhaustive_elements({}, ELEMENT_HIERARCHY, ELEMENTS) == set()
+    assert (
+        _infer_exhaustive_elements(
+            {"1_1_Definition_Flows": pd.DataFrame()}, ELEMENT_HIERARCHY, ELEMENTS
+        )
+        == set()
+    )
+
+
+def test_infer_returns_empty_without_hierarchy():
+    sheet = _flows_sheet(material=1.0, WC=0.2, DM=0.8)
+    assert _infer_exhaustive_elements({"1_1_Definition_Flows": sheet}, {}, ELEMENTS) == set()

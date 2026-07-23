@@ -683,6 +683,96 @@ def _build_element_column_map(elements, content_definitions):
     return column_map
 
 
+def _infer_exhaustive_elements(
+    all_excel_data, element_hierarchy, elements, tolerance=1e-6
+):
+    """Return parent elements whose tracked children are a COMPLETE decomposition.
+
+    A node is *exhaustive* when its children account for the whole parent, and
+    *partial* when they are only the tracked subset of it. BioDYM cannot infer
+    this from solved values — the canonical partial node DM → {TC} (with
+    Ash_content not modelled) is indistinguishable from a complete one, because
+    a flow that happens to be pure carbon shows TC == DM legitimately.
+
+    It is, however, already declared: composition fractions are parent-relative
+    (see `_calculate_elemental_compositions`), so a parent whose children sum to
+    1.0 on any declared flow composition has been stated to be fully accounted
+    for by them. That is read here from '1_1_Definition_Flows'
+    (``Flow_E{n}_Fraction[%]``, n = 1-based element index), which both the Excel
+    and YAML input paths populate.
+
+    Used by `engine.element_utils.validate_exhaustive_hierarchy` so the solver
+    can flag a parent that stops equalling its own children — typically a
+    hand-fitted aggregate transfer coefficient gone stale — without emitting
+    false positives on legitimately partial nodes.
+
+    Parameters
+    ----------
+    all_excel_data : dict
+        Sheet-name → DataFrame mapping.
+    element_hierarchy : dict
+        {element_id: {'name': str, 'parent': str or None}}.
+    elements : sequence of str
+        Element names tracked by this system (``mfa_system.Elements``).
+    tolerance : float, optional
+        Absolute tolerance on the children sum vs 1.0 (default 1e-6).
+
+    Returns
+    -------
+    set of str
+        Parent element names judged exhaustive. Empty when unknown, which
+        keeps the downstream check silent rather than guessing.
+    """
+    if not element_hierarchy:
+        return set()
+
+    elements = list(elements)
+    children_map = {}
+    for elem_info in element_hierarchy.values():
+        name = elem_info.get("name")
+        if not name or name not in elements or name == "material":
+            continue
+        parent = elem_info.get("parent") or "material"
+        children_map.setdefault(parent, []).append(name)
+    if not children_map:
+        return set()
+
+    flows_df = (all_excel_data or {}).get("1_1_Definition_Flows")
+    if flows_df is None or getattr(flows_df, "empty", True):
+        return set()
+
+    # element name → its Flow_E{n}_Fraction[%] column
+    frac_col = {}
+    for idx, elem in enumerate(elements):
+        col = f"Flow_E{idx + 1}_Fraction[%]"
+        if col in flows_df.columns:
+            frac_col[elem] = col
+
+    exhaustive = set()
+    for parent, child_names in children_map.items():
+        if parent not in elements:
+            continue
+        cols = [frac_col[c] for c in child_names if c in frac_col]
+        if not cols:
+            continue
+        for _, row in flows_df.iterrows():
+            total = 0.0
+            seen = False
+            for col in cols:
+                value = row.get(col)
+                if pd.notna(value):
+                    try:
+                        total += float(value)
+                        seen = True
+                    except (TypeError, ValueError):
+                        continue
+            if seen and abs(total - 1.0) <= tolerance:
+                exhaustive.add(parent)
+                break
+
+    return exhaustive
+
+
 def _calculate_elemental_compositions(mfa_system, element_hierarchy=None):
     """Calculates elemental values for flows based on content parameters.
 
@@ -1058,6 +1148,18 @@ def define_flows_and_parameters(mfa_system, all_excel_data, debug_mode=False):
     # NOTE: This is a BioDYM extension (not part of standard ODYM)
     # The '_' prefix indicates custom attribute
     mfa_system._element_hierarchy = element_hierarchy
+
+    # Which hierarchy nodes are fully accounted for by their tracked children.
+    # Declared via the composition fractions, not inferred from results — see
+    # _infer_exhaustive_elements. Consumed by the solver's hierarchy validation.
+    mfa_system._exhaustive_elements = _infer_exhaustive_elements(
+        all_excel_data, element_hierarchy, mfa_system.Elements
+    )
+    if debug_mode and mfa_system._exhaustive_elements:
+        print(
+            f"--> Exhaustive element nodes: "
+            f"{sorted(mfa_system._exhaustive_elements)}"
+        )
 
     _calculate_elemental_compositions(mfa_system, element_hierarchy)
     flow_tc_map, process_logic_map = _create_flow_and_process_maps(
