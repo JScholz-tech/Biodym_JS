@@ -340,6 +340,55 @@ def _calculate_tc_driven_flows(
                 if not element_hierarchy:
                     element_hierarchy = getattr(mfa_system, "_element_hierarchy", {})
 
+                # Derive EXHAUSTIVE parents from their children rather than from
+                # their own TC. A Transformer applies each element's TC
+                # independently, so a hand-fitted aggregate (parent-level) TC is
+                # free to drift from the components it is supposed to total —
+                # silently, and badly under scenario edits. For a node whose
+                # tracked children are its complete decomposition (declared via
+                # the composition fractions, see system_setup), the parent is
+                # not a free parameter: it MUST equal the sum of its children.
+                # Deepest-first so a parent is summed only after its own
+                # children are final. "material" is handled by the top-level
+                # sum below (it is the depth-0 exhaustive node).
+                exhaustive = getattr(mfa_system, "_exhaustive_elements", None) or set()
+                if element_hierarchy and exhaustive:
+                    parent_of = {
+                        info["name"]: (info.get("parent") or "material")
+                        for info in element_hierarchy.values()
+                        if info.get("name")
+                    }
+                    children_of = {}
+                    for child, parent in parent_of.items():
+                        children_of.setdefault(parent, []).append(child)
+
+                    def _depth(name):
+                        d, cur = 0, name
+                        while True:
+                            parent = parent_of.get(cur)
+                            if not parent or parent == "material":
+                                return d
+                            d, cur = d + 1, parent
+
+                    for parent in sorted(
+                        (
+                            p
+                            for p in exhaustive
+                            if p != "material" and p in elem_indices
+                        ),
+                        key=_depth,
+                        reverse=True,
+                    ):
+                        child_idx = [
+                            elem_indices[c]
+                            for c in children_of.get(parent, [])
+                            if c in elem_indices
+                        ]
+                        if child_idx:
+                            outflow_vector[:, elem_indices[parent]] = outflow_vector[
+                                :, child_idx
+                            ].sum(axis=1)
+
                 # Recalculate total material as sum of TOP-LEVEL elements only
                 # (excludes hierarchical elements like CC which is % of DM, not material)
                 if element_hierarchy:
