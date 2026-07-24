@@ -116,13 +116,13 @@ class Launcher(tk.Tk):
             ttk.Label(card, textvariable=self.port_vars[key], width=19).pack(side="left")
             start = ttk.Button(card, text="Start / Open", command=lambda k=key: self.start(k))
             start.pack(side="left", padx=5)
-            stop = ttk.Button(card, text="Stop", command=lambda k=key: self.stop(k))
+            stop = ttk.Button(card, text="Stop", command=lambda k=key: self.stop(k, notify=True))
             stop.pack(side="left")
             self.start_buttons[key], self.stop_buttons[key] = start, stop
         buttons = ttk.Frame(frame)
         buttons.pack(fill="x", pady=(14, 5))
         ttk.Button(buttons, text="Start both", command=self.start_all).pack(side="left")
-        ttk.Button(buttons, text="Stop all", command=self.stop_all).pack(side="left", padx=6)
+        ttk.Button(buttons, text="Stop all", command=lambda: self.stop_all(notify=True)).pack(side="left", padx=6)
         ttk.Button(buttons, text="Open logs", command=self.open_logs).pack(side="right")
         ttk.Label(frame, textvariable=self.summary, wraplength=490).pack(anchor="w", pady=(8, 0))
 
@@ -197,7 +197,36 @@ class Launcher(tk.Tk):
 
     @classmethod
     def pid_running(cls, pid):
-        return cls.process_created(pid) is not None
+        """True only if the process is still executing.
+
+        A process that has been terminated but whose handle is still held open
+        elsewhere (e.g. by our own Popen object) stays resolvable via
+        OpenProcess, so the old "handle opens == running" test reported killed
+        processes as alive and produced a false "Could not stop" error. Consult
+        the exit code instead: STILL_ACTIVE (259) means genuinely running.
+        """
+        try:
+            kernel32 = ctypes.windll.kernel32
+            kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+            kernel32.OpenProcess.restype = wintypes.HANDLE
+            kernel32.GetExitCodeProcess.argtypes = [
+                wintypes.HANDLE,
+                ctypes.POINTER(wintypes.DWORD),
+            ]
+            kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+            kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+            handle = kernel32.OpenProcess(0x1000, False, int(pid))
+        except (AttributeError, TypeError, ValueError):
+            return False
+        if not handle:
+            return False
+        try:
+            code = wintypes.DWORD()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return False
+            return code.value == 259  # STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
 
     def load_owned_pids(self):
         try:
@@ -543,35 +572,42 @@ class Launcher(tk.Tk):
             log.close()
         self.save_owned_pids()
 
-    def stop(self, key):
+    def stop(self, key, notify=False):
         service = SERVICES[key]
+        label = service["label"]
         if not self.owned_running(key):
             port = self.active_ports.get(key, service["port"])
             if self.port_open(port):
-                messagebox.showwarning(
-                    f"Cannot stop {service['label']}",
-                    "This instance was not started by this BioDYM launcher and will not be terminated.",
-                )
+                if notify:
+                    messagebox.showwarning(
+                        f"Cannot stop {label}",
+                        "This instance was not started by this BioDYM launcher and will not be terminated.",
+                    )
+            elif notify:
+                messagebox.showinfo(f"{label} is not running", f"{label} was not running.")
             self.refresh_service_states()
             return True
         self.cancel_events[key].set()
         pid = self.pids[key]
         if not self.terminate_process_tree(pid):
             self.states[key].set("Stop failed")
-            self.summary.set(f"Windows could not stop {service['label']}.")
-            messagebox.showerror(
-                f"Could not stop {service['label']}",
-                "Windows denied or could not complete process termination. "
-                "The process is still running and remains tracked. Try closing "
-                "it from Task Manager or restart Windows.",
-            )
+            self.summary.set(f"Windows could not stop {label}.")
+            if notify:
+                messagebox.showerror(
+                    f"Could not stop {label}",
+                    "Windows denied or could not complete process termination. "
+                    "The process is still running and remains tracked. Try closing "
+                    "it from Task Manager or restart Windows.",
+                )
             self.refresh_service_states()
             return False
         self.forget_process(key)
         self.states[key].set("Stopped")
         self.port_vars[key].set(f"Default port {service['port']}")
-        self.summary.set(f"{service['label']} stopped.")
+        self.summary.set(f"{label} stopped.")
         self.refresh_service_states()
+        if notify:
+            messagebox.showinfo(f"{label} stopped", f"{label} has been stopped.")
         return True
 
     def terminate_process_tree(self, pid):
@@ -604,9 +640,30 @@ class Launcher(tk.Tk):
         for key in SERVICES:
             self.start(key)
 
-    def stop_all(self):
-        results = [self.stop(key) for key in SERVICES]
-        return all(result is not False for result in results)
+    def stop_all(self, notify=False):
+        running = [key for key in SERVICES if self.owned_running(key)]
+        results = {key: self.stop(key) for key in SERVICES}
+        ok = all(result is not False for result in results.values())
+        if notify:
+            failed = [SERVICES[k]["label"] for k, r in results.items() if r is False]
+            if failed:
+                messagebox.showerror(
+                    "Could not stop all applications",
+                    "These applications could not be stopped:\n  "
+                    + "\n  ".join(failed)
+                    + "\n\nTry closing them from Task Manager or restart Windows.",
+                )
+            elif running:
+                messagebox.showinfo(
+                    "BioDYM stopped",
+                    "All running BioDYM applications have been stopped.",
+                )
+            else:
+                messagebox.showinfo(
+                    "Nothing to stop",
+                    "No BioDYM applications were running.",
+                )
+        return ok
 
     def refresh_service_states(self):
         for key, service in SERVICES.items():
