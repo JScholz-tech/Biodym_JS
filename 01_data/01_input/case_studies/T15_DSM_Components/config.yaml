@@ -32,6 +32,7 @@ description: '📘 Tutorial T04 — Dynamic Stock Modelling
   • Stock plot: the in-use stock grows, then turns over as old cohorts retire.
 
   • Outflow lags the inflow by roughly the mean product lifetime.'
+group: Tutorials
 model:
   start_year: 2025
   end_year: 2125
@@ -53,6 +54,9 @@ model:
   run_fomp_calculation: false
   run_monte_carlo: false
   mc_iterations: 1000
+  mc_seed: '42'
+  solver_strict: false
+  solver_max_iterations: 30
   run_scenario_analysis: false
   selected_scenarios:
   - ''
@@ -69,6 +73,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 1
   name: Process 1 (Construction Material)
   logic: DSM
@@ -86,6 +91,7 @@ processes:
       lifetime_std: null
       lifetime_shape: null
       lifetime_scale: null
+      component_lifetimes: {}
     - name: Material 2
       inflow_split: 0.25
       lifetime_type: Normal
@@ -93,6 +99,7 @@ processes:
       lifetime_std: 5.0
       lifetime_shape: null
       lifetime_scale: null
+      component_lifetimes: {}
     - name: Material 3
       inflow_split: 0.25
       lifetime_type: LogNormal
@@ -100,6 +107,7 @@ processes:
       lifetime_std: 5.0
       lifetime_shape: null
       lifetime_scale: null
+      component_lifetimes: {}
     - name: Material 4
       inflow_split: 0.25
       lifetime_type: Weibull
@@ -107,9 +115,11 @@ processes:
       lifetime_std: null
       lifetime_shape: 3.0
       lifetime_scale: 20.0
+      component_lifetimes: {}
     components: []
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 2
   name: Process 2
   logic: Output
@@ -119,6 +129,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 3
   name: Process 3
   logic: Output
@@ -128,6 +139,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 flows:
 - id: F_00_01
   name: Flow 1

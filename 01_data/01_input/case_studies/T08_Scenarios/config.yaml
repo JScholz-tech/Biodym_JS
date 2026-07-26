@@ -30,6 +30,7 @@ description: '📘 Tutorial T08 — Scenario analysis
 
   • The recycling sink stock is much larger under "High recycling" than baseline;
   landfill is smaller.'
+group: Tutorials
 model:
   start_year: 2025
   end_year: 2125
@@ -51,6 +52,9 @@ model:
   run_fomp_calculation: false
   run_monte_carlo: false
   mc_iterations: 1000
+  mc_seed: '42'
+  solver_strict: false
+  solver_max_iterations: 30
   run_scenario_analysis: true
   selected_scenarios:
   - High recycling
@@ -67,6 +71,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 1
   name: Sorting
   logic: Splitter
@@ -76,6 +81,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 2
   name: Recycling
   logic: Output
@@ -85,6 +91,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 3
   name: Landfill
   logic: Output
@@ -94,6 +101,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 flows:
 - id: F_00_01
   name: Waste in
@@ -108,7 +116,9 @@ flows:
   from_process: 1
   to_process: 3
 transfer_coefficients:
-- process_id: 1
+- ref: ''
+  refs: []
+  process_id: 1
   flow_id: F_01_02
   tc_type: static
   values:
@@ -117,8 +127,9 @@ transfer_coefficients:
     DM: 0.3
     TC: 0.3
   time_series: []
-  ref: ''
-- process_id: 1
+- ref: ''
+  refs: []
+  process_id: 1
   flow_id: F_01_03
   tc_type: static
   values:
@@ -127,7 +138,6 @@ transfer_coefficients:
     DM: 0.7
     TC: 0.7
   time_series: []
-  ref: ''
 element_hierarchy:
 - parent: material
   children:
@@ -137,15 +147,18 @@ element_hierarchy:
   children:
   - TC
 flow_compositions:
-- flow_id: F_00_01
+- ref: ''
+  refs: []
+  flow_id: F_00_01
   values:
     material: 1.0
     WC: 0.5
     DM: 0.5
     TC: 0.25
-  ref: ''
 flow_data:
-- flow_id: F_00_01
+- ref: ''
+  refs: []
+  flow_id: F_00_01
   element: material
   values:
     '2025': 100.0
@@ -154,20 +167,22 @@ bom_assembly: []
 scenarios:
 - name: High recycling
   modifications:
-  - parameter_name: TC_E1_01_02
+  - ref: ''
+    refs: []
+    parameter_name: TC_E1_01_02
     parameter_type: TC
     operation: replace
     new_value: 0.7
     start_year: null
     end_year: null
-    ref: ''
-  - parameter_name: TC_E1_01_03
+  - ref: ''
+    refs: []
+    parameter_name: TC_E1_01_03
     parameter_type: TC
     operation: replace
     new_value: 0.3
     start_year: null
     end_year: null
-    ref: ''
 mc_parameters: []
 initial_stocks: []
 references: []

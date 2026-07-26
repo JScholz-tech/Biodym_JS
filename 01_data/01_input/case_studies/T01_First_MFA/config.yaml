@@ -8,6 +8,7 @@ description: "\U0001F4D8 Tutorial T01 — Hello MFA\r\n\r\nThe simplest possible
   \ you enter.\r\n\r\nTry it\r\n• Run the analysis (no transfer coefficients are needed\
   \ for a single flow).\r\n\r\nLook for\r\n• Sankey: one arrow, 100 Mg/yr.\r\n• Validation:\
   \ mass-balance error = 0 (inflow equals outflow)."
+group: Tutorials
 model:
   start_year: 2025
   end_year: 2125

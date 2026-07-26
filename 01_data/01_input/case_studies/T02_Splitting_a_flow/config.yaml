@@ -9,6 +9,7 @@ description: "\U0001F4D8 Tutorial T02 — Splitting a flow\r\nIntroduces the Spl
   \n\r\nTry it\r\n• Open the Transfer Coefficients page for the Splitter and check\
   \ the 70/30 split.\r\n• Change the fractions (keeping the sum at 100%) and re-run.\r\
   \n\r\nLook for\r\n• Sankey: the inflow divides 70/30 into the two sinks"
+group: Tutorials
 model:
   start_year: 2025
   end_year: 2125
@@ -18,6 +19,7 @@ model:
   - DM
   - TC
   unit_of_measurement: Mg
+  sankey_title: ''
   hierarchy_level_names:
   - Product
   - Component
@@ -29,6 +31,9 @@ model:
   run_fomp_calculation: true
   run_monte_carlo: false
   mc_iterations: 1000
+  mc_seed: '42'
+  solver_strict: false
+  solver_max_iterations: 30
   run_scenario_analysis: false
   selected_scenarios:
   - ''
@@ -45,6 +50,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 1
   name: Process 1
   logic: Splitter
@@ -54,6 +60,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 2
   name: Process 2
   logic: Output
@@ -63,6 +70,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 3
   name: Process 3
   logic: Output
@@ -72,6 +80,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 flows:
 - id: F_00_01
   name: Flow 1
@@ -86,7 +95,9 @@ flows:
   from_process: 1
   to_process: 3
 transfer_coefficients:
-- process_id: 1
+- ref: ''
+  refs: []
+  process_id: 1
   flow_id: F_01_02
   tc_type: static
   values:
@@ -95,8 +106,9 @@ transfer_coefficients:
     DM: 0.0
     TC: 0.0
   time_series: []
-  ref: ''
-- process_id: 1
+- ref: ''
+  refs: []
+  process_id: 1
   flow_id: F_01_03
   tc_type: static
   values:
@@ -105,7 +117,6 @@ transfer_coefficients:
     DM: 0.0
     TC: 0.0
   time_series: []
-  ref: ''
 element_hierarchy:
 - parent: material
   children:
@@ -115,15 +126,18 @@ element_hierarchy:
   children:
   - TC
 flow_compositions:
-- flow_id: F_00_01
+- ref: ''
+  refs: []
+  flow_id: F_00_01
   values:
     material: 1.0
     WC: 0.5
     DM: 0.5
     TC: 0.0
-  ref: ''
 flow_data:
-- flow_id: F_00_01
+- ref: ''
+  refs: []
+  flow_id: F_00_01
   element: material
   values:
     '2025': 100.0

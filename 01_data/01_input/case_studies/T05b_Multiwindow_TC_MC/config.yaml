@@ -15,6 +15,7 @@ description: "\U0001F4D8 Tutorial T05b — Multi-window Monte Carlo on a dynamic
   \ to ~1.0.\r\n\r\nLook for\r\n• MC spread on the downstream flows appears only inside\
   \ the two windows.\r\n• The setup report lists the windowed TCs separately (no silent\
   \ overwrite)."
+group: Tutorials
 model:
   start_year: 2025
   end_year: 2125

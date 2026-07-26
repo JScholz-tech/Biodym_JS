@@ -30,6 +30,7 @@ description: '📘 Tutorial T13 — Landfill gas (LFG)
 
   • Gas outflows (CH4, CO2) peak soon after the deposit, then decline as the fast
   fractions are exhausted.'
+group: Tutorials
 model:
   start_year: 2025
   end_year: 2125
@@ -39,6 +40,7 @@ model:
   - DM
   - TC
   unit_of_measurement: Mg
+  sankey_title: ''
   hierarchy_level_names:
   - Product
   - Component
@@ -50,6 +52,9 @@ model:
   run_fomp_calculation: false
   run_monte_carlo: false
   mc_iterations: 1000
+  mc_seed: '42'
+  solver_strict: false
+  solver_max_iterations: 30
   run_scenario_analysis: false
   selected_scenarios:
   - ''
@@ -66,6 +71,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 1
   name: Landfill (LFG)
   logic: LFG
@@ -74,6 +80,8 @@ processes:
   fomp: null
   dsm: null
   lfg:
+    ref: ''
+    refs: []
     mcf: 1.0
     doc_f: 0.5
     f_ch4: 0.5
@@ -95,6 +103,7 @@ processes:
       f_input_j: 0.5
       f_ash_j: 0.05
   flowcap: null
+  expected_inflow_composition: null
 - id: 2
   name: Atmosphere (CH4)
   logic: Output
@@ -104,6 +113,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 3
   name: Atmosphere (CO2)
   logic: Output
@@ -113,6 +123,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 4
   name: Leachate (water)
   logic: Output
@@ -122,6 +133,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 flows:
 - id: F_00_01
   name: Waste deposited
@@ -149,15 +161,18 @@ element_hierarchy:
   children:
   - TC
 flow_compositions:
-- flow_id: F_00_01
+- ref: ''
+  refs: []
+  flow_id: F_00_01
   values:
     material: 1.0
     WC: 0.5
     DM: 0.5
     TC: 0.3
-  ref: ''
 flow_data:
-- flow_id: F_00_01
+- ref: ''
+  refs: []
+  flow_id: F_00_01
   element: material
   values:
     '2025': 1000.0

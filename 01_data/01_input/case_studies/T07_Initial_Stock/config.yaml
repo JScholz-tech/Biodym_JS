@@ -35,6 +35,7 @@ description: '📘 Tutorial T07 — Initial stock
 
   • Stock plot: both stocks start at 1000 Mg and drain toward 0; the released material
   accumulates in the two sinks (P2, P4).'
+group: Tutorials
 model:
   start_year: 2025
   end_year: 2125
@@ -44,6 +45,7 @@ model:
   - DM
   - TC
   unit_of_measurement: Mg
+  sankey_title: ''
   hierarchy_level_names:
   - Product
   - Component
@@ -55,6 +57,9 @@ model:
   run_fomp_calculation: false
   run_monte_carlo: false
   mc_iterations: 1000
+  mc_seed: '42'
+  solver_strict: false
+  solver_max_iterations: 30
   run_scenario_analysis: false
   selected_scenarios:
   - ''
@@ -71,6 +76,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 1
   name: Legacy stock — cohort
   logic: DSM
@@ -78,6 +84,8 @@ processes:
   tc_config: Static
   fomp: null
   dsm:
+    ref: ''
+    refs: []
     categories:
     - name: Legacy
       inflow_split: 1.0
@@ -86,9 +94,11 @@ processes:
       lifetime_std: 5.0
       lifetime_shape: null
       lifetime_scale: null
-    ref: ''
+      component_lifetimes: {}
+    components: []
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 2
   name: Sink (cohort)
   logic: Output
@@ -98,6 +108,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 3
   name: Legacy stock — decay
   logic: DSM
@@ -105,6 +116,8 @@ processes:
   tc_config: Static
   fomp: null
   dsm:
+    ref: ''
+    refs: []
     categories:
     - name: Legacy
       inflow_split: 1.0
@@ -113,9 +126,11 @@ processes:
       lifetime_std: 5.0
       lifetime_shape: null
       lifetime_scale: null
-    ref: ''
+      component_lifetimes: {}
+    components: []
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 4
   name: Sink (decay)
   logic: Output
@@ -125,6 +140,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 flows:
 - id: F_01_02
   name: Cohort release
@@ -135,7 +151,9 @@ flows:
   from_process: 3
   to_process: 4
 transfer_coefficients:
-- process_id: 1
+- ref: ''
+  refs: []
+  process_id: 1
   flow_id: F_01_02
   tc_type: static
   values:
@@ -144,8 +162,9 @@ transfer_coefficients:
     DM: 1.0
     TC: 1.0
   time_series: []
-  ref: ''
-- process_id: 3
+- ref: ''
+  refs: []
+  process_id: 3
   flow_id: F_03_04
   tc_type: static
   values:
@@ -154,7 +173,6 @@ transfer_coefficients:
     DM: 1.0
     TC: 1.0
   time_series: []
-  ref: ''
 element_hierarchy:
 - parent: material
   children:
@@ -169,7 +187,9 @@ bom_assembly: []
 scenarios: []
 mc_parameters: []
 initial_stocks:
-- process_id: 1
+- ref: ''
+  refs: []
+  process_id: 1
   material_quantity: 1000.0
   composition:
     material: 1.0
@@ -181,8 +201,9 @@ initial_stocks:
   cohort_std_age: 5.0
   cohort_max_age: 40
   cohort_decay_constant: null
-  ref: ''
-- process_id: 3
+- ref: ''
+  refs: []
+  process_id: 3
   material_quantity: 1000.0
   composition:
     material: 1.0
@@ -194,5 +215,4 @@ initial_stocks:
   cohort_std_age: null
   cohort_max_age: null
   cohort_decay_constant: 20.0
-  ref: ''
 references: []

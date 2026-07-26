@@ -12,6 +12,7 @@ description: "\U0001F4D8 Tutorial T12 — Monte Carlo on a process\r\n\r\nRuns a
   \ (0–1), not percentages — enter 0.3, not 30.\r\n• Increase the iteration count\
   \ for a smoother distribution.\r\n\r\nLook for\r\n• The MC stock distribution for\
   \ each sink: a spread around the baseline split, with total inflow unchanged."
+group: Tutorials
 model:
   start_year: 2025
   end_year: 2125
@@ -33,6 +34,9 @@ model:
   run_fomp_calculation: false
   run_monte_carlo: true
   mc_iterations: 500
+  mc_seed: '42'
+  solver_strict: false
+  solver_max_iterations: 30
   run_scenario_analysis: false
   selected_scenarios:
   - ''
@@ -49,6 +53,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 1
   name: Process 1
   logic: Splitter
@@ -58,6 +63,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 2
   name: Process 2
   logic: Output
@@ -67,6 +73,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 3
   name: Process 3
   logic: Output
@@ -76,6 +83,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 flows:
 - id: F_00_01
   name: Flow 1

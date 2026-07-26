@@ -2101,6 +2101,116 @@ def plot_dynamic_stock_composition(dsm_details, mfa_system_results):
     )
 
 
+def plot_component_replacement_rate(mfa_system_results, dsm_params, unit_weights=None):
+    """Plots DSM_Component replacement flow rate per part, one line per component.
+
+    Reads each component's ``sparepart_outflow`` flow directly (worn-part
+    leaving the process) — decouples parts that share a physical outflow
+    (e.g. Imaging Unit + Fuser both routed to the same WEEE flow) so "how
+    often is part X replaced" is visible per part, not just as a combined
+    mass total.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        Solved MFA system.
+    dsm_params : dict
+        DSM parameter dict keyed by process ID; only processes with a
+        ``"components"`` list (DSM_Component logic) are offered.
+    unit_weights : dict, optional
+        {element_name: kg_per_unit}. When given for an element, that
+        component's line is shown as units/yr instead of kg/yr. Missing
+        entries fall back to kg/yr — this function makes no assumption
+        about part weights (case-study-specific, not engine data).
+    """
+    process_options = [
+        pid for pid, p in dsm_params.items() if p.get("components")
+    ]
+    if not process_options:
+        print("No DSM_Component processes with tracked components found to plot.")
+        return
+
+    unit_weights = unit_weights or {}
+    elements = mfa_system_results.Elements
+    time_axis = mfa_system_results.IndexTable.Classification["Time"].Items
+    fig = go.FigureWidget()
+
+    def update_plot(process_id, log_y):
+        components = dsm_params.get(process_id, {}).get("components", [])
+        with fig.batch_update():
+            fig.data = []
+            any_units = False
+            for comp in components:
+                element = comp.get("element", "")
+                outflow_id = comp.get("sparepart_outflow", "")
+                flow = mfa_system_results.FlowDict.get(outflow_id)
+                if flow is None or element not in elements:
+                    continue
+                elem_idx = elements.index(element)
+                mass_per_year = flow.Values[:, elem_idx]
+                weight = unit_weights.get(element)
+                if weight:
+                    y, suffix = mass_per_year / weight, "units/yr"
+                    any_units = True
+                else:
+                    y, suffix = mass_per_year, "kg/yr"
+                fig.add_trace(
+                    go.Scatter(
+                        x=time_axis,
+                        y=y,
+                        mode="lines",
+                        name=f"{element} ({suffix})",
+                        hoverinfo="x+y+name",
+                    )
+                )
+
+            process_name = next(
+                (p.Name for p in mfa_system_results.ProcessList if p.ID == process_id),
+                "",
+            )
+            layout_config = get_publication_layout(
+                custom_title=f"Component Replacement Rate - {process_name}",
+                x_title="Year",
+                y_title="units/yr" if any_units else "kg/yr",
+                show_grid=True,
+            )
+            if log_y:
+                layout_config["yaxis"] = {**layout_config.get("yaxis", {}), "type": "log"}
+            fig.update_layout(**layout_config)
+
+    process_dropdown = Dropdown(options=process_options, description="Process:")
+    log_checkbox = Checkbox(value=True, description="Log scale")
+
+    def _on_change(change):
+        update_plot(process_dropdown.value, log_checkbox.value)
+
+    process_dropdown.observe(_on_change, "value")
+    log_checkbox.observe(_on_change, "value")
+
+    export_btn = Button(
+        description="Export PNG/SVG",
+        button_style="success",
+        icon="download",
+        layout=Layout(width="160px"),
+    )
+
+    def _do_export(b):
+        try:
+            name = f"component_replacement_rate_{process_dropdown.value}"
+            paths = export_figure(
+                fig, name, formats=["png", "svg"], quality="publication", size="large"
+            )
+            print(f"✅ Exported: {', '.join(paths)}")
+        except Exception as e:
+            print(f"❌ Export failed: {e}")
+
+    export_btn.on_click(_do_export)
+
+    display(HBox([process_dropdown, log_checkbox, export_btn]))
+    display(fig)
+    update_plot(process_dropdown.value, log_checkbox.value)
+
+
 def plot_fomp_dynamics(mfa_system_results, fomp_params_config):
     """Creates side-by-side line charts for Inflow, Stock, and Outflow for FOMP processes.
 

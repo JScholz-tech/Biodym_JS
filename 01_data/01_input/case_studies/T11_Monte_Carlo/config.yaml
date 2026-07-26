@@ -29,6 +29,7 @@ description: '📘 Tutorial T11 — Monte Carlo on input flows (a flow group)
 
   • The MC stock distribution for the collector: a ±15% spread around the baseline,
   from correlated feedstock uncertainty.'
+group: Tutorials
 model:
   start_year: 2025
   end_year: 2125
@@ -38,6 +39,7 @@ model:
   - DM
   - TC
   unit_of_measurement: Mg
+  sankey_title: ''
   hierarchy_level_names:
   - Product
   - Component
@@ -49,6 +51,9 @@ model:
   run_fomp_calculation: false
   run_monte_carlo: true
   mc_iterations: 500
+  mc_seed: '42'
+  solver_strict: false
+  solver_max_iterations: 30
   run_scenario_analysis: false
   selected_scenarios:
   - ''
@@ -65,6 +70,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 1
   name: Feedstock collector
   logic: Output
@@ -74,6 +80,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 flows:
 - id: F_00_01
   name: Feedstock A
@@ -93,27 +100,33 @@ element_hierarchy:
   children:
   - TC
 flow_compositions:
-- flow_id: F_00_01
+- ref: ''
+  refs: []
+  flow_id: F_00_01
   values:
     material: 1.0
     WC: 0.5
     DM: 0.5
     TC: 0.25
-  ref: ''
-- flow_id: F_00_02
+- ref: ''
+  refs: []
+  flow_id: F_00_02
   values:
     material: 1.0
     WC: 0.5
     DM: 0.5
     TC: 0.25
-  ref: ''
 flow_data:
-- flow_id: F_00_01
+- ref: ''
+  refs: []
+  flow_id: F_00_01
   element: material
   values:
     '2025': 80.0
     '2125': 80.0
-- flow_id: F_00_02
+- ref: ''
+  refs: []
+  flow_id: F_00_02
   element: material
   values:
     '2025': 20.0
@@ -121,7 +134,9 @@ flow_data:
 bom_assembly: []
 scenarios: []
 mc_parameters:
-- parameter_id: F_00_01
+- ref: ''
+  refs: []
+  parameter_id: F_00_01
   enabled: true
   distribution: normal
   mean: 1.0
@@ -133,8 +148,9 @@ mc_parameters:
   start_year: null
   end_year: null
   flow_group: feedstock
-  ref: ''
-- parameter_id: F_00_02
+- ref: ''
+  refs: []
+  parameter_id: F_00_02
   enabled: true
   distribution: normal
   mean: 1.0
@@ -146,6 +162,5 @@ mc_parameters:
   start_year: null
   end_year: null
   flow_group: feedstock
-  ref: ''
 initial_stocks: []
 references: []

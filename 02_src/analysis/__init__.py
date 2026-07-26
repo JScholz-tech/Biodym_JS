@@ -4,6 +4,7 @@ from .cuf import (
     calculate_cuf_temporal,
     calculate_buf,
     compute_cuf,
+    print_cuf_summary,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "calculate_cuf_temporal",
     "calculate_buf",
     "compute_cuf",
+    "print_cuf_summary",
 ]

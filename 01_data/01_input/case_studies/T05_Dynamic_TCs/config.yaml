@@ -31,6 +31,7 @@ description: '📘 Tutorial T05 — Dynamic transfer coefficients
   • Sankey: step through the years and watch the split change.
 
   • Downstream flows track the changing coefficients over time.'
+group: Tutorials
 model:
   start_year: 2025
   end_year: 2125
@@ -40,6 +41,7 @@ model:
   - DM
   - TC
   unit_of_measurement: Mg
+  sankey_title: ''
   hierarchy_level_names:
   - Product
   - Component
@@ -51,6 +53,9 @@ model:
   run_fomp_calculation: false
   run_monte_carlo: false
   mc_iterations: 1000
+  mc_seed: '42'
+  solver_strict: false
+  solver_max_iterations: 30
   run_scenario_analysis: false
   selected_scenarios:
   - ''
@@ -67,6 +72,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 1
   name: Process 1 (Sorting)
   logic: Splitter
@@ -76,6 +82,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 2
   name: Process 2
   logic: Output
@@ -85,6 +92,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 3
   name: Process 3 (Incineration)
   logic: Transformer
@@ -94,6 +102,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 4
   name: Process 4
   logic: Output
@@ -103,6 +112,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 5
   name: Process 5
   logic: Output
@@ -112,6 +122,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 flows:
 - id: F_00_01
   name: Flow 1
@@ -134,7 +145,9 @@ flows:
   from_process: 3
   to_process: 5
 transfer_coefficients:
-- process_id: 1
+- ref: ''
+  refs: []
+  process_id: 1
   flow_id: F_01_02
   tc_type: dynamic
   values: {}
@@ -148,8 +161,9 @@ transfer_coefficients:
   - year: 2075
     values:
       material: 0.2
-  ref: ''
-- process_id: 1
+- ref: ''
+  refs: []
+  process_id: 1
   flow_id: F_01_03
   tc_type: dynamic
   values: {}
@@ -163,8 +177,9 @@ transfer_coefficients:
   - year: 2075
     values:
       material: 0.8
-  ref: ''
-- process_id: 3
+- ref: ''
+  refs: []
+  process_id: 3
   flow_id: F_03_04
   tc_type: dynamic
   values: {}
@@ -184,8 +199,9 @@ transfer_coefficients:
       WC: 1.0
       DM: 0.4
       TC: 0.3
-  ref: ''
-- process_id: 3
+- ref: ''
+  refs: []
+  process_id: 3
   flow_id: F_03_05
   tc_type: dynamic
   values: {}
@@ -205,7 +221,6 @@ transfer_coefficients:
       WC: 0.0
       DM: 0.6
       TC: 0.7
-  ref: ''
 element_hierarchy:
 - parent: material
   children:
@@ -215,15 +230,18 @@ element_hierarchy:
   children:
   - TC
 flow_compositions:
-- flow_id: F_00_01
+- ref: ''
+  refs: []
+  flow_id: F_00_01
   values:
     material: 1.0
     WC: 0.3
     DM: 0.7
     TC: 0.35
-  ref: ''
 flow_data:
-- flow_id: F_00_01
+- ref: ''
+  refs: []
+  flow_id: F_00_01
   element: material
   values:
     '2025': 100.0

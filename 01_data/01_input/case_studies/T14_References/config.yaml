@@ -28,6 +28,7 @@ description: '📘 Tutorial T14 — Linking references
 
   • Every parameter cites the same source: reusable, auditable provenance across the
   whole model.'
+group: Tutorials
 model:
   start_year: 2025
   end_year: 2125
@@ -49,6 +50,9 @@ model:
   run_fomp_calculation: true
   run_monte_carlo: false
   mc_iterations: 1000
+  mc_seed: '42'
+  solver_strict: false
+  solver_max_iterations: 30
   run_scenario_analysis: false
   selected_scenarios:
   - ''
@@ -65,6 +69,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 1
   name: Sorting
   logic: Splitter
@@ -74,6 +79,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 2
   name: In-use stock (DSM)
   logic: DSM
@@ -81,6 +87,9 @@ processes:
   tc_config: Static
   fomp: null
   dsm:
+    ref: Mustermann2025
+    refs:
+    - Mustermann2025
     categories:
     - name: Products
       inflow_split: 1.0
@@ -89,24 +98,29 @@ processes:
       lifetime_std: 4.0
       lifetime_shape: null
       lifetime_scale: null
-    ref: Mustermann2025
+      component_lifetimes: {}
+    components: []
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 3
   name: Soil (FOMP)
   logic: FOMP
   stock: No_Stock
   tc_config: No TC
   fomp:
+    ref: Mustermann2025
+    refs:
+    - Mustermann2025
     f_labile: 0.6
     k_labile: 0.5
     k_recalcitrant: 0.02
     outflow_id: F_03_05
     outflow_id_2: null
-    ref: Mustermann2025
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 4
   name: Recycling sink
   logic: Output
@@ -116,6 +130,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 - id: 5
   name: Atmosphere (CO2)
   logic: Output
@@ -125,6 +140,7 @@ processes:
   dsm: null
   lfg: null
   flowcap: null
+  expected_inflow_composition: null
 flows:
 - id: F_00_01
   name: Input
@@ -147,7 +163,10 @@ flows:
   from_process: 3
   to_process: 5
 transfer_coefficients:
-- process_id: 1
+- ref: Mustermann2025
+  refs:
+  - Mustermann2025
+  process_id: 1
   flow_id: F_01_02
   tc_type: static
   values:
@@ -156,8 +175,9 @@ transfer_coefficients:
     DM: 0.5
     TC: 0.5
   time_series: []
-  ref: Mustermann2025
-- process_id: 1
+- ref: ''
+  refs: []
+  process_id: 1
   flow_id: F_01_03
   tc_type: static
   values:
@@ -166,8 +186,9 @@ transfer_coefficients:
     DM: 0.5
     TC: 0.5
   time_series: []
-  ref: ''
-- process_id: 2
+- ref: ''
+  refs: []
+  process_id: 2
   flow_id: F_02_04
   tc_type: static
   values:
@@ -176,7 +197,6 @@ transfer_coefficients:
     DM: 1.0
     TC: 1.0
   time_series: []
-  ref: ''
 element_hierarchy:
 - parent: material
   children:
@@ -186,15 +206,19 @@ element_hierarchy:
   children:
   - TC
 flow_compositions:
-- flow_id: F_00_01
+- ref: Mustermann2025
+  refs:
+  - Mustermann2025
+  flow_id: F_00_01
   values:
     material: 1.0
     WC: 0.3
     DM: 0.7
     TC: 0.35
-  ref: Mustermann2025
 flow_data:
-- flow_id: F_00_01
+- ref: ''
+  refs: []
+  flow_id: F_00_01
   element: material
   values:
     '2025': 100.0
@@ -203,15 +227,20 @@ bom_assembly: []
 scenarios:
 - name: More to soil
   modifications:
-  - parameter_name: TC_E1_01_03
+  - ref: Mustermann2025
+    refs:
+    - Mustermann2025
+    parameter_name: TC_E1_01_03
     parameter_type: TC
     operation: replace
     new_value: 0.7
     start_year: null
     end_year: null
-    ref: Mustermann2025
 mc_parameters:
-- parameter_id: TC_E1_01_02
+- ref: Mustermann2025
+  refs:
+  - Mustermann2025
+  parameter_id: TC_E1_01_02
   enabled: true
   distribution: normal
   mean: 0.5
@@ -223,9 +252,11 @@ mc_parameters:
   start_year: null
   end_year: null
   flow_group: null
-  ref: Mustermann2025
 initial_stocks:
-- process_id: 2
+- ref: Mustermann2025
+  refs:
+  - Mustermann2025
+  process_id: 2
   material_quantity: 500.0
   composition:
     material: 1.0
@@ -237,7 +268,6 @@ initial_stocks:
   cohort_std_age: 4.0
   cohort_max_age: 40
   cohort_decay_constant: null
-  ref: Mustermann2025
 references:
 - cite_key: Mustermann2025
   title: Example reference linked to every BioDYM parameter

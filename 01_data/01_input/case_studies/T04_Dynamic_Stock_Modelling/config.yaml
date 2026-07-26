@@ -32,6 +32,7 @@ description: '📘 Tutorial T04 — Dynamic Stock Modelling
   • Stock plot: the in-use stock grows, then turns over as old cohorts retire.
 
   • Outflow lags the inflow by roughly the mean product lifetime.'
+group: Tutorials
 model:
   start_year: 2025
   end_year: 2125
