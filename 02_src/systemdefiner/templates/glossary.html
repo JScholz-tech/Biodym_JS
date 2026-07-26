@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Glossary — bioDYM SystemDefiner{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span> <strong>Glossary</strong>
+{% endblock %}
+
+{% block content %}
+<h1>Glossary</h1>
+<div class="card study-desc">
+  {{ glossary_html | safe }}
+</div>
+{% endblock %}

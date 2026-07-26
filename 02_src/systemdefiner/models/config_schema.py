@@ -306,6 +306,7 @@ class CaseStudyConfig(BaseModel):
     schema_version: str = "1.0"
     name: str
     description: str = ""  # free-text notes about the study (e.g. tutorial context)
+    group: str = ""  # optional display grouping on the case-study index page
     model: ModelSettings = ModelSettings()
     processes: list[Process] = []
     flows: list[Flow] = []

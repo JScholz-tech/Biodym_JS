@@ -90,6 +90,7 @@ def list_case_studies() -> list[dict]:
             results.append(
                 {
                     "name": folder.name,
+                    "group": cfg.group,
                     "elements": ", ".join(cfg.model.elements),
                     "processes": len(cfg.processes),
                     "flows": len(cfg.flows),
@@ -100,6 +101,7 @@ def list_case_studies() -> list[dict]:
             results.append(
                 {
                     "name": folder.name,
+                    "group": "",
                     "elements": "—",
                     "processes": "?",
                     "flows": "?",

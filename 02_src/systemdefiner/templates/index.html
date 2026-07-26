@@ -4,47 +4,71 @@
 {% block content %}
 <h1>Case Studies</h1>
 
+{% macro study_table(rows) %}
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Processes</th>
+      <th>Flows</th>
+      <th>Group</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in rows %}
+    <tr>
+      <td><a href="/{{ s.name }}" style="font-weight:600;color:var(--primary)">{{ s.name }}</a></td>
+      <td>{{ s.processes }}</td>
+      <td>{{ s.flows }}</td>
+      <td>
+        <form method="post" action="/{{ s.name }}/group"
+              style="display:inline-flex;gap:4px;align-items:center;margin:0">
+          <input type="text" name="group" value="{{ s.group }}"
+                 placeholder="ungrouped"
+                 style="width:110px;font-size:0.82rem;padding:3px 6px">
+          <button type="submit" class="btn btn-secondary btn-sm">Set</button>
+        </form>
+      </td>
+      <td>
+        <div class="btn-row">
+          <a href="/{{ s.name }}" class="btn btn-secondary btn-sm">Open</a>
+          <form method="post" action="/{{ s.name }}/clone"
+                style="display:inline-flex;gap:4px;align-items:center;margin:0">
+            <input type="text" name="new_name" placeholder="{{ s.name }}_copy"
+                   title="New name for the copy (blank = {{ s.name }}_copy)"
+                   pattern="[A-Za-z0-9_\-]*"
+                   style="width:130px;font-size:0.82rem;padding:3px 6px">
+            <button type="submit" class="btn btn-secondary btn-sm">Duplicate</button>
+          </form>
+          <form method="post" action="/{{ s.name }}/delete" style="display:inline"
+                onsubmit="return confirm('Delete case study {{ s.name }}?')">
+            <button type="submit" class="btn btn-danger">Delete</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
 {% if studies %}
-<div class="card" style="padding:0">
-  <table>
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Elements</th>
-        <th>Processes</th>
-        <th>Flows</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for s in studies %}
-      <tr>
-        <td><a href="/{{ s.name }}" style="font-weight:600;color:var(--primary)">{{ s.name }}</a></td>
-        <td><span class="muted">{{ s.elements }}</span></td>
-        <td>{{ s.processes }}</td>
-        <td>{{ s.flows }}</td>
-        <td>
-          <div class="btn-row">
-            <a href="/{{ s.name }}" class="btn btn-secondary btn-sm">Open</a>
-            <form method="post" action="/{{ s.name }}/clone"
-                  style="display:inline-flex;gap:4px;align-items:center;margin:0">
-              <input type="text" name="new_name" placeholder="{{ s.name }}_copy"
-                     title="New name for the copy (blank = {{ s.name }}_copy)"
-                     pattern="[A-Za-z0-9_\-]*"
-                     style="width:130px;font-size:0.82rem;padding:3px 6px">
-              <button type="submit" class="btn btn-secondary btn-sm">Duplicate</button>
-            </form>
-            <form method="post" action="/{{ s.name }}/delete" style="display:inline"
-                  onsubmit="return confirm('Delete case study {{ s.name }}?')">
-              <button type="submit" class="btn btn-danger">Delete</button>
-            </form>
-          </div>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% set groups = studies | sort(attribute='group') | groupby('group') %}
+{% for group_name, group_studies in groups %}
+{% if group_name == '' %}
+<div class="card" style="padding:0;margin-bottom:1rem">
+  {{ study_table(group_studies) }}
 </div>
+{% else %}
+<details class="card" style="padding:0;margin-bottom:1rem" open>
+  <summary style="cursor:pointer;font-weight:700;padding:0.75rem 1.25rem;background:var(--bg);border-radius:var(--radius)">
+    {{ group_name }} <span class="muted" style="font-weight:400">({{ group_studies | length }})</span>
+  </summary>
+  {{ study_table(group_studies) }}
+</details>
+{% endif %}
+{% endfor %}
 {% else %}
 <div class="alert alert-warn">No case studies yet — create one below.</div>
 {% endif %}

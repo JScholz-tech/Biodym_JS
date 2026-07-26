@@ -14,12 +14,14 @@ from __future__ import annotations
 # sync deliberately when routes are added/removed — that is the point.
 EXPECTED_ROUTES = [
     ("GET", "/"),
+    ("GET", "/glossary"),
     ("POST", "/create-from-excel"),
     ("POST", "/new"),
     ("POST", "/{name}/delete"),
     ("POST", "/{name}/clone"),
     ("GET", "/{name}"),
     ("POST", "/{name}/settings"),
+    ("POST", "/{name}/group"),
     ("GET", "/{name}/processes"),
     ("POST", "/{name}/processes/new"),
     ("GET", "/{name}/processes/{pid}/edit"),
@@ -184,6 +186,7 @@ class TestFullPageRoundTrip:
         n = self._build_study(client)
         pages = [
             "/",
+            "/glossary",
             f"/{n}",
             f"/{n}/processes",
             f"/{n}/processes/1/edit",

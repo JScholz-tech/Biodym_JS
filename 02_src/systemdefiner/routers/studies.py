@@ -10,7 +10,7 @@ from fastapi import APIRouter, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
 
 from systemdefiner import storage
-from systemdefiner.deps import _ctx, templates
+from systemdefiner.deps import _ctx, _render_markdown, templates
 from systemdefiner.forms import (
     _apply_extra_yaml,
     _parse_bom_from_yaml,
@@ -34,11 +34,21 @@ from systemdefiner.models.config_schema import (
 
 router = APIRouter()
 
+_GLOSSARY_PATH = Path(__file__).resolve().parents[1] / "content" / "glossary.md"
+
 
 @router.get("/")
 async def index(request: Request):
     studies = storage.list_case_studies()
     return templates.TemplateResponse(request, "index.html", _ctx(studies=studies))
+
+
+@router.get("/glossary")
+async def glossary(request: Request):
+    text = _GLOSSARY_PATH.read_text(encoding="utf-8")
+    return templates.TemplateResponse(
+        request, "glossary.html", _ctx(glossary_html=_render_markdown(text))
+    )
 
 
 @router.post("/create-from-excel")
@@ -262,3 +272,12 @@ async def update_settings(request: Request, name: str):
 
     storage.save_case_study(cfg)
     return RedirectResponse(f"/{name}", status_code=303)
+
+
+@router.post("/{name}/group")
+async def set_group(request: Request, name: str):
+    form = await request.form()
+    cfg = storage.load_case_study(name)
+    cfg.group = form.get("group", "").strip()
+    storage.save_case_study(cfg)
+    return RedirectResponse("/", status_code=303)

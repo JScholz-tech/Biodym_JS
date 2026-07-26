@@ -103,10 +103,16 @@
   <a class="brand" href="/">bioDYM SystemDefiner</a>
   {% if cfg is defined and cfg %}
   <a class="nav-back" href="/{{ cfg.name }}" title="Back to study overview">&larr; Back to study</a>
+  <button type="button" class="nav-back" style="cursor:pointer;background:none;color:#fff;font:inherit" onclick="
+    navigator.clipboard.writeText('01_data/01_input/case_studies/{{ cfg.name }}/config.yaml');
+    this.textContent='Copied!';
+    setTimeout(() => this.textContent='Copy config path', 1500);
+  ">Copy config path</button>
   {% endif %}
   <div class="breadcrumb">
     {% block breadcrumb %}{% endblock %}
   </div>
+  <a class="nav-back" href="/glossary" style="margin-left:auto" title="What do these terms mean?">Glossary</a>
 </nav>
 {% if cfg is defined and cfg and study_has_diagram(cfg.name) %}
 <div class="diagram-band">
