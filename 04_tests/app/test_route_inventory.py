@@ -63,6 +63,11 @@ EXPECTED_ROUTES = [
     ("POST", "/{name}/initial_stock/{pid}"),
     ("GET", "/{name}/flow_data"),
     ("POST", "/{name}/flow_data"),
+    ("GET", "/{name}/analysis"),
+    ("POST", "/{name}/analysis/settings"),
+    ("POST", "/{name}/analysis/roles"),
+    ("POST", "/{name}/analysis/paths/new"),
+    ("POST", "/{name}/analysis/paths/{idx}/delete"),
 ]
 
 
@@ -201,6 +206,7 @@ class TestFullPageRoundTrip:
             f"/{n}/bom/1",
             f"/{n}/initial_stock/3",
             f"/{n}/flow_data",
+            f"/{n}/analysis",
             f"/{n}/export",
         ]
         for page in pages:

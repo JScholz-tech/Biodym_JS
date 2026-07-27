@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block title %}Frameworks & Analysis — {{ cfg.name }}{% endblock %}
+{% block breadcrumb %}
+  <a href="/">Case Studies</a> <span>/</span>
+  <a href="/{{ cfg.name }}">{{ cfg.name }}</a> <span>/</span>
+  <strong>Frameworks &amp; Analysis</strong>
+{% endblock %}
+
+{% set role_opts = [
+  ('', 'Auto / none'),
+  ('BBP', 'BBP — Bio-based product (cascades)'),
+  ('BE',  'BE — Bioenergy'),
+  ('FF',  'FF — Food & Feed'),
+  ('UF',  'UF — Useful in biosphere'),
+  ('NF',  'NF — Not useful (loss)'),
+] %}
+
+{% block content %}
+<style>
+  .chip{display:inline-block;padding:1px 9px;border-radius:11px;font-size:0.76rem;font-weight:600;white-space:nowrap}
+  .chip.ok{background:rgba(44,110,73,0.14);color:#2c6e49}
+  .chip.part{background:rgba(214,158,46,0.18);color:#b7791f}
+  .chip.muted{background:var(--bg);color:var(--muted);border:1px solid var(--border)}
+  .rrow td{padding:8px 12px;border-top:1px solid var(--border)}
+  .proc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0.35rem;
+    max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:0.6rem}
+  .proc-grid label{display:flex;align-items:center;gap:0.4rem;font-size:0.85rem;padding:2px 4px}
+  .preview-box{margin-top:0.75rem;padding:0.6rem 0.75rem;background:var(--bg);border:1px solid var(--border);
+    border-radius:6px;font-size:0.85rem}
+</style>
+
+<h1>Frameworks &amp; Analysis</h1>
+<p class="muted">Custom analysis engines evaluated on this study's solved cascade. A process's
+<strong>role</strong> is what it does with the carbon entering it — its inflow is credited to that
+role. Flows to the atmosphere are emissions (derived), reported as released carbon.</p>
+
+{# ── Engine settings ────────────────────────────────────────────────────── #}
+<div class="card">
+  <h2 style="margin-top:0">Engines</h2>
+  <form method="post" action="/{{ cfg.name }}/analysis/settings">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
+      <div>
+        <label style="display:flex;align-items:center;gap:0.4rem;font-weight:600">
+          <input type="checkbox" name="buf_enabled" {% if cfg.analysis.buf.enabled %}checked{% endif %}>
+          BUF — Biomass Utilisation Factor (DM)
+        </label>
+        <div class="field" style="margin-top:0.5rem">
+          <label>Cascade cutoff (× BI₀)</label>
+          <input type="number" name="buf_cutoff" value="{{ cfg.analysis.buf.cutoff }}" min="0" max="1" step="0.01">
+        </div>
+      </div>
+      <div>
+        <label style="display:flex;align-items:center;gap:0.4rem;font-weight:600">
+          <input type="checkbox" name="cuf_enabled" {% if cfg.analysis.cuf.enabled %}checked{% endif %}>
+          CUF — Carbon Utilization Factor (TC)
+        </label>
+        <div class="field" style="margin-top:0.5rem">
+          <label>T_ref (years)</label>
+          <input type="number" name="cuf_t_ref" value="{{ cfg.analysis.cuf.t_ref }}" min="1" max="1000">
+        </div>
+        <label style="display:flex;align-items:center;gap:0.4rem;margin-top:0.5rem">
+          <input type="checkbox" name="cuf_include_labile" {% if cfg.analysis.cuf.include_labile_storage %}checked{% endif %}>
+          Count fast FOMP labile pool as stored carbon
+        </label>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:1rem">
+      <button type="submit" class="btn btn-primary">Save Engines</button>
+    </div>
+  </form>
+</div>
+
+{# ── Process roles ──────────────────────────────────────────────────────── #}
+<div class="card">
+  <div style="display:flex;align-items:baseline;gap:0.75rem;flex-wrap:wrap">
+    <h2 style="margin:0">Process roles</h2>
+    <span id="role-summary" style="margin-left:auto;display:flex;gap:0.4rem"></span>
+  </div>
+  <p class="muted">What each process does with the carbon entering it. DSM → product (BBP),
+    FOMP → soil (UF), LFG → bioenergy (BE) are inferred automatically. Set the others — e.g. an
+    incineration process → <strong>BE</strong> (its inflow is the energy feedstock; its exhaust to
+    the atmosphere is an emission, handled automatically).</p>
+
+  <form method="post" action="/{{ cfg.name }}/analysis/roles">
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:6px 12px;font-size:0.76rem;text-transform:uppercase;color:var(--muted)">Process</th>
+          <th style="text-align:left;padding:6px 12px;font-size:0.76rem;text-transform:uppercase;color:var(--muted)">Logic</th>
+          <th style="text-align:left;padding:6px 12px;font-size:0.76rem;text-transform:uppercase;color:var(--muted)">Inflows</th>
+          <th style="text-align:left;padding:6px 12px;font-size:0.76rem;text-transform:uppercase;color:var(--muted)">Auto</th>
+          <th style="text-align:left;padding:6px 12px;font-size:0.76rem;text-transform:uppercase;color:var(--muted)">Role</th>
+          <th style="text-align:left;padding:6px 12px;font-size:0.76rem;text-transform:uppercase;color:var(--muted)">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in role_rows %}
+        {% set p = r.process %}
+        {% set cur = p.utilisation_role.value if p.utilisation_role is not string else p.utilisation_role %}
+        <tr class="rrow">
+          <td><strong>P{{ p.id }}</strong> {{ p.name }}</td>
+          <td><span class="tag">{{ p.logic.value }}</span></td>
+          <td class="muted">{{ r.n_in }}</td>
+          <td class="muted"><span class="tag">{{ auto_roles.get(p.id) or '—' }}</span></td>
+          <td>
+            <select name="role_{{ p.id }}" data-pid="{{ p.id }}" class="role-select" onchange="updateRole({{ p.id }})">
+              {% for val, lab in role_opts %}
+              <option value="{{ val }}" {% if val == cur %}selected{% endif %}>
+                {% if val == '' %}Auto (→ {{ auto_roles.get(p.id) or 'transit' }}){% else %}{{ lab }}{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </td>
+          <td><span id="rchip_{{ p.id }}"></span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <div class="btn-row" style="margin-top:1rem">
+      <button type="submit" class="btn btn-primary">Save Process Roles</button>
+    </div>
+  </form>
+</div>
+
+{# ── Paths (process-set routes) ─────────────────────────────────────────── #}
+<div class="card">
+  <h2 style="margin-top:0">Paths (feedstock routes)</h2>
+  <p class="muted">A named route = the set of processes it passes through. The feedstock entry and
+    scope are derived from the graph automatically. Paths are compared side-by-side in the dashboard.</p>
+
+  {% if cfg.analysis.paths %}
+  <table style="width:100%;border-collapse:collapse;margin-bottom:1rem">
+    <thead><tr>
+      <th style="text-align:left;padding:6px 12px;font-size:0.76rem;text-transform:uppercase;color:var(--muted)">Name</th>
+      <th style="text-align:left;padding:6px 12px;font-size:0.76rem;text-transform:uppercase;color:var(--muted)">Processes</th>
+      <th style="width:80px"></th>
+    </tr></thead>
+    <tbody>
+    {% for pth in cfg.analysis.paths %}
+      <tr>
+        <td style="padding:8px 12px;border-top:1px solid var(--border)"><strong>{{ pth.name }}</strong></td>
+        <td style="padding:8px 12px;border-top:1px solid var(--border)">
+          {% for pid in pth.processes %}<span class="tag">P{{ pid }}</span> {% endfor %}
+        </td>
+        <td style="padding:8px 12px;border-top:1px solid var(--border)">
+          <form method="post" action="/{{ cfg.name }}/analysis/paths/{{ loop.index0 }}/delete" style="display:inline">
+            <button type="submit" class="btn btn-secondary btn-sm">Delete</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="muted" style="margin-bottom:1rem">No paths defined yet.</div>
+  {% endif %}
+
+  <form method="post" action="/{{ cfg.name }}/analysis/paths/new">
+    <div class="field" style="max-width:360px">
+      <label>Path name</label>
+      <input type="text" name="path_name" placeholder="e.g. Biochar route" required>
+    </div>
+    <label style="display:block;margin:0.75rem 0 0.35rem;font-weight:600;font-size:0.85rem">
+      Processes in this route</label>
+    <div class="proc-grid">
+      {% for p in cfg.processes if p.logic.value != 'Input' %}
+      <label><input type="checkbox" name="processes" value="{{ p.id }}" class="proc-check" onchange="updatePreview()">
+        P{{ p.id }} {{ p.name }}</label>
+      {% endfor %}
+    </div>
+    <p class="muted" style="font-size:0.8rem;margin:0.3rem 0 0">
+      Boundary (Atmosphere / Environment) processes are the system edge — not selectable.
+      Feedstock enters a route from them automatically.</p>
+    <div id="path-preview" class="preview-box muted">Select processes to preview the route.</div>
+    <div class="btn-row" style="margin-top:1rem">
+      <button type="submit" class="btn btn-primary">Add Path</button>
+    </div>
+  </form>
+</div>
+
+<script>
+const FLOWS = {{ flows_json | tojson }};
+
+// ── Process role status chips ────────────────────────────────────────────
+function roleChip(sel) {
+  return sel.value
+    ? '<span class="chip ok">✓ set: ' + sel.value + '</span>'
+    : '<span class="chip muted">○ auto</span>';
+}
+function updateRole(pid) {
+  const sel = document.querySelector('.role-select[data-pid="' + pid + '"]');
+  document.getElementById('rchip_' + pid).innerHTML = roleChip(sel);
+  updateRoleSummary();
+}
+function updateRoleSummary() {
+  let set = 0, auto = 0;
+  document.querySelectorAll('.role-select').forEach(s => { if (s.value) set++; else auto++; });
+  document.getElementById('role-summary').innerHTML =
+    '<span class="chip ok">✓ ' + set + ' set</span>' +
+    '<span class="chip muted">○ ' + auto + ' auto</span>';
+}
+document.querySelectorAll('.role-select').forEach(s => {
+  document.getElementById('rchip_' + s.dataset.pid).innerHTML = roleChip(s);
+});
+updateRoleSummary();
+
+// ── Path preview ─────────────────────────────────────────────────────────
+function updatePreview() {
+  const set = new Set(
+    [...document.querySelectorAll('.proc-check:checked')].map(c => parseInt(c.value))
+  );
+  const box = document.getElementById('path-preview');
+  if (!set.size) { box.className = 'preview-box muted'; box.textContent = 'Select processes to preview the route.'; return; }
+  const entry = [], internal = [], leaving = [];
+  FLOWS.forEach(f => {
+    const fi = set.has(f.from), ti = set.has(f.to);
+    if (ti && !fi) entry.push(f);
+    else if (fi && ti) internal.push(f);
+    else if (fi && !ti) leaving.push(f);
+  });
+  const fmt = f => '<code>' + f.id + '</code>';
+  box.className = 'preview-box';
+  box.innerHTML =
+    '<div><strong>Entry (feedstock in):</strong> ' +
+      (entry.length ? entry.map(fmt).join(' ') : '<span class="chip part">⚠ none — route has no external inflow</span>') + '</div>' +
+    '<div style="margin-top:3px"><strong>' + internal.length + '</strong> internal flow(s) · <strong>' +
+      leaving.length + '</strong> leaving (pruned)</div>';
+}
+</script>
+{% endblock %}
