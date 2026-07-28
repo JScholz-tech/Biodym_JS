@@ -337,10 +337,10 @@ pytest 04_tests/test_solver.py
 
 If you use BioDYM in your research, please cite:
 
-> Scholz, J. (2026). *BioDYM: Material Flow Analysis for Bio-based Systems* (v1.2.1).
-> Zenodo. https://doi.org/10.5281/zenodo.20825821
+> Scholz, J. (2026). *BioDYM: Material Flow Analysis for Bio-based Systems* (v1.3.0).
+> Zenodo. https://doi.org/10.5281/zenodo.18759080
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20825821.svg)](https://doi.org/10.5281/zenodo.20825821)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18759080.svg)](https://doi.org/10.5281/zenodo.18759080)
 
 > For a machine-readable citation and full version history, see [CITATION.cff](CITATION.cff).
 
@@ -368,7 +368,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-*Last updated: June 2026 | Version: 1.2.1*
+*Last updated: July 2026 | Version: 1.3.0*
 
 ## BioDYM Extension: Stock-Outflow Transfer Coefficients (TCs)
 

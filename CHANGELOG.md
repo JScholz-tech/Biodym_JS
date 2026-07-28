@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.0] - 2026-07-28
+
+### Added
+- Windows desktop launcher (`BioDYM_Launcher.py`): one-click startup, automatic recovery from
+  port conflicts, persistent display of running service ports, graceful handling of dashboard
+  startup failures
+- SystemDefiner: config-consistency validator with a flow-pointer registry
+  (`consistency.py::check_config_consistency` / `iter_flow_pointers`) — catches broken
+  rename/delete cascades and cross-reference errors as part of the model health report
+- SystemDefiner: CSV import + accordion layout for the flow-data editor
+- SystemDefiner: user-extensible composition hierarchy depth (no longer fixed to 4 levels)
+- SystemDefiner: flow IDs auto-sync when endpoints change on edit
+- SystemDefiner: live rule feedback in the Hierarchy Matrix editor
+- SystemDefiner: "Compact IDs" and per-domain editor improvements across elements/hierarchy
+- Plotting: interactive, Voilà-safe sunburst view of flow composition; new golden tutorial T16
+  (6-level composition) demonstrates it
+- Monte Carlo: multiple year-windows per dynamic TC parameter
+- Data loader: `DSM_Component` entries now load through the native YAML path
+
+### Changed
+- SystemDefiner: `main.py` (3,100 lines) split into per-domain routers
+  (`studies`/`processes`/`flows`/`tcs`/`elements`/`scenarios`/`references`/`compositions`/`io`) +
+  shared helper modules — router include order is now pinned by a route-inventory test
+- SystemDefiner: config is normalized on every save (processes sorted by ID, orphan BOM/initial-
+  stock entries pruned); folder name is authoritative over the YAML-internal name on load
+- Reporting: exports made element-agnostic (previously assumed a fixed element set)
+- Docs: `CLAUDE.md` updated for the SystemDefiner module split
+
+### Fixed
+- **FOMP**: was routing 100% of decayed DM onto the carbon outflow instead of splitting it with
+  the paired environmental flow whenever the TC ratio is time-constant (the common case) —
+  every FOMP study's Water & Nutrient Cycle flow was silently getting zero DM
+- **FOMP / Dashboard**: the Voilà Dashboard silently used default decay parameters instead of a
+  study's configured values for every YAML-only FOMP study, due to a parameter-key mismatch
+  between `yaml_to_excel_dataframes()` and `calculate_fomp()` — the Workflow notebook was
+  unaffected (different loading path)
+- **Scenario engine**: `apply_scenario`'s post-modification composition recalc was material-
+  relative instead of parent-relative, corrupting nested element-hierarchy trees on every
+  scenario run (depth ≥ 2)
+- Engine: static/dynamic material-TC parameter naming harmonized (`TC_E{n}_` convention for
+  every element, including material, in both static and dynamic TC sheets)
+- Monte Carlo: `sample_parameters` no longer crashes with `ZeroDivisionError` on a structural-
+  zero (`std=0`) normal distribution — returns the mean as a constant draw
+- Monte Carlo: `normalize_tc_updates` now warns (instead of silently skipping) when an
+  uncertainty-parameter group doesn't cover every outgoing flow of a process — this previously
+  risked silent mass creation
+- Plotting: Monte Carlo dropdowns were truncating nested element names (`Rest_AlAlloy` → `Rest`)
+  via a naive column split, making leaf elements unreachable
+- Data loader: TCs referencing a missing flow are now skipped instead of exported under a junk
+  shared ID that could collide with another dangling TC
+- Engine / Plotting: mass-balance checks and error reporting are now indexed by process ID
+  instead of list position
+- SystemDefiner: numerous cascade-correctness fixes — hierarchy edges render fully (was
+  corrupting on save-loop), element rename/reorder/delete cascades through the whole config,
+  route-level consistency maintained on rewire/ID change/logic change/import
+- Launcher: hardened Windows portability, isolated Jupyter runtime state, handles dashboard
+  startup failures, reports killed processes as stopped on Windows
+
+### Tests
+- Golden regression: T01/T04 re-pinned after schema-default config normalization; T16 added
+- SystemDefiner: route-inventory + full-page round-trip pinned as a guard before the router
+  restructuring
+
+---
+
 ## [1.2.2] - 2026-07-07
 
 ### Added

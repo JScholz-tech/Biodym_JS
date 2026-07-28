@@ -2,8 +2,8 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
 title: "BioDYM: Material Flow Analysis for Bio-based Systems"
-version: 1.2.2
-date-released: 2026-07-07
+version: 1.3.0
+date-released: 2026-07-28
 url: "https://github.com/JScholz-tech/Biodym_JS"
 repository-code: "https://github.com/JScholz-tech/Biodym_JS"
 identifiers:
