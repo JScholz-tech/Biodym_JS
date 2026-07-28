@@ -53,8 +53,12 @@
 </table>
 {% endmacro %}
 
-{% if studies %}
-{% set groups = studies | sort(attribute='group') | groupby('group') %}
+{% set own_studies = studies | rejectattr('is_tutorial') | list %}
+{% set tutorials = studies | selectattr('is_tutorial') | list %}
+
+<h2 style="margin-top:0">Your Case Studies</h2>
+{% if own_studies %}
+{% set groups = own_studies | sort(attribute='group') | groupby('group') %}
 {% for group_name, group_studies in groups %}
 {% if group_name == '' %}
 <div class="card" style="padding:0;margin-bottom:1rem">
@@ -70,7 +74,22 @@
 {% endif %}
 {% endfor %}
 {% else %}
-<div class="alert alert-warn">No case studies yet — create one below.</div>
+<div class="alert alert-warn">No personal case studies yet — create one below or duplicate a tutorial.</div>
+{% endif %}
+
+{% if tutorials %}
+<details class="tutorials-section">
+  <summary>
+    Tutorials
+    <span class="muted" style="margin-left:0.4rem;font-weight:400">{{ tutorials | length }} guided examples</span>
+  </summary>
+  <div class="tutorials-intro muted">
+    Open a tutorial to explore it, or duplicate one to use it as the starting point for your own study.
+  </div>
+  <div class="details-body" style="padding:0">
+    {{ study_table(tutorials) }}
+  </div>
+</details>
 {% endif %}
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem">

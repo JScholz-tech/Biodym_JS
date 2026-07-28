@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import threading
 from pathlib import Path
 
@@ -37,6 +38,10 @@ def _prune_orphan_bom(config: CaseStudyConfig) -> None:
 
 
 CASE_STUDIES_DIR = Path("01_data/01_input/case_studies")
+# Shipped tutorial studies follow the T## naming convention (matches the
+# .gitignore whitelist). Detected by name so the index page can collapse them
+# into a separate section regardless of the editable `group` field.
+_TUTORIAL_NAME_RE = re.compile(r"^T\d{2}[A-Za-z]?_")
 _locks: dict[str, threading.Lock] = {}
 _locks_lock = threading.Lock()
 
@@ -95,6 +100,7 @@ def list_case_studies() -> list[dict]:
                     "processes": len(cfg.processes),
                     "flows": len(cfg.flows),
                     "modified": cfg_file.stat().st_mtime,
+                    "is_tutorial": bool(_TUTORIAL_NAME_RE.match(folder.name)),
                 }
             )
         except Exception:
@@ -106,6 +112,7 @@ def list_case_studies() -> list[dict]:
                     "processes": "?",
                     "flows": "?",
                     "modified": cfg_file.stat().st_mtime,
+                    "is_tutorial": bool(_TUTORIAL_NAME_RE.match(folder.name)),
                 }
             )
     return results
