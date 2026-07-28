@@ -22,7 +22,6 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from systemdefiner.deps import _ctx, _error_page, _render_markdown, templates  # noqa: F401
 from systemdefiner.storage import CaseStudyNotFound
 from systemdefiner.routers import (
-    analysis,
     compositions,
     elements,
     flows,
@@ -70,7 +69,6 @@ app.include_router(elements.router)
 app.include_router(scenarios.mc_router)
 app.include_router(compositions.router)
 app.include_router(flows.flow_data_router)
-app.include_router(analysis.router)
 
 
 # ── Backwards-compatible re-exports ──────────────────────────────────────────

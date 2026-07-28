@@ -53,25 +53,6 @@ class TCConfig(str, Enum):
     dynamic = "Dynamic"
 
 
-class BufCategory(str, Enum):
-    """Biomass-utilisation role (vom Berg et al. 2023, BUF).
-
-    Assigned to a *process* to declare what the process does with the biomass/
-    carbon entering it (its inflow is credited to this category). ``BBP`` is the
-    only cascading role (the product carries on to a further use); the rest are
-    terminal. Outflows to the atmosphere boundary are emissions (derived from the
-    graph, reported as released carbon), not a role. ``unset`` defers to the
-    analysis layer's auto-classifier (inferred from the process's own logic).
-    """
-
-    unset = ""
-    bbp = "BBP"  # Bio-based product (cascades)
-    be = "BE"  # Bioenergy (terminal)
-    ff = "FF"  # Food & Feed (terminal)
-    uf = "UF"  # Useful in biosphere — soil/compost (terminal)
-    nf = "NF"  # Not useful in biosphere — losses (uncredited)
-
-
 class FompParams(_Referenced):
     f_labile: float = 0.5
     k_labile: float = 1.0
@@ -176,10 +157,6 @@ class Process(BaseModel):
     lfg: Optional[LfgParams] = None
     flowcap: Optional[FlowCapParams] = None
     expected_inflow_composition: Optional[Dict[str, float]] = None
-    # Utilisation-framework role: what this process does with the carbon entering
-    # it (its inflow is credited to this category). Blank → auto-classified from
-    # the process logic by the analysis layer.
-    utilisation_role: BufCategory = BufCategory.unset
 
 
 class Flow(BaseModel):
@@ -325,47 +302,6 @@ class ReferenceEntry(BaseModel):
     note: str = ""  # free-text: which value/table this reference supports
 
 
-class BufAnalysisSettings(BaseModel):
-    """Parameters for the cascade-recursive Biomass Utilisation Factor."""
-
-    enabled: bool = False
-    # Cascade cutoff: stop propagating a branch when its remaining biomass
-    # fraction drops below cutoff × BI₀ (vom Berg et al. 2023).
-    cutoff: float = 0.05
-
-
-class CufAnalysisSettings(BaseModel):
-    """Parameters for the Carbon Utilization Factor (bioCUF)."""
-
-    enabled: bool = False
-    # Reference horizon (years) for normalising the temporal (tonne-year) metric.
-    t_ref: int = 100
-    # Whether the fast-decaying FOMP labile pool counts toward "stored" carbon in
-    # the tonne-year integral. Default False → only long-residence pools credited.
-    include_labile_storage: bool = False
-
-
-class PathDefinition(BaseModel):
-    """A named feedstock cascade (route) for per-chain analysis and comparison.
-
-    Process-set defined: the path is the set of process IDs the route passes
-    through. The feedstock entry (flows into the set) and scope (flows leaving
-    the set) are derived from the flow graph at analysis time — see
-    ``analysis.cascade_graph.path_flows`` — not stored here.
-    """
-
-    name: str
-    processes: list[int] = []
-
-
-class AnalysisConfig(BaseModel):
-    """Per-study utilisation-framework analysis parameters."""
-
-    buf: BufAnalysisSettings = BufAnalysisSettings()
-    cuf: CufAnalysisSettings = CufAnalysisSettings()
-    paths: list[PathDefinition] = []
-
-
 class CaseStudyConfig(BaseModel):
     schema_version: str = "1.0"
     name: str
@@ -382,4 +318,3 @@ class CaseStudyConfig(BaseModel):
     mc_parameters: list[McParameter] = []
     initial_stocks: list[InitialStockEntry] = []
     references: list[ReferenceEntry] = []
-    analysis: AnalysisConfig = AnalysisConfig()

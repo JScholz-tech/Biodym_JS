@@ -219,118 +219,18 @@ def calculate_cuf_temporal(carbon_fate, t_ref=100):
     return float(stock_integral / (ci0 * t_ref))
 
 
-def calculate_cuf_tonne_years(carbon_fate):
-    """Raw time-integrated productive carbon stock in **tonne-years [Mg C·yr]**.
+def calculate_buf(mfa_system, process_logic_map):
+    """BUF on dry-matter basis — direct comparison reference for CUF_cascade.
 
-    This is the un-normalised CUF_temporal — the native unit of tonne-year carbon
-    accounting (Moura-Costa & Wilson; Minasny & McBratney 2024; Parisa et al.
-    2022), directly comparable to that literature. It also reports a system-level
-    mean residence time (MRT) — the average number of years a unit of carbon that
-    entered a productive stock remains stored:
-
-        tonne_years = Σ_t [S_DSM(t) + S_FOMP(t)] · Δt        (Δt = 1 yr)
-        MRT         = tonne_years / (C_material + C_soil)     [yr]
-
-    Per-cohort residence (residence resolved by fixation year) is a planned
-    extension; this function returns the system-aggregate values.
-
-    Parameters
-    ----------
-    carbon_fate : dict
-        Output of classify_carbon_fate().
-
-    Returns
-    -------
-    dict
-        tonne_years : float [Mg C·yr]
-        mrt_years   : float [yr] — system mean residence time of stored carbon
-    """
-    tonne_years = float(
-        np.sum(carbon_fate["stock_dsm_tc"] + carbon_fate["stock_fomp_tc"])
-    )
-    stored_input = carbon_fate["c_material"] + carbon_fate["c_soil"]
-    mrt = tonne_years / stored_input if stored_input > 0 else 0.0
-    return {"tonne_years": tonne_years, "mrt_years": mrt}
-
-
-def compute_carbon_utilisation(
-    mfa_system, process_logic_map, process_roles=None, cutoff=0.05,
-    entry_flows=None, excluded_flows=None,
-):
-    """Per-stage carbon cascade utilisation (TC basis) — carbon twin of BUF_RP.
-
-    Runs the shared cascade graph-walk (see ``analysis/cascade_graph.py``) on the
-    carbon element rather than dry matter. Like BUF_RP it sums credited carbon
-    across all cascade stages and **can exceed 1** when carbon is credited at
-    several sequential stages. This is the per-stage / flow-through carbon-cascade
-    metric (distinct from ``calculate_cuf_cascade``, which is the [0,1]
-    terminal-fate efficiency).
-
-    Parameters mirror ``buf.compute_buf`` (``process_roles`` overrides,
-    ``cutoff``, ``entry_flows`` for per-feedstock-chain scope).
-
-    Returns
-    -------
-    dict
-        cuf_cascade_perstage : float (>1 possible)
-        ci0                  : float — boundary carbon input
-        by_category          : dict role → credited C / CI₀
-        released             : float — carbon emitted to atmosphere / CI₀
-        stages               : list of per-stage breakdowns
-        scope                : "system" | "chain"
-    """
-    from analysis import cascade_graph
-    from engine.element_utils import get_carbon_element_index
-
-    cc_idx = get_carbon_element_index(mfa_system.Elements)
-    if cc_idx is None:
-        raise ValueError("MFA system is missing a carbon element (TC or CC).")
-    r = cascade_graph.utilisation_factor(
-        mfa_system, process_logic_map, process_roles or {}, cc_idx, cutoff,
-        entry_flows=entry_flows, excluded_flows=excluded_flows,
-    )
-    return {
-        "cuf_cascade_perstage": r["value"],
-        "ci0": r["bi0"],
-        "by_category": r["by_category"],
-        "released": r["released"],
-        "stages": r["stages"],
-        "scope": r["scope"],
-    }
-
-
-def compute_carbon_utilisation_for_path(
-    mfa_system, process_logic_map, processes, process_roles=None, cutoff=0.05
-):
-    """Per-stage carbon cascade for a named process-set path (induced route)."""
-    from analysis import cascade_graph
-
-    entry, excluded = cascade_graph.path_flows(mfa_system, processes)
-    return compute_carbon_utilisation(
-        mfa_system, process_logic_map, process_roles=process_roles,
-        cutoff=cutoff, entry_flows=entry, excluded_flows=excluded,
-    )
-
-
-def calculate_stage1_efficiency(mfa_system, process_logic_map):
-    """Single-stage production efficiency (PE₁) on dry-matter basis.
-
-    NOTE: This is *not* the Biomass Utilisation Factor. The published BUF
-    (vom Berg et al. 2023, Ind. Biotechnol. 19(2):49–61) is a cascade-recursive
-    sum ``BUF_RP = Σ_n BI_n·PE_n`` that can exceed 1. This function computes only
-    the first-stage production efficiency ``PE₁ = (DM_BBP+DM_UF+DM_BE)/DM_CI₀``
-    (capped ≤ 1), i.e. the fraction of input dry matter put to some productive use
-    at the first stage. For the real cascade-recursive BUF driven by a bioDYM run,
-    see ``analysis/buf.py``.
-
-    Maps bioDYM process types to first-stage fate categories:
+    Computes the single-stage production efficiency on DM basis, mapping
+    bioDYM process types to BUF categories:
         DSM  → BBP (bio-based physical products)
         FOMP → UF  (useful biosphere return)
         LFG  → BE  (bioenergy)
 
     Formula
     -------
-    PE₁ = (DM_BBP + DM_UF + DM_BE) / DM_CI₀
+    BUF = (DM_BBP + DM_UF + DM_BE) / DM_CI₀
 
     Parameters
     ----------
@@ -342,7 +242,7 @@ def calculate_stage1_efficiency(mfa_system, process_logic_map):
     Returns
     -------
     float
-        PE₁ ∈ [0, 1] — first-stage production efficiency.
+        BUF ∈ [0, 1] for single-cascade systems.
 
     Raises
     ------
@@ -350,9 +250,7 @@ def calculate_stage1_efficiency(mfa_system, process_logic_map):
         If the MFA system does not include a "DM" element.
     """
     if "DM" not in mfa_system.Elements:
-        raise ValueError(
-            "Stage-1 efficiency requires a 'DM' (dry matter) element in the MFA system."
-        )
+        raise ValueError("BUF requires a 'DM' (dry matter) element in the MFA system.")
 
     dm_idx = mfa_system.Elements.index("DM")
     flows = list(mfa_system.FlowDict.values())
@@ -395,12 +293,10 @@ def compute_cuf(mfa_system, process_logic_map, fomp_details, t_ref=100):
     Returns
     -------
     dict
-        carbon_fate       : dict from classify_carbon_fate()
-        cuf_cascade       : float
-        cuf_temporal      : float
-        stage1_efficiency : float PE₁, or None if DM element is absent
-                            (single-stage DM reference; NOT the cascade BUF_RP —
-                            see analysis/buf.py)
+        carbon_fate  : dict from classify_carbon_fate()
+        cuf_cascade  : float
+        cuf_temporal : float
+        buf          : float, or None if DM element is absent
 
     Examples
     --------
@@ -411,19 +307,16 @@ def compute_cuf(mfa_system, process_logic_map, fomp_details, t_ref=100):
     carbon_fate = classify_carbon_fate(mfa_system, process_logic_map, fomp_details)
     cuf_cascade = calculate_cuf_cascade(carbon_fate)
     cuf_temporal = calculate_cuf_temporal(carbon_fate, t_ref)
-    tonne_years = calculate_cuf_tonne_years(carbon_fate)
     try:
-        stage1_efficiency = calculate_stage1_efficiency(mfa_system, process_logic_map)
+        buf = calculate_buf(mfa_system, process_logic_map)
     except ValueError:
-        stage1_efficiency = None
+        buf = None
 
     return {
         "carbon_fate": carbon_fate,
         "cuf_cascade": cuf_cascade,
         "cuf_temporal": cuf_temporal,
-        "tonne_years": tonne_years["tonne_years"],
-        "mrt_years": tonne_years["mrt_years"],
-        "stage1_efficiency": stage1_efficiency,
+        "buf": buf,
     }
 
 
@@ -458,9 +351,7 @@ def print_cuf_summary(results, label="Scenario"):
     )
     print(f"{'─' * 48}")
     print(f"  CUF_cascade           : {results['cuf_cascade']:>10.4f}")
-    print(f"  CUF_temporal (norm.)  : {results['cuf_temporal']:>10.4f}")
-    print(f"  Tonne-years           : {results['tonne_years']:>10.1f}  Mg C·yr")
-    print(f"  Mean residence time   : {results['mrt_years']:>10.2f}  yr")
-    if results["stage1_efficiency"] is not None:
-        print(f"  PE₁ (stage-1, DM)     : {results['stage1_efficiency']:>10.4f}")
+    print(f"  CUF_temporal          : {results['cuf_temporal']:>10.4f}")
+    if results["buf"] is not None:
+        print(f"  BUF (DM basis)        : {results['buf']:>10.4f}")
     print(f"{'─' * 48}\n")

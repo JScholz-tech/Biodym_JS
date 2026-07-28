@@ -347,39 +347,11 @@
   </div>
 </details>
 
-{# ── §5 Frameworks & Analysis ─────────────────────────────────────────── #}
+{# ── §5 Scenario & Uncertainty Management ─────────────────────────────── #}
 <details class="card" data-section="5" style="padding:0;margin-bottom:1.25rem"
-         {% if cfg.analysis.buf.enabled or cfg.analysis.cuf.enabled or cfg.analysis.paths %}open{% endif %}>
-  <summary style="display:flex;align-items:baseline;gap:0.75rem;padding:0.75rem 1.25rem;cursor:pointer;background:var(--bg);border-radius:var(--radius);user-select:none">
-    <span style="background:var(--primary);color:#fff;border-radius:3px;padding:0.1rem 0.5rem;font-size:0.8rem;font-weight:700;font-family:monospace">5</span>
-    <span style="font-size:1.05rem;font-weight:700">Frameworks &amp; Analysis</span>
-    <span class="muted" style="font-size:0.85rem;font-weight:400">BUF / CUF engines · fate map · cascade paths</span>
-  </summary>
-  <div style="padding:1.25rem">
-    <div style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1rem">
-      <div>
-        <div class="muted" style="text-transform:uppercase;font-size:0.8rem;font-weight:600">Engines</div>
-        <div style="font-size:1rem;margin-top:0.3rem">
-          {% if cfg.analysis.buf.enabled %}<span class="tag" style="background:var(--primary);color:#fff">BUF</span>{% else %}<span class="tag">BUF off</span>{% endif %}
-          {% if cfg.analysis.cuf.enabled %}<span class="tag" style="background:var(--primary);color:#fff">CUF</span>{% else %}<span class="tag">CUF off</span>{% endif %}
-        </div>
-      </div>
-      <div>
-        <div class="muted" style="text-transform:uppercase;font-size:0.8rem;font-weight:600">Paths</div>
-        <div style="font-size:1.8rem;font-weight:700">{{ cfg.analysis.paths | length }}
-          <span style="font-size:1rem;font-weight:400;color:var(--muted)">defined</span>
-        </div>
-      </div>
-    </div>
-    <a href="/{{ cfg.name }}/analysis" class="btn btn-secondary btn-sm">Open Frameworks &amp; Analysis</a>
-  </div>
-</details>
-
-{# ── §6 Scenario & Uncertainty Management ─────────────────────────────── #}
-<details class="card" data-section="6" style="padding:0;margin-bottom:1.25rem"
          {% if cfg.model.run_scenario_analysis or cfg.model.run_monte_carlo %}open{% endif %}>
   <summary style="display:flex;align-items:baseline;gap:0.75rem;padding:0.75rem 1.25rem;cursor:pointer;background:var(--bg);border-radius:var(--radius);user-select:none">
-    <span style="background:var(--primary);color:#fff;border-radius:3px;padding:0.1rem 0.5rem;font-size:0.8rem;font-weight:700;font-family:monospace">6</span>
+    <span style="background:var(--primary);color:#fff;border-radius:3px;padding:0.1rem 0.5rem;font-size:0.8rem;font-weight:700;font-family:monospace">5</span>
     <span style="font-size:1.05rem;font-weight:700">Scenario &amp; Uncertainty Management</span>
     <span class="muted" style="font-size:0.85rem;font-weight:400">Scenarios · Monte Carlo distributions</span>
   </summary>
