@@ -251,8 +251,10 @@ def _parse_dsm_component(form) -> DsmParams:
     def _s(key): return (form.get(key) or "").strip()
     def _f(key, default=None):
         v = _s(key)
-        try: return float(v) if v else default
-        except ValueError: return default
+        try:
+            return float(v) if v else default
+        except ValueError:
+            return default
 
     # Row indices are collected tolerantly (client-side removals can leave
     # gaps); the per-category lifetime override keys reuse the component's

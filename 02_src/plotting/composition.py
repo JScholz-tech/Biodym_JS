@@ -594,7 +594,7 @@ def validate_flow_compositions(
         print("=" * 80)
         print(f"Tolerance: ±{tolerance}%\n")
 
-        print(f"STEP 1 — Top level: does every top-level element (e.g. WC, DM)")
+        print("STEP 1 — Top level: does every top-level element (e.g. WC, DM)")
         print(f"add up to material? [{total_checked} flow-year combinations checked]")
         if not over_100 and not under_100:
             print(f"  ✅ {valid_count}/{total_checked} match. No errors.")
@@ -615,9 +615,9 @@ def validate_flow_compositions(
                 print(f"  ℹ️  {n} below 100% (top-level elements = {rng} of "
                       f"material — untracked remainder, not an error)")
 
-        print(f"\nSTEP 2 — Sub-elements: for every element with tracked children, "
-              f"does the sum\nof its children match its own mass? "
-              f"(e.g. does TOC + TIC add up to TC?)")
+        print("\nSTEP 2 — Sub-elements: for every element with tracked children, "
+              "does the sum\nof its children match its own mass? "
+              "(e.g. does TOC + TIC add up to TC?)")
         if not deeper_violations:
             print("  ✅ No sub-element relationships found any issues.")
         else:
