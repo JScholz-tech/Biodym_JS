@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.5] - 2026-07-28
+
+Housekeeping release after v1.3.0 — bundles two ready feature branches and the
+deferred Dashboard/Workflow parity fix. (`1.4.0` is reserved for the
+Input_Substitution headline; the `1.3.5` number is a deliberate
+bigger-than-patch signal.)
+
+### Added
+- SystemDefiner: study **grouping** — editable `group` field + Group column on the
+  case-study index, with group-based collapsible sections
+- SystemDefiner: **Tutorials auto-collapse** — shipped `T##` tutorials are detected by
+  name and shown in a separate collapsed section from "Your Case Studies"
+- SystemDefiner: **glossary page** (`/glossary`) and a copy-config-path navigation button
+- Plotting: `plot_component_replacement_rate` (DSM component replacement dynamics) and a
+  `print_cuf_summary` helper re-export
+- Engine: **element-hierarchy consistency validation** after solve, and exhaustive
+  derivation of parent elements from their children in the Transformer
+- Tooling: `name-convention` skill for scanning/standardising flow & process name fields
+- Tests: `test_yaml_loader_parity.py` — guards that the native YAML loaders and the
+  Excel-style loaders agree on every shared key, per tracked study
+
+### Fixed
+- Dashboard: load **all** parameter domains (DSM/FOMP/LFG/FlowCap) through
+  `load_all_parameters()` in YAML-only mode instead of the Excel-style shim, eliminating
+  the two-parallel-parsers divergence class (YAML-only studies previously got Excel-shim
+  parameter subsets in the Dashboard; only FOMP had been fixed on main)
+- Tests: the tracked-studies round-trip test now scans only shipped `T##` studies, so local
+  gitignored studies no longer redden developer runs
+
+### Docs
+- Rebuilt the shipped manual PDF with the "New in v1.3" section
+
+---
+
 ## [1.3.0] - 2026-07-28
 
 ### Added
