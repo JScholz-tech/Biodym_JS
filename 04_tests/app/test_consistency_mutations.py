@@ -999,15 +999,25 @@ class TestHierarchyRoundTrip:
 # introduce new consistency errors and must be idempotent
 # ══════════════════════════════════════════════════════════════════════════════
 
+import re as _re
 from pathlib import Path as _Path
 
 _REAL_STUDIES = _Path(__file__).parents[2] / "01_data" / "01_input" / "case_studies"
+
+# Only the tutorial studies are git-tracked and shipped (see .gitignore whitelist
+# `case_studies/T[0-9][0-9]_*` plus T05b). Every other folder under case_studies/ is
+# local, gitignored user data that may use process-logic types not on public main
+# (e.g. Input_Substitution on the WEEE track) — including those here would make this
+# test fail on a developer's machine while passing in CI. Match the shipped whitelist.
+_TRACKED_STUDY_RE = _re.compile(r"^T\d{2}[A-Za-z]?_")
 
 
 @pytest.mark.skipif(not _REAL_STUDIES.is_dir(), reason="case_studies dir missing")
 def test_tracked_studies_round_trip(isolated_case_studies):
     checked = 0
     for folder in sorted(_REAL_STUDIES.iterdir()):
+        if not _TRACKED_STUDY_RE.match(folder.name):
+            continue
         src = folder / "config.yaml"
         if not src.exists():
             continue
