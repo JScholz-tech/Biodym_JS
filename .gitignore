@@ -108,8 +108,8 @@ __marimo__/
 */__marimo__/
 server.log
 skills-lock.json
-# marimo-pair is a local dev skill, not relevant to external users
-.claude/skills/marimo-pair/
+# Claude Code skills are local dev tooling, not part of the shipped package
+.claude/skills/
 
 # Python build artifacts
 *.egg-info/
