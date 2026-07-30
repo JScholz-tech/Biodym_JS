@@ -38,6 +38,7 @@ class ProcessLogic(str, Enum):
     bom_assembler = "BOM_Assembler"
     pass_through = "Pass-through"
     flowcap = "FlowCap"
+    input_substitution = "Input_Substitution"
 
 
 class StockConfig(str, Enum):
@@ -113,6 +114,18 @@ class FlowCapParams(_Referenced):
     cap_tc_id: str = ""  # optional ParameterDict key for scenario switching
 
 
+class InputSubstitutionParams(_Referenced):
+    # The fixed total-demand target is NOT stored here: it comes from a normal
+    # flow_data entry on the process's own boundary/residual outflow, exactly
+    # like a plain Input process — Input_Substitution is a drop-in variant of
+    # Input, not a separate species with its own demand-series mechanism.
+    supply_flow_ids: list[str] = []  # secondary/recycled inflows, summed (same-material)
+    consumed_flow_id: str = ""  # substituted amount, routed to the same to_process as the boundary outflow
+    surplus_flow_id: str = ""  # optional: secondary supply beyond target
+    residual_flow_id: str = ""  # the boundary/residual outflow itself; auto-derived if blank (back-compat)
+    lag_years: int = 0  # years before returning supply counts toward demand (0 = same year)
+
+
 class FlowDataEntry(_Referenced):
     flow_id: str
     element: str = "material"
@@ -156,6 +169,7 @@ class Process(BaseModel):
     dsm: Optional[DsmParams] = None
     lfg: Optional[LfgParams] = None
     flowcap: Optional[FlowCapParams] = None
+    input_substitution: Optional[InputSubstitutionParams] = None
     expected_inflow_composition: Optional[Dict[str, float]] = None
 
 

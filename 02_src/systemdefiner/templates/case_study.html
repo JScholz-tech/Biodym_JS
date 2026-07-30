@@ -12,8 +12,9 @@
 {% set fomp_count = cfg.processes | selectattr("fomp")    | list | length %}
 {% set lfg_count  = cfg.processes | selectattr("lfg")     | list | length %}
 {% set fc_count   = cfg.processes | selectattr("flowcap") | list | length %}
+{% set is_count   = cfg.processes | selectattr("input_substitution") | list | length %}
 {% set bom_count  = cfg.bom_assembly | list | length %}
-{% set adv_any    = dsm_count + fomp_count + lfg_count + fc_count + bom_count %}
+{% set adv_any    = dsm_count + fomp_count + lfg_count + fc_count + is_count + bom_count %}
 
 {# ── Model diagram (shown in the header band on every page) ────────────── #}
 <div class="card" style="margin-bottom:1.25rem">
@@ -269,7 +270,7 @@
   <summary style="display:flex;align-items:baseline;gap:0.75rem;padding:0.75rem 1.25rem;cursor:pointer;background:var(--bg);border-radius:var(--radius);user-select:none">
     <span style="background:var(--primary);color:#fff;border-radius:3px;padding:0.1rem 0.5rem;font-size:0.8rem;font-weight:700;font-family:monospace">4</span>
     <span style="font-size:1.05rem;font-weight:700">Advanced Models</span>
-    <span class="muted" style="font-size:0.85rem;font-weight:400">DSM · FOMP · LFG · FlowCap · BOM Assembly</span>
+    <span class="muted" style="font-size:0.85rem;font-weight:400">DSM · FOMP · LFG · FlowCap · Input_Substitution · BOM Assembly</span>
   </summary>
   <div style="padding:1.25rem">
 
@@ -328,6 +329,17 @@
           <td><a href="/{{ cfg.name }}/processes" class="btn btn-secondary btn-sm">→ Processes</a></td>
         </tr>
         <tr>
+          <td><strong>Input_Substitution</strong> <span class="muted" style="font-size:0.8rem">Demand substitution (secondary/recycled)</span></td>
+          <td style="text-align:center">
+            {% if is_count > 0 %}
+            <span style="font-weight:700;font-size:1.1rem">{{ is_count }}</span>
+            {% else %}
+            <span class="muted">—</span>
+            {% endif %}
+          </td>
+          <td><a href="/{{ cfg.name }}/processes" class="btn btn-secondary btn-sm">→ Processes</a></td>
+        </tr>
+        <tr>
           <td><strong>BOM</strong> <span class="muted" style="font-size:0.8rem">Bill-of-Materials Assembler</span></td>
           <td style="text-align:center">
             {% if bom_count > 0 %}
@@ -341,7 +353,7 @@
       </tbody>
     </table>
     <p class="muted" style="font-size:0.85rem;margin-bottom:1rem">
-      DSM, FOMP, LFG, FlowCap and BOM Assembler parameters are configured individually per process via the Processes page.
+      DSM, FOMP, LFG, FlowCap, Input_Substitution and BOM Assembler parameters are configured individually per process via the Processes page.
     </p>
 
   </div>

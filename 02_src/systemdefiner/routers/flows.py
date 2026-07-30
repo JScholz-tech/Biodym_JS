@@ -20,7 +20,7 @@ from systemdefiner.cascades import (
     _purge_flow_references,
     _rename_flow_id,
 )
-from systemdefiner.consistency import FLOW_ID_CONVENTION
+from systemdefiner.consistency import FLOW_ID_CONVENTION, input_substitution_residual_flow
 from systemdefiner.deps import _ctx, templates
 from systemdefiner.forms import _g
 from systemdefiner.models.config_schema import (
@@ -47,15 +47,34 @@ def _convention_mismatch(fid: str, from_p: int, to_p: int) -> str | None:
     return None
 
 
+def _input_flows(cfg: CaseStudyConfig):
+    """Return flows eligible for the flow_data (Input Flow Time Series) editor:
+    outflows of plain Input processes, plus the discovered "virgin/residual"
+    outflow of Input_Substitution processes — Input_Substitution is a drop-in
+    variant of Input, and its demand target comes from the same flow_data
+    mechanism rather than a bespoke field."""
+    input_pids = {p.id for p in cfg.processes if p.logic == ProcessLogic.input}
+    flows = [f for f in cfg.flows if f.from_process in input_pids]
+    seen = {f.id for f in flows}
+    for p in cfg.processes:
+        if p.logic != ProcessLogic.input_substitution:
+            continue
+        residual = input_substitution_residual_flow(cfg, p)
+        if residual is not None and residual.id not in seen:
+            flows.append(residual)
+            seen.add(residual.id)
+    return flows
+
+
 def _drop_stranded_flow_entries(cfg, flow_id: str) -> None:
-    """Remove flow_data / composition entries for a flow whose source is no
-    longer an Input process — the editors can't reach them anymore, but the
-    engine would still apply them (phantom prescribed values)."""
+    """Remove flow_data / composition entries for a flow that's no longer
+    reachable as an Input-like outflow — the editors can't reach them
+    anymore, but the engine would still apply them (phantom prescribed
+    values)."""
     fl = next((f for f in cfg.flows if f.id == flow_id), None)
     if fl is None:
         return
-    input_pids = {p.id for p in cfg.processes if p.logic == ProcessLogic.input} | {0}
-    if fl.from_process in input_pids:
+    if fl.from_process == 0 or flow_id in {f.id for f in _input_flows(cfg)}:
         return
     cfg.flow_data = [fd for fd in cfg.flow_data if fd.flow_id != flow_id]
     cfg.flow_compositions = [
@@ -222,12 +241,6 @@ async def flow_delete(name: str, fid: str):
 # ── Flow Data (input time series) ──────────────────────────────────────────
 
 flow_data_router = APIRouter()
-
-
-def _input_flows(cfg: CaseStudyConfig):
-    """Return flows whose source process has logic='Input'."""
-    input_pids = {p.id for p in cfg.processes if p.logic == ProcessLogic.input}
-    return [f for f in cfg.flows if f.from_process in input_pids]
 
 
 @flow_data_router.get("/{name}/flow_data")

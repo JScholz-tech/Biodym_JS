@@ -745,6 +745,7 @@ def _run_single_mc_iteration(
     lfg_params=None,
     bom_params=None,
     flow_cap_params=None,
+    substitution_params=None,
 ):
     """Runs a single iteration of the Monte Carlo simulation.
 
@@ -771,7 +772,7 @@ def _run_single_mc_iteration(
         A map from Process_IDs to their logic.
     tc_info_map : dict
         A map containing information about TC relationships.
-    lfg_params, bom_params, flow_cap_params : dict, optional
+    lfg_params, bom_params, flow_cap_params, substitution_params : dict, optional
         Module configuration dicts passed through to the solver unmodified
         (not sampled), so these process logic types stay active during MC.
 
@@ -912,6 +913,7 @@ def _run_single_mc_iteration(
         lfg_params=lfg_params or {},
         bom_params=bom_params or {},
         flow_cap_params=flow_cap_params or {},
+        substitution_params=substitution_params or {},
     )
 
     # --- 3f. Collect Results ---
@@ -1174,6 +1176,7 @@ def run_mc_simulation(
     lfg_params=None,
     bom_params=None,
     flow_cap_params=None,
+    substitution_params=None,
 ):
     """Runs a Monte Carlo simulation by repeatedly sampling parameters.
 
@@ -1204,6 +1207,8 @@ def run_mc_simulation(
         Configuration dictionary for BOM_Assembler processes (same reason).
     flow_cap_params : dict, optional
         Configuration dictionary for FlowCap processes (same reason).
+    substitution_params : dict, optional
+        Configuration dictionary for Input_Substitution processes (same reason).
 
     Returns
     -------
@@ -1343,6 +1348,7 @@ def run_mc_simulation(
                 lfg_params=lfg_params,
                 bom_params=bom_params,
                 flow_cap_params=flow_cap_params,
+                substitution_params=substitution_params,
             )
         except Exception as exc:
             # One bad sample must not kill the whole batch: record it, skip

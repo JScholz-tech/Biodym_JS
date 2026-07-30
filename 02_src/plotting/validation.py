@@ -36,6 +36,7 @@ def plot_optimized_mass_balance_error(
     dsm_params=None,
     fomp_params=None,
     lfg_params=None,
+    substitution_params=None,
 ):
     """Creates an interactive plot of mass balance errors for each process.
 
@@ -64,6 +65,14 @@ def plot_optimized_mass_balance_error(
     lfg_params : dict, optional
         LFG process parameters dict (keyed by process ID). When provided,
         LFG processes are labelled [LFG] in the chart. Defaults to None.
+    substitution_params : dict, optional
+        Input_Substitution process parameters dict (keyed by process ID).
+        These processes are boundary-like — part of their outflow (the
+        virgin/residual portion) is manufactured with no corresponding
+        physical inflow, by design, exactly like a plain Input process — so
+        they are excluded from the error calculation and labelled with the
+        same "*" system-boundary marker, rather than being flagged as a
+        (false-positive) imbalance. Defaults to None.
 
     Notes
     -----
@@ -144,13 +153,22 @@ def plot_optimized_mass_balance_error(
             # Output process: has inflows, no outflows (material sink)
             is_input_process = (in_val == 0) and (out_val > 0) and (ds_sum == 0)
             is_output_process = (in_val > 0) and (out_val == 0) and (ds_sum == 0)
+            # Input_Substitution processes are boundary-like too, but don't
+            # fit either single-direction pattern: they have a genuine
+            # physical inflow (recycled/secondary supply) AND an outflow
+            # that's partly manufactured with no inflow at all (the virgin/
+            # residual portion, by design — same as a plain Input process).
+            # Left undetected, that residual reads as a large "imbalance"
+            # here even though nothing is actually wrong (confirmed via a
+            # real case study: the "error" exactly equals the residual flow).
+            is_substitution_process = bool(substitution_params) and p.ID in substitution_params
 
             # Calculate error
             error = in_val - out_val - ds_sum
 
             # Build label: boundary processes get *, dynamic processes get [type]
             dyn_type = dynamic_labels.get(p.ID, "")
-            if is_input_process or is_output_process:
+            if is_input_process or is_output_process or is_substitution_process:
                 errors.append(0)
                 process_labels.append(f"{p.Name}*")
                 bar_colors.append(BIOYM_COLORS["neutral"])
@@ -291,6 +309,7 @@ def plot_total_mass_balance_error(
     dsm_params=None,
     fomp_params=None,
     lfg_params=None,
+    substitution_params=None,
 ):
     """Creates a static bar chart showing the sum of absolute mass balance errors.
 
@@ -323,6 +342,14 @@ def plot_total_mass_balance_error(
     lfg_params : dict, optional
         LFG process parameters dict (keyed by process ID). When provided,
         LFG processes are labelled [LFG] in the chart. Defaults to None.
+    substitution_params : dict, optional
+        Input_Substitution process parameters dict (keyed by process ID).
+        These processes are boundary-like — part of their outflow (the
+        virgin/residual portion) is manufactured with no corresponding
+        physical inflow, by design, exactly like a plain Input process — so
+        they are excluded from the error calculation and labelled with the
+        same "*" system-boundary marker, rather than being flagged as a
+        (false-positive) imbalance. Defaults to None.
 
     Returns
     -------
@@ -411,10 +438,18 @@ def plot_total_mass_balance_error(
         is_output_process = (
             (avg_inflow > 0) and (avg_outflow == 0) and (abs(avg_ds) < 1e-10)
         )
+        # Input_Substitution processes are boundary-like too, but don't fit
+        # either single-direction pattern above: they have a genuine
+        # physical inflow (recycled/secondary supply) AND an outflow that's
+        # partly manufactured with no inflow at all (the virgin/residual
+        # portion, by design — same as a plain Input process). Left
+        # undetected, that residual reads as a large "imbalance" here even
+        # though nothing is actually wrong.
+        is_substitution_process = bool(substitution_params) and p.ID in substitution_params
 
         # Add label: boundary processes get *, dynamic processes get [type]
         dyn_type = dynamic_labels.get(p.ID, "")
-        if is_input_process or is_output_process:
+        if is_input_process or is_output_process or is_substitution_process:
             process_labels.append(f"{p.Name}*")
         elif dyn_type:
             process_labels.append(f"{p.Name} [{dyn_type}]")
@@ -422,8 +457,8 @@ def plot_total_mass_balance_error(
             process_labels.append(p.Name)
 
         for e_idx, element in enumerate(element_items):
-            # Exclude Input/Output processes from error calculation
-            if is_input_process or is_output_process:
+            # Exclude Input/Output/Input_Substitution processes from error calculation
+            if is_input_process or is_output_process or is_substitution_process:
                 total_error_for_element = 0  # Set to zero for system boundaries
             else:
                 total_error_for_element = np.sum(

@@ -28,6 +28,7 @@ from . import fomp_model
 from . import lfg_model
 from . import bom_assembler as _bom_assembler
 from . import flow_cap as _flow_cap
+from . import input_substitution as _input_substitution
 
 
 def _topological_sort_flows(mfa_system):
@@ -757,6 +758,7 @@ def run_mfa_calculation(
     lfg_params=None,
     bom_params=None,
     flow_cap_params=None,
+    substitution_params=None,
 ):
     """This function is the iterative solver for the MFA system.
 
@@ -838,6 +840,7 @@ def run_mfa_calculation(
         lfg_params=lfg_params,
         bom_params=bom_params,
         flow_cap_params=flow_cap_params,
+        substitution_params=substitution_params,
     )
 
     mfa_system = copy.deepcopy(mfa_system_setup)
@@ -914,6 +917,8 @@ def run_mfa_calculation(
         bom_params = {}
     if flow_cap_params is None:
         flow_cap_params = {}
+    if substitution_params is None:
+        substitution_params = {}
 
     dsm_details = {}
     fomp_details = {}
@@ -922,6 +927,7 @@ def run_mfa_calculation(
     lfg_processes = set(lfg_params.keys())
     bom_processes = set(bom_params.keys())
     flow_cap_processes = set(flow_cap_params.keys())
+    substitution_processes = set(substitution_params.keys())
 
     # Cross-check against process_logic_map so that the Excel Process_Logic
     # column acts as the authoritative switch.  DSM is already filtered at
@@ -943,12 +949,18 @@ def run_mfa_calculation(
         flow_cap_processes = {
             pid for pid in flow_cap_processes if process_logic_map.get(pid) == "FlowCap"
         }
+        substitution_processes = {
+            pid
+            for pid in substitution_processes
+            if process_logic_map.get(pid) == "Input_Substitution"
+        }
 
     special_processes = (
         dsm_processes.union(fomp_processes)
         .union(lfg_processes)
         .union(bom_processes)
         .union(flow_cap_processes)
+        .union(substitution_processes)
     )
 
     # Pre-sort flows in topological order so upstream flows are calculated
@@ -1019,6 +1031,15 @@ def run_mfa_calculation(
             )
             pass_changes.append(flow_cap_changed)
 
+        # --- 2.7. Input_Substitution processes ---
+        substitution_changed = False
+        if substitution_processes:
+            element_hierarchy = getattr(mfa_system, "_element_hierarchy", None)
+            substitution_changed = _input_substitution.calculate_input_substitution(
+                mfa_system, substitution_processes, substitution_params, element_hierarchy
+            )
+            pass_changes.append(substitution_changed)
+
         # Record per-iteration diagnostics
         convergence_log.append(
             {
@@ -1029,6 +1050,7 @@ def run_mfa_calculation(
                 "lfg_changed": bool(lfg_changed),
                 "bom_changed": bool(bom_changed),
                 "flow_cap_changed": bool(flow_cap_changed),
+                "substitution_changed": bool(substitution_changed),
                 "any_changed": any(pass_changes),
             }
         )
@@ -1063,7 +1085,8 @@ def run_mfa_calculation(
         dsm_processes,
         fomp_processes.union(lfg_processes)
         .union(bom_processes)
-        .union(flow_cap_processes),
+        .union(flow_cap_processes)
+        .union(substitution_processes),
     )
 
     # ODYM validation after complete calculation

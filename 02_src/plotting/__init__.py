@@ -36,6 +36,8 @@ from .dynamics import (
     plot_lfg_fraction_breakdown,
     plot_lfg_ipcc_vs_mfa_comparison,
     plot_bom_assembly_flows,
+    plot_input_substitution_dynamics,
+    plot_input_substitution_rate,
 )
 from .validation import (
     plot_optimized_mass_balance_error,
@@ -129,6 +131,8 @@ __all__ = [
     "plot_lfg_fraction_breakdown",
     "plot_lfg_ipcc_vs_mfa_comparison",
     "plot_bom_assembly_flows",
+    "plot_input_substitution_dynamics",
+    "plot_input_substitution_rate",
     "export_sankey_json",
     "export_sankey_html",
     "export_sankey_csv",

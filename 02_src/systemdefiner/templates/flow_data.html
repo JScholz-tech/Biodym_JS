@@ -12,7 +12,9 @@
 
 <div class="card" style="margin-bottom:1.25rem">
   <p class="muted" style="margin:0">
-    Define time-series values for flows that originate from <strong>Input</strong> processes.
+    Define time-series values for flows that originate from <strong>Input</strong> processes,
+    plus the "virgin material still needed" outflow of any <strong>Input_Substitution</strong>
+    process (its demand target — same mechanism as a plain Input flow).
     You only need to enter <em>key years</em> — values are linearly interpolated between points,
     and the nearest defined value is extended to the start/end of the time frame.
     The chart updates live as you type so you can verify the shape of the input curve.
@@ -21,7 +23,8 @@
 
 {% if not input_flows %}
 <div class="alert alert-warn">
-  No input flows found. First define at least one process with logic <code>Input</code> and create a flow leaving it.
+  No input flows found. First define at least one process with logic <code>Input</code> (or
+  <code>Input_Substitution</code>) and create a flow leaving it.
 </div>
 {% else %}
 

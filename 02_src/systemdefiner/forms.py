@@ -21,6 +21,7 @@ from systemdefiner.models.config_schema import (
     FlowDataEntry,
     FompParams,
     InitialStockEntry,
+    InputSubstitutionParams,
     LfgFraction,
     LfgParams,
     McParameter,
@@ -395,4 +396,55 @@ def _parse_flowcap(form, process_id: int) -> Optional[FlowCapParams]:
         cap_series=cap_series,
         cap_tc_id=cap_tc_id,
         refs=[c.strip() for c in form.getlist("flowcap_refs") if c.strip()],
+    )
+
+
+def _parse_input_substitution(form, cfg=None, process_id=None) -> Optional[InputSubstitutionParams]:
+    # The demand target is NOT parsed here — it comes from a normal flow_data
+    # entry on the discovered boundary/residual outflow, entered on the Input
+    # Flow Time Series page exactly like a plain Input process.
+    consumed = form.get("input_substitution_consumed_flow_id", "") or ""
+    if not consumed:
+        return None
+    # Row-list, same shape as DSM_Component's table (not a free-form multiselect):
+    # one flow per row, indices collected tolerantly since a client-side row
+    # removal can leave gaps in the input_substitution_supply_{i} numbering.
+    supply_indices = sorted(
+        {
+            int(m.group(1))
+            for key in form.keys()
+            if (m := re.fullmatch(r"input_substitution_supply_(\d+)", key))
+        }
+    )
+    supply_flow_ids = []
+    for idx in supply_indices:
+        fid = (form.get(f"input_substitution_supply_{idx}", "") or "").strip()
+        if fid:
+            supply_flow_ids.append(fid)
+    surplus = form.get("input_substitution_surplus_flow_id", "") or ""
+    # residual_flow_id: auto-derive if the form leaves it blank (mirrors
+    # FlowCapParams.cap_tc_id's auto-derive-if-blank precedent), same
+    # "sole other P_Start==process_id outflow" rule the engine used to
+    # discover it at solve time — now named once and for all at save time.
+    residual = (form.get("input_substitution_residual_flow_id", "") or "").strip()
+    if not residual and cfg is not None and process_id is not None:
+        claimed = {consumed, surplus}
+        candidates = [
+            f
+            for f in cfg.flows
+            if f.from_process == process_id and f.id not in claimed
+        ]
+        if len(candidates) == 1:
+            residual = candidates[0].id
+    try:
+        lag_years = int(form.get("input_substitution_lag_years", 0) or 0)
+    except (TypeError, ValueError):
+        lag_years = 0
+    return InputSubstitutionParams(
+        supply_flow_ids=supply_flow_ids,
+        consumed_flow_id=consumed,
+        surplus_flow_id=surplus,
+        residual_flow_id=residual,
+        lag_years=lag_years,
+        refs=[c.strip() for c in form.getlist("input_substitution_refs") if c.strip()],
     )

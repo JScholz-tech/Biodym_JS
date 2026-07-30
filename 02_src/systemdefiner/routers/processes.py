@@ -9,12 +9,14 @@ from fastapi.responses import RedirectResponse
 
 from systemdefiner import storage
 from systemdefiner.cascades import _compact_process_ids, _delete_process_cascade
+from systemdefiner.consistency import input_substitution_residual_flow
 from systemdefiner.deps import _ctx, templates
 from systemdefiner.forms import (
     _parse_dsm,
     _parse_dsm_component,
     _parse_flowcap,
     _parse_fomp,
+    _parse_input_substitution,
     _parse_lfg,
 )
 from systemdefiner.models.config_schema import (
@@ -78,6 +80,9 @@ async def process_new(request: Request, name: str):
             else _parse_dsm(form) if logic == ProcessLogic.dsm else None,
         lfg=_parse_lfg(form) if logic == ProcessLogic.lfg else None,
         flowcap=_parse_flowcap(form, new_id) if logic == ProcessLogic.flowcap else None,
+        input_substitution=_parse_input_substitution(form, cfg, new_id)
+        if logic == ProcessLogic.input_substitution
+        else None,
     )
     cfg.processes.append(process)
     storage.save_case_study(cfg)
@@ -101,6 +106,7 @@ async def process_edit_form(request: Request, name: str, pid: int):
             logic_options=list(ProcessLogic),
             stock_options=list(StockConfig),
             tc_options=list(TCConfig),
+            input_substitution_residual_flow=input_substitution_residual_flow(cfg, process),
         ),
     )
 
@@ -134,6 +140,11 @@ async def process_edit_save(request: Request, name: str, pid: int):
     )
     process.lfg = _parse_lfg(form) if logic == ProcessLogic.lfg else None
     process.flowcap = _parse_flowcap(form, pid) if logic == ProcessLogic.flowcap else None
+    process.input_substitution = (
+        _parse_input_substitution(form, cfg, pid)
+        if logic == ProcessLogic.input_substitution
+        else None
+    )
 
     # If the process no longer carries an initial stock, drop any orphaned entry
     # so it can't linger in the config (and silently feed the engine).

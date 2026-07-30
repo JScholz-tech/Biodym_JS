@@ -269,6 +269,11 @@ def _build_scenario_params(cfg) -> list[dict]:
             }
         )
 
+    # ── Input_Substitution: no bespoke catalog entry needed ─────────────────────
+    # Its demand target lives on a normal flow_data-driven flow, so it's already
+    # covered by the generic "Flows" catalog entries above (every flow gets one,
+    # keyed by its Flow_ID) — no special-casing required.
+
     # ── Initial stocks ─────────────────────────────────────────────────────────
     # Applied by apply_scenario's "IS" branch. The MC engine has no IS support,
     # so these are hidden on the MC Parameters page via scenario_only.

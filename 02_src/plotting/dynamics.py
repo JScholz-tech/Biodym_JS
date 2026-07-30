@@ -2364,6 +2364,311 @@ def plot_fomp_dynamics(mfa_system_results, fomp_params_config):
     update_plot(process_dropdown.value, element_dropdown.value)
 
 
+def _resolve_input_substitution_residual_flow(mfa_system_results, pid, params):
+    """Same discovery rule as engine.input_substitution.calculate_input_substitution
+    and consistency.input_substitution_residual_flow: named via residual_flow_id
+    when set, otherwise the sole other P_Start==pid flow not claimed by
+    consumed_flow_id/surplus_flow_id."""
+    residual_id = params.get("residual_flow_id")
+    if residual_id:
+        return mfa_system_results.FlowDict.get(residual_id)
+    claimed = {params.get("consumed_flow_id"), params.get("surplus_flow_id")}
+    candidates = [
+        f
+        for f in mfa_system_results.FlowDict.values()
+        if f.P_Start == pid and f.Name not in claimed
+    ]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def plot_input_substitution_dynamics(mfa_system_results, substitution_params):
+    """Visualizes the Input_Substitution mechanism itself, over time.
+
+    For a selected Input_Substitution process and element, shows the
+    demand target, the raw (pre-lag) supply, and how the solver split that
+    into consumed (recycled/secondary), residual (virgin), and surplus —
+    the exact quantities `engine.input_substitution.calculate_input_substitution`
+    computes each iteration. Meant as a diagnostic: `target` always equals
+    `consumed + residual`, and `surplus` (if configured) always equals
+    `supply - consumed` — if a trace looks wrong relative to those
+    identities, that points at a config issue (see
+    07_AI_Coding_Assistance/260720_Report_InputSubstitution_ReviewRequest.md
+    and its §7/§10 follow-up) rather than the underlying flows themselves.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object.
+    substitution_params : dict
+        Input_Substitution process parameters dict (keyed by process ID),
+        as returned by `engine.input_substitution.load_input_substitution_from_yaml`.
+    """
+    process_options = {
+        p.Name: p.ID
+        for p in mfa_system_results.ProcessList
+        if p.ID in (substitution_params or {})
+    }
+    if not process_options:
+        print("No processes with Input_Substitution parameters are defined in the configuration.")
+        return
+
+    element_items = mfa_system_results.Elements
+    time_axis = mfa_system_results.IndexTable.Classification["Time"].Items
+    fig = go.FigureWidget()
+
+    def update_plot(process_name, element):
+        pid = process_options[process_name]
+        params = substitution_params[pid]
+        element_index = element_items.index(element)
+        _sc, _unit = get_mass_display()
+
+        residual_flow = _resolve_input_substitution_residual_flow(
+            mfa_system_results, pid, params
+        )
+        consumed_flow = mfa_system_results.FlowDict.get(params.get("consumed_flow_id"))
+        surplus_id = params.get("surplus_flow_id")
+        surplus_flow = mfa_system_results.FlowDict.get(surplus_id) if surplus_id else None
+        supply_flows = [
+            mfa_system_results.FlowDict[fid]
+            for fid in (params.get("supply_flow_ids") or [])
+            if fid in mfa_system_results.FlowDict
+        ]
+
+        if residual_flow is None or consumed_flow is None:
+            print(
+                f"Input_Substitution process '{process_name}': residual/consumed "
+                f"flow not resolvable from the current config — check "
+                f"residual_flow_id/consumed_flow_id."
+            )
+            return
+
+        residual_ts = residual_flow.Values[:, element_index] * _sc
+        consumed_ts = consumed_flow.Values[:, element_index] * _sc
+        target_ts = residual_ts + consumed_ts  # always holds, by construction
+        supply_ts = (
+            sum(f.Values[:, element_index] for f in supply_flows)
+            if supply_flows
+            else np.zeros(len(time_axis))
+        ) * _sc
+        surplus_ts = (
+            surplus_flow.Values[:, element_index] * _sc
+            if surplus_flow is not None
+            else None
+        )
+
+        with fig.batch_update():
+            fig.data = []
+            fig.add_trace(
+                go.Scatter(
+                    x=time_axis, y=target_ts, mode="lines", name="Target demand",
+                    line=dict(color="black", dash="dash"),
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=time_axis, y=supply_ts, mode="lines", name="Supply (raw, pre-lag)",
+                    line=dict(color="grey"),
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=time_axis, y=consumed_ts, mode="lines",
+                    name="Consumed (recycled/secondary)",
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=time_axis, y=residual_ts, mode="lines",
+                    name="Residual (virgin)",
+                )
+            )
+            if surplus_ts is not None:
+                fig.add_trace(
+                    go.Scatter(x=time_axis, y=surplus_ts, mode="lines", name="Surplus")
+                )
+
+            lag = params.get("lag_years", 0) or 0
+            lag_note = f" — lag_years={lag}" if lag else ""
+            layout_config = get_publication_layout(
+                custom_title=f"Input_Substitution — {process_name} ({element.upper()}){lag_note}",
+                show_grid=True,
+                size="small",
+            )
+            apply_theme(layout_config)
+            xaxis_style = layout_config.pop("xaxis")
+            yaxis_style = layout_config.pop("yaxis")
+            fig.update_layout(**layout_config)
+            fig.update_xaxes(title_text="Year", **xaxis_style)
+            fig.update_yaxes(title_text=y_label(element.upper()), **yaxis_style)
+
+    process_dropdown = Dropdown(
+        options=list(process_options.keys()), description="Process:"
+    )
+    element_dropdown = Dropdown(
+        options=element_items, value=element_items[0], description="Element:"
+    )
+
+    export_btn = Button(
+        description="Export PNG/SVG",
+        button_style="success",
+        icon="download",
+        layout=Layout(width="160px"),
+    )
+
+    def _do_export(b):
+        try:
+            proc_name = process_dropdown.value.replace(" ", "_")
+            elem = element_dropdown.value
+            paths = export_figure(
+                fig,
+                f"input_substitution_dynamics_{proc_name}_{elem}",
+                formats=["png", "svg"],
+                quality="publication",
+                size="large",
+                timestamp=False,
+            )
+            print(f"✅ Exported: {', '.join(paths)}")
+        except Exception as e:
+            print(f"❌ Export failed: {e}")
+
+    export_btn.on_click(_do_export)
+
+    def _on_change(change):
+        update_plot(process_dropdown.value, element_dropdown.value)
+
+    process_dropdown.observe(_on_change, "value")
+    element_dropdown.observe(_on_change, "value")
+
+    display(HBox([process_dropdown, element_dropdown, export_btn]))
+    display(fig)
+    update_plot(process_dropdown.value, element_dropdown.value)
+
+
+def plot_input_substitution_rate(mfa_system_results, substitution_params):
+    """Bar chart: substitution rate for every Input_Substitution process, for
+    a selected year and element.
+
+    Complements ``plot_input_substitution_dynamics`` (one process, all
+    years) with the opposite cut: all processes, one year — "how much of
+    each process's demand was covered by secondary material this year."
+
+      substitution % = consumed / target * 100
+                        (target = residual + consumed, holds by
+                        construction — see calculate_input_substitution)
+
+    Bounded in [0, 100] by construction, since consumed <= target always.
+
+    Parameters
+    ----------
+    mfa_system_results : odym.MFAsystem
+        The solved MFA system object.
+    substitution_params : dict
+        Input_Substitution process parameters dict (keyed by process ID),
+        as returned by `engine.input_substitution.load_input_substitution_from_yaml`.
+    """
+    process_options = {
+        p.Name: p.ID
+        for p in mfa_system_results.ProcessList
+        if p.ID in (substitution_params or {})
+    }
+    if not process_options:
+        print("No processes with Input_Substitution parameters are defined in the configuration.")
+        return
+
+    element_items = mfa_system_results.Elements
+    time_axis = mfa_system_results.IndexTable.Classification["Time"].Items
+    fig = go.FigureWidget()
+
+    def update_plot(year, element):
+        year_index = time_axis.index(year)
+        element_index = element_items.index(element)
+
+        process_names = []
+        rates = []
+        for name, pid in process_options.items():
+            params = substitution_params[pid]
+            residual_flow = _resolve_input_substitution_residual_flow(
+                mfa_system_results, pid, params
+            )
+            consumed_flow = mfa_system_results.FlowDict.get(params.get("consumed_flow_id"))
+            if residual_flow is None or consumed_flow is None:
+                continue
+            consumed = consumed_flow.Values[year_index, element_index]
+            target = residual_flow.Values[year_index, element_index] + consumed
+            rate = (consumed / target * 100.0) if target > 0 else 0.0
+            process_names.append(name)
+            rates.append(rate)
+
+        with fig.batch_update():
+            fig.data = []
+            fig.add_trace(
+                go.Bar(
+                    x=process_names,
+                    y=rates,
+                    hovertemplate="<b>%{x}</b><br>Substituted: %{y:.1f}%<extra></extra>",
+                )
+            )
+
+            layout_config = get_publication_layout(
+                custom_title=f"Input_Substitution — Rate Substituted ({element.upper()}, {year})",
+                show_grid=True,
+                size="small",
+            )
+            apply_theme(layout_config)
+            xaxis_style = layout_config.pop("xaxis")
+            yaxis_style = layout_config.pop("yaxis")
+            fig.update_layout(**layout_config)
+            fig.update_xaxes(title_text="Process", **xaxis_style)
+            fig.update_yaxes(
+                title_text="% of demand met by secondary material",
+                range=[0, 100],
+                **yaxis_style,
+            )
+
+    year_slider = IntSlider(
+        min=time_axis[0], max=time_axis[-1], step=1, value=time_axis[0],
+        description="Year:", continuous_update=False,
+    )
+    element_dropdown = Dropdown(
+        options=element_items, value=element_items[0], description="Element:"
+    )
+
+    export_btn = Button(
+        description="Export PNG/SVG",
+        button_style="success",
+        icon="download",
+        layout=Layout(width="160px"),
+    )
+
+    def _do_export(b):
+        try:
+            elem = element_dropdown.value
+            yr = year_slider.value
+            paths = export_figure(
+                fig,
+                f"input_substitution_rate_{elem}_{yr}",
+                formats=["png", "svg"],
+                quality="publication",
+                size="large",
+                timestamp=False,
+            )
+            print(f"✅ Exported: {', '.join(paths)}")
+        except Exception as e:
+            print(f"❌ Export failed: {e}")
+
+    export_btn.on_click(_do_export)
+
+    def _on_change(change):
+        update_plot(year_slider.value, element_dropdown.value)
+
+    year_slider.observe(_on_change, "value")
+    element_dropdown.observe(_on_change, "value")
+
+    display(HBox([year_slider, element_dropdown, export_btn]))
+    display(fig)
+    update_plot(year_slider.value, element_dropdown.value)
+
+
 def plot_flow_dynamics(
     mfa_system_results,
     color_manager: Optional[ElementColorManager] = None,

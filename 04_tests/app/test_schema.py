@@ -26,7 +26,7 @@ class TestProcessLogicEnum:
     ALL_EXPECTED = [
         "Input", "Output", "Splitter", "Transformer",
         "DSM", "DSM_Component", "FOMP", "LFG", "BOM_Assembler",
-        "Pass-through", "FlowCap",
+        "Pass-through", "FlowCap", "Input_Substitution",
     ]
 
     def test_all_expected_values_present(self):

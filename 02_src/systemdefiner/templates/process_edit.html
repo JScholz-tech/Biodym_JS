@@ -426,6 +426,106 @@
       </div>
     </details>
 
+    <details id="edit-input-substitution-block">
+      <summary>Input_Substitution Parameters</summary>
+      <div class="details-body">
+        <div class="form-grid">
+          <div class="field">
+            <label>System input (virgin material still needed)</label>
+            <select name="input_substitution_residual_flow_id">
+              <option value="">— auto —</option>
+              {% for f in cfg.flows if f.from_process == process.id %}
+              <option value="{{ f.id }}" {% if process.input_substitution and process.input_substitution.residual_flow_id == f.id %}selected{% endif %}>{{ f.id }} – {{ f.name }}</option>
+              {% endfor %}
+            </select>
+            <small class="muted">This process's boundary outflow — same to_process as the substitution flow. Leave on "auto" to derive it from whichever other outflow exists. Its demand target is defined like any other Input flow, on the <a href="/{{ cfg.name }}/flow_data">Input Flow Time Series</a> page — including per-element series for any element that should have its own independent target here (e.g. TC in a carbon-tracking study) instead of scaling with whatever fraction of the substitution flow is used.</small>
+          </div>
+          <div class="field">
+            <label>Substitution flow (secondary/recycled amount → downstream consumer)</label>
+            <select name="input_substitution_consumed_flow_id">
+              <option value="">— none —</option>
+              {% for f in cfg.flows if f.from_process == process.id %}
+              <option value="{{ f.id }}" {% if process.input_substitution and process.input_substitution.consumed_flow_id == f.id %}selected{% endif %}>{{ f.id }} – {{ f.name }}</option>
+              {% endfor %}
+            </select>
+            <small class="muted">Only this process's own outflows are offered.</small>
+          </div>
+          <div class="field">
+            <label>Overflow (excess supply beyond target, optional)</label>
+            <select name="input_substitution_surplus_flow_id">
+              <option value="">— none —</option>
+              {% for f in cfg.flows if f.from_process == process.id %}
+              <option value="{{ f.id }}" {% if process.input_substitution and process.input_substitution.surplus_flow_id == f.id %}selected{% endif %}>{{ f.id }} – {{ f.name }}</option>
+              {% endfor %}
+            </select>
+            <small class="muted">Only this process's own outflows are offered.</small>
+          </div>
+          <div class="field">
+            <label>Supply lag (years)</label>
+            <input type="number" min="0" step="1" name="input_substitution_lag_years"
+                   value="{{ process.input_substitution.lag_years if process.input_substitution else 0 }}">
+            <small class="muted">0 = returning supply offsets the same year's demand. 1+ = it only offsets demand that many years later.</small>
+          </div>
+        </div>
+
+        <h4 style="margin:1.25rem 0 0.5rem">Supply Flows (secondary/recycled, summed)</h4>
+        <p class="muted" style="margin:0 0 0.75rem;font-size:0.88rem">
+          Each row is one inflow to this process — same-material inflows only, all summed
+          together with no priority ordering. Only genuine inflows of this process are
+          offered, so a flow can't accidentally be pointed at its own output.
+        </p>
+        <div style="overflow-x:auto">
+        <table id="edit-supply-table" style="width:100%;max-width:460px;margin-bottom:0.5rem;font-size:0.88rem">
+          <thead><tr><th>Supply flow (inflow → this process)</th><th></th></tr></thead>
+          <tbody id="edit-supply-body">
+            {% set _inflow_ids = cfg.flows | selectattr('to_process', 'equalto', process.id) | map(attribute='id') | list %}
+            {% if process.input_substitution %}
+            {% for fid in process.input_substitution.supply_flow_ids %}
+            <tr>
+              <td>
+                <select name="input_substitution_supply_{{ loop.index0 }}" style="width:100%">
+                  <option value="">— none —</option>
+                  {% for f in cfg.flows if f.to_process == process.id %}
+                  <option value="{{ f.id }}" {% if fid == f.id %}selected{% endif %}>{{ f.id }} – {{ f.name }}</option>
+                  {% endfor %}
+                  {% if fid and fid not in _inflow_ids %}
+                  {% set _bad = (cfg.flows | selectattr('id', 'equalto', fid) | first) %}
+                  <option value="{{ fid }}" selected>⚠ {{ fid }}{% if _bad %} – {{ _bad.name }}{% endif %} (not an inflow of this process!)</option>
+                  {% endif %}
+                </select>
+              </td>
+              <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove(); reindexSupplyRows()">✕</button></td>
+            </tr>
+            {% endfor %}
+            {% endif %}
+          </tbody>
+        </table>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addSupplyRow()">+ Add Supply Flow</button>
+
+        {% if input_substitution_residual_flow %}
+        <div class="alert alert-ok" style="margin-top:0.75rem">
+          Demand target: define the time series for
+          <strong>{{ input_substitution_residual_flow.id }} – {{ input_substitution_residual_flow.name }}</strong>
+          (System input) on the <a href="/{{ cfg.name }}/flow_data">Input Flow Time Series</a>
+          page — same editor as a plain Input process.
+        </div>
+        {% else %}
+        <div class="alert alert-warn" style="margin-top:0.75rem">
+          The System input flow isn't resolved yet — set the Substitution flow above (and
+          make sure this process has exactly one other outflow) to unlock its entry on the
+          <a href="/{{ cfg.name }}/flow_data">Input Flow Time Series</a> page.
+        </div>
+        {% endif %}
+        {% if cfg.references %}
+        <div class="field" style="margin-top:0.75rem;max-width:400px">
+          <label>Source references</label>
+          {{ ref_multiselect("input_substitution_refs", (process.input_substitution.refs if process.input_substitution else []), cfg.references) }}
+        </div>
+        {% endif %}
+      </div>
+    </details>
+
     <div style="margin-top:1.25rem" class="btn-row">
       <button type="submit" class="btn btn-primary">Save Changes</button>
       <a href="/{{ cfg.name }}/processes" class="btn btn-secondary">Cancel</a>
@@ -440,6 +540,7 @@ const LOGIC_BLOCK_MAP = {
   'dsm_component': 'edit-dsm-component-block',
   'lfg':           'edit-lfg-block',
   'flowcap':       'edit-flowcap-block',
+  'input_substitution': 'edit-input-substitution-block',
 };
 function toggleParamBlocks(logic) {
   Object.entries(LOGIC_BLOCK_MAP).forEach(([key, id]) => {
@@ -748,6 +849,37 @@ function reindexCapRows() {
     if (c) c.name = `flowcap_cap_${i}`;
   });
   capRowCount = document.querySelectorAll('#edit-cap-body tr').length;
+}
+
+// Input_Substitution — supply-flow row list (only genuine inflows of this process)
+const _INPUT_SUB_SUPPLY_FLOWS = [
+  {% for f in cfg.flows if f.to_process == process.id %}{"id": {{ f.id | tojson }}, "name": {{ f.name | tojson }}},{% endfor %}
+];
+function _inputSubSupplyOptions(selected) {
+  let opts = '<option value="">— none —</option>';
+  _INPUT_SUB_SUPPLY_FLOWS.forEach(f => {
+    const sel = f.id === selected ? ' selected' : '';
+    opts += `<option value="${f.id}"${sel}>${f.id} – ${f.name}</option>`;
+  });
+  return opts;
+}
+let supplyRowCount = document.querySelectorAll('#edit-supply-body tr').length;
+function addSupplyRow() {
+  const tbody = document.getElementById('edit-supply-body');
+  const i = supplyRowCount++;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><select name="input_substitution_supply_${i}" style="width:100%">${_inputSubSupplyOptions('')}</select></td>
+    <td><button type="button" class="btn btn-danger btn-sm"
+      onclick="this.closest('tr').remove(); reindexSupplyRows()">✕</button></td>`;
+  tbody.appendChild(tr);
+}
+function reindexSupplyRows() {
+  document.querySelectorAll('#edit-supply-body tr').forEach((tr, i) => {
+    const sel = tr.querySelector('select');
+    if (sel) sel.name = `input_substitution_supply_${i}`;
+  });
+  supplyRowCount = document.querySelectorAll('#edit-supply-body tr').length;
 }
 </script>
 {% endblock %}

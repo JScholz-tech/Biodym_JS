@@ -762,6 +762,7 @@ def load_tc_parameters(all_excel_data, elements, time_vector, debug_mode=False):
             "Input",
             "Output",
             "Pass-through",
+            "Input_Substitution",
         ]:
             if debug_mode:
                 print(
@@ -2470,6 +2471,31 @@ def load_flow_cap_from_yaml(yaml_path: str) -> dict:
     return flow_cap_params
 
 
+def load_input_substitution_from_yaml(yaml_path: str) -> dict:
+    """Load Input_Substitution parameters from a web-app config YAML.
+
+    Thin wrapper: delegates to engine.input_substitution.load_input_substitution_from_yaml().
+    YAML-only in v1 — there is no Excel-sheet counterpart.
+
+    Parameters
+    ----------
+    yaml_path : str
+        Path to the ``config.yaml`` produced by the BioDYM config web app.
+
+    Returns
+    -------
+    dict
+        ``{process_id: {"supply_flow_ids": [str], "consumed_flow_id": str,
+        "surplus_flow_id": str|None, "residual_flow_id": str|None,
+        "driven_elements": [str], "lag_years": int}}``. The demand target
+        itself isn't here — it comes from a normal flow_data entry on the
+        residual/boundary outflow, same as a plain Input flow.
+    """
+    from engine import input_substitution as _input_substitution  # local import avoids circular dependency
+
+    return _input_substitution.load_input_substitution_from_yaml(yaml_path)
+
+
 def load_flow_data_df_from_yaml(yaml_path: str):
     """Load flow time-series data from a web-app config YAML as a DataFrame.
 
@@ -3156,12 +3182,14 @@ def load_all_parameters(
     elements=None,
     debug_mode=False,
 ):
-    """Load DSM / FOMP / LFG / FlowCap / BOM parameters from YAML or Excel.
+    """Load DSM / FOMP / LFG / FlowCap / BOM / Input_Substitution parameters from YAML or Excel.
 
     Dispatches to the YAML web-app loaders when ``yaml_config_file`` is given,
     otherwise to the Excel-sheet loaders. FOMP is only loaded when
     ``config_obj.RUN_FOMP_CALCULATION`` is truthy (matching the engine guard).
     BOM parameters are loaded the same way regardless of source.
+    Input_Substitution is YAML-only in v1 — no Excel sheet exists, so it is
+    empty whenever ``yaml_config_file`` is not given.
 
     Parameters
     ----------
@@ -3179,7 +3207,8 @@ def load_all_parameters(
     Returns
     -------
     dict
-        Keys ``"dsm"``, ``"fomp"``, ``"lfg"``, ``"flow_cap"``, ``"bom"``.
+        Keys ``"dsm"``, ``"fomp"``, ``"lfg"``, ``"flow_cap"``, ``"bom"``,
+        ``"substitution"``.
     """
     if yaml_config_file:
         dsm = load_dsm_from_yaml(yaml_config_file)
@@ -3190,6 +3219,7 @@ def load_all_parameters(
         )
         lfg = load_lfg_from_yaml(yaml_config_file)
         flow_cap = load_flow_cap_from_yaml(yaml_config_file)
+        substitution = load_input_substitution_from_yaml(yaml_config_file)
     else:
         dsm = load_dsm_parameters(all_excel_data, debug_mode=debug_mode)
         fomp = (
@@ -3199,7 +3229,15 @@ def load_all_parameters(
         )
         lfg = load_lfg_parameters(all_excel_data, debug_mode=debug_mode)
         flow_cap = load_flow_cap_parameters(all_excel_data, debug_mode=debug_mode)
+        substitution = {}
 
     bom = load_bom_parameters(all_excel_data, elements=elements, debug_mode=debug_mode)
 
-    return {"dsm": dsm, "fomp": fomp, "lfg": lfg, "flow_cap": flow_cap, "bom": bom}
+    return {
+        "dsm": dsm,
+        "fomp": fomp,
+        "lfg": lfg,
+        "flow_cap": flow_cap,
+        "bom": bom,
+        "substitution": substitution,
+    }

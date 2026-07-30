@@ -4,13 +4,16 @@ Two things live here:
 
 1. ``iter_flow_pointers(cfg)`` — the single authoritative enumeration of every
    *scalar* flow-ID pointer field in the config schema (FOMP/LFG/FlowCap
-   outflows and the DSM_Component sparepart flows). The cascade helpers in
-   ``cascades.py`` iterate this registry, so a new pointer field added to
+   outflows, Input_Substitution's consumed/surplus flows, and the
+   DSM_Component sparepart flows). The cascade helpers in ``cascades.py``
+   iterate this registry, so a new pointer field added to
    ``config_schema.py`` only needs to be registered once and every rename /
    purge / renumber picks it up. Row-level references (TCs, compositions,
    flow data, BOM flows, scenario/MC names) are handled by the cascades
    directly because their purge semantics is *remove the row*, not *blank the
-   field*.
+   field*. ``Input_Substitution.supply_flow_ids`` is a *list*-valued pointer
+   (like ``bom_assembly.flows``), so it is handled by explicit loops in
+   ``cascades.py`` instead of this scalar-only registry.
 
 2. ``check_config_consistency(cfg)`` — a pure function returning
    ``[{level, message}]`` issues for every invariant a mutation could break
@@ -70,6 +73,25 @@ def iter_flow_pointers(cfg) -> Iterator[tuple[str, object, str, object]]:
                 "overflow_flow_id",
                 "",
             )
+        if p.input_substitution:
+            yield (
+                f"P{p.id} {p.name}: Input_Substitution Substitution flow",
+                p.input_substitution,
+                "consumed_flow_id",
+                "",
+            )
+            yield (
+                f"P{p.id} {p.name}: Input_Substitution Overflow",
+                p.input_substitution,
+                "surplus_flow_id",
+                "",
+            )
+            yield (
+                f"P{p.id} {p.name}: Input_Substitution System input",
+                p.input_substitution,
+                "residual_flow_id",
+                "",
+            )
         if p.dsm:
             for comp in p.dsm.components:
                 yield (
@@ -84,6 +106,30 @@ def iter_flow_pointers(cfg) -> Iterator[tuple[str, object, str, object]]:
                     "sparepart_inflow",
                     "",
                 )
+
+
+def input_substitution_residual_flow(cfg, process):
+    """The Input_Substitution process's "virgin material still needed" outflow.
+
+    Named via ``residual_flow_id`` when set. Falls back to discovery — the
+    sole flow with ``from_process == process.id`` that isn't
+    ``consumed_flow_id``/``surplus_flow_id`` — for configs saved before that
+    field existed. This is the flow whose ``flow_data`` entry supplies the
+    demand target — same mechanism as a plain Input process. Returns
+    ``None`` when there isn't exactly one candidate (dangling config;
+    ``health.py`` reports it) or when the process has no
+    ``consumed_flow_id`` configured yet.
+    """
+    is_ = getattr(process, "input_substitution", None)
+    if not is_ or not is_.consumed_flow_id:
+        return None
+    if is_.residual_flow_id:
+        return next((f for f in cfg.flows if f.id == is_.residual_flow_id), None)
+    claimed = {is_.consumed_flow_id, is_.surplus_flow_id}
+    candidates = [
+        f for f in cfg.flows if f.from_process == process.id and f.id not in claimed
+    ]
+    return candidates[0] if len(candidates) == 1 else None
 
 
 def _element_key_sites(cfg) -> Iterator[tuple[str, dict]]:
@@ -258,7 +304,7 @@ def check_config_consistency(cfg) -> list[dict]:
     # ── DSM component spare-part flow pointers ───────────────────────────────
     for label, obj, attr, _blank in iter_flow_pointers(cfg):
         if "spare-part" not in label:
-            continue  # FOMP/LFG/FlowCap pointers are checked in _model_health
+            continue  # FOMP/LFG/FlowCap/Input_Substitution pointers are checked in _model_health
         fid = getattr(obj, attr)
         if fid and fid not in flow_ids:
             warn(f"{label} '{fid}' is not a defined flow.")

@@ -910,6 +910,7 @@ _KNOWN_PROCESS_LOGICS = (
     "LFG",
     "BOM_Assembler",
     "FlowCap",
+    "Input_Substitution",
 )
 _LOGIC_LOOKUP = {logic.lower(): logic for logic in _KNOWN_PROCESS_LOGICS}
 

@@ -236,6 +236,85 @@ def _model_health(cfg) -> list[dict]:
                     f"(add a Year + cap to the capacity series)."
                 )
 
+    # Input_Substitution processes without a defined Substitution flow
+    # (otherwise the process is silently inert — the engine skips it).
+    _flow_data_ids = {fd.flow_id for fd in cfg.flow_data}
+    for p in cfg.processes:
+        if p.logic == ProcessLogic.input_substitution:
+            is_ = p.input_substitution
+            if not is_ or not is_.consumed_flow_id:
+                warn(
+                    f"P{p.id} {p.name}: Input_Substitution process has no Substitution "
+                    f"flow defined (set the supply/substitution/overflow flows in the "
+                    f"process editor)."
+                )
+                continue
+            consumed_flow = next(
+                (f for f in cfg.flows if f.id == is_.consumed_flow_id), None
+            )
+            if consumed_flow is None:
+                continue  # already reported by the dangling-pointer check below
+            # Topology rule (not structurally enforced by the schema): named
+            # via residual_flow_id when set; otherwise the engine discovers
+            # the "System input" outflow at runtime as whichever other
+            # P_Start==pid flow isn't substitution/overflow. Either way it
+            # must share its to_process with the Substitution flow so both
+            # combine automatically at the downstream consumer.
+            if is_.residual_flow_id:
+                residual_flow = next(
+                    (f for f in cfg.flows if f.id == is_.residual_flow_id), None
+                )
+                if residual_flow is None:
+                    continue  # reported by the dangling-pointer check below
+            else:
+                claimed = {is_.consumed_flow_id, is_.surplus_flow_id}
+                residual_candidates = [
+                    f for f in cfg.flows if f.from_process == p.id and f.id not in claimed
+                ]
+                if len(residual_candidates) != 1:
+                    err(
+                        f"P{p.id} {p.name}: Input_Substitution expects exactly one other "
+                        f"outflow (the System input flow) besides the substitution/"
+                        f"overflow flows, found {len(residual_candidates)} — the engine "
+                        f"will skip this process."
+                    )
+                    continue
+                residual_flow = residual_candidates[0]
+            if residual_flow.to_process != consumed_flow.to_process:
+                warn(
+                    f"P{p.id} {p.name}: the System input flow "
+                    f"'{residual_flow.id}' (→ P{residual_flow.to_process}) "
+                    f"and the Substitution flow '{is_.consumed_flow_id}' "
+                    f"(→ P{consumed_flow.to_process}) must target the same downstream "
+                    f"process."
+                )
+            # The demand target comes from a normal flow_data entry on the
+            # System input flow, exactly like a plain Input flow — same page.
+            if residual_flow.id not in _flow_data_ids:
+                warn(
+                    f"P{p.id} {p.name}: no demand target defined for the System input "
+                    f"flow '{residual_flow.id}' — add its time series on the Input Flow "
+                    f"Time Series page."
+                )
+            # Supply flows must be genuine inflows. A supply entry pointing at
+            # this process's own outflow (easy to pick by accident before the
+            # process editor filtered the dropdown) makes the engine read a
+            # flow's value as its own supply while overwriting it — a
+            # self-referential feedback loop that oscillates forever instead
+            # of converging, discovered via exactly this mistake.
+            for fid in is_.supply_flow_ids:
+                supply_flow = next((f for f in cfg.flows if f.id == fid), None)
+                if supply_flow is None:
+                    continue  # reported by the dangling-pointer check below
+                if supply_flow.to_process != p.id:
+                    err(
+                        f"P{p.id} {p.name}: supply flow '{fid}' "
+                        f"(P{supply_flow.from_process} → P{supply_flow.to_process}) "
+                        f"is not an inflow of this process — it will be ignored (or, if "
+                        f"it's this process's own outflow, cause the solver to never "
+                        f"converge)."
+                    )
+
     # Dangling outflow pointers
     def _chk(pid, pname, label, fid):
         if fid and fid not in flow_ids:
@@ -252,6 +331,24 @@ def _model_health(cfg) -> list[dict]:
         if p.flowcap:
             _chk(p.id, p.name, "FlowCap capped flow", p.flowcap.capped_flow_id)
             _chk(p.id, p.name, "FlowCap overflow flow", p.flowcap.overflow_flow_id)
+        if p.input_substitution:
+            _chk(
+                p.id, p.name,
+                "Input_Substitution Substitution flow",
+                p.input_substitution.consumed_flow_id,
+            )
+            _chk(
+                p.id, p.name,
+                "Input_Substitution Overflow",
+                p.input_substitution.surplus_flow_id,
+            )
+            _chk(
+                p.id, p.name,
+                "Input_Substitution System input",
+                p.input_substitution.residual_flow_id,
+            )
+            for fid in p.input_substitution.supply_flow_ids:
+                _chk(p.id, p.name, "Input_Substitution supply flow", fid)
 
     # Selected scenarios that aren't defined
     defined = {s.name for s in cfg.scenarios}

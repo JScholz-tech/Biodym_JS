@@ -2,9 +2,12 @@
 renumbering. Every mutation that changes an ID or removes an entity must go
 through these so no reference-bearing field is left stale.
 
-Scalar flow-ID pointers (FOMP/LFG/FlowCap outflows, DSM_Component spare-part
-flows) are enumerated via ``consistency.iter_flow_pointers`` so a pointer
-field added to the schema is registered exactly once.
+Scalar flow-ID pointers (FOMP/LFG/FlowCap outflows, Input_Substitution's
+consumed/surplus flows, DSM_Component spare-part flows) are enumerated via
+``consistency.iter_flow_pointers`` so a pointer field added to the schema is
+registered exactly once. List-valued pointers (``bom_assembly.flows``,
+``Input_Substitution.supply_flow_ids``) don't fit that scalar-only registry
+and are handled by explicit loops instead, right alongside it.
 """
 from __future__ import annotations
 
@@ -56,6 +59,12 @@ def _rename_flow_id(cfg, old_id: str, new_id: str) -> None:
         for bf in entry.flows:
             if bf.flow_id == old_id:
                 bf.flow_id = new_id
+    for p in cfg.processes:
+        if p.input_substitution:
+            p.input_substitution.supply_flow_ids = [
+                new_id if fid == old_id else fid
+                for fid in p.input_substitution.supply_flow_ids
+            ]
     for _label, obj, attr, _blank in iter_flow_pointers(cfg):
         if getattr(obj, attr) == old_id:
             setattr(obj, attr, new_id)
@@ -85,6 +94,11 @@ def _purge_flow_references(cfg, flow_ids: set) -> None:
     cfg.flow_data = [fd for fd in cfg.flow_data if fd.flow_id not in flow_ids]
     for entry in cfg.bom_assembly:
         entry.flows = [bf for bf in entry.flows if bf.flow_id not in flow_ids]
+    for p in cfg.processes:
+        if p.input_substitution:
+            p.input_substitution.supply_flow_ids = [
+                fid for fid in p.input_substitution.supply_flow_ids if fid not in flow_ids
+            ]
     for _label, obj, attr, blank in iter_flow_pointers(cfg):
         if getattr(obj, attr) in flow_ids:
             setattr(obj, attr, blank)
@@ -165,9 +179,9 @@ def _remap_embedded_ids(name: str, id_map: dict) -> str:
     """Rewrite the process IDs embedded in a scenario/MC parameter name.
 
     Handles ``P{pid:02d}_…`` (DSM/FOMP/LFG/IS), ``TC_E{n}_{from}_{to}``,
-    ``TC_{from}_{to}`` and ``TC_Cap_{pid}``. Names embedding an ID that is not
-    in ``id_map`` (already dangling) are returned unchanged — the consistency
-    checker reports those.
+    ``TC_{from}_{to}`` and ``TC_Cap_{pid}``. Names embedding an ID that is
+    not in ``id_map`` (already dangling) are returned unchanged — the
+    consistency checker reports those.
     """
     name = (name or "").strip()
     m = _P_PREFIX.fullmatch(name)
@@ -255,6 +269,11 @@ def _compact_process_ids(cfg) -> dict:
             bf.flow_id = _rn(bf.flow_id)
     for s in cfg.initial_stocks:
         s.process_id = id_map.get(s.process_id, s.process_id)
+    for p in cfg.processes:
+        if p.input_substitution:
+            p.input_substitution.supply_flow_ids = [
+                _rn(fid) for fid in p.input_substitution.supply_flow_ids
+            ]
     for _label, obj, attr, _blank in iter_flow_pointers(cfg):
         setattr(obj, attr, _rn(getattr(obj, attr)))
 
