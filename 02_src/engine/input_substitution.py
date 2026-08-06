@@ -469,8 +469,8 @@ def calculate_input_substitution(
         # the cumulative virgin-extraction figure that is the whole point of
         # running one of these on a boundary input. Mirrors the DSM/FOMP
         # convention: write the absolute stock, let the balance pass derive dS.
-        stock = mfa_system.StockDict.get(f"S_{process_id}")
-        if stock is not None and stock.Values is not None:
+        stock = getattr(mfa_system, "StockDict", {}).get(f"S_{process_id}")
+        if stock is not None and getattr(stock, "Values", None) is not None:
             # Capture the configured initial stock once. This runs every solver
             # iteration, so re-reading Values[0] each time would fold the
             # already-written year-0 balance back in as a fresh initial stock

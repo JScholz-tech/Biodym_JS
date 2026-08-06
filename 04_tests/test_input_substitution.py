@@ -78,7 +78,8 @@ def test_load_infers_driven_elements_via_residual_discovery_fallback(tmp_path):
 # calculate_input_substitution — minimal fake MFA system (no ODYM dependency)
 # --------------------------------------------------------------------------
 
-def _make_fake_system(supply_values, target_values, elements=("material",)):
+def _make_fake_system(supply_values, target_values, elements=("material",),
+                      with_stock=False):
     """Fake mfa_system: P9 -> P7 (supply) ; P7 -> P8 boundary/residual outflow
     (pre-populated exactly as flow_data + one-time setup composition would)
     + consumed ; P7 -> P10 surplus. Process 7 is the Input_Substitution
@@ -116,11 +117,19 @@ def _make_fake_system(supply_values, target_values, elements=("material",)):
     index_table = SimpleNamespace(
         Classification={"Time": SimpleNamespace(Items=years)}
     )
+    # Only present when the process is configured with Stock. Left empty
+    # otherwise so the default fixture also exercises the No_Stock path.
+    stocks = {}
+    if with_stock:
+        stocks["S_7"] = SimpleNamespace(
+            Values=np.zeros((num_years, num_elements))
+        )
     return SimpleNamespace(
         FlowDict=flows,
         ParameterDict={},
         IndexTable=index_table,
         Elements=list(elements),
+        StockDict=stocks,
     )
 
 
@@ -414,3 +423,50 @@ def test_substitution_residual_flow_id_discovery_fallback():
 
     np.testing.assert_allclose(system.FlowDict["F_07_08_consumed"].Values[:, 0], 100.0)
     np.testing.assert_allclose(system.FlowDict["F_07_08"].Values[:, 0], 50.0)
+
+
+def test_substitution_self_reports_stock_when_configured():
+    """A process configured with Stock must report its own absolute stock.
+
+    solver unions Input_Substitution processes into calculate_final_balances'
+    special_processes, which skips the generic dS = inflow - outflow pass. If
+    this module does not write the stock itself, it stays flat at zero — and on
+    a boundary input that stock IS the cumulative virgin-extraction figure.
+    """
+    supply = np.tile([30.0], (4, 1))
+    target = np.full(4, 100.0)
+    system = _make_fake_system(supply, target, with_stock=True)
+
+    calculate_input_substitution(system, {7}, _params())
+
+    # inflow 30 (supply), outflow 70 residual + 30 consumed + 0 surplus
+    # => net flux -70/yr, accumulating.
+    np.testing.assert_allclose(
+        system.StockDict["S_7"].Values[:, 0], [-70.0, -140.0, -210.0, -280.0]
+    )
+
+
+def test_substitution_stock_is_idempotent_across_iterations():
+    """The solver calls this every iteration; the stock must reach a fixed
+    point rather than compounding its own already-written year-0 balance."""
+    supply = np.tile([30.0], (4, 1))
+    target = np.full(4, 100.0)
+    system = _make_fake_system(supply, target, with_stock=True)
+
+    calculate_input_substitution(system, {7}, _params())
+    first = system.StockDict["S_7"].Values.copy()
+    changed = calculate_input_substitution(system, {7}, _params())
+
+    np.testing.assert_allclose(system.StockDict["S_7"].Values, first)
+    assert changed is False
+
+
+def test_substitution_without_stock_configured_is_a_noop():
+    """No_Stock processes have no S_ entry; the module must not invent one."""
+    supply = np.tile([30.0], (3, 1))
+    target = np.full(3, 100.0)
+    system = _make_fake_system(supply, target)
+
+    calculate_input_substitution(system, {7}, _params())
+
+    assert system.StockDict == {}

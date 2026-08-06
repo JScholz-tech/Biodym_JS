@@ -211,8 +211,24 @@ def check_config_consistency(cfg) -> list[dict]:
                 f"ID names P{int(m.group(1))}→P{int(m.group(2))} — the label disguises "
                 f"the real topology (rename the flow or fix the endpoints)."
             )
+    # An Input_Substitution process necessarily emits its residual and its
+    # consumed flow to the same destination — that parallel edge is the
+    # required topology, not a mistake, and neither flow is TC-driven (the
+    # module writes both directly), so the derived-TC-name collision below
+    # cannot bite them.
+    substitution_claimed: set = set()
+    for p in cfg.processes:
+        sub = getattr(p, "input_substitution", None)
+        if sub is None:
+            continue
+        for attr in ("consumed_flow_id", "surplus_flow_id"):
+            fid = getattr(sub, attr, None)
+            if fid:
+                substitution_claimed.add(str(fid))
     pair_counts: dict[tuple, list] = {}
     for f in cfg.flows:
+        if f.id in substitution_claimed:
+            continue
         pair_counts.setdefault((f.from_process, f.to_process), []).append(f.id)
     for (fp, tp), fids in pair_counts.items():
         if len(fids) > 1:
@@ -310,7 +326,15 @@ def check_config_consistency(cfg) -> list[dict]:
             warn(f"{label} '{fid}' is not a defined flow.")
 
     # ── flow data / compositions stranded on non-input flows ────────────────
-    input_pids = {p.id for p in cfg.processes if p.logic == ProcessLogic.input} | {0}
+    # Input_Substitution is a drop-in variant of Input: its demand target is a
+    # normal flow_data series on its own residual outflow, and its residual /
+    # consumed / surplus flows all carry compositions. Treating it as "not an
+    # input" would flag every correctly-configured substitution study.
+    input_pids = {
+        p.id
+        for p in cfg.processes
+        if p.logic in (ProcessLogic.input, ProcessLogic.input_substitution)
+    } | {0}
     for fd in cfg.flow_data:
         fl = flow_by_id.get(fd.flow_id)
         if fl is None:
