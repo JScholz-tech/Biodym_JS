@@ -92,7 +92,14 @@ first use, since this module overwrites the flow's values every iteration
 thereafter).
 
 In 2_1_Definition_Processes / config.yaml: Process_Logic = 'Input_Substitution',
-                                            Stock_Configuration = 'No_Stock'
+                                            Stock_Configuration = 'No_Stock' or 'Stock'
+
+With ``Stock``, the process self-reports its absolute stock (initial stock +
+cumulative net flux) at the end of every call, the same way DSM/FOMP do. This
+is required because ``solver.calculate_final_balances`` unions
+Input_Substitution processes into its special-process skip list; without the
+self-report the stock would stay flat at zero. On a boundary input the stock
+runs negative and reads as cumulative virgin extraction.
 """
 
 import numpy as np
@@ -452,5 +459,38 @@ def calculate_input_substitution(
                 f"  WARNING: Input_Substitution Process {process_id}: "
                 f"surplus flow '{surplus_id}' not found in FlowDict."
             )
+
+        # --- stock self-reporting ---
+        # Input_Substitution processes are unioned into calculate_final_balances'
+        # special_processes, which skips the generic dS = inflow - outflow pass
+        # (correct for DSM/FOMP/LFG, which write their own absolute stocks). This
+        # module writes none, so without the block below a substitution process
+        # configured with Stock reports a flat zero forever — silently erasing
+        # the cumulative virgin-extraction figure that is the whole point of
+        # running one of these on a boundary input. Mirrors the DSM/FOMP
+        # convention: write the absolute stock, let the balance pass derive dS.
+        stock = mfa_system.StockDict.get(f"S_{process_id}")
+        if stock is not None and stock.Values is not None:
+            # Capture the configured initial stock once. This runs every solver
+            # iteration, so re-reading Values[0] each time would fold the
+            # already-written year-0 balance back in as a fresh initial stock
+            # and compound it away from any fixed point. Scoped to the
+            # deep-copied per-run mfa_system, like _is_target_cache above.
+            if not hasattr(stock, "_is_initial_stock_cache"):
+                stock._is_initial_stock_cache = stock.Values[0, :].copy()
+            initial_stock = stock._is_initial_stock_cache
+
+            inflow_sum = sum(
+                (f.Values for f in mfa_system.FlowDict.values() if f.P_End == process_id),
+                np.zeros_like(stock.Values),
+            )
+            outflow_sum = sum(
+                (f.Values for f in mfa_system.FlowDict.values() if f.P_Start == process_id),
+                np.zeros_like(stock.Values),
+            )
+            new_stock = initial_stock + np.cumsum(inflow_sum - outflow_sum, axis=0)
+            if not np.allclose(stock.Values, new_stock):
+                stock.Values = new_stock
+                something_changed = True
 
     return something_changed

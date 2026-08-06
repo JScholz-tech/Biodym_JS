@@ -93,6 +93,7 @@ def build_case_study_yaml(yaml_path):
     lfg_params = params["lfg"]
     flow_cap_params = params["flow_cap"]
     bom_params = params["bom"]
+    substitution_params = params["substitution"]
     data_loader.register_flow_cap_parameters(mfa_system, flow_cap_params)
 
     # Process_Logic column is the authoritative enable/disable switch for
@@ -120,6 +121,7 @@ def build_case_study_yaml(yaml_path):
         "lfg_params": lfg_params,
         "bom_params": bom_params,
         "flow_cap_params": flow_cap_params,
+        "substitution_params": substitution_params,
     }
 
 
@@ -145,6 +147,7 @@ def run_case_study_yaml(yaml_path):
         lfg_params=parts["lfg_params"],
         bom_params=parts["bom_params"],
         flow_cap_params=parts["flow_cap_params"],
+        substitution_params=parts["substitution_params"],
     )
 
 
@@ -245,6 +248,7 @@ def collect_full_results(yaml_path):
         lfg_params=parts["lfg_params"],
         bom_params=parts["bom_params"],
         flow_cap_params=parts["flow_cap_params"],
+        substitution_params=parts["substitution_params"],
     )
 
     arrays = collect_result_arrays(mfa_system)
@@ -261,6 +265,7 @@ def collect_full_results(yaml_path):
             lfg_params=parts["lfg_params"],
             bom_params=parts["bom_params"],
             flow_cap_params=parts["flow_cap_params"],
+            substitution_params=parts["substitution_params"],
         )
         arrays.update(collect_scenario_result_arrays(all_scenario_results))
 
@@ -276,6 +281,7 @@ def collect_full_results(yaml_path):
             lfg_params=parts["lfg_params"],
             bom_params=parts["bom_params"],
             flow_cap_params=parts["flow_cap_params"],
+            substitution_params=parts["substitution_params"],
         )
         arrays.update(collect_mc_result_arrays(mc_results_df))
 
