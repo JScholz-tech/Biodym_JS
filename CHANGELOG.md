@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.0] - 2026-08-09
+
+Headline release: **Input_Substitution** process logic promoted from the private
+WEEE track to public main — the first application of the TRACKS.md promotion
+procedure. A guided full-stack port (engine + SystemDefiner GUI + Dashboard +
+tutorials + golden pins), IS-only (recyclability/FutuRaM content excluded).
+
+### Added
+- Engine: **Input_Substitution** — a new process-logic type (peer to DSM/FOMP/LFG/BOM).
+  A drop-in variant of `Input` whose demand is partly met by secondary/recycled supply
+  flows, with the shortfall manufactured as virgin input; three-tier
+  driven/derived/passenger element handling, `residual_flow_id` / `lag_years`, and
+  boundary-aware stock self-reporting
+- SystemDefiner: full GUI support — `Input_Substitution` process logic, parameter form,
+  flow-pointer consistency checks, health report, and case-study summary entry
+- Plotting: `plot_input_substitution_dynamics` and `plot_input_substitution_rate`;
+  mass-balance error plots treat Input_Substitution processes as boundary-like (no
+  false-positive imbalance from the virgin/residual portion)
+- Dashboard: `substitution_params` wired through the baseline / scenario / Monte Carlo
+  paths, plus an Input_Substitution diagnostics section
+- Tutorials: **T17_Input_Substitution** and **T18_Alloying_Element_Accumulation**, pinned
+  in the golden regression suite
+- SystemDefiner: **Zotero connection-status probe** (`/api/zotero/status`) for the
+  references editor — reports ready / plugin-missing / not-running, each with install links
+
+### Fixed
+- Engine: Input_Substitution stock self-reporting — correct boundary stock accounting
+- SystemDefiner: the consistency checker now understands Input_Substitution flow pointers
+
+---
+
 ## [1.3.5] - 2026-07-28
 
 Housekeeping release after v1.3.0 — bundles two ready feature branches and the
