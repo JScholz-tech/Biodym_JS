@@ -13,7 +13,25 @@ from systemdefiner.models.config_schema import ReferenceEntry
 
 router = APIRouter()
 
-_ZOTERO_RPC = "http://localhost:23119/better-bibtex/json-rpc"
+_ZOTERO_BASE = "http://localhost:23119"
+_ZOTERO_RPC = f"{_ZOTERO_BASE}/better-bibtex/json-rpc"
+_ZOTERO_PING = f"{_ZOTERO_BASE}/connector/ping"
+# Documented Better BibTeX readiness probe — no side effects, no picker opened.
+_BBT_PROBE = f"{_ZOTERO_BASE}/better-bibtex/cayw?probe=probe"
+
+BBT_XPI_URL = "https://github.com/retorquere/zotero-better-bibtex/releases/latest"
+BBT_DOCS_URL = "https://retorque.re/zotero-better-bibtex/installation/"
+ZOTERO_DOWNLOAD_URL = "https://www.zotero.org/download/"
+
+
+def _probe(url: str, timeout: float = 1.5) -> bool:
+    """True when *url* answers with a 2xx/3xx inside *timeout* seconds."""
+    try:
+        import httpx
+
+        return httpx.get(url, timeout=timeout).status_code < 400
+    except Exception:
+        return False
 
 
 def _zotero_search(query: str) -> list[dict]:
@@ -83,6 +101,50 @@ async def zotero_search(q: str = ""):
         for it in items
         if it.get("citekey") or it.get("citation-key")
     ]
+
+
+@router.get("/api/zotero/status")
+async def zotero_status():
+    """Report whether the Zotero link is usable, and what is missing if not.
+
+    Three states the setup panel renders differently:
+      ``ready``       Zotero running + Better BibTeX answering  -> search works
+      ``no_bbt``      Zotero running, Better BibTeX absent      -> install the plugin
+      ``no_zotero``   nothing on port 23119                     -> start/install Zotero
+    """
+    import asyncio
+
+    zotero, bbt = await asyncio.gather(
+        asyncio.to_thread(_probe, _ZOTERO_PING),
+        asyncio.to_thread(_probe, _BBT_PROBE),
+    )
+    # BBT answering implies Zotero is up even if the connector endpoint is off.
+    zotero = zotero or bbt
+
+    if bbt:
+        state, message = "ready", "Zotero link active — Better BibTeX is answering."
+    elif zotero:
+        state, message = (
+            "no_bbt",
+            "Zotero is running, but the Better BibTeX plugin is not installed "
+            "(or Zotero needs a restart after installing it).",
+        )
+    else:
+        state, message = (
+            "no_zotero",
+            "Nothing answering on localhost:23119 — Zotero does not appear to be running.",
+        )
+
+    return {
+        "state": state,
+        "zotero": zotero,
+        "bbt": bbt,
+        "message": message,
+        "port": 23119,
+        "xpi_url": BBT_XPI_URL,
+        "docs_url": BBT_DOCS_URL,
+        "zotero_url": ZOTERO_DOWNLOAD_URL,
+    }
 
 
 @router.get("/{name}/references")

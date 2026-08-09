@@ -42,6 +42,7 @@ EXPECTED_ROUTES = [
     ("POST", "/{name}/scenarios/{sname}"),
     ("POST", "/{name}/scenarios/{sname}/delete"),
     ("GET", "/api/zotero/search"),
+    ("GET", "/api/zotero/status"),
     ("GET", "/{name}/references"),
     ("POST", "/{name}/references/add"),
     ("POST", "/{name}/references/note"),

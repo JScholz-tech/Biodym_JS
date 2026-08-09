@@ -17,6 +17,50 @@
   </p>
 </div>
 
+<!-- ── Zotero link setup / status ──────────────────────────────────────────── -->
+<div class="card" style="margin-bottom:1.25rem">
+  <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+    <h2 style="margin:0">Zotero link</h2>
+    <span id="zl-pill" class="tag" style="font-family:inherit">Checking…</span>
+    <button class="btn btn-secondary btn-sm" onclick="checkZoteroLink()" style="margin-left:auto">
+      Test connection
+    </button>
+  </div>
+
+  <p id="zl-message" class="muted" style="font-size:0.88rem;margin:0.6rem 0 0"></p>
+
+  <div id="zl-setup" style="display:none;margin-top:0.8rem">
+    <div class="alert alert-warn" style="margin-bottom:0.8rem">
+      The link needs Zotero plus the free <strong>Better BibTeX</strong> plugin, which supplies the
+      stable cite keys and the local search endpoint.
+    </div>
+
+    <ol style="font-size:0.9rem;line-height:1.65;margin:0;padding-left:1.4rem">
+      <li id="zl-step-zotero">
+        Install and start <a href="#" id="zl-zotero-link" target="_blank">Zotero 7</a>
+        (desktop app — the browser connector alone is not enough).
+      </li>
+      <li>
+        Download the Better BibTeX plugin file:
+        <a href="#" id="zl-xpi-link" target="_blank" class="btn btn-primary btn-sm"
+           style="margin-left:0.3rem">⬇ Get <code>.xpi</code></a>
+        <span class="muted">— take the <code>zotero-better-bibtex-*.xpi</code> asset of the latest release.</span>
+      </li>
+      <li>
+        In Zotero: <code>Tools ▸ Plugins</code> (Zotero 6: <code>Tools ▸ Add-ons</code>) ▸ gear icon ▸
+        <code>Install Plugin From File…</code> ▸ pick the downloaded <code>.xpi</code>.
+      </li>
+      <li>Restart Zotero, leave it running, then hit <strong>Test connection</strong> above.</li>
+    </ol>
+
+    <p class="muted" style="font-size:0.83rem;margin:0.7rem 0 0">
+      Full plugin documentation: <a href="#" id="zl-docs-link" target="_blank">Better BibTeX installation guide</a>.
+      No Zotero available? Records can still be added by hand as
+      <a href="#assumptions-card">assumptions &amp; notes</a> below.
+    </p>
+  </div>
+</div>
+
 {% if saved %}
 <div class="alert alert-ok">Saved.</div>
 {% endif %}
@@ -98,7 +142,7 @@
 </div>
 
 <!-- ── Assumptions & notes (lettered A, B, C …) ───────────────────────────── -->
-<div class="card">
+<div class="card" id="assumptions-card">
   <h2 style="margin-top:0">
     Assumptions &amp; notes
     <span class="tag" style="font-size:0.85rem;font-weight:400;margin-left:0.4rem">{{ assumptions | length }}</span>
@@ -147,6 +191,39 @@
 <script>
 const ALREADY = new Set({{ cfg.references | map(attribute='cite_key') | list | tojson }});
 
+// ── Zotero link status ────────────────────────────────────────────────────
+const ZL_PILL = {
+  ready:     { text: '● Connected',       bg: 'var(--ok-bg)',   border: 'var(--ok-border)' },
+  no_bbt:    { text: '● Plugin missing',  bg: 'var(--warn-bg)', border: 'var(--warn-border)' },
+  no_zotero: { text: '● Not running',     bg: '#f8d7da',        border: '#f5c6cb' },
+};
+
+async function checkZoteroLink() {
+  const pill  = document.getElementById('zl-pill');
+  const msg   = document.getElementById('zl-message');
+  const setup = document.getElementById('zl-setup');
+  pill.textContent = 'Checking…';
+  try {
+    const st = await (await fetch('/api/zotero/status')).json();
+    const look = ZL_PILL[st.state] || ZL_PILL.no_zotero;
+    pill.textContent = look.text;
+    pill.style.background = look.bg;
+    pill.style.borderColor = look.border;
+    msg.textContent = st.message;
+    setup.style.display = st.state === 'ready' ? 'none' : 'block';
+    document.getElementById('zl-xpi-link').href    = st.xpi_url;
+    document.getElementById('zl-docs-link').href   = st.docs_url;
+    document.getElementById('zl-zotero-link').href = st.zotero_url;
+    // Zotero itself is up — only the plugin step is left to do.
+    document.getElementById('zl-step-zotero').style.opacity = st.zotero ? '0.5' : '1';
+  } catch(e) {
+    pill.textContent = '● Unknown';
+    msg.textContent = 'Could not reach the SystemDefiner status endpoint.';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', checkZoteroLink);
+
 async function searchZotero() {
   const q = document.getElementById('zotero-q').value.trim();
   if (!q) return;
@@ -157,10 +234,12 @@ async function searchZotero() {
   try {
     const resp = await fetch(`/api/zotero/search?q=${encodeURIComponent(q)}`);
     const items = await resp.json();
-    status.textContent = items.length ? `${items.length} result(s)` : 'No results. Is Zotero running?';
+    status.textContent = items.length ? `${items.length} result(s)` : 'No results — check the Zotero link above.';
     results.innerHTML = items.map(it => renderResult(it)).join('');
+    if (!items.length) checkZoteroLink();
   } catch(e) {
     status.textContent = 'Could not reach Zotero — make sure it is open.';
+    checkZoteroLink();
   }
 }
 
