@@ -239,16 +239,22 @@ def test_exhaustive_check_tolerance_absorbs_solver_round_off():
 # system_setup._infer_exhaustive_elements — where completeness is DECLARED
 #
 # Composition fractions are parent-relative, so a parent whose children sum to
-# 1.0 on any declared flow has been stated to be fully accounted for by them.
-# This is read from the input data rather than inferred from results.
+# 1.0 on a declared flow has been stated to be fully accounted for by them.
+# This is read from the input data rather than inferred from results, and the
+# declaring flows must AGREE — see test_infer_rejects_contradicted_declaration.
 # --------------------------------------------------------------------------
 
-def _flows_sheet(**fracs):
-    """One flow row; kwargs are element names -> declared fraction."""
-    row = {"Flow_ID": "F_00_01"}
-    for elem, value in fracs.items():
-        row[f"Flow_E{ELEMENTS.index(elem) + 1}_Fraction[%]"] = value
-    return pd.DataFrame([row])
+def _flows_sheet(*rows, **fracs):
+    """Flow rows; kwargs (or per-row dicts) are element names -> fraction."""
+    if not rows:
+        rows = (fracs,)
+    frame = []
+    for n, row_fracs in enumerate(rows):
+        row = {"Flow_ID": f"F_00_{n:02d}"}
+        for elem, value in row_fracs.items():
+            row[f"Flow_E{ELEMENTS.index(elem) + 1}_Fraction[%]"] = value
+        frame.append(row)
+    return pd.DataFrame(frame)
 
 
 def test_infer_marks_node_exhaustive_when_children_sum_to_one():
@@ -270,6 +276,44 @@ def test_infer_leaves_partial_node_out():
     result = _infer_exhaustive_elements(
         {"1_1_Definition_Flows": sheet}, ELEMENT_HIERARCHY, ELEMENTS
     )
+    assert "DM" not in result
+
+
+def test_infer_rejects_contradicted_declaration():
+    """A pure-carbon boundary flow must not make a partial DM look complete.
+
+    Regression: a biomass model declares atmospheric C uptake as TC = 100% of
+    DM on the boundary flow, while every real flow carries TC at ~45% of DM
+    (Ash_content untracked). Reading only the boundary flow marked DM
+    exhaustive, and the solver's Transformer branch then overwrites DM with
+    TC on every transformation — deleting the ash fraction and breaking the
+    mass balance (observed: -55% of DM across both drying processes of the
+    JIE_Wood study, and all three Transformers of JIE_Wheat_Straw).
+    """
+    sheet = _flows_sheet(
+        {"material": 1.0, "DM": 1.0, "TC": 1.0},  # pure-carbon uptake
+        {"material": 1.0, "WC": 0.3, "DM": 0.7, "TC": 0.45},  # real biomass
+    )
+    result = _infer_exhaustive_elements(
+        {"1_1_Definition_Flows": sheet}, ELEMENT_HIERARCHY, ELEMENTS
+    )
+    assert "DM" not in result
+    # material is declared consistently (1.0 on the second row, and 1.0 on the
+    # first where the undeclared WC counts as absent) and must survive.
+    assert "material" in result
+
+
+def test_infer_accepts_consistent_declaration_across_flows():
+    """Agreement across several declaring flows still yields exhaustive."""
+    sheet = _flows_sheet(
+        {"material": 1.0, "WC": 0.2, "DM": 0.8, "TC": 0.5, "TOC": 0.6, "TIC": 0.4},
+        {"material": 1.0, "WC": 0.4, "DM": 0.6, "TC": 0.3, "TOC": 0.9, "TIC": 0.1},
+    )
+    result = _infer_exhaustive_elements(
+        {"1_1_Definition_Flows": sheet}, ELEMENT_HIERARCHY, ELEMENTS
+    )
+    assert "TC" in result
+    assert "material" in result
     assert "DM" not in result
 
 

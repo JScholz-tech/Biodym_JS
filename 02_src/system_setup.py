@@ -696,15 +696,25 @@ def _infer_exhaustive_elements(
 
     It is, however, already declared: composition fractions are parent-relative
     (see `_calculate_elemental_compositions`), so a parent whose children sum to
-    1.0 on any declared flow composition has been stated to be fully accounted
+    1.0 on a declared flow composition has been stated to be fully accounted
     for by them. That is read here from '1_1_Definition_Flows'
     (``Flow_E{n}_Fraction[%]``, n = 1-based element index), which both the Excel
     and YAML input paths populate.
 
-    Used by `engine.element_utils.validate_exhaustive_hierarchy` so the solver
-    can flag a parent that stops equalling its own children — typically a
-    hand-fitted aggregate transfer coefficient gone stale — without emitting
-    false positives on legitimately partial nodes.
+    The declaration must be CONSISTENT across the flows that make it. One flow
+    summing to 1.0 does not settle the question on its own — a boundary flow of
+    pure carbon (atmospheric uptake: TC = 100% of DM) reads as complete while
+    DM -> {TC} is partial on every other flow of the same model. Where the
+    declared flows disagree, completeness is unknown and the node is reported
+    partial.
+
+    Consumed by `engine.element_utils.validate_exhaustive_hierarchy`, so the
+    solver can flag a parent that stops equalling its own children — typically
+    a hand-fitted aggregate transfer coefficient gone stale — without emitting
+    false positives on legitimately partial nodes; and by the solver's
+    Transformer branch, which derives each exhaustive parent from its children
+    instead of from its own aggregate TC. The second use is why a false
+    positive here changes results rather than only warnings.
 
     Parameters
     ----------
@@ -755,6 +765,18 @@ def _infer_exhaustive_elements(
         cols = [frac_col[c] for c in child_names if c in frac_col]
         if not cols:
             continue
+
+        # Every flow that declares any of the children is evidence about the
+        # node, and the evidence must AGREE. A single flow summing to 1.0 is
+        # not a declaration of completeness on its own: a boundary flow that
+        # happens to be pure carbon (atmospheric C uptake, TC = 100% of DM)
+        # sums to 1.0 while DM -> {TC} is partial everywhere else in the same
+        # model. Reading only that flow marks DM exhaustive, and the solver
+        # then overwrites DM with TC on every Transformer — silently deleting
+        # the untracked ash fraction. Undeclared children count as 0.0: the
+        # composition pass treats a missing fraction as absent, not unknown.
+        declared_complete = False
+        contradicted = False
         for _, row in flows_df.iterrows():
             total = 0.0
             seen = False
@@ -766,9 +788,18 @@ def _infer_exhaustive_elements(
                         seen = True
                     except (TypeError, ValueError):
                         continue
-            if seen and abs(total - 1.0) <= tolerance:
-                exhaustive.add(parent)
-                break
+            if not seen:
+                continue
+            if abs(total - 1.0) <= tolerance:
+                declared_complete = True
+            else:
+                contradicted = True
+
+        # Inconsistent evidence leaves completeness genuinely unknown. Stay
+        # silent (partial) rather than guess: a missed warning costs a
+        # diagnostic, a wrong "exhaustive" costs mass.
+        if declared_complete and not contradicted:
+            exhaustive.add(parent)
 
     return exhaustive
 
