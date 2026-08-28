@@ -142,6 +142,14 @@ tools/
 # the T[0-9][0-9]_* pattern so the golden regression suite does not pin it.
 !01_data/01_input/case_studies/T05b_Multiwindow_TC_MC/
 !01_data/01_input/case_studies/T05b_Multiwindow_TC_MC/**
+# T18: untracked (kept locally) as of v1.4.1. Its config gives Cu no sink at
+# Recycling (F_03_00 Cu 1.0 > DM 0.5), so Cu accumulates past the DM containing
+# it and the solve does not converge. That was masked until c956c0a, which
+# stopped a pure-copper input flow from marking DM exhaustive — the Transformer
+# had been overwriting DM with Cu and pinning the two together. Re-track it
+# together with a config that gives Cu a sink, then regenerate its golden.
+01_data/01_input/case_studies/T18_Alloying_Element_Accumulation/
+04_tests/golden/T18_Alloying_Element_Accumulation.npz
 
 # Temporary hex-named lock files
 01_data/01_input/[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]

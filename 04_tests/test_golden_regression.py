@@ -42,7 +42,12 @@ TEMPLATE_XLSM = os.path.join(
 #: A reference is quarantined rather than regenerated when the current numbers
 #: are themselves invalid — regenerating would pin the defect instead of the
 #: behaviour. Remove the entry together with the config fix, then regenerate.
+#:
+#: An entry may name a study that is no longer tracked (see .gitignore): the
+#: parametrisation globs the working tree, so a fresh clone simply does not
+#: produce that case, while a working copy that still holds it stays green.
 _QUARANTINED = {
+    # Untracked since v1.4.1 — kept locally, not shipped.
     "T18_Alloying_Element_Accumulation": (
         "Config defect exposed by the _infer_exhaustive_elements contradiction "
         "fix. T18 declares Cu = 100% of DM on the pure-copper input F_05_01 "

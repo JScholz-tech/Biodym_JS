@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.1] - 2026-08-27
+
+Hotfix release. **Anyone running a biomass model on v1.3.5 or v1.4.0 should
+upgrade and re-run**: those versions silently deleted the non-carbon share of
+dry matter at every `Transformer`, and the results are wrong rather than merely
+imprecise.
+
+### Fixed
+- Engine: **mass loss at every `Transformer` in models with an untracked
+  ash fraction**. `system_setup._infer_exhaustive_elements` marked a parent
+  element complete as soon as *one* flow declared its children summing to
+  1.0. Biomass models trip this structurally: atmospheric carbon uptake is
+  declared as TC/CC = 100% of DM on the boundary flow — that flow really is
+  pure carbon — while every other flow carries TC at ~45% of DM with
+  `Ash_content` untracked. DM was therefore read as exhaustive, and since
+  v1.3.5 the solver derives every exhaustive parent from its children, so
+  `DM := TC` on each transformation and the ash fraction was discarded
+  (−55% of DM in the affected studies, propagating into `material` and into
+  every downstream process). A node is now exhaustive only when the flows
+  declaring its children **agree** — some flow sums to 1.0 and none
+  contradicts it; inconsistent evidence is reported partial. Affects
+  v1.3.5 and v1.4.0 only.
+
+### Removed
+- Tutorial **T18_Alloying_Element_Accumulation** and its golden reference are
+  no longer shipped. The fix above exposed a defect in its own configuration:
+  Recycling retains Cu (1.0) harder than the DM containing it (0.5) and
+  `F_05_01` keeps feeding copper in, so Cu accumulates without bound and the
+  solve does not converge. The overwrite had been pinning DM to Cu and hiding
+  it. The tutorial returns once its transfer coefficients give Cu a sink.
+
+### Notes
+- The v1.4.1 stabilization scope planned on 2026-07-29 (parity closeout, Monte
+  Carlo coverage gaps, Dashboard↔Workflow parity) moves to **v1.4.2** — this
+  number was taken by the hotfix.
+
+---
+
 ## [1.4.0] - 2026-08-09
 
 Headline release: **Input_Substitution** process logic promoted from the private
